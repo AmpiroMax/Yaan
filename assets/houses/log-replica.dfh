@@ -34,25 +34,25 @@ vertex v32 free 6.0000 4.6500 2.0000
 vertex v33 free -0.4000 4.6700 2.0000
 vertex v34 free 6.4000 4.6700 2.0000
 vertex v35 free 0.0000 4.5900 2.0000
-vertex v36 free 0.0000 2.9700 -0.6000
+vertex v36 free 0.0000 3.3900 -0.5700
 vertex v37 free 0.0000 4.5900 2.0000
-vertex v38 free 0.0000 2.9700 4.6000
+vertex v38 free 0.0000 3.3900 4.5700
 vertex v39 free 1.5000 4.5900 2.0000
-vertex v40 free 1.5000 2.9700 -0.6000
+vertex v40 free 1.5000 3.3900 -0.5700
 vertex v41 free 1.5000 4.5900 2.0000
-vertex v42 free 1.5000 2.9700 4.6000
+vertex v42 free 1.5000 3.3900 4.5700
 vertex v43 free 3.0000 4.5900 2.0000
-vertex v44 free 3.0000 2.9700 -0.6000
+vertex v44 free 3.0000 3.3900 -0.5700
 vertex v45 free 3.0000 4.5900 2.0000
-vertex v46 free 3.0000 2.9700 4.6000
+vertex v46 free 3.0000 3.3900 4.5700
 vertex v47 free 4.5000 4.5900 2.0000
-vertex v48 free 4.5000 2.9700 -0.6000
+vertex v48 free 4.5000 3.3900 -0.5700
 vertex v49 free 4.5000 4.5900 2.0000
-vertex v50 free 4.5000 2.9700 4.6000
+vertex v50 free 4.5000 3.3900 4.5700
 vertex v51 free 6.0000 4.5900 2.0000
-vertex v52 free 6.0000 2.9700 -0.6000
+vertex v52 free 6.0000 3.3900 -0.5700
 vertex v53 free 6.0000 4.5900 2.0000
-vertex v54 free 6.0000 2.9700 4.6000
+vertex v54 free 6.0000 3.3900 4.5700
 surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1
 line e2 v5 v6 style=- radius=0.12 mat=0 tone=2
 line e3 v7 v8 style=- radius=0.12 mat=0 tone=2
@@ -62,10 +62,10 @@ line e6 v6 v8 style=- radius=0.10 form=square mat=0 tone=2
 line e7 v8 v12 style=- radius=0.10 form=square mat=0 tone=2
 line e8 v12 v10 style=- radius=0.10 form=square mat=0 tone=2
 line e9 v10 v6 style=- radius=0.10 form=square mat=0 tone=2
-surface e10 v14 v13 style=- height=3.25 thickness=0.25 mat=0 tone=1 logends=1 wear=0.35
-surface e11 v15 v14 style=- height=3.25 thickness=0.25 mat=0 tone=1 logends=1 wear=0.35
-surface e12 v13 v16 style=- height=3.25 thickness=0.25 mat=0 tone=1 logends=1 wear=0.35
-surface e13 v16 v15 style=- height=3.25 thickness=0.25 mat=0 tone=1 doors=1 logends=1 porch=1 wear=0.35
+surface e10 v14 v13 style=- height=3.25 thickness=0.25 mat=0 tone=1 fill=4 logends=1 wear=0.35
+surface e11 v15 v14 style=- height=3.25 thickness=0.25 mat=0 tone=1 fill=4 logends=1 wear=0.35
+surface e12 v13 v16 style=- height=3.25 thickness=0.25 mat=0 tone=1 fill=4 logends=1 wear=0.35
+surface e13 v16 v15 style=- height=3.25 thickness=0.25 mat=0 tone=1 fill=4 doors=1 logends=1 porch=1 wear=0.35
 surface e14 v17 v18 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
 surface e15 v19 v20 v21 v22 style=- closed=1 thickness=0.15 mat=6 tone=1 wear=0.35
 surface e16 v23 v24 v25 v26 style=- closed=1 thickness=0.15 mat=6 tone=1 wear=0.35

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 20:08:2026 - 02:05:51
+Last updated: 20:08:2026 - 18:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -157,6 +157,7 @@ UPD:
 - 20:08:2026 - 02:05:51: flame_phase_for/flame_at и house_tile_key вынесены в заголовок (чистые
   функции, у обеих появился прибор); листы набора кэшируются полями вместо печати
   9.4 МБ на каждый промах кэша плитки.
+- 20:08:2026 - 18:40:00: HouseDoor.demo_swing — качается только выбранная в сессии дверь.
 */
 
 #pragma once
@@ -588,6 +589,11 @@ public:
         glm::vec3 hinge_b{0.0f};
         std::uint32_t surface = 0;
         std::uint32_t tone = 1;
+        /// Демонстрационное качание — ТОЛЬКО у двери, выбранной в сессии
+        /// редактирования (показать петлю). Остальные стоят ЗАКРЫТЫМИ:
+        /// приёмка 20.08 прочитала качающиеся полотна готовых домов как
+        /// «все двери перекошены и шире проёма».
+        bool demo_swing = false;
     };
     void set_house_mesh(platform::IRenderer& renderer, std::vector<HouseStream> streams,
                         std::vector<HouseDoor> doors);
@@ -612,6 +618,7 @@ private:
         uint32_t normal_asset = 0;
         glm::vec3 hinge_a{0.0f};
         glm::vec3 hinge_b{0.0f};
+        bool demo_swing = false;
     };
     std::vector<HouseStreamGpu> house_streams_;
     std::vector<HouseDoorGpu> house_doors_;

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 02:07:34
+Last updated: 20:08:2026 - 18:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -164,6 +164,7 @@ UPD:
   на каждый промах кэша плитки); ключ плитки несёт PARTS_ATLAS_REVISION и упакован без
   зазоров; shutdown() уничтожает меши светляков/свечения/призрака, потоки и двери
   постройки и программу оверлея; DFN_WIND_FREEZE читается один раз.
+- 20:08:2026 - 18:40:00: Двери без demo_swing стоят закрытыми (приёмка: «все двери перекошены»).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1072,7 +1073,10 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             const glm::vec3 axis_v = d.hinge_b - d.hinge_a;
             const float axis_len = glm::length(axis_v);
             glm::mat4 xform(1.0f);
-            if (axis_len > 1e-4f) {
+            // Качается ТОЛЬКО дверь с demo_swing (выбранная в сессии):
+            // остальные полотна стоят закрытыми — приёмка 20.08 прочитала
+            // общее качание как «все двери перекошены».
+            if (d.demo_swing && axis_len > 1e-4f) {
                 xform = glm::translate(glm::mat4(1.0f), d.hinge_a)
                       * glm::rotate(glm::mat4(1.0f), swing, axis_v / axis_len)
                       * glm::translate(glm::mat4(1.0f), -d.hinge_a);

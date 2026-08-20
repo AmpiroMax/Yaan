@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 20:08:2026 - 18:40:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -573,6 +573,7 @@ UPD:
   теперь два файла реализации. Прицел кадра считается ЛЕНИВО и один раз на отрезок
   (aim_this_frame) вместо четырёх маршей по 160 шагов. shutdown() зовёт unload_world().
 - 20:08:2026 - 15:30:00: Дверь DFN_RECORD_EVERY=<кадров> — лента прохода с состоянием для субтитров.
+- 20:08:2026 - 18:40:00: Перезаливка тела и по смене выбора: качание петли включает выбор, а выбор версию не растит.
 */
 
 #include "engine/app/sources/App.h"
@@ -2967,8 +2968,13 @@ void App::update_editor_tools(float dt_s) {
     // двери ко всем мутациям и ровно для этого заведена. Не revision(): тот
     // растёт только на отмене и отвечает на вопрос про ИМЕНА, а не про форму. Перезаливать тысячи треугольников на
     // каждый кадр значило бы платить за неподвижное.
-    if (house_.version() != house_mesh_version_) {
+    // ...и ещё по смене ВЫБОРА: качание петли включено только у выбранной
+    // двери, а выбор версию графа не растит (он не правка).
+    static world::ElementId last_selected_for_upload = world::NO_ELEMENT;
+    if (house_.version() != house_mesh_version_
+        || house_.selected_element() != last_selected_for_upload) {
         house_mesh_version_ = house_.version();
+        last_selected_for_upload = house_.selected_element();
         upload_house_mesh();
     }
     // КОЛЬЦО КИСТИ И ПРИЗРАК — ЭТО ЛИНИИ, поэтому инструмент, которому они

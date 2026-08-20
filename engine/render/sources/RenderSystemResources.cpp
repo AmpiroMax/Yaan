@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 20:08:2026 - 02:08:21
+Last updated: 20:08:2026 - 18:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -73,6 +73,7 @@ UPD:
   прыгали фазой). Осциллятор переехал в RenderSystem.h — он чистая функция и теперь
   у него есть прибор. Ранний выход ветки DFN_TORCH=2 убран: прибор DFN_LIGHT_PROBE
   молчал при жаровне. DFN_LIGHT_PROBE читается один раз.
+- 20:08:2026 - 18:40:00: demo_swing доезжает до GPU-двери.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -427,7 +428,7 @@ void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
             house_doors_.push_back({h.id, house_tile_asset(renderer, d.surface, d.tone),
                                     house_tile_asset(renderer, d.surface, d.tone,
                                                      /*normal=*/true),
-                                    d.hinge_a, d.hinge_b});
+                                    d.hinge_a, d.hinge_b, d.demo_swing});
         }
     }
 }

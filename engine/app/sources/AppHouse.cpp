@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 20:08:2026 - 17:30:00
+Last updated: 20:08:2026 - 18:40:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -37,6 +37,7 @@ UPD:
 - 20:08:2026 - 12:10:00: Краска элемента — вершинный цвет поверх плитки материала.
 - 20:08:2026 - 15:30:00: upload_house_mesh вливает готовые постройки карты (append_graph на граф) в общие потоки и ОДИН коллайдер; load_scene_houses; проба коллайдера целится сквозь вершину, контроль — над рельефом.
 - 20:08:2026 - 17:30:00: Износ: мох по нижнему метру вершинным цветом, wear>=0.7 уводит тон в выветренный ряд.
+- 20:08:2026 - 18:40:00: demo_swing — только выбранный элемент сессии; мох гуще (0.85, нижние 1.4 м).
 */
 
 #include "engine/app/sources/App.h"
@@ -492,8 +493,8 @@ void App::upload_house_mesh() {
             // сильнее, чем ниже вершина (первый метр) и чем старше элемент.
             if (part_wear > 0.0f) {
                 const float base = std::clamp(
-                    1.0f - (v.pos.y - gmin_y) / 0.9f, 0.0f, 1.0f);
-                const float k = part_wear * base * 0.55f;
+                    1.0f - (v.pos.y - gmin_y) / 1.4f, 0.0f, 1.0f);
+                const float k = part_wear * base * 0.85f;
                 if (k > 0.01f) {
                     const auto ch = [&](int shift, float target) {
                         const float c =
@@ -568,6 +569,11 @@ void App::upload_house_mesh() {
                 doors.emplace_back();
                 doors.back().surface = surface;
                 doors.back().tone = tone;
+                // Качается только дверь, ВЫБРАННАЯ в сессии редактирования —
+                // показать петлю; остальные (и все двери готовых домов)
+                // стоят закрытыми.
+                doors.back().demo_swing = (&graph == &house_.graph())
+                                       && house_.selected_element() == e->id;
                 // ПЕТЛЯ — ВЫБРАННАЯ ПАРА СОСЕДНИХ ЯКОРЕЙ (param hinge — номер
                 // ребра обхода, по кругу). Ось идёт через их мировые точки.
                 const std::size_t n = e->refs.size();

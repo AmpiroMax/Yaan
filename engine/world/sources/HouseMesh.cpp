@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 20:08:2026 - 17:30:00
+Last updated: 20:08:2026 - 19:05:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -38,6 +38,8 @@ UPD:
 - 20:08:2026 - 12:55:00: element_params_of вынесена из безымянного пространства имён (нужна пикингу).
 - 20:08:2026 - 15:30:00: Дверной проём СКВОЗНОЙ: пролёт с doors>0 собирается из простенков и перемычки той же раскладкой, что у обшивки.
 - 20:08:2026 - 17:30:00: Окна СКВОЗНЫЕ с листом остекления; кровля рядами поперёк уклона (build_roof_courses); износ роняет куски и углубляет дрожь; детали стены: перерубы, ставни+подоконник, крыльцо, завалинка (обходит дверь).
+- 20:08:2026 - 18:40:00: Венцы сруба fill=4 (ряды бруса, проёмы обходятся); кровля не роняет куски (заплатки читались багом); камень крыльца/завалинки одного тона; ставни шире и с выносом.
+- 20:08:2026 - 19:05:00: fill=4 в обшивке — только рамы проёмов: доски фахверка поверх венцов читались сайдингом.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -980,10 +982,9 @@ static void build_roof_courses(const Element& e, const ElementParams& p,
     for (float v = hi.y - piece_l; v > lo.y - piece_l; v -= expose, ++row) {
         float u = lo.x + ((row % 2 == 0) ? 0.0f : -piece_w * 0.5f);
         for (int col = 0; u < hi.x; u += piece_w, ++col) {
-            if (p.wear > 0.0f
-                && course_jitter(row * 11 + 5, col * 3 + 2) < p.wear * 0.10f) {
-                continue; // сорванная ветром дранка
-            }
+            // Износ кровли — ТОЛЬКО дрожь: выпавший кусок открывал настил,
+            // и заплатка чужого материала читалась багом, а не прорехой
+            // (приёмка кадров 20.08). Прореха — работа отдельного слоя.
             const std::vector<glm::vec2> piece =
                 clip_contour_to_rect(rot, {u, v}, {u + piece_w, v + piece_l});
             if (piece.size() < 3
@@ -1221,6 +1222,28 @@ static void build_cladding(const Element& e, const ElementParams& p, const glm::
     // КЛАДКА ВМЕСТО ДОСОК (заказ 20.08: «стену собрать из кирпичиков, из
     // каменных блоков»). Раскосов у кладки нет; рамы проёмов — общие.
     const int fill = static_cast<int>(p.fill);
+    // ВЕНЦЫ (fill=4): бревенчатой стене из обшивки принадлежат ТОЛЬКО рамы
+    // проёмов — доски и раскосы фахверка поверх венцов читались сайдингом
+    // (приёмка кадров 20.08), а сами венцы строит build_chain_surface.
+    if (fill == 4) {
+        mb.set_material(0, 2); // рама — тёмный брус
+        for (const OpeningPlacement& op : lay.openings) {
+            const float w = HOUSE_FRAME_W_M;
+            const glm::vec2 frames[4][4] = {
+                {{op.u0 - w, op.v0 - w}, {op.u1 + w, op.v0 - w},
+                 {op.u1 + w, op.v0}, {op.u0 - w, op.v0}},
+                {{op.u0 - w, op.v1}, {op.u1 + w, op.v1},
+                 {op.u1 + w, op.v1 + w}, {op.u0 - w, op.v1 + w}},
+                {{op.u0 - w, op.v0}, {op.u0, op.v0}, {op.u0, op.v1}, {op.u0 - w, op.v1}},
+                {{op.u1, op.v0}, {op.u1 + w, op.v0}, {op.u1 + w, op.v1}, {op.u1, op.v1}},
+            };
+            for (const auto& fq : frames) {
+                push_wall_slab(mb, mesh, e.id, a, dir, face_n, half + 0.11f,
+                               HOUSE_FRAME_TH_M, fq, p.tex_deg);
+            }
+        }
+        return;
+    }
     if (fill == 2 || fill == 3) {
         // Кирпич — обожжённая глина (4), блок — камень (3); тон элементный.
         mb.set_material(fill == 3 ? 3 : 4, -1);
@@ -1400,12 +1423,52 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
             build_cladding(e, p, a, dir, seg_len, face_n, half, mb, mesh);
             mb.set_material(-1, -1); // следующий пролёт пластины — материал элемента
         }
+        // ВЕНЦЫ СРУБА (fill=4, приёмка 20.08: «перерубы без брёвен» — стена
+        // между торцами была гладкой доской). Ряды горизонтального бруса на
+        // лицевой стороне, шов между рядами, глубина дышит дрожью; проёмы
+        // обходятся той же раскладкой, что резала пластину.
+        if (static_cast<int>(p.fill) == 4) {
+            mb.set_material(0, -1); // тёсаный брус, тон элементный
+            const glm::vec3 dir_l = glm::vec3{d.x, 0.0f, d.z} / seg_len;
+            const float row_h = 0.26f;
+            const float seam = 0.035f;
+            int lrow = 0;
+            for (float y = 0.02f; y + row_h < p.height + row_h * 0.5f;
+                 y += row_h + seam, ++lrow) {
+                const float y1 = std::min(y + row_h, p.height - 0.02f);
+                if (y1 - y < 0.05f) {
+                    continue;
+                }
+                // Свободные отрезки ряда: проёмы, пересекающие ряд по высоте,
+                // выкусывают из него свои u-диапазоны.
+                float u_at = 0.0f;
+                const auto log_run = [&](float u0, float u1) {
+                    if (u1 - u0 < 0.08f) {
+                        return;
+                    }
+                    const float depth =
+                        0.075f + 0.035f * course_jitter(lrow, static_cast<int>(u0 * 7));
+                    const glm::vec2 q[4] = {
+                        {u0, y}, {u1, y}, {u1, y1}, {u0, y1}};
+                    push_wall_slab(mb, mesh, e.id, a, dir_l, face_n, half,
+                                   depth * (1.0f + 0.4f * p.wear), q, p.tex_deg);
+                };
+                for (const OpeningPlacement& op : holes) {
+                    if (op.v0 < y1 && op.v1 > y) {
+                        log_run(u_at, op.u0);
+                        u_at = op.u1;
+                    }
+                }
+                log_run(u_at, seg_len);
+            }
+            mb.set_material(-1, -1);
+        }
         // ------------------- МЕЛКИЕ ДЕТАЛИ ПРОЛЁТА (20.08) -------------------
         const glm::vec3 dir_d = glm::vec3{d.x, 0.0f, d.z} / seg_len;
         // ЗАВАЛИНКА: каменный пояс вдоль низа с лицевой стороны. Дверные
         // проёмы обходит — порог не место каменному поясу.
         if (p.plinth > 0.5f) {
-            mb.set_material(3, -1);
+            mb.set_material(3, 1); // камень СРЕДНЕГО тона — как у крыльца
             const auto belt = [&](float u0, float u1) {
                 if (u1 - u0 < 0.05f) {
                     return;
@@ -1453,28 +1516,28 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
             for (const OpeningPlacement& op : holes) {
                 if (p.shutters > 0.5f && win_holes) {
                     mb.set_material(1, 2); // тёмная доска
-                    const glm::vec2 left[4] = {{op.u0 - 0.34f, op.v0},
-                                               {op.u0 - 0.04f, op.v0},
-                                               {op.u0 - 0.04f, op.v1},
-                                               {op.u0 - 0.34f, op.v1}};
-                    const glm::vec2 right[4] = {{op.u1 + 0.04f, op.v0},
-                                                {op.u1 + 0.34f, op.v0},
-                                                {op.u1 + 0.34f, op.v1},
-                                                {op.u1 + 0.04f, op.v1}};
+                    const glm::vec2 left[4] = {{op.u0 - 0.50f, op.v0},
+                                               {op.u0 - 0.10f, op.v0},
+                                               {op.u0 - 0.10f, op.v1},
+                                               {op.u0 - 0.50f, op.v1}};
+                    const glm::vec2 right[4] = {{op.u1 + 0.10f, op.v0},
+                                                {op.u1 + 0.50f, op.v0},
+                                                {op.u1 + 0.50f, op.v1},
+                                                {op.u1 + 0.10f, op.v1}};
                     const glm::vec2 sill[4] = {{op.u0 - 0.08f, op.v0 - 0.05f},
                                                {op.u1 + 0.08f, op.v0 - 0.05f},
                                                {op.u1 + 0.08f, op.v0},
                                                {op.u0 - 0.08f, op.v0}};
-                    push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.03f,
+                    push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.05f,
                                    left, p.tex_deg);
-                    push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.03f,
+                    push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.05f,
                                    right, p.tex_deg);
                     push_wall_slab(mb, mesh, e.id, a, dir_d, face_n, half, 0.09f,
                                    sill, p.tex_deg);
                     mb.set_material(-1, -1);
                 }
                 if (p.porch > 0.5f && door_holes) {
-                    mb.set_material(3, -1); // каменная плита
+                    mb.set_material(3, 1); // камень среднего тона, как завалинка
                     const glm::vec3 p1 = a + dir_d * (op.u0 - 0.2f) + face_n * half;
                     const glm::vec3 p2 = a + dir_d * (op.u1 + 0.2f) + face_n * half;
                     const glm::vec3 out = face_n * 0.55f;

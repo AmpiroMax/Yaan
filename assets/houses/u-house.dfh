@@ -113,6 +113,24 @@ vertex v111 free 14.3000 6.6000 2.0000
 vertex v112 free -0.3000 6.6000 2.0000
 vertex v113 free -0.3000 5.5000 4.3000
 vertex v114 free 14.3000 5.5000 4.3000
+vertex v115 free -0.5000 6.6200 2.0000
+vertex v116 free 14.5000 6.6200 2.0000
+vertex v117 free 0.4000 5.6500 9.6000
+vertex v118 free 0.4000 5.2500 10.7500
+vertex v119 free 10.4000 5.6500 9.6000
+vertex v120 free 10.4000 5.2500 10.7500
+vertex v121 free 1.4667 5.6500 9.6000
+vertex v122 free 1.4667 5.2500 10.7500
+vertex v123 free 11.4667 5.6500 9.6000
+vertex v124 free 11.4667 5.2500 10.7500
+vertex v125 free 2.5333 5.6500 9.6000
+vertex v126 free 2.5333 5.2500 10.7500
+vertex v127 free 12.5333 5.6500 9.6000
+vertex v128 free 12.5333 5.2500 10.7500
+vertex v129 free 3.6000 5.6500 9.6000
+vertex v130 free 3.6000 5.2500 10.7500
+vertex v131 free 13.6000 5.6500 9.6000
+vertex v132 free 13.6000 5.2500 10.7500
 surface e1 v1 v2 v3 v4 v5 v6 v7 v8 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1
 line e2 v9 v10 style=- radius=0.12 mat=3 tone=2
 line e3 v11 v12 style=- radius=0.12 mat=3 tone=2
@@ -160,3 +178,12 @@ surface e44 v99 v100 v101 v102 style=- closed=1 thickness=0.15 mat=4 tone=1 fill
 surface e45 v103 v104 v105 v106 style=- closed=1 thickness=0.15 mat=4 tone=1 fill=8 wear=0.4
 surface e46 v107 v108 v109 v110 style=- closed=1 thickness=0.15 mat=4 tone=1 fill=8 wear=0.4
 surface e47 v111 v112 v113 v114 style=- closed=1 thickness=0.15 mat=4 tone=1 fill=8 wear=0.4
+line e48 v115 v116 style=- radius=0.14 mat=0 tone=2
+line e49 v117 v118 style=- radius=0.07 mat=0 tone=2
+line e50 v119 v120 style=- radius=0.07 mat=0 tone=2
+line e51 v121 v122 style=- radius=0.07 mat=0 tone=2
+line e52 v123 v124 style=- radius=0.07 mat=0 tone=2
+line e53 v125 v126 style=- radius=0.07 mat=0 tone=2
+line e54 v127 v128 style=- radius=0.07 mat=0 tone=2
+line e55 v129 v130 style=- radius=0.07 mat=0 tone=2
+line e56 v131 v132 style=- radius=0.07 mat=0 tone=2
