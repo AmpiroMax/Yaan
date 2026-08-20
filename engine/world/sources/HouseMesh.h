@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:16:26
-Last updated: 20:08:2026 - 20:30:00
+Last updated: 21:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.h
 
@@ -56,6 +56,7 @@ UPD:
 - 20:08:2026 - 17:30:00: wear (износ) и детали logends/shutters/porch/plinth; fill 7/8 — кровля дранкой/черепицей рядами.
 - 20:08:2026 - 18:40:00: fill=4 — венцы сруба.
 - 20:08:2026 - 20:30:00: roof/unsupported (правило опоры крыш), open (марши досками/блоками), beams (потолочные балки); RoofUnsupported.
+- 21:08:2026 - 00:40:00: WallFill — заполнение именами; fill читается только через fill_kind().
 */
 
 #pragma once
@@ -159,6 +160,21 @@ inline constexpr glm::vec3 HOUSE_PAINT_RGB[HOUSE_PAINT_COUNT] = {
 };
 
 enum class LineForm : std::uint8_t { Round = 0, Square, Ngon, Plank };
+
+/// ЗАПОЛНЕНИЕ/ПОКРЫТИЕ — ИМЕНАМИ, а не голым float (аудит #3, находка 17:
+/// «ни компилятор, ни панель не знают, что fill=9 не бывает»). Поле в
+/// ElementParams остаётся числом — у лексера ОДНА таблица числовых полей, —
+/// но ЧИТАЕТСЯ только через fill_kind(): неизвестное число падает в Plain.
+enum class WallFill : std::uint8_t {
+    Plain = 0,
+    Brick = 2,
+    Block = 3,
+    Logs = 4,
+    Parquet = 5,
+    Stairs = 6,
+    Shingle = 7,
+    Tile = 8,
+};
 
 /// Числа элемента.
 ///
@@ -267,6 +283,9 @@ struct ParamIssue {
 /// пикинг читал только поле и терял высоту, заданную стилем).
 [[nodiscard]] ElementParams element_params_of(const Element& e,
                                               std::vector<ParamIssue>* issues);
+
+/// ЕДИНСТВЕННЫЙ читатель p.fill: неизвестное число — Plain, не сюрприз.
+[[nodiscard]] WallFill fill_kind(const ElementParams& p);
 
 
 /// Сколько граней у профиля на самом деле.

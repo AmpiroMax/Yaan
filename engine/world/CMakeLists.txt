@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 18:08:2026 - 18:05:07
+# Last updated: 21:08:2026 - 00:40:00
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -99,6 +99,7 @@
 #   (доска от и до, раскос под углом, проём в такой-то точке), построитель — «из
 #   каких треугольников это сделано». Раскладка проверяется числами БЕЗ окна, и
 #   она не знает ни про вершины, ни про нормали.
+# - 21:08:2026 - 00:40:00: HouseMesh.cpp разрезан на модули по файлу на алгоритм (решение пользователя).
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -108,7 +109,16 @@ add_library(dfn_world STATIC
     sources/ReliefLayer.cpp
     sources/SaveDelta.cpp
     sources/HouseFile.cpp
+    sources/HouseBodies.cpp
+    sources/HouseGeom.cpp
     sources/HouseMesh.cpp
+    sources/HouseParams.cpp
+    sources/HouseParquet.cpp
+    sources/HousePlate.cpp
+    sources/HouseRoof.cpp
+    sources/HouseRules.cpp
+    sources/HouseStairs.cpp
+    sources/HouseWalls.cpp
     sources/HouseStyle.cpp
     sources/HouseGraph.cpp
     sources/HouseRegister.cpp

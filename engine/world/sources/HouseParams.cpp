@@ -1,0 +1,227 @@
+/*
+Created: 21:08:2026 - 00:40:00
+Last updated: 21:08:2026 - 00:40:00
+Module: engine/world
+File: engine/world/sources/HouseParams.cpp
+
+Responsibility:
+- ЧИСЛА ЭЛЕМЕНТА: лексер строки стиля, таблица числовых полей (одна на
+  лексер и слияние), слияние поле-поверх-стиля, вид заполнения, грани
+  профиля.
+
+Key items:
+- parse_element_params / element_params_of / param_slots / fill_kind /
+  profile_sides.
+
+Dependencies:
+- Uses: HouseMeshDetail.h
+- Used by: сборка build_house_mesh (HouseMesh.cpp) и соседние модули постройки.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
+- ПО ФАЙЛУ НА АЛГОРИТМ (решение пользователя 21.08): модуль держит ОДИН
+  алгоритм постройки; общие руки — в HouseMeshDetail.h.
+*/
+/*
+UPD:
+- 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
+*/
+
+#include "engine/world/sources/HouseMeshDetail.h"
+
+#include <cstdlib>
+#include <cstring>
+#include <string_view>
+
+namespace dfn::world {
+
+namespace {
+
+/// Число из токена. Отказ на мусор, БЕЗ подмены нулём: молчаливый ноль в
+/// радиусе — это бревно толщиной с волос, которое никто не связал бы с
+/// опечаткой в свойствах.
+bool parse_float_token(std::string_view s, float& out) {
+    if (s.empty() || s.size() > 63) {
+        return false;
+    }
+    char buf[64];
+    std::memcpy(buf, s.data(), s.size());
+    buf[s.size()] = '\0';
+    char* end = nullptr;
+    const double v = std::strtod(buf, &end);
+    if (end == buf || *end != '\0') {
+        return false;
+    }
+    out = static_cast<float>(v);
+    return true;
+}
+
+
+} // namespace
+
+struct ParamSlot {
+    std::string_view key;
+    float ElementParams::*field;
+};
+
+/// ЧИСЛОВЫЕ ПОЛЯ ПАРАМЕТРОВ — ОДНА таблица на лексер строки и на слияние
+/// поле-поверх-стиля (аудит #3: их было две, рукописная копия отставала).
+std::span<const ParamSlot> param_slots() {
+    static const ParamSlot slots[] = {
+        {"radius", &ElementParams::radius},   {"length", &ElementParams::length},
+        {"angle_x", &ElementParams::angle_x}, {"angle_y", &ElementParams::angle_y},
+        {"angle_z", &ElementParams::angle_z}, {"thickness", &ElementParams::thickness},
+        {"height", &ElementParams::height},   {"tex_deg", &ElementParams::tex_deg},
+        {"clad", &ElementParams::clad},       {"windows", &ElementParams::windows},
+        {"fill", &ElementParams::fill},       {"doors", &ElementParams::doors},
+        {"stairs", &ElementParams::stairs},   {"wear", &ElementParams::wear},
+        {"logends", &ElementParams::logends}, {"shutters", &ElementParams::shutters},
+        {"porch", &ElementParams::porch},     {"plinth", &ElementParams::plinth},
+        {"roof", &ElementParams::roof},       {"unsupported", &ElementParams::unsupported},
+        {"open", &ElementParams::open},       {"beams", &ElementParams::beams},
+    };
+    return slots;
+}
+
+ElementParams parse_element_params(std::string_view style, std::vector<ParamIssue>* issues) {
+    const auto slots = param_slots();
+
+    ElementParams p;
+    std::size_t pos = 0;
+    bool first = true;
+    while (pos <= style.size()) {
+        const std::size_t sep = style.find(';', pos);
+        const std::string_view tok =
+            style.substr(pos, sep == std::string_view::npos ? std::string_view::npos : sep - pos);
+        pos = sep == std::string_view::npos ? style.size() + 1 : sep + 1;
+        if (tok.empty()) {
+            first = false;
+            continue;
+        }
+        const std::size_t eq = tok.find('=');
+        if (eq == std::string_view::npos) {
+            // Голое слово имеет смысл ТОЛЬКО первым: это имя стиля. Второе
+            // голое слово — почти наверняка забытый ключ, и молчать про него
+            // значит применить не то, что просили.
+            if (first) {
+                p.name = std::string(tok);
+            } else if (issues != nullptr) {
+                issues->push_back({std::string(tok), "свойство без имени ключа"});
+            }
+            first = false;
+            continue;
+        }
+        first = false;
+        const std::string_view key = tok.substr(0, eq);
+        const std::string_view val = tok.substr(eq + 1);
+        float number = 0.0f;
+        const bool numeric = parse_float_token(val, number);
+
+        if (key == "form") {
+            if (val == "round") {
+                p.form = LineForm::Round;
+            } else if (val == "square") {
+                p.form = LineForm::Square;
+            } else if (val == "ngon") {
+                p.form = LineForm::Ngon;
+            } else if (val == "plank") {
+                p.form = LineForm::Plank;
+            } else if (issues != nullptr) {
+                issues->push_back({std::string(tok),
+                                   "форма бывает round, square, ngon или plank"});
+            }
+            continue;
+        }
+        if (key == "n" || key == "sides") {
+            if (numeric) {
+                p.sides = static_cast<int>(number);
+                p.form = LineForm::Ngon;
+            } else if (issues != nullptr) {
+                issues->push_back({std::string(tok), "число граней не число"});
+            }
+            continue;
+        }
+        bool matched = false;
+        for (const ParamSlot& s : slots) {
+            if (key != s.key) {
+                continue;
+            }
+            matched = true;
+            if (numeric) {
+                p.*(s.field) = number;
+            } else if (issues != nullptr) {
+                issues->push_back({std::string(tok), "значение не число"});
+            }
+            break;
+        }
+        if (!matched && issues != nullptr) {
+            // СВОЙСТВА ДРУГИХ СЛОЁВ — НЕ ОШИБКА. Материал (mat/tone), дверь
+            // (door/hinge) и запертость обхода читает редактор и отрисовка;
+            // геометрию они не меняют, и построитель их не знает ПО ПРАВУ.
+            // Ругаться на них значило бы печатать «неизвестное свойство» на
+            // каждую дверь — и приучить всех не читать находки вовсе.
+            const bool foreign = key == "mat" || key == "tone" || key == "door"
+                              || key == "hinge" || key == "paint";
+            if (!foreign) {
+                issues->push_back({std::string(tok), "неизвестное свойство"});
+            }
+        }
+    }
+    return p;
+}
+
+WallFill fill_kind(const ElementParams& p) {
+    switch (static_cast<int>(p.fill)) {
+    case 2: return WallFill::Brick;
+    case 3: return WallFill::Block;
+    case 4: return WallFill::Logs;
+    case 5: return WallFill::Parquet;
+    case 6: return WallFill::Stairs;
+    case 7: return WallFill::Shingle;
+    case 8: return WallFill::Tile;
+    default: return WallFill::Plain;
+    }
+}
+
+int profile_sides(const ElementParams& p) {
+    if (p.form == LineForm::Square || p.form == LineForm::Plank) {
+        return 4;
+    }
+    return p.sides >= 3 ? p.sides : HOUSE_ROUND_SIDES;
+}
+
+// ---------------------------------------------------------------------------
+// Плоскость контура
+// ---------------------------------------------------------------------------
+
+ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issues) {
+    ElementParams p = parse_element_params(e.style, issues);
+    for (const auto& kv : e.params) {
+        // ТА ЖЕ ТАБЛИЦА, ЧТО У ЛЕКСЕРА (аудит #3, находка 5: рукописная
+        // цепочка else-if дублировала slots[] и молча подменяла значение
+        // ДЕФОЛТОМ, когда поле не было числом: style-радиус 0.30 при кривом
+        // поле «абв» становился 0.12). Поле пишется только когда токен —
+        // число; не-число — находка, прежнее значение живёт.
+        const std::string tok = kv.first + "=" + kv.second;
+        const ElementParams got = parse_element_params(tok, issues);
+        bool matched = false;
+        for (const auto& slot : param_slots()) {
+            if (kv.first == slot.key) {
+                float number = 0.0f;
+                if (parse_float_token(kv.second, number)) {
+                    p.*(slot.field) = got.*(slot.field);
+                }
+                matched = true;
+                break;
+            }
+        }
+        if (matched) {
+            continue;
+        }
+        if (kv.first == "form") { p.form = got.form; }
+        else if (kv.first == "sides" || kv.first == "n") { p.sides = got.sides; }
+    }
+    return p;
+}
+
+} // namespace dfn::world
