@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 00:40:00
+Last updated: 21:08:2026 - 01:50:00
 Module: engine/world
 File: engine/world/sources/HouseBodies.cpp
 
@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
+- 21:08:2026 - 01:50:00: push_prism уважает MeshBuilder.collider.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -109,6 +110,9 @@ void push_prism(MeshBuilder& mb, std::span<const glm::vec3> loop,
     // своей форме, а не по своей выпуклой оболочке. Отдельный алгоритм был бы
     // второй копией правды (правило 39) и разъехался бы с мешем в тот день,
     // когда кто-нибудь поправит триангуляцию.
+    if (!mb.collider) {
+        return; // косметический слой: картинка без физического тела
+    }
     for (std::size_t t = 0; t + 2 < tris.size(); t += 3) {
         ConvexPart part;
         part.element = owner;

@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:29:43
-Last updated: 20:08:2026 - 17:30:00
+Last updated: 21:08:2026 - 01:50:00
 Module: engine/render
 File: engine/render/sources/PartsAtlas.cpp
 
@@ -30,6 +30,7 @@ AI Agents Notice (must follow):
 UPD:
 - 17:08:2026 - 14:29:43: Создан вместе с PartsAtlas.h.
 - 20:08:2026 - 17:30:00: Рельеф камня/глины усилен художественно (проба свочей: честные мм глаз не читает); ревизия 2.
+- 21:08:2026 - 01:50:00: Сучки доски реже (порог 0.86) и тише — сетка периода перестаёт ловиться глазом.
 */
 
 #include "engine/render/sources/PartsAtlas.h"
@@ -151,18 +152,22 @@ struct Texel {
 
     // KNOTS: a hard dark eye with rings around it, one every few tiles. The
     // cell id gates rarity so knots are not on a lattice.
+    // РЕЖЕ И МЕЛЬЧЕ (приёмка кадров 21.08: «клякса-сучок повторяется
+    // читаемой сеткой ~230 px») — порог редкости поднят, глаз меньше, и
+    // контраст смолы снижен: сучок остаётся сучком вблизи, но перестаёт
+    // быть маяком, по которому взгляд ловит период тайла.
     const float id = tileable_cell_id({u, v}, {2, 3}, seed ^ 0x1Fu, 0.85f);
     float knot = 0.0f;
-    if (id > 0.74f) {
+    if (id > 0.86f) {
         const float d = tileable_cells({u, v}, {2, 3}, seed ^ 0x1Fu, 0.85f);
-        knot = 1.0f - smooth01(d * 7.0f);
-        h -= 0.22f * knot;
+        knot = 1.0f - smooth01(d * 10.0f);
+        h -= 0.16f * knot;
     }
 
     const glm::vec3 tint{1.0f - 0.10f * cut, 1.0f - 0.13f * cut, 1.0f - 0.16f * cut};
     glm::vec3 rgb = tint * (0.70f + 0.52f * h);
     // A knot is DARKER AND REDDER than the board it sits in — resin, not shade.
-    rgb *= glm::vec3{1.0f - 0.42f * knot, 1.0f - 0.52f * knot, 1.0f - 0.58f * knot};
+    rgb *= glm::vec3{1.0f - 0.28f * knot, 1.0f - 0.36f * knot, 1.0f - 0.42f * knot};
     h = std::clamp(h, 0.0f, 1.0f);
     return {rgb, h};
 }

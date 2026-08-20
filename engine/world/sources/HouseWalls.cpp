@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 00:40:00
+Last updated: 21:08:2026 - 02:45:00
 Module: engine/world
 File: engine/world/sources/HouseWalls.cpp
 
@@ -26,6 +26,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
+- 21:08:2026 - 01:50:00: build_weathering: подтёки под проёмами и трещины-зигзаги по износу; косметика без коллайдера; трещины не висят в проёмах.
+- 21:08:2026 - 02:45:00: Подтёки только на камне/штукатурке (на досках — «узор обоев»); трещины поверх кладки, 2-4 на пролёт.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -372,8 +374,14 @@ static void build_plinth_belt(const Element& e, const ElementParams& p,
         if (u1 - u0 < 0.05f) {
             return;
         }
-        const glm::vec2 q[4] = {{u0, 0.0f}, {u1, 0.0f}, {u1, 0.28f}, {u0, 0.28f}};
-        push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, 0.12f, q, p.tex_deg);
+        // Секциями по ~0.8 м: мелкая грануляция принимает вершинную грязь и
+        // мох (на цельной ленте угловая интерполяция их растворяла).
+        for (float u = u0; u < u1; u += 0.8f) {
+            const float ue = std::min(u + 0.78f, u1);
+            const glm::vec2 q[4] = {{u, 0.0f}, {ue, 0.0f}, {ue, 0.28f}, {u, 0.28f}};
+            push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, 0.12f, q,
+                           p.tex_deg);
+        }
     };
     float u_at = -0.05f;
     if (doors) {
@@ -457,6 +465,93 @@ static void build_opening_trim(const Element& e, const ElementParams& p,
 
 } // namespace
 
+/// ПОДТЁКИ И ТРЕЩИНЫ ИЗНОСА (EXTERIOR_CATALOG.md: потёки — под
+/// подоконниками и кромками; трещины ломаными по штукатурке и кладке).
+/// Подтёк — узкая плашка элементного материала в ВЫВЕТРЕННОМ тоне вниз от
+/// нижних углов проёма; трещина — зигзаг из тонких тёмных сегментов от
+/// верхней кромки. Всё по хэшу: сборка детерминирована.
+static void build_weathering(const Element& e, const ElementParams& p,
+                             const glm::vec3& a, const glm::vec3& dir, float seg_len,
+                             const glm::vec3& face_n, float half,
+                             std::span<const OpeningPlacement> holes,
+                             MeshBuilder& mb, HouseMesh& mesh) {
+    if (p.wear < 0.25f) {
+        return;
+    }
+    mb.collider = false; // косметика: в коллайдер не идёт
+    // Подтёки: ПОВЕРХ кладки и обшивки (калибровка глаз 21.08: плашка на
+    // плоскости пластины пряталась ПОД кирпичами), шире и в тёмном ряду.
+    const WallFill wf = fill_kind(p);
+    const float streak_out =
+        (wf == WallFill::Brick || wf == WallFill::Block) ? half + 0.09f
+                                                         : half + 0.012f;
+    // Подтёки — только на камне и штукатурке: на досках обшивки они легли
+    // «узором обоев» (калибровка №2), дерево мокнет иначе.
+    const bool streaks_ok =
+        p.clad < 0.5f && wf != WallFill::Logs;
+    mb.set_material(-1, 2); // элементный материал, тёмный ряд
+    for (const OpeningPlacement& op : streaks_ok
+                                          ? holes
+                                          : std::span<const OpeningPlacement>{}) {
+        for (const float ux : {op.u0 + 0.02f, op.u1 - 0.11f}) {
+            const float len =
+                0.5f + 1.2f * p.wear
+                * course_jitter(static_cast<int>(ux * 13), static_cast<int>(op.v0 * 7));
+            const float v1 = op.v0 - 0.02f;
+            const float v0 = std::max(0.02f, v1 - len);
+            if (v1 - v0 < 0.08f) {
+                continue;
+            }
+            const glm::vec2 q[4] = {{ux, v0}, {ux + 0.09f, v0},
+                                    {ux + 0.09f, v1}, {ux, v1}};
+            push_wall_slab(mb, mesh, e.id, a, dir, face_n, streak_out, 0.006f, q,
+                           p.tex_deg);
+        }
+    }
+    // Трещины: две-четыре на пролёт при wear>=0.35, ПОВЕРХ кладки (под
+    // кирпичами их было видно только в швах — «светлые царапины»).
+    if (p.wear >= 0.35f) {
+        const int n_cracks =
+            2 + static_cast<int>(course_jitter(static_cast<int>(seg_len * 5), 3)
+                                 * 3.0f * p.wear);
+        mb.set_material(-1, 2); // тёмный ряд элементного материала
+        for (int c = 0; c < n_cracks; ++c) {
+            float u = seg_len * (0.2f + 0.6f * course_jitter(c * 17 + 5,
+                                                             static_cast<int>(seg_len)));
+            // Трещина не живёт в воздухе проёма: старт над дырой уводится в
+            // ближайший простенок.
+            for (const OpeningPlacement& op : holes) {
+                if (u > op.u0 - 0.12f && u < op.u1 + 0.12f) {
+                    u = (u - op.u0 < op.u1 - u) ? std::max(0.06f, op.u0 - 0.18f)
+                                                : std::min(seg_len - 0.06f,
+                                                           op.u1 + 0.18f);
+                }
+            }
+            float v_top = p.height - 0.03f;
+            // Короткие частые изломы, к концу тоньше — длинная прямая читалась
+            // царапиной поверх текстуры (калибровка глаз 21.08).
+            const int segs = 5 + static_cast<int>(4.0f * p.wear);
+            const float fall = (p.height * (0.3f + 0.3f * p.wear))
+                             / static_cast<float>(segs);
+            for (int k = 0; k < segs; ++k) {
+                const float t = static_cast<float>(k) / static_cast<float>(segs);
+                const float wgt = 0.018f * (1.0f - t) + 0.007f * t;
+                const float du =
+                    (course_jitter(c * 29 + k, 11) - 0.5f) * 0.12f;
+                const float v_lo = v_top - fall;
+                const glm::vec2 q[4] = {{u, v_lo}, {u + wgt, v_lo},
+                                        {u + du + wgt, v_top}, {u + du, v_top}};
+                push_wall_slab(mb, mesh, e.id, a, dir, face_n, streak_out, 0.004f,
+                               q, p.tex_deg);
+                u += du;
+                v_top = v_lo;
+            }
+        }
+    }
+    mb.set_material(-1, -1);
+    mb.collider = true;
+}
+
 void build_chain_surface(const Element& e, const ElementParams& p, std::span<const glm::vec3> pts,
                          MeshBuilder& mb, HouseMesh& mesh) {
     if (p.height <= HOUSE_GEOM_EPS) {
@@ -513,6 +608,7 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
             build_opening_trim(e, p, a, dir, face_n, half, holes, doors, windows, mb,
                                mesh);
         }
+        build_weathering(e, p, a, dir, seg_len, face_n, half, holes, mb, mesh);
     }
 }
 

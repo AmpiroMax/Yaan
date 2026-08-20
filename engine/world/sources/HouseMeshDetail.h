@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 00:40:00
+Last updated: 21:08:2026 - 01:50:00
 Module: engine/world
 File: engine/world/sources/HouseMeshDetail.h
 
@@ -27,6 +27,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 21:08:2026 - 00:40:00: Создан при разрезе HouseMesh.cpp на модули.
+- 21:08:2026 - 01:50:00: MeshBuilder.collider — косметический слой без физического тела (плашка подтёка перегородила судью).
 */
 
 #pragma once
@@ -59,6 +60,10 @@ struct MeshBuilder {
     std::uint32_t part_begin = 0;
     int part_mat = -1;
     int part_tone = -1;
+    /// КОСМЕТИКА БЕЗ КОЛЛАЙДЕРА (21.08): подтёки и трещины тоньше сантиметра
+    /// физике не принадлежат — плашка подтёка в дверном проёме перегородила
+    /// судью проходимости. Слой выключает на время своих плашек.
+    bool collider = true;
 
     void begin_element(ElementId id) {
         part_element = id;

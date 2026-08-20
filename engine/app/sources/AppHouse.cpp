@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 20:08:2026 - 22:40:00
+Last updated: 21:08:2026 - 02:45:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -39,6 +39,8 @@ UPD:
 - 20:08:2026 - 17:30:00: Износ: мох по нижнему метру вершинным цветом, wear>=0.7 уводит тон в выветренный ряд.
 - 20:08:2026 - 18:40:00: demo_swing — только выбранный элемент сессии; мох гуще (0.85, нижние 1.4 м).
 - 20:08:2026 - 22:40:00: scene_index заполняется загрузкой; remap по штампу вместо переинициализации (квадратичный разгон).
+- 21:08:2026 - 01:50:00: Слой грязи и мха v2: пятна по шуму (не градиент), налёт на горизонталях, тёмная грязь у земли — калибровка после трёх слепых приёмок.
+- 21:08:2026 - 02:45:00: Мох v4: жёсткий высотный ноль (бонус горизонталей красил стену доверху), пятна мельче и контрастнее; грязь у земли полметра и темнее.
 */
 
 #include "engine/app/sources/App.h"
@@ -484,27 +486,66 @@ void App::upload_house_mesh() {
         // него в шейдере, 0xFFFFFFFF (без краски) оставляет её как есть.
         std::uint32_t part_color = 0xFFFFFFFFu;
         float part_wear = 0.0f;
+        bool part_organic = false;
         const auto to_world_vertex = [&](const world::HouseVertex& v) {
             platform::Vertex pv{};
             pv.position = to_world(v.pos);
             pv.normal = to_world(v.normal) - zero;
             pv.uv = v.uv;
             pv.color_rgba = part_color;
-            // МОХ ИЗНОСА: вершинный цвет тянется к зелёному налёту тем
-            // сильнее, чем ниже вершина (первый метр) и чем старше элемент.
-            if (part_wear > 0.0f) {
-                const float base = std::clamp(
-                    1.0f - (v.pos.y - gmin_y) / 1.4f, 0.0f, 1.0f);
-                const float k = part_wear * base * 0.85f;
-                if (k > 0.01f) {
-                    const auto ch = [&](int shift, float target) {
-                        const float c =
-                            static_cast<float>((part_color >> shift) & 0xFFu);
-                        const float m = c * (1.0f - k) + target * 255.0f * k;
-                        return static_cast<std::uint32_t>(std::lround(m)) << shift;
+            // СЛОЙ ГРЯЗИ И МХА (калибровка 21.08: равномерный градиент тонул
+            // в свету — три приёмки кадров его не увидели). Три правила из
+            // EXTERIOR_CATALOG.md:
+            //  - мох ПЯТНАМИ по шуму, гуще к земле (не ровной заливкой);
+            //  - налёт на ГОРИЗОНТАЛЯХ (верхние грани держат воду);
+            //  - тёмная грязь у самой земли — всегда, сильнее с износом.
+            {
+                const auto hash01 = [](float x, float z) {
+                    const std::int32_t ix = static_cast<std::int32_t>(std::floor(x * 2.7f));
+                    const std::int32_t iz = static_cast<std::int32_t>(std::floor(z * 2.7f));
+                    std::uint32_t h = static_cast<std::uint32_t>(ix * 73856093)
+                                    ^ static_cast<std::uint32_t>(iz * 19349663);
+                    h = (h ^ (h >> 13)) * 0x85ebca6bu;
+                    return static_cast<float>((h >> 16) & 0xFFu) / 255.0f;
+                };
+                const float low =
+                    std::clamp(1.0f - (v.pos.y - gmin_y) / 1.3f, 0.0f, 1.0f);
+                const float spots = hash01(pv.position.x * 2.0f + pv.position.y,
+                                           pv.position.z * 2.0f - pv.position.y);
+                // Мох: пятно живёт там, где шум перевалил порог. ЖЁСТКИЙ
+                // высотный ноль (калибровка №2: бонус горизонталей у верхней
+                // грани КАЖДОГО кирпича закрашивал стену доверху — ковёр
+                // вместо пятен): выше 1.3 м мха нет совсем; горизонталь
+                // усиливает пятно, но не рождает его.
+                float moss = 0.0f;
+                if (part_wear > 0.0f && part_organic && low > 0.01f) {
+                    const float need = 0.92f - 0.45f * low;
+                    if (spots > need) {
+                        moss = std::min(1.0f, part_wear * (spots - need) * 8.0f);
+                        if (pv.normal.y > 0.55f) {
+                            moss = std::min(1.0f, moss * 1.6f);
+                        }
+                    }
+                }
+                // Грязь у земли: полметра, сильнее и темнее (была «самая
+                // яркая полоса кадра» — светлый тон завалинки съедал эффект).
+                const float dirt =
+                    part_organic
+                        ? std::clamp(1.0f - (v.pos.y - gmin_y) / 0.5f, 0.0f, 1.0f)
+                              * (0.55f + 0.4f * part_wear)
+                        : 0.0f;
+                if (moss > 0.01f || dirt > 0.01f) {
+                    const auto ch = [&](int shift, float moss_t, float dirt_mul) {
+                        float c = static_cast<float>((part_color >> shift) & 0xFFu);
+                        c = c * (1.0f - moss) + moss_t * 255.0f * moss;
+                        c *= 1.0f - dirt * (1.0f - dirt_mul);
+                        return static_cast<std::uint32_t>(
+                                   std::lround(std::clamp(c, 0.0f, 255.0f)))
+                            << shift;
                     };
-                    pv.color_rgba = 0xFF000000u | ch(16, 0.52f) | ch(8, 0.72f)
-                                  | ch(0, 0.58f); // BGR: мшисто-зелёный
+                    // BGR; мох тёмно-зелёный, грязь буро-тёмная.
+                    pv.color_rgba = 0xFF000000u | ch(16, 0.30f, 0.52f)
+                                  | ch(8, 0.52f, 0.47f) | ch(0, 0.30f, 0.40f);
                 }
             }
             return pv;
@@ -561,6 +602,20 @@ void App::upload_house_mesh() {
             {
                 const std::string w = graph.param(e->id, "wear");
                 part_wear = w.empty() ? 0.0f : std::strtof(w.c_str(), nullptr);
+            }
+            // ОРГАНИКА — ТОЛЬКО НА МЕЛКОЙ ГРАНУЛЯЦИИ (калибровка глаз 21.08:
+            // на пластине стены угловые вершины размазывали мох ЗАЛИВКОЙ по
+            // всей грани). Кирпич, венец, дранка — да; пластина — нет.
+            part_organic = false;
+            if (part_wear > 0.0f) {
+                glm::vec3 plo{1e9f};
+                glm::vec3 phi{-1e9f};
+                for (std::uint32_t i = 0; i < part.index_count; ++i) {
+                    const auto& q = built.vertices[built.indices[part.index_begin + i]].pos;
+                    plo = glm::min(plo, q);
+                    phi = glm::max(phi, q);
+                }
+                part_organic = glm::length(phi - plo) < 1.4f;
             }
             // КУСОК КЛАДКИ НЕСЁТ СВОЙ МАТЕРИАЛ: доска фахверка — брус,
             // кирпич — глина, блок — камень. Элементный остаётся у пластины.
