@@ -1,0 +1,53 @@
+# dfh 1
+vertex v1 free 4.4000 0.0000 0.0000
+vertex v2 free 0.0000 0.0000 0.0000
+vertex v3 free 4.4000 0.0000 4.4000
+vertex v4 free 0.0000 0.0000 4.4000
+vertex v5 free -0.3500 14.0000 -0.3500
+vertex v6 free -0.3500 14.0000 4.7500
+vertex v7 free 4.7500 14.0000 4.7500
+vertex v8 free 4.7500 14.0000 -0.3500
+vertex v9 free 0.9580 14.3000 -0.3500
+vertex v10 free 0.0580 14.3000 -0.3500
+vertex v11 free 2.4880 14.3000 -0.3500
+vertex v12 free 1.5880 14.3000 -0.3500
+vertex v13 free 4.0180 14.3000 -0.3500
+vertex v14 free 3.1180 14.3000 -0.3500
+vertex v15 free 4.7500 14.3000 0.9580
+vertex v16 free 4.7500 14.3000 0.0580
+vertex v17 free 4.7500 14.3000 2.4880
+vertex v18 free 4.7500 14.3000 1.5880
+vertex v19 free 4.7500 14.3000 4.0180
+vertex v20 free 4.7500 14.3000 3.1180
+vertex v21 free 0.0580 14.3000 4.7500
+vertex v22 free 0.9580 14.3000 4.7500
+vertex v23 free 1.5880 14.3000 4.7500
+vertex v24 free 2.4880 14.3000 4.7500
+vertex v25 free 3.1180 14.3000 4.7500
+vertex v26 free 4.0180 14.3000 4.7500
+vertex v27 free -0.3500 14.3000 0.0580
+vertex v28 free -0.3500 14.3000 0.9580
+vertex v29 free -0.3500 14.3000 1.5880
+vertex v30 free -0.3500 14.3000 2.4880
+vertex v31 free -0.3500 14.3000 3.1180
+vertex v32 free -0.3500 14.3000 4.0180
+vertex v33 free 1.7000 0.0000 4.4000
+vertex v34 free 2.7000 0.0000 4.4000
+surface e1 v1 v2 style=- height=14 thickness=0.7 mat=3 tone=1 fill=3 windows=1 wear=0.4
+surface e2 v3 v1 style=- height=14 thickness=0.7 mat=3 tone=1 fill=3 windows=1 wear=0.4
+surface e3 v2 v4 style=- height=14 thickness=0.7 mat=3 tone=1 fill=3 windows=1 wear=0.4
+surface e4 v4 v3 style=- height=14 thickness=0.7 mat=3 tone=1 fill=3 windows=1 wear=0.4
+surface e5 v5 v6 v7 v8 style=- closed=1 thickness=0.3 mat=3 tone=1 unsupported=1
+surface e6 v9 v10 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e7 v11 v12 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e8 v13 v14 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e9 v15 v16 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e10 v17 v18 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e11 v19 v20 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e12 v21 v22 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e13 v23 v24 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e14 v25 v26 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e15 v27 v28 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e16 v29 v30 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e17 v31 v32 style=- height=1.1 thickness=0.4 mat=3 tone=1 fill=3 wear=0.4 unsupported=1
+surface e18 v33 v34 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0

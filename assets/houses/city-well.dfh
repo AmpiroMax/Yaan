@@ -1,0 +1,56 @@
+# dfh 1
+vertex v1 free 0.0000 0.0000 0.0000
+vertex v2 free 1.7000 0.0000 0.0000
+vertex v3 free 1.7000 0.0000 1.7000
+vertex v4 free 0.0000 0.0000 1.7000
+vertex v5 free 0.2000 0.0000 0.8500
+vertex v6 free 0.2000 2.2000 0.8500
+vertex v7 free 1.5000 0.0000 0.8500
+vertex v8 free 1.5000 2.2000 0.8500
+vertex v9 free -0.5000 2.8000 0.8500
+vertex v10 free 2.2000 2.8000 0.8500
+vertex v11 free 2.2000 2.0000 -0.3000
+vertex v12 free -0.5000 2.0000 -0.3000
+vertex v13 free -0.5000 2.0000 2.0000
+vertex v14 free 2.2000 2.0000 2.0000
+vertex v15 free -0.5000 1.9400 -0.3000
+vertex v16 free 2.2000 1.9400 -0.3000
+vertex v17 free -0.5000 1.8400 -0.3000
+vertex v18 free 2.2000 1.8400 -0.3000
+vertex v19 free -0.5000 1.9400 2.0000
+vertex v20 free 2.2000 1.9400 2.0000
+vertex v21 free -0.5000 1.8400 2.0000
+vertex v22 free 2.2000 1.8400 2.0000
+vertex v23 free -0.1500 2.1000 0.0500
+vertex v24 free -0.1500 2.1000 1.6500
+vertex v25 free -0.1500 2.8000 0.8500
+vertex v26 free 1.8500 2.1000 0.0500
+vertex v27 free 1.8500 2.1000 1.6500
+vertex v28 free 1.8500 2.8000 0.8500
+vertex v29 free -0.5500 2.8200 0.8500
+vertex v30 free 2.2500 2.8200 0.8500
+vertex v31 free -0.1500 2.5000 0.8500
+vertex v32 free -0.1500 1.7600 -0.5200
+vertex v33 free -0.1500 1.7600 2.2200
+vertex v34 free 1.8500 2.5000 0.8500
+vertex v35 free 1.8500 1.7600 -0.5200
+vertex v36 free 1.8500 1.7600 2.2200
+surface e1 v1 v2 style=- height=0.9 thickness=0.28 mat=3 tone=1 fill=3 wear=0.55
+surface e2 v2 v3 style=- height=0.9 thickness=0.28 mat=3 tone=1 fill=3 wear=0.55
+surface e3 v3 v4 style=- height=0.9 thickness=0.28 mat=3 tone=1 fill=3 wear=0.55
+surface e4 v4 v1 style=- height=0.9 thickness=0.28 mat=3 tone=1 fill=3 wear=0.55
+line e5 v5 v6 style=- radius=0.08 mat=0 tone=2
+line e6 v7 v8 style=- radius=0.08 mat=0 tone=2
+surface e7 v9 v10 v11 v12 style=- closed=1 thickness=0.15 mat=1 tone=2 fill=7 wear=0.5
+surface e8 v10 v9 v13 v14 style=- closed=1 thickness=0.15 mat=1 tone=2 fill=7 wear=0.5
+line e9 v15 v16 style=- radius=0.12 form=plank mat=1 tone=1
+line e10 v17 v18 style=- radius=0.09 mat=0 tone=2
+line e11 v19 v20 style=- radius=0.12 form=plank mat=1 tone=1
+line e12 v21 v22 style=- radius=0.09 mat=0 tone=2
+surface e13 v23 v24 v25 style=- closed=1 thickness=0.12 mat=0 tone=1
+surface e14 v26 v27 v28 style=- closed=1 thickness=0.12 mat=0 tone=1
+line e15 v29 v30 style=- radius=0.14 mat=0 tone=2
+line e16 v31 v32 style=- radius=0.08 mat=0 tone=2
+line e17 v31 v33 style=- radius=0.08 mat=0 tone=2
+line e18 v34 v35 style=- radius=0.08 mat=0 tone=2
+line e19 v34 v36 style=- radius=0.08 mat=0 tone=2
