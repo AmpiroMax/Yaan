@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 20:08:2026 - 18:40:00
+Last updated: 20:08:2026 - 22:40:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -38,6 +38,7 @@ UPD:
 - 20:08:2026 - 15:30:00: upload_house_mesh вливает готовые постройки карты (append_graph на граф) в общие потоки и ОДИН коллайдер; load_scene_houses; проба коллайдера целится сквозь вершину, контроль — над рельефом.
 - 20:08:2026 - 17:30:00: Износ: мох по нижнему метру вершинным цветом, wear>=0.7 уводит тон в выветренный ряд.
 - 20:08:2026 - 18:40:00: demo_swing — только выбранный элемент сессии; мох гуще (0.85, нижние 1.4 м).
+- 20:08:2026 - 22:40:00: scene_index заполняется загрузкой; remap по штампу вместо переинициализации (квадратичный разгон).
 */
 
 #include "engine/app/sources/App.h"
@@ -541,8 +542,14 @@ void App::upload_house_mesh() {
                 tone = 3u; // Weathered
             }
         };
-        std::vector<std::uint32_t> remap;
+        // Штамп вместо переинициализации: remap.assign на каждую часть давал
+        // квадратичный разгон (аудит #3, находка 7) — дом с паркетом и кровлей
+        // это десятки тысяч вершин на сотни частей при каждой правке.
+        std::vector<std::uint32_t> remap(built.vertices.size(), 0xFFFFFFFFu);
+        std::vector<std::uint32_t> remap_stamp(built.vertices.size(), 0xFFFFFFFFu);
+        std::uint32_t part_no = 0;
         for (const world::MeshPart& part : built.parts) {
+            ++part_no;
             const world::Element* e = graph.element(part.element);
             if (e == nullptr) {
                 continue;
@@ -591,10 +598,10 @@ void App::upload_house_mesh() {
                 st.tone = tone;
                 into = &st.mesh;
             }
-            remap.assign(built.vertices.size(), 0xFFFFFFFFu);
             for (std::uint32_t i = 0; i < part.index_count; ++i) {
                 const std::uint32_t vi = built.indices[part.index_begin + i];
-                if (remap[vi] == 0xFFFFFFFFu) {
+                if (remap_stamp[vi] != part_no) {
+                    remap_stamp[vi] = part_no;
                     remap[vi] = static_cast<std::uint32_t>(into->vertices.size());
                     into->vertices.push_back(to_world_vertex(built.vertices[vi]));
                 }
@@ -687,7 +694,8 @@ void App::upload_house_mesh() {
 
 void App::load_scene_houses() {
     placed_houses_.clear();
-    for (const world::ScenePlacedHouse& H : scene_doc_.houses) {
+    for (std::size_t hi = 0; hi < scene_doc_.houses.size(); ++hi) {
+        const world::ScenePlacedHouse& H = scene_doc_.houses[hi];
         std::ifstream in(H.file);
         if (!in.good()) {
             std::fprintf(stderr, "[постройка] [house] %s: файл не открылся — дом "
@@ -706,6 +714,7 @@ void App::load_scene_houses() {
         }
         ph.pos = H.position;
         ph.yaw = H.yaw;
+        ph.scene_index = hi;
         placed_houses_.push_back(std::move(ph));
     }
     if (!placed_houses_.empty() || !scene_doc_.houses.empty()) {

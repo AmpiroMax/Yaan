@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 20:08:2026 - 20:30:00
+Last updated: 20:08:2026 - 22:40:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -41,6 +41,7 @@ UPD:
 - 20:08:2026 - 18:40:00: Венцы сруба fill=4 (ряды бруса, проёмы обходятся); кровля не роняет куски (заплатки читались багом); камень крыльца/завалинки одного тона; ставни шире и с выносом.
 - 20:08:2026 - 19:05:00: fill=4 в обшивке — только рамы проёмов: доски фахверка поверх венцов читались сайдингом.
 - 20:08:2026 - 20:30:00: check_roof_support (эвристика гиперграфа: вершина крыши без стены — находка); марши open=1 доски / open=2 каменные блоки с вывалами; ветхий паркет (ширина рядов, щели, обломки, дыры); сколотые углы кладки; потолочные балки; кровля/паркет — швы циклов в хвостах.
+- 20:08:2026 - 22:40:00: param_slots() — одна таблица числовых полей на лексер и слияние (не-число больше не подменяет значение дефолтом); обшивка только для fill 2/3/4; мёртвые ветка и параметр сняты.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -255,24 +256,32 @@ struct MeshBuilder {
 // Свойства
 // ---------------------------------------------------------------------------
 
-ElementParams parse_element_params(std::string_view style, std::vector<ParamIssue>* issues) {
-    struct Slot {
-        std::string_view key;
-        float ElementParams::*field;
-    };
-    static const Slot slots[] = {
-        {"radius", &ElementParams::radius},       {"length", &ElementParams::length},
-        {"angle_x", &ElementParams::angle_x},     {"angle_y", &ElementParams::angle_y},
-        {"angle_z", &ElementParams::angle_z},     {"thickness", &ElementParams::thickness},
-        {"height", &ElementParams::height},       {"tex_deg", &ElementParams::tex_deg},
-        {"clad", &ElementParams::clad},           {"windows", &ElementParams::windows},
-        {"fill", &ElementParams::fill},           {"doors", &ElementParams::doors},
+struct ParamSlot {
+    std::string_view key;
+    float ElementParams::*field;
+};
+
+/// ЧИСЛОВЫЕ ПОЛЯ ПАРАМЕТРОВ — ОДНА таблица на лексер строки и на слияние
+/// поле-поверх-стиля (аудит #3: их было две, рукописная копия отставала).
+std::span<const ParamSlot> param_slots() {
+    static const ParamSlot slots[] = {
+        {"radius", &ElementParams::radius},   {"length", &ElementParams::length},
+        {"angle_x", &ElementParams::angle_x}, {"angle_y", &ElementParams::angle_y},
+        {"angle_z", &ElementParams::angle_z}, {"thickness", &ElementParams::thickness},
+        {"height", &ElementParams::height},   {"tex_deg", &ElementParams::tex_deg},
+        {"clad", &ElementParams::clad},       {"windows", &ElementParams::windows},
+        {"fill", &ElementParams::fill},       {"doors", &ElementParams::doors},
         {"stairs", &ElementParams::stairs},   {"wear", &ElementParams::wear},
         {"logends", &ElementParams::logends}, {"shutters", &ElementParams::shutters},
         {"porch", &ElementParams::porch},     {"plinth", &ElementParams::plinth},
         {"roof", &ElementParams::roof},       {"unsupported", &ElementParams::unsupported},
         {"open", &ElementParams::open},       {"beams", &ElementParams::beams},
     };
+    return slots;
+}
+
+ElementParams parse_element_params(std::string_view style, std::vector<ParamIssue>* issues) {
+    const auto slots = param_slots();
 
     ElementParams p;
     std::size_t pos = 0;
@@ -330,7 +339,7 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
             continue;
         }
         bool matched = false;
-        for (const Slot& s : slots) {
+        for (const ParamSlot& s : slots) {
             if (key != s.key) {
                 continue;
             }
@@ -946,13 +955,12 @@ static std::vector<glm::vec2> clip_contour_to_rect(std::span<const glm::vec2> po
 /// торчала наружу), доски лежат ВСТЫК — щелей нет, а читаются они глубинной
 /// дрожью, тем же ходом, что даёт объём кладке.
 static void build_parquet(const Element& e, const ElementParams& p,
-                          std::span<const glm::vec3> pts, const FittedPlane& plane,
+                          const FittedPlane& plane,
                           std::span<const glm::vec2> flat, const glm::vec3& ax,
                           const glm::vec3& ay, MeshBuilder& mb, HouseMesh& mesh) {
     const float plank_l = 1.2f;
     const float th = 0.018f;
     const float jig = 0.002f; ///< дрожь высоты доски: рельеф вместо щелей
-    (void)pts;
     glm::vec2 lo = flat.front();
     glm::vec2 hi = lo;
     for (const glm::vec2& f : flat) {
@@ -1048,7 +1056,7 @@ static void build_roof_courses(const Element& e, const ElementParams& p,
         lo = glm::min(lo, q);
         hi = glm::max(hi, q);
     }
-    mb.set_material(tile ? 4 : 1, tile ? -1 : -1);
+    mb.set_material(tile ? 4 : 1, -1);
     int row = 0;
     // НИЖНИЙ РЯД — ПЕРВЫМ (от карниза вверх), каждый следующий ложится ВЫШЕ
     // по скату и ПОВЕРХ предыдущего: порядок укладки настоящей кровли.
@@ -1157,7 +1165,7 @@ void build_contour_surface(const Element& e, const ElementParams& p,
     }
     push_prism(mb, loop, use, n * (half * 2.0f), p.tex_deg, mesh, e.id);
     if (static_cast<int>(p.fill) == 5) {
-        build_parquet(e, p, pts, plane, flat, u, v, mb, mesh);
+        build_parquet(e, p, plane, flat, u, v, mb, mesh);
     }
     if (static_cast<int>(p.fill) == 7 || static_cast<int>(p.fill) == 8) {
         build_roof_courses(e, p, plane, flat, u, v, mb, mesh);
@@ -1547,7 +1555,11 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
                 mb.set_material(-1, -1);
             }
         }
-        if (p.clad > 0.5f || p.fill >= 2.0f) {
+        // Обшивку зовут ТОЛЬКО стенные заполнения (2 кирпич, 3 блоки,
+        // 4 венцы): паркет/марш/кровля (5..8) — контурные, и стена с таким
+        // fill молча одевалась фахверком (аудит #3, находка 21).
+        const int fill_kind = static_cast<int>(p.fill);
+        if (p.clad > 0.5f || fill_kind == 2 || fill_kind == 3 || fill_kind == 4) {
             const glm::vec3 dir = glm::normalize(glm::vec3{d.x, 0.0f, d.z});
             build_cladding(e, p, a, dir, seg_len, face_n, half, mb, mesh);
             mb.set_material(-1, -1); // следующий пролёт пластины — материал элемента
@@ -1697,37 +1709,33 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
 ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issues) {
     ElementParams p = parse_element_params(e.style, issues);
     for (const auto& kv : e.params) {
-        // Тот же разбор, что и у строки: собираем «ключ=значение» и отдаём в
-        // общий лексер, чтобы правило чтения числа было ОДНО (правило 32).
-        const std::string one = kv.first + "=" + kv.second;
-        const ElementParams got = parse_element_params(one, issues);
-        if (kv.first == "radius") { p.radius = got.radius; }
-        else if (kv.first == "length") { p.length = got.length; }
-        else if (kv.first == "angle_x") { p.angle_x = got.angle_x; }
-        else if (kv.first == "angle_y") { p.angle_y = got.angle_y; }
-        else if (kv.first == "angle_z") { p.angle_z = got.angle_z; }
-        else if (kv.first == "thickness") { p.thickness = got.thickness; }
-        else if (kv.first == "height") { p.height = got.height; }
-        else if (kv.first == "tex_deg") { p.tex_deg = got.tex_deg; }
-        else if (kv.first == "form") { p.form = got.form; }
+        // ТА ЖЕ ТАБЛИЦА, ЧТО У ЛЕКСЕРА (аудит #3, находка 5: рукописная
+        // цепочка else-if дублировала slots[] и молча подменяла значение
+        // ДЕФОЛТОМ, когда поле не было числом: style-радиус 0.30 при кривом
+        // поле «абв» становился 0.12). Поле пишется только когда токен —
+        // число; не-число — находка, прежнее значение живёт.
+        const std::string tok = kv.first + "=" + kv.second;
+        const ElementParams got = parse_element_params(tok, issues);
+        bool matched = false;
+        for (const auto& slot : param_slots()) {
+            if (kv.first == slot.key) {
+                float number = 0.0f;
+                if (parse_float_token(kv.second, number)) {
+                    p.*(slot.field) = got.*(slot.field);
+                }
+                matched = true;
+                break;
+            }
+        }
+        if (matched) {
+            continue;
+        }
+        if (kv.first == "form") { p.form = got.form; }
         else if (kv.first == "sides" || kv.first == "n") { p.sides = got.sides; }
-        else if (kv.first == "clad") { p.clad = got.clad; }
-        else if (kv.first == "windows") { p.windows = got.windows; }
-        else if (kv.first == "fill") { p.fill = got.fill; }
-        else if (kv.first == "doors") { p.doors = got.doors; }
-        else if (kv.first == "stairs") { p.stairs = got.stairs; }
-        else if (kv.first == "wear") { p.wear = got.wear; }
-        else if (kv.first == "logends") { p.logends = got.logends; }
-        else if (kv.first == "shutters") { p.shutters = got.shutters; }
-        else if (kv.first == "porch") { p.porch = got.porch; }
-        else if (kv.first == "plinth") { p.plinth = got.plinth; }
-        else if (kv.first == "roof") { p.roof = got.roof; }
-        else if (kv.first == "unsupported") { p.unsupported = got.unsupported; }
-        else if (kv.first == "open") { p.open = got.open; }
-        else if (kv.first == "beams") { p.beams = got.beams; }
     }
     return p;
 }
+
 namespace {
 
 /// ЦЕПОЧКА ИЛИ КОНТУР — РЕШАЕТ ПРИЗНАК ЗАМКНУТОСТИ, а не высота.

@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 20:08:2026 - 21:20:00
+Last updated: 20:08:2026 - 22:40:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -39,16 +39,20 @@ UPD:
 - 20:08:2026 - 19:05:00: Стропильные торцы — над карнизом с выпуском (не «верёвки» по фасаду); у П-дома — из-под южных свесов, а не в небо.
 - 20:08:2026 - 20:30:00: Марши у-дома — доски с зазорами; потолок бара с балками; пол сруба ветхий.
 - 20:08:2026 - 21:20:00: Стропила двускатов — ПОД настилом (лежали поверх гонта, приёмка №3).
+- 20:08:2026 - 22:40:00: Одна вершина на точку (дедуп): угол тянет и стену, и столб.
 */
 
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <map>
 #include <initializer_list>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -65,9 +69,21 @@ using Params = std::initializer_list<std::pair<const char*, const char*>>;
 /// Рука над графом: рецепты читаются как список деталей, а не как API-вязь.
 struct Forge {
     HouseGraph g;
+    /// ОДНА ВЕРШИНА НА ТОЧКУ: рецепты называют углы повторно (столб и стена в
+    /// одном углу), а граф не дедуплицирует — после распаковки пользователь
+    /// тянул угол, и стена уезжала БЕЗ столба (аудит #3, находка 10).
+    std::map<std::tuple<int, int, int>, VertexId> known;
 
     VertexId v(float x, float y, float z) {
-        return g.add_vertex(Anchoring::Free, {x, y, z});
+        const auto key = std::make_tuple(static_cast<int>(std::lround(x * 1000.0f)),
+                                         static_cast<int>(std::lround(y * 1000.0f)),
+                                         static_cast<int>(std::lround(z * 1000.0f)));
+        if (const auto it = known.find(key); it != known.end()) {
+            return it->second;
+        }
+        const VertexId id = g.add_vertex(Anchoring::Free, {x, y, z});
+        known.emplace(key, id);
+        return id;
     }
 
     ElementId element(ElementKind kind, std::vector<VertexId> refs, bool closed,

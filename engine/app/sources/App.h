@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 20:08:2026 - 22:40:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -141,6 +141,7 @@ UPD:
   повторном enter_world); прицел кадра frame_aim_ + aim_this_frame()/invalidate_frame_aim()
   — марш в 160 шагов считался по четыре раза за кадр.
 - 20:08:2026 - 15:30:00: PlacedHouse + load_scene_houses (готовые постройки карты); дверь DFN_RECORD_EVERY (лента прохода).
+- 20:08:2026 - 22:40:00: PlacedHouse.scene_index — распаковка брала соседний дом при нечитаемом файле (аудит #3, находка 1).
 */
 
 #pragma once
@@ -392,6 +393,10 @@ private:
         world::HouseGraph graph;
         glm::vec3 pos{0.0f};
         float yaw = 0.0f;
+        /// Индекс СВОЕЙ записи в scene_doc_.houses. Списки не параллельны:
+        /// непрочитанный .dfh пропускается загрузкой, и поиск по индексу
+        /// сцены распаковывал СОСЕДНИЙ дом (аудит #3, находка 1).
+        std::size_t scene_index = 0;
     };
     std::vector<PlacedHouse> placed_houses_;
     /// Картинка материала набора / пример заполнения стены — для панелей.

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 12:55:00
+Last updated: 20:08:2026 - 22:40:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouse.cpp
 
@@ -51,6 +51,7 @@ UPD:
 - 20:08:2026 - 01:47:30: Штампы spin/stairs/doors при создании.
 - 20:08:2026 - 12:10:00: Штамп форм по таблице (3/6/8/12 граней, доска), штамп краски; лестница из форм убрана.
 - 20:08:2026 - 12:55:00: Формула скрещивающихся прямых — одна (axis_closest_param); пикинг контура ушами, а не веером; OnEdge-якорь скользит slide_vertex; высота из element_params_of.
+- 20:08:2026 - 22:40:00: Заготовка доезжает вся и до замкнутого контура (молча выбрасывались clad/fill/окна/дверь).
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -1668,16 +1669,21 @@ bool HouseSurfaceTool::confirm(ToolWorld& world) {
         if (paint_ > 0) {
             g.set_param(made, "paint", std::to_string(paint_));
         }
-        if (!closed && clad_) {
+        // ЗАГОТОВКА ДОЕЗЖАЕТ ВСЯ, замкнут контур или нет (UX-аудит 20.08:
+        // «Замкнуть и создать» молча выбрасывал clad/fill/окна/дверь —
+        // человек выбирал фахверк с окнами и получал голый контур). Контур
+        // стенных ключей не читает — но параметры живут, и разомкнутая позже
+        // цепочка наденет их без повторного набора.
+        if (clad_) {
             g.set_param(made, "clad", "1");
         }
-        if (!closed && fill_ >= 2) {
+        if (fill_ >= 2) {
             g.set_param(made, "fill", std::to_string(fill_));
         }
-        if (!closed && (clad_ || fill_ >= 2) && windows_ > 0) {
+        if (windows_ > 0) {
             g.set_param(made, "windows", std::to_string(windows_));
         }
-        if (!closed && (clad_ || fill_ >= 2) && doors_ > 0) {
+        if (doors_ > 0) {
             g.set_param(made, "doors", std::to_string(doors_));
         }
         if (!closed) {

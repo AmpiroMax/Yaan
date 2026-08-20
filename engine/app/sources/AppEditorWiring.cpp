@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 02:02:30
-Last updated: 20:08:2026 - 20:30:00
+Last updated: 20:08:2026 - 22:40:00
 Module: engine/app
 File: engine/app/sources/AppEditorWiring.cpp
 
@@ -31,6 +31,7 @@ UPD:
   две правки в одном доказательстве.
 - 20:08:2026 - 17:30:00: Крючки полки готовых построек: список .dfh, постановка под прицел, снятие последней.
 - 20:08:2026 - 20:30:00: Распаковка ближайшей постройки: merge_from в сессию, запись [house] снимается.
+- 20:08:2026 - 22:40:00: Распаковка ищет по placed_houses_ и стирает свою запись по scene_index.
 */
 
 #include "engine/app/sources/App.h"
@@ -266,25 +267,22 @@ void App::wire_editor_panels() {
             return;
         }
         const ToolAim aim = aim_this_frame();
-        // Ближайшая по XZ к прицелу; дальше 30 м — отказ вслух, а не «какая-то».
-        std::size_t best = scene_doc_.houses.size();
+        // Ближайшая по XZ к прицелу СРЕДИ ПОДНЯТЫХ (аудит #3: поиск по записям
+        // сцены разъезжался с placed_houses_, когда чей-то файл не читался, и
+        // распаковывался сосед); дальше 30 м — отказ вслух.
+        std::size_t best = placed_houses_.size();
         float best_d = 30.0f;
-        for (std::size_t i = 0; i < scene_doc_.houses.size(); ++i) {
-            const glm::vec3 c = scene_doc_.houses[i].position;
+        for (std::size_t i = 0; i < placed_houses_.size(); ++i) {
+            const glm::vec3 c = placed_houses_[i].pos;
             const float d = glm::length(glm::vec2{c.x - aim.point.x, c.z - aim.point.z});
             if (d < best_d) {
                 best_d = d;
                 best = i;
             }
         }
-        if (best >= scene_doc_.houses.size()) {
-            std::fprintf(stderr, "[постройка] под прицелом нет постройки (30 м)\n");
-            return;
-        }
-        // Граф уже прочитан загрузкой мира — берём его же, не файл заново.
         if (best >= placed_houses_.size()) {
-            std::fprintf(stderr, "[постройка] постройка не поднята — распаковка "
-                                 "отменена\n");
+            std::fprintf(stderr, "[постройка] под прицелом нет поднятой постройки "
+                                 "(30 м)\n");
             return;
         }
         const PlacedHouse& ph = placed_houses_[best];
@@ -303,7 +301,7 @@ void App::wire_editor_panels() {
             return;
         }
         scene_doc_.houses.erase(scene_doc_.houses.begin()
-                                + static_cast<std::ptrdiff_t>(best));
+                                + static_cast<std::ptrdiff_t>(ph.scene_index));
         load_scene_houses();
         std::fprintf(stderr,
                      "[постройка] распакована постройка #%zu: правь стены и якоря\n",

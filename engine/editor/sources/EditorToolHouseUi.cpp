@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 20:30:00
+Last updated: 20:08:2026 - 22:40:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -47,6 +47,7 @@ UPD:
 - 20:08:2026 - 12:55:00: Ползунок пишет в граф по отпусканию, а не каждый кадр.
 - 20:08:2026 - 17:30:00: Износ и детали в панели; покрытия контура — пять карточек (+дранка, черепица); полка стилей .dfstyle; полка готовых построек в панели выбора.
 - 20:08:2026 - 20:30:00: Полка построек — в панель инструмента стен (без требования выделения); кнопки марша (сплошной/доски/блоки), балок, распаковки.
+- 20:08:2026 - 22:40:00: Единая пара fill_to_card/card_to_fill + карточка венцов; отказ первой строкой; перенос карточек по ширине (две были обрезаны за краем); сетка мира над заголовком «Выбрано»; дубли кнопки удаления и координат сняты; полки не сканируют диск каждый кадр.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -197,16 +198,38 @@ static bool draw_material_grid(const ToolWorld* world, const char* id, int& mat,
     return changed;
 }
 
-/// ТРИ КАРТОЧКИ ЗАПОЛНЕНИЯ СТЕНЫ: гладкая, фахверк, фахверк с окнами.
-/// Возвращает -1 (не трогали) или выбранный вариант.
+/// ОДНА ПАРА КОДИРОВОК КАРТОЧКА<->ЗАПОЛНЕНИЕ на заготовку и выбранное
+/// (аудит #3, находка 6: две рукописные копии вели себя по-разному — выбор
+/// кладки у выбранного ОБНУЛЯЛ окна, а венцы были недостижимы из панели).
+static int fill_to_card(int fill, bool clad, int wins) {
+    if (fill == 2) { return 3; }
+    if (fill == 3) { return 4; }
+    if (fill == 4) { return 5; }
+    return clad ? (wins > 0 ? 2 : 1) : 0;
+}
+static void card_to_fill(int card, int& fill, bool& clad, int& wins) {
+    clad = card == 1 || card == 2;
+    fill = card == 3 ? 2 : (card == 4 ? 3 : (card == 5 ? 4 : 0));
+    // Счёт окон НЕ трогается — карточка выбирает правило сборки, а не
+    // отменяет пользовательский ввод; исключение — «фахверк с окнами» без
+    // окон получает стартовые два, иначе карточка выглядит несработавшей.
+    if (card == 2 && wins == 0) { wins = 2; }
+    if (card == 0) { wins = 0; }
+}
+
+/// КАРТОЧКИ ЗАПОЛНЕНИЯ СТЕНЫ: гладкая, фахверк, фахверк с окнами, кирпич,
+/// блоки, венцы. Возвращает -1 (не трогали) или выбранный вариант.
 static int draw_fill_cards(const ToolWorld* world, const char* id, int current) {
     int picked = -1;
     ImGui::PushID(id);
-    static const char* NAMES[5] = {"гладкая", "фахверк (доски и раскосы)",
+    static const char* NAMES[6] = {"гладкая", "фахверк (доски и раскосы)",
                                    "фахверк с окнами", "кирпичная кладка",
-                                   "каменные блоки"};
-    for (int v = 0; v < 5; ++v) {
-        if (v != 0) {
+                                   "каменные блоки", "венцы сруба"};
+    for (int v = 0; v < 6; ++v) {
+        // ПЕРЕНОС ПО ОСТАТКУ ШИРИНЫ (UX-аудит: пять карточек по 84 px в
+        // колонке 380 — последние обрезались за краем БЕЗ признака обрезки).
+        if (v != 0 && ImGui::GetCursorPosX() + 88.0f
+                          < ImGui::GetWindowContentRegionMax().x - 88.0f) {
             ImGui::SameLine();
         }
         ImGui::PushID(v);
@@ -477,8 +500,6 @@ static void draw_selected_element(HouseSession& session) {
             number("angle_z", "house.spin", 0.0f, 90.0f, 0.0f);
         }
         material_block();
-        {
-        }
         number("radius", "house.radius", 0.02f, 1.0f, config::HOUSE_LINE_RADIUS_DEFAULT);
     } else {
         number("thickness", "house.thickness", 0.02f, 1.0f,
@@ -507,8 +528,8 @@ static void draw_selected_element(HouseSession& session) {
                                                "house.floor.shingle",
                                                "house.floor.tile"};
             for (int v = 0; v < 5; ++v) {
-                if (v != 0) {
-                    ImGui::SameLine();
+                if (v != 0 && (v % 2) != 0) {
+                    ImGui::SameLine(); // по две в ряд — пять в строку не влезали
                 }
                 const bool sel = FLOOR_FILL[v] == fnow;
                 if (sel) {
@@ -574,16 +595,17 @@ static void draw_selected_element(HouseSession& session) {
             const int fill_now = fl.empty() ? 0 : std::atoi(fl.c_str());
             const std::string w = session.graph().param(id, "windows");
             int wins = w.empty() ? 0 : std::atoi(w.c_str());
-            const int card = fill_now >= 2 ? fill_now + 1
-                                           : (clad ? (wins > 0 ? 2 : 1) : 0);
+            const int card = fill_to_card(fill_now, clad, wins);
             if (const int picked = draw_fill_cards(g_selected_world, "sel.fill", card);
                 picked >= 0) {
+                int nfill = fill_now;
+                bool nclad = clad;
+                int nwins = wins;
+                card_to_fill(picked, nfill, nclad, nwins);
                 (void)session.mutate("заполнение стены", [&](world::HouseGraph& g) {
-                    (void)g.set_param(id, "clad",
-                                      (picked == 1 || picked == 2) ? "1" : "0");
-                    (void)g.set_param(id, "fill",
-                                      picked >= 3 ? std::to_string(picked - 1) : "0");
-                    return g.set_param(id, "windows", picked == 2 ? "2" : "0");
+                    (void)g.set_param(id, "clad", nclad ? "1" : "0");
+                    (void)g.set_param(id, "fill", std::to_string(nfill));
+                    return g.set_param(id, "windows", std::to_string(nwins));
                 });
             }
             if (clad || fill_now >= 2) {
@@ -642,8 +664,13 @@ static void draw_selected_element(HouseSession& session) {
         {
             ImGui::PushID("house.styles");
             static char style_name[48] = "мой-стиль";
-            static std::vector<std::string> shelf = list_styles();
+            static std::vector<std::string> shelf;
+            static bool scanned = false;
             static int pick = 0;
+            if (!scanned) {
+                shelf = list_styles();
+                scanned = true;
+            }
             ImGui::SetNextItemWidth(140.0f);
             ImGui::InputText("##stylename", style_name, sizeof(style_name));
             ImGui::SameLine();
@@ -655,6 +682,10 @@ static void draw_selected_element(HouseSession& session) {
                 pick = std::clamp(pick, 0, static_cast<int>(shelf.size()) - 1);
                 ImGui::SetNextItemWidth(140.0f);
                 if (ImGui::BeginCombo("##styles", shelf[static_cast<std::size_t>(pick)].c_str())) {
+                    // Открытие комбо перечитывает папку: файл, положенный
+                    // руками, раньше не появлялся до перезапуска.
+                    shelf = list_styles();
+                    pick = std::clamp(pick, 0, static_cast<int>(shelf.size()) - 1);
                     for (int i = 0; i < static_cast<int>(shelf.size()); ++i) {
                         if (ImGui::Selectable(shelf[static_cast<std::size_t>(i)].c_str(), i == pick)) {
                             pick = i;
@@ -733,10 +764,14 @@ void draw_house_shelf(const ToolWorld* world) {
     if (world != nullptr && world->house_assets && world->place_house_at_aim) {
         ImGui::PushID("house.shelf");
         static std::vector<std::string> shelf;
+        static bool scanned = false;
         static int pick = 0;
         static float yaw_deg = 0.0f;
-        if (shelf.empty() || ImGui::Button(EditorUi::tr("house.shelf.refresh"))) {
+        // Скан — по кнопке и ОДИН раз при первом показе: пустая папка
+        // сканировалась каждый кадр (UX-аудит, дефект 3).
+        if (!scanned || ImGui::Button(EditorUi::tr("house.shelf.refresh"))) {
             shelf = world->house_assets();
+            scanned = true;
         }
         if (shelf.empty()) {
             ImGui::TextDisabled("%s", EditorUi::tr("house.shelf.empty"));
@@ -773,6 +808,9 @@ void draw_house_shelf(const ToolWorld* world) {
 
 void HouseVertexTool::draw_settings() {
     g_selected_world = world_;
+    // ОТКАЗ — ПЕРВОЙ СТРОКОЙ (UX-аудит: красная строка жила в подвале, за
+    // прокруткой — ровно там, куда не смотрят в момент отказа).
+    draw_refusal(refusal_);
     // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
     // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
     // ниже под своим заголовком, и без надписей эти два блока читались как
@@ -814,32 +852,30 @@ void HouseVertexTool::draw_settings() {
                 : v->anchoring == world::Anchoring::OnEdge    ? EditorUi::tr("house.anch.edge")
                                                               : EditorUi::tr("house.anch.free");
         }
-        const glm::vec3 p = session_->vertex_world(sel);
-        ImGui::Text("v%u · %s · (%.2f %.2f %.2f)", static_cast<unsigned>(sel), how,
-                    static_cast<double>(p.x), static_cast<double>(p.y),
-                    static_cast<double>(p.z));
-        // ПОДСВЕЧЕННЫЕ ЭЛЕМЕНТЫ НАЗЫВАЮТСЯ И СЛОВАМИ. Свечение на экране
-        // отвечает «какие», список отвечает «сколько», и второе видно, даже
-        // когда камера смотрит в другую сторону.
+        // Числа координат живут ниже РЕДАКТИРУЕМЫМ InputFloat3 (сетка/
+        // координаты); текст-дубль и вторая кнопка удаления сняты по
+        // UX-аудиту 20.08 (то же число дважды, «Удалить якорь» дублировал
+        // «Убрать элемент»).
+        ImGui::Text("v%u · %s", static_cast<unsigned>(sel), how);
+        ImGui::SameLine();
         ImGui::Text("%s %zu", EditorUi::tr("house.incident"),
                     session_->lit_elements().size());
-        if (ImGui::Button(EditorUi::tr("house.delete"))) {
-            (void)delete_selected();
-        }
     }
-    draw_refusal(refusal_);
     // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
     if (session_ != nullptr) {
-        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_grid_and_coords(*session_);
+        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_selected_element(*session_);
     }
 }
 
 void HouseLineTool::draw_settings() {
     g_selected_world = world_;
+    // ОТКАЗ — ПЕРВОЙ СТРОКОЙ (UX-аудит: красная строка жила в подвале, за
+    // прокруткой — ровно там, куда не смотрят в момент отказа).
+    draw_refusal(refusal_);
     // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
     // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
     // ниже под своим заголовком, и без надписей эти два блока читались как
@@ -883,19 +919,21 @@ void HouseLineTool::draw_settings() {
     if (last_ != world::NO_ELEMENT && session_ != nullptr) {
         ImGui::Text("%s e%u", EditorUi::tr("house.last"), static_cast<unsigned>(last_));
     }
-    draw_refusal(refusal_);
     // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
     if (session_ != nullptr) {
-        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_grid_and_coords(*session_);
+        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_selected_element(*session_);
     }
 }
 
 void HouseSurfaceTool::draw_settings() {
     g_selected_world = world_;
+    // ОТКАЗ — ПЕРВОЙ СТРОКОЙ (UX-аудит: красная строка жила в подвале, за
+    // прокруткой — ровно там, куда не смотрят в момент отказа).
+    draw_refusal(refusal_);
     // ГОТОВЫЕ ПОСТРОЙКИ — ЗДЕСЬ, в секции постройки (правка 20.08), и без
     // каких-либо условий на выделение.
     ImGui::SeparatorText(EditorUi::tr("house.shelf"));
@@ -915,14 +953,11 @@ void HouseSurfaceTool::draw_settings() {
     // Карточка выбирает ПРАВИЛО СБОРКИ: 0 гладкая, 1-2 фахверк, 3 кирпич,
     // 4 блоки. Кладка (заказ 20.08) — настоящие кусочки с перевязкой, не
     // текстура.
-    const int card = fill_ >= 2 ? fill_ + 1 : (clad_ ? (windows_ > 0 ? 2 : 1) : 0);
+    const int card = fill_to_card(fill_, clad_, windows_);
     if (const int picked = draw_fill_cards(world_, "surf.fill", card); picked >= 0) {
-        clad_ = picked == 1 || picked == 2;
-        fill_ = picked >= 3 ? picked - 1 : 0;
-        windows_ = picked == 2 ? 2 : windows_;
-        if (picked == 0) {
-            windows_ = 0;
-        }
+        bool clad_b = clad_;
+        card_to_fill(picked, fill_, clad_b, windows_);
+        clad_ = clad_b;
     }
     if (clad_ || fill_ >= 2) {
         ImGui::SliderInt(EditorUi::tr("house.windows"), &windows_, 0, 6);
@@ -987,13 +1022,12 @@ void HouseSurfaceTool::draw_settings() {
     if (ImGui::Button(EditorUi::tr("house.walk.drop"))) {
         clear_draft();
     }
-    draw_refusal(refusal_);
     // СВОЙСТВА ВЫБРАННОГО — В КАЖДОЙ ПАНЕЛИ ПОСТРОЙКИ. Человек выбирает стену
     // тем инструментом, который сейчас в руке, и искать её свойства в чужой
     // панели ему незачем.
     if (session_ != nullptr) {
-        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_grid_and_coords(*session_);
+        ImGui::SeparatorText(EditorUi::tr("house.head.selected"));
         draw_selected_element(*session_);
     }
 }
