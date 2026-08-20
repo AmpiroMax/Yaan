@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:29:01
-Last updated: 20:08:2026 - 18:40:00
+Last updated: 20:08:2026 - 20:30:00
 Module: tests
 File: tests/core/HouseMeshTests.cpp
 
@@ -38,6 +38,7 @@ UPD:
 - 20:08:2026 - 15:30:00: Дверной проём сквозной: полоса двери пуста по габаритам тел, контроль — глухая стена занята.
 - 20:08:2026 - 17:30:00: Кровля рядами и износ (контроль: гладкий скат/свежая кладка); детали дают геометрию; окно сквозное с листом Pane.
 - 20:08:2026 - 18:40:00: Кровля при износе кусков не теряет — только дрожь.
+- 20:08:2026 - 20:30:00: Правило опоры крыш: на стенах молчит, в воздухе говорит, руина выходит.
 */
 
 #include <doctest/doctest.h>
@@ -1354,4 +1355,50 @@ TEST_CASE("детали стены: перерубы, ставни, крыльц
         }
     }
     CHECK(pane);
+}
+
+TEST_CASE("правило опоры крыш: висящая вершина ГОВОРИТСЯ, руина выходит") {
+    // Эвристика пользователя 20.08: у гиперребра-крыши не должно быть вершин
+    // без смежных стен. Проверка, не запрет — руины строятся с unsupported=1.
+    const auto roof_findings = [](bool with_wall, bool ruin) {
+        HouseGraph g;
+        if (with_wall) {
+            const VertexId w0 = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+            const VertexId w1 = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
+            ElementId wall = 0;
+            REQUIRE(g.add_element(ElementKind::Surface, {w0, w1},
+                                  "frame;height=2.8;thickness=0.2", wall)
+                        .ok);
+            // Вторая стена под южной кромкой.
+            const VertexId s0 = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 4.0f});
+            const VertexId s1 = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 4.0f});
+            ElementId wall2 = 0;
+            REQUIRE(g.add_element(ElementKind::Surface, {s0, s1},
+                                  "frame;height=2.8;thickness=0.2", wall2)
+                        .ok);
+        }
+        const VertexId a = g.add_vertex(Anchoring::Free, {-0.3f, 3.6f, -0.3f});
+        const VertexId b = g.add_vertex(Anchoring::Free, {4.3f, 3.6f, -0.3f});
+        const VertexId c = g.add_vertex(Anchoring::Free, {4.3f, 2.7f, 4.3f});
+        const VertexId d = g.add_vertex(Anchoring::Free, {0.0f - 0.3f, 2.7f, 4.3f});
+        ElementId roof = 0;
+        REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d},
+                              ruin ? "frame;thickness=0.15;fill=7;unsupported=1"
+                                   : "frame;thickness=0.15;fill=7",
+                              roof)
+                    .ok);
+        REQUIRE(g.set_closed(roof, true).ok);
+        int n = 0;
+        for (const auto& f : dfn::world::build_house_mesh(g).findings) {
+            if (f.what.find("висит без стены") != std::string::npos) {
+                ++n;
+            }
+        }
+        return n;
+    };
+    // Крыша на стенах — молчит; крыша в воздухе — говорит про все 4 вершины;
+    // руина в воздухе — снова молчит (третье плечо).
+    CHECK(roof_findings(true, false) == 0);
+    CHECK(roof_findings(false, false) == 4);
+    CHECK(roof_findings(false, true) == 0);
 }

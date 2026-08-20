@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:48:18
-Last updated: 20:08:2026 - 12:55:00
+Last updated: 20:08:2026 - 20:30:00
 Module: tests
 File: tests/core/HouseGraphTests.cpp
 
@@ -48,6 +48,7 @@ UPD:
   ошибочное поведение читателя. Проверка, написанная под наблюдаемое, а не под
   нужное, охраняет дефект.
 - 20:08:2026 - 12:55:00: Версия растёт только от удавшегося изменения; скольжение OnEdge-вершины.
+- 20:08:2026 - 20:30:00: Слияние графов: перенос имён, осей, параметров; контроль — свои вершины не тронуты.
 */
 
 #include <doctest/doctest.h>
@@ -909,4 +910,50 @@ TEST_CASE("вершина на оси СКОЛЬЗИТ параметром, а 
     CHECK(g.resolved_local(rider).y == doctest::Approx(4.0f));
     // КОНТРОЛЬ: свободной вершине slide_vertex отказывает.
     CHECK_FALSE(g.slide_vertex(b, 0.5f).ok);
+}
+
+TEST_CASE("слияние графов: постройка вливается с переносом имён и осей") {
+    // 20.08: поставленный дом распаковывается в сессию и правится как свой.
+    HouseGraph src;
+    const VertexId a = src.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
+    const VertexId b = src.add_vertex(Anchoring::Free, {0.0f, 3.0f, 0.0f});
+    ElementId post = 0;
+    REQUIRE(src.add_element(ElementKind::Line, {a, b}, "frame", post).ok);
+    REQUIRE(src.set_param(post, "mat", "3").ok);
+    VertexId rider = dfn::world::NO_VERTEX;
+    REQUIRE(src.add_vertex_on_edge(post, 0.5f, rider).ok);
+    ElementId wall = 0;
+    REQUIRE(src.add_element(ElementKind::Surface, {a, rider}, "frame;height=2", wall).ok);
+
+    HouseGraph dst;
+    const VertexId own = dst.add_vertex(Anchoring::OnGround, {50.0f, 0.0f, 0.0f});
+    (void)own;
+    const glm::vec3 off{10.0f, 0.0f, 20.0f};
+    REQUIRE(dst.merge_from(src, [&](glm::vec3 l) { return l + off; }).ok);
+
+    // Всё перенесено: 1 своя + 3 чужих вершины, 2 чужих элемента.
+    CHECK(dst.vertex_count() == 4);
+    CHECK(dst.element_count() == 2);
+    // Вершина на оси разрешается через НОВОГО хозяина в новом месте.
+    bool found_mid = false;
+    for (const auto& v : dst.vertices()) {
+        if (v.anchoring == Anchoring::OnEdge) {
+            const glm::vec3 p = dst.resolved_local(v.id);
+            CHECK(p.x == doctest::Approx(10.0f));
+            CHECK(p.y == doctest::Approx(1.5f));
+            CHECK(p.z == doctest::Approx(20.0f));
+            found_mid = true;
+        }
+    }
+    CHECK(found_mid);
+    // Параметры доехали.
+    bool has_mat = false;
+    for (const auto& e : dst.elements()) {
+        if (dst.param(e.id, "mat") == "3") {
+            has_mat = true;
+        }
+    }
+    CHECK(has_mat);
+    // КОНТРОЛЬ: свои имена не тронуты — своя вершина стоит где стояла.
+    CHECK(dst.resolved_local(own).x == doctest::Approx(50.0f));
 }

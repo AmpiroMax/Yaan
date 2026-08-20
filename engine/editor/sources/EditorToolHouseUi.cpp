@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:02:11
-Last updated: 20:08:2026 - 17:30:00
+Last updated: 20:08:2026 - 20:30:00
 Module: engine/editor
 File: engine/editor/sources/EditorToolHouseUi.cpp
 
@@ -46,6 +46,7 @@ UPD:
 - 20:08:2026 - 12:10:00: Семь профилей палки; ряд красок в сетке материалов; покрытия контура — три карточки (срез/паркет/марш).
 - 20:08:2026 - 12:55:00: Ползунок пишет в граф по отпусканию, а не каждый кадр.
 - 20:08:2026 - 17:30:00: Износ и детали в панели; покрытия контура — пять карточек (+дранка, черепица); полка стилей .dfstyle; полка готовых построек в панели выбора.
+- 20:08:2026 - 20:30:00: Полка построек — в панель инструмента стен (без требования выделения); кнопки марша (сплошной/доски/блоки), балок, распаковки.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -524,6 +525,48 @@ static void draw_selected_element(HouseSession& session) {
                     ImGui::PopStyleColor();
                 }
             }
+            // МАРШ: сплошной / доски с зазорами / каменные блоки (20.08).
+            if (fnow == 6) {
+                const std::string op = session.graph().param(id, "open");
+                const int onow = op.empty() ? 0 : std::atoi(op.c_str());
+                static const char* OPEN_KEY[3] = {"house.stairs.solid",
+                                                  "house.stairs.planks",
+                                                  "house.stairs.blocks"};
+                for (int v = 0; v < 3; ++v) {
+                    if (v != 0) {
+                        ImGui::SameLine();
+                    }
+                    const bool sel2 = v == onow;
+                    if (sel2) {
+                        ImGui::PushStyleColor(ImGuiCol_Button,
+                                              ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+                    }
+                    if (ImGui::Button(EditorUi::tr(OPEN_KEY[v]))) {
+                        (void)session.mutate("вид марша", [&](world::HouseGraph& g) {
+                            return g.set_param(id, "open", std::to_string(v));
+                        });
+                    }
+                    if (sel2) {
+                        ImGui::PopStyleColor();
+                    }
+                }
+            }
+            // БАЛКИ ПОД ПОТОЛКОМ — кнопка-переключатель (каталог интерьеров).
+            {
+                const bool on = session.graph().param(id, "beams") == "1";
+                if (on) {
+                    ImGui::PushStyleColor(ImGuiCol_Button,
+                                          ImVec4(0.9f, 0.77f, 0.28f, 1.0f));
+                }
+                if (ImGui::Button(EditorUi::tr("house.beams"))) {
+                    (void)session.mutate("балки", [&](world::HouseGraph& g) {
+                        return g.set_param(id, "beams", on ? "0" : "1");
+                    });
+                }
+                if (on) {
+                    ImGui::PopStyleColor();
+                }
+            }
         }
         if (!e->closed) {
             const bool clad = session.graph().param(id, "clad") == "1";
@@ -680,12 +723,14 @@ void draw_house_selection_panel(HouseSession& session, const ToolWorld* world) {
     draw_grid_and_coords(session);
     ImGui::Separator();
     draw_selected_element(session);
-    // ПОЛКА ГОТОВЫХ ПОСТРОЕК (заказ 20.08: «зарегистрировать, чтобы можно
-    // было их как готовые постройки ставить»). Дом встаёт ПОД ПРИЦЕЛ, к узлу
-    // сетки, если она включена; запись — в секцию [house] сцены, убрать можно
-    // последнюю (отмена сцены — не история графа, и панель этого не скрывает).
+}
+
+/// ПОЛКА ГОТОВЫХ ПОСТРОЕК — В ПАНЕЛИ ИНСТРУМЕНТА СТЕН (правка 20.08: «полка
+/// в инструменте выбора, доступная только при выделении, — бред; готовые
+/// дома должны быть в секции постройки»). Дом встаёт ПОД ПРИЦЕЛ, к узлу
+/// сетки, если она включена; запись — в секцию [house] сцены.
+void draw_house_shelf(const ToolWorld* world) {
     if (world != nullptr && world->house_assets && world->place_house_at_aim) {
-        ImGui::SeparatorText(EditorUi::tr("house.shelf"));
         ImGui::PushID("house.shelf");
         static std::vector<std::string> shelf;
         static int pick = 0;
@@ -716,6 +761,10 @@ void draw_house_selection_panel(HouseSession& session, const ToolWorld* world) {
                 if (ImGui::Button(EditorUi::tr("house.shelf.remove"))) {
                     world->remove_last_house();
                 }
+            }
+            if (world->unpack_house_at_aim
+                && ImGui::Button(EditorUi::tr("house.shelf.unpack"))) {
+                world->unpack_house_at_aim();
             }
         }
         ImGui::PopID();
@@ -847,6 +896,10 @@ void HouseLineTool::draw_settings() {
 
 void HouseSurfaceTool::draw_settings() {
     g_selected_world = world_;
+    // ГОТОВЫЕ ПОСТРОЙКИ — ЗДЕСЬ, в секции постройки (правка 20.08), и без
+    // каких-либо условий на выделение.
+    ImGui::SeparatorText(EditorUi::tr("house.shelf"));
+    draw_house_shelf(world_);
     // «ЗАГОТОВКА», А НЕ «ВЫБРАННОЕ» — долг 4 второго аудита. Ползунки ниже
     // описывают, каким будет СЛЕДУЮЩИЙ элемент; такие же поля выбранного стоят
     // ниже под своим заголовком, и без надписей эти два блока читались как

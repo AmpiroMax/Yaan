@@ -52,6 +52,27 @@ void main()
     vec3 albedo = v_color0.rgb;
     if (u_params.x > 0.5) {
         albedo *= texture2D(s_texColor, fract(v_texcoord0)).rgb;
+        // МАКРО-ВАРИАЦИЯ ПРОТИВ РЯБИ (заказ 20.08: «текстуры везде одинаковые,
+        // повторяются — видно, что объект искусственный»). Плитка метровая, и
+        // на большой стене её период читается глазом; два слоя ценностного
+        // шума по МИРОВЫМ координатам (периоды ~7 м и ~2.3 м, амплитуда ±12%)
+        // рассинхронизируют повторы. По миру, а не по uv — сосед-кусок кладки
+        // получает своё пятно, и стык не палит сетку.
+        vec2 wp = v_wpos.xz + v_wpos.yy * 0.37;
+        vec2 g1 = floor(wp * 0.14);
+        vec2 f1 = fract(wp * 0.14);
+        f1 = f1 * f1 * (3.0 - 2.0 * f1);
+        #define DFN_H(q) fract(sin(dot(q, vec2(127.1, 311.7))) * 43758.5453)
+        float n1 = mix(mix(DFN_H(g1), DFN_H(g1 + vec2(1.0, 0.0)), f1.x),
+                       mix(DFN_H(g1 + vec2(0.0, 1.0)), DFN_H(g1 + vec2(1.0, 1.0)), f1.x),
+                       f1.y);
+        vec2 g2 = floor(wp * 0.43);
+        vec2 f2 = fract(wp * 0.43);
+        f2 = f2 * f2 * (3.0 - 2.0 * f2);
+        float n2 = mix(mix(DFN_H(g2), DFN_H(g2 + vec2(1.0, 0.0)), f2.x),
+                       mix(DFN_H(g2 + vec2(0.0, 1.0)), DFN_H(g2 + vec2(1.0, 1.0)), f2.x),
+                       f2.y);
+        albedo *= 0.88 + 0.16 * n1 + 0.08 * n2;
     }
     // Vertex alpha is the sky-visibility channel (1.0 on everything built
     // above ground); dfn_surface_light adds moon and torch on top of sun.

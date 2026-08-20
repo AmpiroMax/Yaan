@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 14:05:00
-Last updated: 20:08:2026 - 14:05:00
+Last updated: 20:08:2026 - 20:30:00
 Module: tests/core
 File: tests/core/HousePassabilityTests.cpp
 
@@ -32,6 +32,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 20:08:2026 - 14:05:00: Создан: маршруты Г-образного и П-образного домов, счёт створок, контроль глухой стены.
+- 20:08:2026 - 20:30:00: Опора крестом из пяти точек: зазоры открытых ступеней не роняют капсулу.
 */
 
 #include <doctest/doctest.h>
@@ -152,13 +153,22 @@ WalkWorld load_house(const char* path) {
 
 /// Верх опоры под точкой: пол, ступень, настил. Земля мира — y=0.
 float support_at(const WalkWorld& w, float x, float z, float y_now) {
+    // КРЕСТ ИЗ ПЯТИ ТОЧЕК: капсула опирается ПЛОЩАДЬЮ, и зазор 3 см между
+    // блоками ступени (open=2) не роняет её в щель — как не роняет игрока.
     float best = 0.0f;
+    const float r = 0.12f;
+    const float px[5] = {x, x + r, x - r, x, x};
+    const float pz[5] = {z, z, z, z + r, z - r};
     for (const Aabb& b : w.solids) {
-        if (x < b.lo.x || x > b.hi.x || z < b.lo.z || z > b.hi.z) {
-            continue;
-        }
-        if (b.hi.y <= y_now + STEP_UP_M && b.hi.y > best) {
-            best = b.hi.y;
+        for (int k = 0; k < 5; ++k) {
+            if (px[k] < b.lo.x || px[k] > b.hi.x || pz[k] < b.lo.z
+                || pz[k] > b.hi.z) {
+                continue;
+            }
+            if (b.hi.y <= y_now + STEP_UP_M && b.hi.y > best) {
+                best = b.hi.y;
+            }
+            break;
         }
     }
     return best;

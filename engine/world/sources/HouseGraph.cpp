@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:47:20
-Last updated: 20:08:2026 - 12:55:00
+Last updated: 20:08:2026 - 20:30:00
 Module: engine/world
 File: engine/world/sources/HouseGraph.cpp
 
@@ -23,6 +23,7 @@ UPD:
 - 18:08:2026 - 18:43:05: усыновление имён (см. заголовок).
 - 18:08:2026 - 22:20:15: Все тринадцать мутаторов поднимают версию.
 - 20:08:2026 - 12:55:00: Бамп версии перенесён в точку изменения во всех мутаторах; set_param того же значения — не изменение; slide_vertex.
+- 20:08:2026 - 20:30:00: merge_from до неподвижной точки, как читатель .dfh.
 */
 
 #include "engine/world/sources/HouseGraph.h"
@@ -281,6 +282,86 @@ GraphResult HouseGraph::slide_vertex(VertexId id, float t) {
     // version().
     ++version_;
     v->host_t = clamped;
+    return {};
+}
+
+GraphResult HouseGraph::merge_from(
+    const HouseGraph& src, const std::function<glm::vec3(glm::vec3)>& map_local) {
+    // Сдвиг имён: чужие id занимают полосу за самым большим своим.
+    const VertexId v_base = next_vertex_;
+    const ElementId e_base = next_element_;
+    const auto vmap = [&](VertexId v) { return v_base + v; };
+    const auto emap = [&](ElementId e) { return e_base + e; };
+
+    // ДО НЕПОДВИЖНОЙ ТОЧКИ: обычная вершина не ждёт никого, элемент ждёт
+    // свои вершины, вершина на оси ждёт хозяина-элемент. Проход без
+    // прогресса значит цикл или битую ссылку — отказ вслух.
+    std::vector<const Vertex*> pend_v;
+    std::vector<const Element*> pend_e;
+    for (const Vertex& v : src.vertices()) {
+        pend_v.push_back(&v);
+    }
+    for (const Element& e : src.elements()) {
+        pend_e.push_back(&e);
+    }
+    while (!pend_v.empty() || !pend_e.empty()) {
+        bool progress = false;
+        for (std::size_t i = 0; i < pend_v.size();) {
+            const Vertex& v = *pend_v[i];
+            GraphResult r;
+            if (v.anchoring == Anchoring::OnEdge) {
+                if (element(emap(v.host)) == nullptr) {
+                    ++i;
+                    continue; // хозяин ещё не перенесён
+                }
+                r = adopt_vertex_on_edge(vmap(v.id), emap(v.host), v.host_t);
+            } else {
+                r = adopt_vertex(vmap(v.id), v.anchoring, map_local(v.local));
+            }
+            if (!r.ok) {
+                return r;
+            }
+            pend_v.erase(pend_v.begin() + static_cast<std::ptrdiff_t>(i));
+            progress = true;
+        }
+        for (std::size_t i = 0; i < pend_e.size();) {
+            const Element& e = *pend_e[i];
+            bool ready = true;
+            for (const VertexId r0 : e.refs) {
+                if (vertex(vmap(r0)) == nullptr) {
+                    ready = false;
+                    break;
+                }
+            }
+            if (!ready) {
+                ++i;
+                continue;
+            }
+            std::vector<VertexId> refs;
+            refs.reserve(e.refs.size());
+            for (const VertexId r0 : e.refs) {
+                refs.push_back(vmap(r0));
+            }
+            GraphResult r = adopt_element(emap(e.id), e.kind, std::move(refs), e.style);
+            if (!r.ok) {
+                return r;
+            }
+            if (e.closed) {
+                (void)set_closed(emap(e.id), true);
+            }
+            if (e.facing_flipped) {
+                (void)set_facing(emap(e.id), true);
+            }
+            for (const auto& kv : e.params) {
+                (void)set_param(emap(e.id), kv.first, kv.second);
+            }
+            pend_e.erase(pend_e.begin() + static_cast<std::ptrdiff_t>(i));
+            progress = true;
+        }
+        if (!progress) {
+            return {false, "слияние не сходится: цикл или битая ссылка", {}};
+        }
+    }
     return {};
 }
 

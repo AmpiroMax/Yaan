@@ -167,13 +167,13 @@ surface e33 v63 v64 style=- height=2.8 thickness=0.15 mat=5 tone=0 doors=1
 surface e34 v65 v66 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
 surface e35 v67 v68 style=- height=2.8 thickness=0.15 mat=5 tone=0 doors=1
 surface e36 v69 v70 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
-surface e37 v71 v72 v73 v74 style=- closed=1 thickness=0.12 mat=1 tone=1
+surface e37 v71 v72 v73 v74 style=- closed=1 thickness=0.12 mat=1 tone=1 beams=1
 surface e38 v75 v76 v77 v78 style=- closed=1 thickness=0.12 mat=1 tone=1
 surface e39 v79 v80 v81 v82 style=- closed=1 thickness=0.12 mat=1 tone=1
 surface e40 v83 v84 v85 v86 style=- closed=1 thickness=0.12 mat=1 tone=1
 surface e41 v87 v88 v89 v90 style=- closed=1 thickness=0.12 mat=1 tone=1
-surface e42 v91 v92 v93 v94 style=- closed=1 thickness=0.1 fill=6 mat=1 tone=1
-surface e43 v95 v96 v97 v98 style=- closed=1 thickness=0.1 fill=6 mat=1 tone=1
+surface e42 v91 v92 v93 v94 style=- closed=1 thickness=0.1 fill=6 mat=1 tone=1 open=1 wear=0.3
+surface e43 v95 v96 v97 v98 style=- closed=1 thickness=0.1 fill=6 mat=1 tone=1 open=1 wear=0.3
 surface e44 v99 v100 v101 v102 style=- closed=1 thickness=0.15 mat=4 tone=1 fill=8 wear=0.4
 surface e45 v103 v104 v105 v106 style=- closed=1 thickness=0.15 mat=4 tone=1 fill=8 wear=0.4
 surface e46 v107 v108 v109 v110 style=- closed=1 thickness=0.15 mat=4 tone=1 fill=8 wear=0.4

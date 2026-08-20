@@ -1,0 +1,8 @@
+# dfstyle 1 — ветхая деревенская стена: фахверк с сильным износом
+mat = 5
+tone = 3
+clad = 1
+windows = 1
+shutters = 1
+plinth = 1
+wear = 0.8

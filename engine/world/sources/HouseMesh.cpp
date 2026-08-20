@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 20:08:2026 - 19:05:00
+Last updated: 20:08:2026 - 20:30:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -40,6 +40,7 @@ UPD:
 - 20:08:2026 - 17:30:00: Окна СКВОЗНЫЕ с листом остекления; кровля рядами поперёк уклона (build_roof_courses); износ роняет куски и углубляет дрожь; детали стены: перерубы, ставни+подоконник, крыльцо, завалинка (обходит дверь).
 - 20:08:2026 - 18:40:00: Венцы сруба fill=4 (ряды бруса, проёмы обходятся); кровля не роняет куски (заплатки читались багом); камень крыльца/завалинки одного тона; ставни шире и с выносом.
 - 20:08:2026 - 19:05:00: fill=4 в обшивке — только рамы проёмов: доски фахверка поверх венцов читались сайдингом.
+- 20:08:2026 - 20:30:00: check_roof_support (эвристика гиперграфа: вершина крыши без стены — находка); марши open=1 доски / open=2 каменные блоки с вывалами; ветхий паркет (ширина рядов, щели, обломки, дыры); сколотые углы кладки; потолочные балки; кровля/паркет — швы циклов в хвостах.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -269,6 +270,8 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
         {"stairs", &ElementParams::stairs},   {"wear", &ElementParams::wear},
         {"logends", &ElementParams::logends}, {"shutters", &ElementParams::shutters},
         {"porch", &ElementParams::porch},     {"plinth", &ElementParams::plinth},
+        {"roof", &ElementParams::roof},       {"unsupported", &ElementParams::unsupported},
+        {"open", &ElementParams::open},       {"beams", &ElementParams::beams},
     };
 
     ElementParams p;
@@ -687,6 +690,8 @@ void push_prism(MeshBuilder& mb, std::span<const glm::vec3> loop,
 /// глубину до низа: физика получает те же коробы (push_prism кладёт выпуклые
 /// куски по своим же треугольникам), то есть коллизия — настоящие ступени, а
 /// не наклонная доска. Боковины-тетивы — наклонные плиты по бокам марша.
+static float course_jitter(int row, int col); // определена у кладки ниже
+
 inline constexpr float HOUSE_STAIR_RISE_M = 0.175f;
 inline constexpr float HOUSE_STRINGER_BAND_M = 0.26f; ///< высота тетивы
 inline constexpr float HOUSE_STRINGER_TH_M = 0.045f;  ///< толщина тетивы
@@ -712,9 +717,59 @@ static void build_stairs(const Element& e, const ElementParams& p, glm::vec3 a, 
     const float tread = run / static_cast<float>(steps);
     const std::uint32_t quad[6] = {0, 1, 2, 0, 2, 3};
     for (int i = 0; i < steps; ++i) {
-        // Короб ступени: от её пола до её верха, глубиной в одну проступь.
         const glm::vec3 base = a + dir * (tread * static_cast<float>(i))
                              + glm::vec3{0.0f, rise * static_cast<float>(i), 0.0f};
+        if (p.open > 1.5f) {
+            // СТУПЕНЬ ИЗ КАМЕННЫХ БЛОКОВ (EXTERIOR_CATALOG.md, image copy 12):
+            // 2-3 блока по ширине, зазор 2-4 см, каждый блок дышит высотой и
+            // глубиной; при износе блок может ВЫВАЛИТЬСЯ (один из пяти).
+            const int nblocks = half_w > 0.55f ? 3 : 2;
+            const float gap_b = 0.03f;
+            const float bw = (half_w * 2.0f - gap_b * (nblocks - 1))
+                           / static_cast<float>(nblocks);
+            const glm::vec3 top = base + glm::vec3{0.0f, rise, 0.0f};
+            for (int bkk = 0; bkk < nblocks; ++bkk) {
+                if (p.wear > 0.0f
+                    && course_jitter(i * 29 + bkk * 7, 11) < p.wear * 0.2f) {
+                    continue; // вывалившийся блок — читается провалом ступени
+                }
+                const float j_h = 0.012f * (course_jitter(i * 3 + bkk, 19) - 0.5f);
+                const float j_d = 0.03f * course_jitter(bkk * 5 + 1, i * 7 + 2);
+                const glm::vec3 s0 = top - side * half_w
+                                   + side * ((bw + gap_b) * static_cast<float>(bkk))
+                                   + glm::vec3{0.0f, j_h, 0.0f};
+                const glm::vec3 loop[4] = {
+                    s0 - dir * (0.02f + j_d), s0 + side * bw - dir * (0.02f + j_d),
+                    s0 + side * bw + dir * (tread + 0.02f), s0 + dir * (tread + 0.02f)};
+                glm::vec3 sunk[4];
+                for (int k = 0; k < 4; ++k) {
+                    sunk[k] = loop[k] - glm::vec3{0.0f, 0.16f, 0.0f};
+                }
+                push_prism(mb, sunk, quad, glm::vec3{0.0f, 0.16f, 0.0f},
+                           p.tex_deg, mesh, e.id);
+            }
+            continue;
+        }
+        if (p.open > 0.5f) {
+            // ОТКРЫТАЯ СТУПЕНЬ (20.08): доска на тетивах, под ней воздух.
+            // Нос выступает на 3 см; износ грызёт края — ширина дышит.
+            const float bite =
+                p.wear * 0.06f * course_jitter(i * 13 + 7, static_cast<int>(half_w * 10));
+            const float w0 = half_w - bite;
+            const glm::vec3 top = base + glm::vec3{0.0f, rise, 0.0f};
+            const glm::vec3 loop[4] = {top - side * w0 - dir * 0.03f,
+                                       top + side * w0 - dir * 0.03f,
+                                       top + side * w0 + dir * (tread + 0.02f),
+                                       top - side * w0 + dir * (tread + 0.02f)};
+            glm::vec3 sunk[4];
+            for (int k = 0; k < 4; ++k) {
+                sunk[k] = loop[k] - glm::vec3{0.0f, 0.05f, 0.0f};
+            }
+            push_prism(mb, sunk, quad, glm::vec3{0.0f, 0.05f, 0.0f}, p.tex_deg,
+                       mesh, e.id);
+            continue;
+        }
+        // Короб ступени: от её пола до её верха, глубиной в одну проступь.
         const glm::vec3 loop[4] = {base - side * half_w, base + side * half_w,
                                    base + side * half_w + dir * tread,
                                    base - side * half_w + dir * tread};
@@ -842,8 +897,6 @@ void build_line(const HouseGraph& g, const Element& e, const ElementParams& p, M
     push_prism(mb, ring, tris, axis, p.tex_deg, mesh, e.id);
 }
 
-static float course_jitter(int row, int col); // определена у кладки ниже
-
 /// Клип контура по прямоугольнику доски: Сазерленд–Ходжман, субъект может
 /// быть НЕВЫПУКЛЫМ (Г-образный пол), отсекатель — четыре полуплоскости ячейки.
 /// Многосвязный результат склеен мостиками нулевой площади — они дают
@@ -897,7 +950,6 @@ static void build_parquet(const Element& e, const ElementParams& p,
                           std::span<const glm::vec2> flat, const glm::vec3& ax,
                           const glm::vec3& ay, MeshBuilder& mb, HouseMesh& mesh) {
     const float plank_l = 1.2f;
-    const float plank_w = 0.16f;
     const float th = 0.018f;
     const float jig = 0.002f; ///< дрожь высоты доски: рельеф вместо щелей
     (void)pts;
@@ -909,17 +961,36 @@ static void build_parquet(const Element& e, const ElementParams& p,
     }
     mb.set_material(1, -1); // пилёная доска, тон элементный
     int row = 0;
-    for (float v = lo.y; v < hi.y; v += plank_w, ++row) {
+    // ВЕТХОСТЬ (20.08: «доски неровные по ширине, где-то щели, обломки»):
+    // износ делает ширину ряда СВОЕЙ (0.13..0.22), открывает постоянные щели
+    // между рядами, роняет отдельные куски (дыры до плиты) и обламывает
+    // концы досок. Всё по хэшу — сборка детерминирована.
+    for (float v = lo.y; v < hi.y; ++row) {
+        const float plank_w =
+            0.16f + p.wear * (course_jitter(row * 3 + 1, 17) - 0.5f) * 0.12f;
+        const float row_gap = p.wear * (0.004f + 0.014f * course_jitter(row, 29));
         float u = lo.x + ((row % 2 == 0) ? 0.0f : -plank_l * 0.5f);
-        for (int col = 0; u < hi.x; u += plank_l, ++col) {
+        for (int col = 0; u < hi.x; ++col) {
+            // Обломок: конец доски съеден на треть-половину.
+            float len = plank_l;
+            if (p.wear > 0.0f && course_jitter(row * 7 + 2, col * 5 + 3) < p.wear * 0.18f) {
+                len *= 0.45f + 0.3f * course_jitter(col, row);
+            }
+            // Дыра: доска выпала целиком, виден настил.
+            if (p.wear > 0.0f && course_jitter(row * 11 + 4, col * 7 + 6) < p.wear * 0.07f) {
+                u += plank_l;
+                continue;
+            }
             const std::vector<glm::vec2> piece =
-                clip_contour_to_rect(flat, {u, v}, {u + plank_l, v + plank_w});
+                clip_contour_to_rect(flat, {u, v}, {u + len, v + plank_w});
             if (piece.size() < 3
                 || std::abs(polygon_area_2d(piece)) < plank_w * plank_w * 0.25f) {
+                u += plank_l; // шаг в хвосте: continue без шага вертел бы цикл вечно
                 continue;
             }
             const std::vector<std::uint32_t> tris = triangulate_contour(piece);
             if (tris.empty()) {
+                u += plank_l;
                 continue;
             }
             // Поверх лицевой стороны пластины: половина толщины + своя дрожь.
@@ -931,7 +1002,9 @@ static void build_parquet(const Element& e, const ElementParams& p,
                 loop.push_back(plane.origin + ax * q.x + ay * q.y + lift);
             }
             push_prism(mb, loop, tris, plane.normal * th, p.tex_deg, mesh, e.id);
+            u += plank_l;
         }
+        v += plank_w + row_gap;
     }
     mb.set_material(-1, -1);
 }
@@ -1089,6 +1162,48 @@ void build_contour_surface(const Element& e, const ElementParams& p,
     if (static_cast<int>(p.fill) == 7 || static_cast<int>(p.fill) == 8) {
         build_roof_courses(e, p, plane, flat, u, v, mb, mesh);
     }
+    // ПОТОЛОЧНЫЕ БАЛКИ (beams=1): брусья под ИЗНАНКОЙ пластины вдоль
+    // короткой оси bbox, шаг ~1.4 м, режутся контуром — как паркет, только
+    // редкие, толстые и снизу (INTERIOR_CATALOG.md: балка 0.2x0.25, шаг
+    // 1.2-1.6, встреча со стеной — врезкой, что нахлёст и даёт).
+    if (p.beams > 0.5f) {
+        glm::vec2 blo = flat.front();
+        glm::vec2 bhi = blo;
+        for (const glm::vec2& f : flat) {
+            blo = glm::min(blo, f);
+            bhi = glm::max(bhi, f);
+        }
+        const bool along_u = (bhi.x - blo.x) < (bhi.y - blo.y);
+        const float span_c = along_u ? (bhi.y - blo.y) : (bhi.x - blo.x);
+        const int nb = std::max(1, static_cast<int>(span_c / 1.4f));
+        mb.set_material(0, 2); // тёмный тёсаный брус
+        for (int bi = 0; bi < nb; ++bi) {
+            const float c = (along_u ? blo.y : blo.x)
+                          + span_c * (static_cast<float>(bi) + 0.5f)
+                                / static_cast<float>(nb);
+            const glm::vec2 rlo = along_u ? glm::vec2{blo.x, c - 0.1f}
+                                          : glm::vec2{c - 0.1f, blo.y};
+            const glm::vec2 rhi = along_u ? glm::vec2{bhi.x, c + 0.1f}
+                                          : glm::vec2{c + 0.1f, bhi.y};
+            const std::vector<glm::vec2> strip = clip_contour_to_rect(flat, rlo, rhi);
+            if (strip.size() < 3) {
+                continue;
+            }
+            const std::vector<std::uint32_t> btris = triangulate_contour(strip);
+            if (btris.empty()) {
+                continue;
+            }
+            std::vector<glm::vec3> loop2;
+            loop2.reserve(strip.size());
+            // Под изнанкой: от нижней грани пластины вниз на 0.25.
+            const glm::vec3 drop = n * (half + 0.25f);
+            for (const glm::vec2& q : strip) {
+                loop2.push_back(plane.origin + u * q.x + v * q.y - drop);
+            }
+            push_prism(mb, loop2, btris, n * 0.25f, p.tex_deg, mesh, e.id);
+        }
+        mb.set_material(-1, -1);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1177,7 +1292,21 @@ static void build_courses(const Element& e, const ElementParams& p, const glm::v
             if (p.wear > 0.0f && course_jitter(row * 7 + 3, col * 5 + 1) < p.wear * 0.12f) {
                 continue;
             }
-            const glm::vec2 quad[4] = {{u0, v}, {u1, v}, {u1, v1}, {u0, v1}};
+            glm::vec2 quad[4] = {{u0, v}, {u1, v}, {u1, v1}, {u0, v1}};
+            // СКОЛОТЫЙ УГОЛ (20.08: «к износу добавить сколы»): у старого
+            // куска один угол съеден — вершина сдвигается внутрь по обеим
+            // осям. Квад остаётся квадом, скос читается сколом.
+            if (p.wear > 0.0f
+                && course_jitter(row * 17 + 9, col * 13 + 5) < p.wear * 0.3f) {
+                const int corner =
+                    static_cast<int>(course_jitter(col * 19 + 3, row * 23 + 7) * 3.99f);
+                const float bx = (u1 - u0) * (0.25f + 0.3f * course_jitter(row, col + 40));
+                const float by = (v1 - v) * (0.3f + 0.35f * course_jitter(col, row + 40));
+                const float sx = (corner == 0 || corner == 3) ? bx : -bx;
+                const float sy = (corner == 0 || corner == 1) ? by : -by;
+                quad[corner].x += sx;
+                quad[corner].y += sy;
+            }
             const float depth =
                 th * (0.7f + (0.3f + 0.5f * p.wear) * course_jitter(row, col));
             push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, depth, quad, p.tex_deg);
@@ -1592,6 +1721,10 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
         else if (kv.first == "shutters") { p.shutters = got.shutters; }
         else if (kv.first == "porch") { p.porch = got.porch; }
         else if (kv.first == "plinth") { p.plinth = got.plinth; }
+        else if (kv.first == "roof") { p.roof = got.roof; }
+        else if (kv.first == "unsupported") { p.unsupported = got.unsupported; }
+        else if (kv.first == "open") { p.open = got.open; }
+        else if (kv.first == "beams") { p.beams = got.beams; }
     }
     return p;
 }
@@ -1616,6 +1749,58 @@ bool is_chain_surface(const Element& e, const ElementParams&) {
 // ---------------------------------------------------------------------------
 // Сборка
 // ---------------------------------------------------------------------------
+
+std::vector<MeshFinding> check_roof_support(const HouseGraph& g) {
+    std::vector<MeshFinding> out;
+    // Вершины всех НЕ-кровельных элементов — потенциальные опоры.
+    std::vector<glm::vec3> supports;
+    std::vector<const Element*> roofs;
+    for (const Element& e : g.elements()) {
+        const ElementParams p = element_params_of(e, nullptr);
+        const int fill = static_cast<int>(p.fill);
+        const bool is_roof = p.roof > 0.5f || fill == 7 || fill == 8;
+        if (is_roof) {
+            if (p.unsupported < 0.5f) {
+                roofs.push_back(&e);
+            }
+            continue;
+        }
+        for (const VertexId r : e.refs) {
+            const glm::vec3 base = g.resolved_local(r);
+            supports.push_back(base);
+            // Стена держит крышу ВЕРХНЕЙ кромкой: цепочка с высотой поднимает
+            // свои опорные точки на height (низовой якорь стоит на земле).
+            if (e.kind == ElementKind::Surface && !e.closed && p.height > 0.0f) {
+                supports.push_back(base + glm::vec3{0.0f, p.height, 0.0f});
+            }
+            // Столб держит конёк верхним концом — Line из двух вершин обе
+            // точки уже дал; поднимать нечего.
+        }
+    }
+    for (const Element* e : roofs) {
+        for (const VertexId r : e->refs) {
+            const glm::vec3 rp = g.resolved_local(r);
+            bool held = false;
+            for (const glm::vec3& sp : supports) {
+                const float dx = sp.x - rp.x;
+                const float dz = sp.z - rp.z;
+                const float dy = rp.y - sp.y; // опора НИЖЕ вершины крыши
+                if (dx * dx + dz * dz <= 1.0f && dy >= -0.6f && dy <= 1.8f) {
+                    held = true;
+                    break;
+                }
+            }
+            if (!held) {
+                out.push_back({e->id, MeshIssue::RoofUnsupported,
+                               rp.y,
+                               "вершина крыши висит без стены под ней (v"
+                                   + std::to_string(r)
+                                   + "); руина скажет unsupported=1"});
+            }
+        }
+    }
+    return out;
+}
 
 std::vector<ElementId> ordered_elements(const HouseGraph& g) {
     // У графа сегодня нет перебора элементов, зато есть перебор вершин через
@@ -1673,6 +1858,10 @@ HouseMesh build_house_mesh(const HouseGraph& g) {
             }
         }
         mb.end_element();
+    }
+    // ПРАВИЛО ОПОРЫ КРЫШ — говорится при каждой сборке (проверка, не запрет).
+    for (MeshFinding& f : check_roof_support(g)) {
+        mesh.findings.push_back(std::move(f));
     }
     return mesh;
 }

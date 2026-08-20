@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 02:02:30
-Last updated: 20:08:2026 - 17:30:00
+Last updated: 20:08:2026 - 20:30:00
 Module: engine/app
 File: engine/app/sources/AppEditorWiring.cpp
 
@@ -30,6 +30,7 @@ UPD:
   уехала из App.cpp БЕЗ ЕДИНОГО ИЗМЕНЕНИЯ ТЕЛА. Правка вместе с переносом — это
   две правки в одном доказательстве.
 - 20:08:2026 - 17:30:00: Крючки полки готовых построек: список .dfh, постановка под прицел, снятие последней.
+- 20:08:2026 - 20:30:00: Распаковка ближайшей постройки: merge_from в сессию, запись [house] снимается.
 */
 
 #include "engine/app/sources/App.h"
@@ -258,6 +259,55 @@ void App::wire_editor_panels() {
                      name.c_str(), static_cast<double>(pos.x),
                      static_cast<double>(pos.y), static_cast<double>(pos.z),
                      static_cast<double>(yaw_deg));
+    };
+    tw.unpack_house_at_aim = [this]() {
+        if (scene_doc_.houses.empty()) {
+            std::fprintf(stderr, "[постройка] распаковывать нечего\n");
+            return;
+        }
+        const ToolAim aim = aim_this_frame();
+        // Ближайшая по XZ к прицелу; дальше 30 м — отказ вслух, а не «какая-то».
+        std::size_t best = scene_doc_.houses.size();
+        float best_d = 30.0f;
+        for (std::size_t i = 0; i < scene_doc_.houses.size(); ++i) {
+            const glm::vec3 c = scene_doc_.houses[i].position;
+            const float d = glm::length(glm::vec2{c.x - aim.point.x, c.z - aim.point.z});
+            if (d < best_d) {
+                best_d = d;
+                best = i;
+            }
+        }
+        if (best >= scene_doc_.houses.size()) {
+            std::fprintf(stderr, "[постройка] под прицелом нет постройки (30 м)\n");
+            return;
+        }
+        // Граф уже прочитан загрузкой мира — берём его же, не файл заново.
+        if (best >= placed_houses_.size()) {
+            std::fprintf(stderr, "[постройка] постройка не поднята — распаковка "
+                                 "отменена\n");
+            return;
+        }
+        const PlacedHouse& ph = placed_houses_[best];
+        const float c = std::cos(ph.yaw);
+        const float sn = std::sin(ph.yaw);
+        const auto res = house_.mutate("распаковал постройку", [&](world::HouseGraph& g) {
+            return g.merge_from(ph.graph, [&](glm::vec3 l) {
+                const glm::vec3 w = ph.pos
+                                  + glm::vec3{l.x * c + l.z * sn, l.y,
+                                              -l.x * sn + l.z * c};
+                return house_.to_local(w);
+            });
+        });
+        if (!res.ok) {
+            std::fprintf(stderr, "[постройка] распаковка: %s\n", res.why.c_str());
+            return;
+        }
+        scene_doc_.houses.erase(scene_doc_.houses.begin()
+                                + static_cast<std::ptrdiff_t>(best));
+        load_scene_houses();
+        std::fprintf(stderr,
+                     "[постройка] распакована постройка #%zu: правь стены и якоря\n",
+                     best);
     };
     tw.remove_last_house = [this]() {
         if (scene_doc_.houses.empty()) {
