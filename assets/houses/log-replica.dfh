@@ -33,26 +33,26 @@ vertex v31 free 6.0000 3.2500 4.0000
 vertex v32 free 6.0000 4.6500 2.0000
 vertex v33 free -0.4000 4.6700 2.0000
 vertex v34 free 6.4000 4.6700 2.0000
-vertex v35 free 0.0000 4.5900 2.0000
-vertex v36 free 0.0000 3.3900 -0.5700
-vertex v37 free 0.0000 4.5900 2.0000
-vertex v38 free 0.0000 3.3900 4.5700
-vertex v39 free 1.5000 4.5900 2.0000
-vertex v40 free 1.5000 3.3900 -0.5700
-vertex v41 free 1.5000 4.5900 2.0000
-vertex v42 free 1.5000 3.3900 4.5700
-vertex v43 free 3.0000 4.5900 2.0000
-vertex v44 free 3.0000 3.3900 -0.5700
-vertex v45 free 3.0000 4.5900 2.0000
-vertex v46 free 3.0000 3.3900 4.5700
-vertex v47 free 4.5000 4.5900 2.0000
-vertex v48 free 4.5000 3.3900 -0.5700
-vertex v49 free 4.5000 4.5900 2.0000
-vertex v50 free 4.5000 3.3900 4.5700
-vertex v51 free 6.0000 4.5900 2.0000
-vertex v52 free 6.0000 3.3900 -0.5700
-vertex v53 free 6.0000 4.5900 2.0000
-vertex v54 free 6.0000 3.3900 4.5700
+vertex v35 free 0.0000 4.3500 2.0000
+vertex v36 free 0.0000 2.9100 -0.5700
+vertex v37 free 0.0000 4.3500 2.0000
+vertex v38 free 0.0000 2.9100 4.5700
+vertex v39 free 1.5000 4.3500 2.0000
+vertex v40 free 1.5000 2.9100 -0.5700
+vertex v41 free 1.5000 4.3500 2.0000
+vertex v42 free 1.5000 2.9100 4.5700
+vertex v43 free 3.0000 4.3500 2.0000
+vertex v44 free 3.0000 2.9100 -0.5700
+vertex v45 free 3.0000 4.3500 2.0000
+vertex v46 free 3.0000 2.9100 4.5700
+vertex v47 free 4.5000 4.3500 2.0000
+vertex v48 free 4.5000 2.9100 -0.5700
+vertex v49 free 4.5000 4.3500 2.0000
+vertex v50 free 4.5000 2.9100 4.5700
+vertex v51 free 6.0000 4.3500 2.0000
+vertex v52 free 6.0000 2.9100 -0.5700
+vertex v53 free 6.0000 4.3500 2.0000
+vertex v54 free 6.0000 2.9100 4.5700
 surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=3 wear=0.7
 line e2 v5 v6 style=- radius=0.12 mat=0 tone=2
 line e3 v7 v8 style=- radius=0.12 mat=0 tone=2
