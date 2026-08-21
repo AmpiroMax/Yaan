@@ -1,0 +1,37 @@
+# dfh 1
+vertex v1 free 0.0300 0.0000 0.3200
+vertex v2 free 0.0300 1.2000 0.3200
+vertex v3 free 1.5300 0.0000 0.3200
+vertex v4 free 1.5300 1.2000 0.3200
+vertex v5 free 0.0800 0.1420 0.2200
+vertex v6 free 1.4800 0.1420 0.2200
+vertex v7 free 0.0800 0.1220 0.4150
+vertex v8 free 1.4800 0.1220 0.4150
+vertex v9 free 0.0800 0.3620 0.2100
+vertex v10 free 1.4800 0.3620 0.2100
+vertex v11 free 0.0800 0.3420 0.4600
+vertex v12 free 1.4800 0.3420 0.4600
+vertex v13 free 0.0800 0.5820 0.1750
+vertex v14 free 1.4800 0.5820 0.1750
+vertex v15 free 0.0800 0.5620 0.4500
+vertex v16 free 1.4800 0.5620 0.4500
+vertex v17 free 0.0800 0.8020 0.2200
+vertex v18 free 1.4800 0.8020 0.2200
+vertex v19 free 0.0800 0.7820 0.4150
+vertex v20 free 1.4800 0.7820 0.4150
+vertex v21 free 0.0800 1.0220 0.2100
+vertex v22 free 1.4800 1.0220 0.2100
+vertex v23 free 0.0800 1.0020 0.4600
+vertex v24 free 1.4800 1.0020 0.4600
+line e1 v1 v2 style=- radius=0.050 form=round mat=0 tone=2 wear=0.5
+line e2 v3 v4 style=- radius=0.050 form=round mat=0 tone=2 wear=0.5
+line e3 v5 v6 style=- radius=0.095 form=round mat=0 tone=2 wear=0.4
+line e4 v7 v8 style=- radius=0.103 form=round mat=0 tone=2 wear=0.4
+line e5 v9 v10 style=- radius=0.111 form=round mat=0 tone=2 wear=0.4
+line e6 v11 v12 style=- radius=0.119 form=round mat=0 tone=2 wear=0.4
+line e7 v13 v14 style=- radius=0.095 form=round mat=0 tone=2 wear=0.4
+line e8 v15 v16 style=- radius=0.103 form=round mat=0 tone=2 wear=0.4
+line e9 v17 v18 style=- radius=0.111 form=round mat=0 tone=2 wear=0.4
+line e10 v19 v20 style=- radius=0.119 form=round mat=0 tone=2 wear=0.4
+line e11 v21 v22 style=- radius=0.095 form=round mat=0 tone=2 wear=0.4
+line e12 v23 v24 style=- radius=0.103 form=round mat=0 tone=2 wear=0.4

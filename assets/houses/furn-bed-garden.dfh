@@ -1,0 +1,46 @@
+# dfh 1
+vertex v1 free 0.0300 0.0000 0.0000
+vertex v2 free 0.0300 0.0000 2.4000
+vertex v3 free 0.0300 0.2500 2.4000
+vertex v4 free 0.0300 0.2500 0.0000
+vertex v5 free 0.9700 0.0000 0.0000
+vertex v6 free 0.9700 0.0000 2.4000
+vertex v7 free 0.9700 0.2500 2.4000
+vertex v8 free 0.9700 0.2500 0.0000
+vertex v9 free 0.0000 0.0000 0.0300
+vertex v10 free 1.0000 0.0000 0.0300
+vertex v11 free 1.0000 0.2500 0.0300
+vertex v12 free 0.0000 0.2500 0.0300
+vertex v13 free 0.0000 0.0000 2.3700
+vertex v14 free 1.0000 0.0000 2.3700
+vertex v15 free 1.0000 0.2500 2.3700
+vertex v16 free 0.0000 0.2500 2.3700
+vertex v17 free 0.0600 0.1200 0.0600
+vertex v18 free 0.0600 0.1200 2.3400
+vertex v19 free 0.9400 0.1200 2.3400
+vertex v20 free 0.9400 0.1200 0.0600
+vertex v21 free 0.1400 0.2200 0.2500
+vertex v22 free 0.1400 0.2200 0.4700
+vertex v23 free 0.8600 0.2200 0.4700
+vertex v24 free 0.8600 0.2200 0.2500
+vertex v25 free 0.1400 0.2200 0.8100
+vertex v26 free 0.1400 0.2200 1.0300
+vertex v27 free 0.8600 0.2200 1.0300
+vertex v28 free 0.8600 0.2200 0.8100
+vertex v29 free 0.1400 0.2200 1.3700
+vertex v30 free 0.1400 0.2200 1.5900
+vertex v31 free 0.8600 0.2200 1.5900
+vertex v32 free 0.8600 0.2200 1.3700
+vertex v33 free 0.1400 0.2200 1.9300
+vertex v34 free 0.1400 0.2200 2.1500
+vertex v35 free 0.8600 0.2200 2.1500
+vertex v36 free 0.8600 0.2200 1.9300
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.060 mat=1 tone=2 wear=0.5
+surface e2 v5 v6 v7 v8 style=- closed=1 thickness=0.060 mat=1 tone=2 wear=0.5
+surface e3 v9 v10 v11 v12 style=- closed=1 thickness=0.060 mat=1 tone=2 wear=0.5
+surface e4 v13 v14 v15 v16 style=- closed=1 thickness=0.060 mat=1 tone=2 wear=0.5
+surface e5 v17 v18 v19 v20 style=- closed=1 thickness=0.160 mat=3 tone=3 wear=0.9
+surface e6 v21 v22 v23 v24 style=- closed=1 thickness=0.100 mat=3 tone=3 wear=0.9
+surface e7 v25 v26 v27 v28 style=- closed=1 thickness=0.100 mat=3 tone=3 wear=0.9
+surface e8 v29 v30 v31 v32 style=- closed=1 thickness=0.100 mat=3 tone=3 wear=0.9
+surface e9 v33 v34 v35 v36 style=- closed=1 thickness=0.100 mat=3 tone=3 wear=0.9

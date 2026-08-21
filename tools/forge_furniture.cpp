@@ -1,20 +1,22 @@
 /*
 Created: 21:08:2026 - 13:20:00
-Last updated: 21:08:2026 - 13:20:00
+Last updated: 21:08:2026 - 19:10:00
 Module: tools
 File: tools/forge_furniture.cpp
 
 Responsibility:
-- КУЗНИЦА ВНУТРЕННЕГО ОФОРМЛЕНИЯ (заказ 21.08: «объекты внутреннего
-  оформления домов»). Каждый предмет — ОТДЕЛЬНАЯ ГОТОВАЯ ПОСТРОЙКА в
-  assets/houses/furn-*.dfh: стол, лавка, кровать, стеллаж, несущая колонна с
-  уголками-подкосами, каменный очаг. Собираются тем же HouseGraph API и
+- КУЗНИЦА ОФОРМЛЕНИЯ ДОМА И ДВОРА (заказ 21.08: «объекты внутреннего
+  оформления домов», затем «дворовый набор»). Каждый предмет — ОТДЕЛЬНАЯ
+  ГОТОВАЯ ПОСТРОЙКА в assets/houses/furn-*.dfh: внутри дома — стол, лавка,
+  кровать, стеллаж, несущая колонна с уголками-подкосами, каменный очаг; на
+  заднем дворе — секция забора, калитка, поленница, бочка, грядка. Собираются тем же HouseGraph API и
   пишутся тем же каноническим write_house, что и дома, — расстановка внутри
   комнаты ничем не отличается от расстановки дома на улице.
 
 Key items:
 - Forge: рука над графом (дедуп вершин, slab/panel/bar/rim).
-- table/bench/bed/shelf/column/hearth: шесть рецептов.
+- table/bench/bed/shelf/column/hearth: шесть предметов интерьера.
+- fence2/fence_gate/woodpile/barrel/bed_garden: пять предметов двора.
 
 Dependencies:
 - Uses: engine/world (HouseGraph, HouseFile).
@@ -24,6 +26,9 @@ Notes:
 - ЧЕЛОВЕЧЕСКИЕ ЧИСЛА (docs/INTERIOR_CATALOG.md §9, обмеры по росту 1.8 м):
   стол 1.8x0.9x0.78, лавка 1.6x0.35x0.45, кровать 1.9x0.85, стеллаж 3 полки,
   столб длинного дома 0.45 с подкосами под 45°, очаг-короб 1.4x1.4x0.35.
+  Двор — docs/CITY_DESIGN_GUIDE.md §3 и §7: забор парцеллы 1.2-1.8 м
+  (здесь 1.4), порядок вглубь двора «бочка/поленница -> грядки -> забор»,
+  клаттер вдоль стен и по углам.
 - ЛОКАЛЬНЫЕ КООРДИНАТЫ, как у домов: начало — северо-западный угол пятна,
   +X на восток, +Z на юг, вершины Free с явной высотой (предмет ставится на
   пол комнаты, высота из рельефа сделала бы файл недетерминированным).
@@ -41,6 +46,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 21:08:2026 - 13:20:00: Создана: шесть предметов интерьера (стол, лавка, кровать, стеллаж, колонна с подкосами, каменный очаг).
+- 21:08:2026 - 19:10:00: ДВОРОВЫЙ НАБОР (CITY_DESIGN_GUIDE.md §7): секция
+  забора 2.0x1.4 с перевивом жердей, калитка 1.0 со щелью и раскосом,
+  поленница из 10 брёвнышек с детерминированным джиттером, бочка из восьми
+  клёпок двумя поясами через пузо, грядка 1.0x2.4 с гребнями. Руки Forge:
+  bar() принял свои параметры (износ жердей), добавлены quad() (клёпка с
+  завалом) и disc8() (дно и крышка).
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -165,11 +176,55 @@ struct Forge {
     /// есть брус 0.09x0.09 — это radius 0.045). Ножка, царга, проножка,
     /// подкос — всё одна деталь, разница только в концах.
     ElementId bar(glm::vec3 a, glm::vec3 b, float r, const char* mat,
-                  const char* tone, const char* form = "square") {
+                  const char* tone, const char* form = "square",
+                  Params extra = {}) {
         char rb[16];
         std::snprintf(rb, sizeof(rb), "%.3f", r);
-        return beam(v(a), v(b),
-                    {{"radius", rb}, {"form", form}, {"mat", mat}, {"tone", tone}});
+        const ElementId id = beam(v(a), v(b),
+                                  {{"radius", rb}, {"form", form}, {"mat", mat},
+                                   {"tone", tone}});
+        for (const auto& kv : extra) {
+            (void)g.set_param(id, kv.first, kv.second);
+        }
+        return id;
+    }
+
+    /// ЧЕТЫРЁХУГОЛЬНИК ПРОИЗВОЛЬНОЙ ПОСАДКИ: panel() умеет только строго
+    /// вертикальную доску (низ и верх над одной точкой), а клёпке бочки надо
+    /// заваливаться внутрь — у неё низ и верх на РАЗНЫХ радиусах.
+    ElementId quad(glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d, float th,
+                   const char* mat, const char* tone, Params extra = {}) {
+        char tb[16];
+        std::snprintf(tb, sizeof(tb), "%.3f", th);
+        const ElementId id = contour({v(a), v(b), v(c), v(d)},
+                                     {{"thickness", tb}, {"mat", mat},
+                                      {"tone", tone}});
+        for (const auto& kv : extra) {
+            (void)g.set_param(id, kv.first, kv.second);
+        }
+        return id;
+    }
+
+    /// ГОРИЗОНТАЛЬНЫЙ ВОСЬМИУГОЛЬНИК ЛИЦОМ ВВЕРХ (дно и крышка бочки).
+    /// Обход по УБЫВАНИЮ угла: по возрастанию нормаль контура смотрит вниз.
+    ElementId disc8(float cx, float cz, float r, float y_top, float th,
+                    const char* mat, const char* tone, Params extra = {}) {
+        char tb[16];
+        std::snprintf(tb, sizeof(tb), "%.3f", th);
+        const float y = y_top - th * 0.5f;
+        std::vector<VertexId> ring;
+        ring.reserve(8);
+        for (int k = 7; k >= 0; --k) {
+            const float t = 0.7853981634f * static_cast<float>(k);
+            ring.push_back(v(cx + r * std::cos(t), y, cz + r * std::sin(t)));
+        }
+        const ElementId id = contour(std::move(ring),
+                                     {{"thickness", tb}, {"mat", mat},
+                                      {"tone", tone}});
+        for (const auto& kv : extra) {
+            (void)g.set_param(id, kv.first, kv.second);
+        }
+        return id;
     }
 
     void save(const std::string& path) {
@@ -400,6 +455,177 @@ void forge_hearth() {
     f.save("assets/houses/furn-hearth.dfh");
 }
 
+
+// ===========================================================================
+// ДВОРОВЫЙ НАБОР (заказ 21.08 по docs/CITY_DESIGN_GUIDE.md §3 и §7: порядок
+// вглубь парцеллы — дом, дворик с бочкой и поленницей, огород-грядки, забор
+// 1.2-1.8 м плетнём или частоколом; клаттер ставится ВДОЛЬ стен и по углам).
+// Каждый предмет — своя постройка: забор набирается секциями, как стена.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// 7. СЕКЦИЯ ЗАБОРА 2.0 м, высота 1.4 (§3: забор парцеллы 1.2-1.8). Три кола и
+//    четыре жерди, жерди ПО ОЧЕРЕДИ спереди и сзади кольев — этот перевив и
+//    отличает плетень от четырёх параллельных палок.
+// ---------------------------------------------------------------------------
+void forge_fence2() {
+    Forge f;
+    const float L = 2.0f;
+    const float H = 1.4f;
+    const float cz = 0.07f;  // ось забора; секция целиком лежит в 0..0.14
+
+    for (const float x : {0.07f, L * 0.5f, L - 0.07f}) {
+        f.bar({x, 0.0f, cz}, {x, H, cz}, 0.07f, "0", "2", "round",
+              {{"wear", "0.5"}});
+    }
+    // Жерди: 0.30 / 0.65 / 1.00 / 1.30, перевив ±0.04 от оси кольев.
+    int k = 0;
+    for (const float y : {0.30f, 0.65f, 1.00f, 1.30f}) {
+        const float z = cz + ((k++ % 2 == 0) ? 0.04f : -0.04f);
+        f.bar({0.02f, y, z}, {L - 0.02f, y, z}, 0.045f, "0", "2", "round",
+              {{"wear", "0.5"}});
+    }
+
+    f.save("assets/houses/furn-fence2.dfh");
+}
+
+// ---------------------------------------------------------------------------
+// 8. КАЛИТКА 1.0 м: два кола повыше (1.6) и дощатое полотно с двумя
+//    перекладинами и раскосом (Z-образная обвязка — без раскоса дощатая
+//    калитка провисает углом, и это видно даже на неподвижном кадре).
+//    Полотно закрытое, но со ЩЕЛЬЮ 0.13 у восточного кола: створка висит на
+//    петлях, а не врезана в столб.
+// ---------------------------------------------------------------------------
+void forge_fence_gate() {
+    Forge f;
+    const float W = 1.0f;
+    const float H = 1.6f;
+    const float cz = 0.07f;
+    const float x0 = 0.14f;   // край полотна у петель
+    const float x1 = 0.81f;   // край полотна; дальше щель до кола 0.93
+    const float y0 = 0.12f;   // просвет под калиткой
+    const float y1 = 1.25f;
+
+    for (const float x : {0.07f, W - 0.07f}) {
+        f.bar({x, 0.0f, cz}, {x, H, cz}, 0.075f, "0", "2", "round",
+              {{"wear", "0.5"}});
+    }
+    // Полотно — доски (fill=5 кладёт раскладку досок по контуру).
+    f.panel({x0, y0, cz}, {x1, y0, cz}, y1, 0.05f, "1", "2",
+            {{"fill", "5"}, {"wear", "0.45"}});
+    // Обвязка и раскос — снаружи полотна, на 0.05 от его плоскости.
+    const float zf = cz - 0.05f;
+    f.bar({x0, y0 + 0.15f, zf}, {x1, y0 + 0.15f, zf}, 0.035f, "0", "2", "square",
+          {{"wear", "0.45"}});
+    f.bar({x0, y1 - 0.12f, zf}, {x1, y1 - 0.12f, zf}, 0.035f, "0", "2", "square",
+          {{"wear", "0.45"}});
+    f.bar({x0, y0 + 0.15f, zf}, {x1, y1 - 0.12f, zf}, 0.035f, "0", "2", "square",
+          {{"wear", "0.45"}});
+
+    f.save("assets/houses/furn-fence-gate.dfh");
+}
+
+// ---------------------------------------------------------------------------
+// 9. ПОЛЕННИЦА (§7: жилой переулок — поленница вдоль стены): два кола по
+//    торцам и десять брёвнышек в пять рядов. Радиус и посадка каждого полена
+//    гуляют по номеру — ряд одинаковых цилиндров читается трубами, а не
+//    дровами; джиттер ДЕТЕРМИНИРОВАННЫЙ (номер, не случай), иначе две сборки
+//    дадут два разных файла.
+// ---------------------------------------------------------------------------
+void forge_woodpile() {
+    Forge f;
+    const float xa = 0.08f;         // торцы поленьев
+    const float xb = 1.48f;         // длина полена ровно 1.4
+    const float z_front = 0.20f;
+    const float z_back = 0.44f;
+
+    for (const float x : {0.03f, 1.53f}) {
+        f.bar({x, 0.0f, 0.32f}, {x, 1.20f, 0.32f}, 0.05f, "0", "2", "round",
+              {{"wear", "0.5"}});
+    }
+    for (int row = 0; row < 5; ++row) {
+        for (int col = 0; col < 2; ++col) {
+            const int k = row * 2 + col;
+            const float r = 0.095f + 0.008f * static_cast<float>(k % 4);
+            const float dz = (k % 3 == 0) ? 0.02f : ((k % 3 == 1) ? -0.025f : 0.01f);
+            const float dy = (k % 2 == 0) ? 0.012f : -0.008f;
+            const float y = 0.13f + 0.22f * static_cast<float>(row) + dy;
+            const float z = (col == 0 ? z_front : z_back) + dz;
+            f.bar({xa, y, z}, {xb, y, z}, r, "0", "2", "round", {{"wear", "0.4"}});
+        }
+    }
+
+    f.save("assets/houses/furn-woodpile.dfh");
+}
+
+// ---------------------------------------------------------------------------
+// 10. БОЧКА дождевой воды (§7): восемь клёпок по кругу, дно и крышка —
+//     восьмиугольные диски. Клёпка идёт ДВУМЯ поясами через пузо на 0.42
+//     (низ R 0.28 -> пузо R 0.33 -> верх R 0.28): одним поясом с завалом
+//     внутрь получается ведро, а бочку от ведра отличает именно пузо.
+//     Обручей нет — тонкое кольцо прямой не собрать (заказ дословно).
+// ---------------------------------------------------------------------------
+void forge_barrel() {
+    Forge f;
+    const float cx = 0.35f;
+    const float cz = 0.35f;
+    const float r_lo = 0.28f;
+    const float r_mid = 0.33f;
+    const float r_hi = 0.28f;
+    const float y_mid = 0.42f;
+    const float H = 0.80f;
+    const auto at = [&](float r, float y, int k) {
+        const float t = 0.7853981634f * static_cast<float>(k);
+        return glm::vec3{cx + r * std::cos(t), y, cz + r * std::sin(t)};
+    };
+    // Обход по УБЫВАНИЮ угла — лицо клёпки наружу.
+    for (int k = 8; k > 0; --k) {
+        const int k0 = k;
+        const int k1 = k - 1;
+        f.quad(at(r_lo, 0.0f, k0), at(r_lo, 0.0f, k1), at(r_mid, y_mid, k1),
+               at(r_mid, y_mid, k0), 0.04f, "1", "2", {{"wear", "0.45"}});
+        f.quad(at(r_mid, y_mid, k0), at(r_mid, y_mid, k1), at(r_hi, H, k1),
+               at(r_hi, H, k0), 0.04f, "1", "2", {{"wear", "0.45"}});
+    }
+    f.disc8(cx, cz, r_lo - 0.02f, 0.07f, 0.05f, "1", "1", {{"wear", "0.5"}});
+    f.disc8(cx, cz, r_hi + 0.02f, H + 0.04f, 0.05f, "1", "1", {{"wear", "0.5"}});
+
+    f.save("assets/houses/furn-barrel.dfh");
+}
+
+// ---------------------------------------------------------------------------
+// 11. ГРЯДКА 1.0 x 2.4 (§3: огород-грядки за двориком). Низкий короб из
+//     досок 0.25, земля утоплена на 0.05 ниже борта, поверх — четыре
+//     гребня-рядка: пустая коричневая плита читается лужей, а рядки сразу
+//     говорят «здесь копали».
+// ---------------------------------------------------------------------------
+void forge_bed_garden() {
+    Forge f;
+    const float W = 1.0f;
+    const float L = 2.4f;
+    const float H = 0.25f;
+    const float th = 0.06f;
+    const float b = th * 0.5f;
+
+    // Борта-доски: две вдоль (север-юг) и две поперёк.
+    f.panel({b, 0.0f, 0.0f}, {b, 0.0f, L}, H, th, "1", "2", {{"wear", "0.5"}});
+    f.panel({W - b, 0.0f, 0.0f}, {W - b, 0.0f, L}, H, th, "1", "2",
+            {{"wear", "0.5"}});
+    f.panel({0.0f, 0.0f, b}, {W, 0.0f, b}, H, th, "1", "2", {{"wear", "0.5"}});
+    f.panel({0.0f, 0.0f, L - b}, {W, 0.0f, L - b}, H, th, "1", "2",
+            {{"wear", "0.5"}});
+    // Земля — на 0.05 ниже кромки борта.
+    f.slab(th, th, W - th, L - th, H - 0.05f, 0.16f, "3", "3", {{"wear", "0.9"}});
+    // Четыре гребня поперёк грядки.
+    for (int k = 0; k < 4; ++k) {
+        const float zc = 0.36f + 0.56f * static_cast<float>(k);
+        f.slab(0.14f, zc - 0.11f, W - 0.14f, zc + 0.11f, H + 0.02f, 0.10f, "3", "3",
+               {{"wear", "0.9"}});
+    }
+
+    f.save("assets/houses/furn-bed-garden.dfh");
+}
+
 } // namespace
 
 int main() {
@@ -409,5 +635,10 @@ int main() {
     forge_shelf();
     forge_column();
     forge_hearth();
+    forge_fence2();
+    forge_fence_gate();
+    forge_woodpile();
+    forge_barrel();
+    forge_bed_garden();
     return 0;
 }
