@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 20:08:2026 - 15:50:00
+# Last updated: 21:08:2026 - 13:20:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -85,6 +85,7 @@
 #   с «Does not match the generator used previously: Ninja». Новые каталоги
 #   заводить с `-G Ninja`.
 # - 20:08:2026 - 15:50:00: Цель dfn_houses — кузница готовых построек (tools/forge_houses.cpp).
+# - 21:08:2026 - 13:20:00: Цель dfn_furniture — кузница предметов интерьера (tools/forge_furniture.cpp).
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -293,5 +294,11 @@ target_link_libraries(dfn_assemble PRIVATE dfn_world dfn_render dfn_core)
 # assets/houses/*.dfh — артефакты в git, правки только в рецептах кузницы.
 add_executable(dfn_houses tools/forge_houses.cpp)
 target_link_libraries(dfn_houses PRIVATE dfn_world dfn_core)
+
+# КУЗНИЦА ВНУТРЕННЕГО ОФОРМЛЕНИЯ (dfn_furniture): предметы интерьера тем же
+# HouseGraph API в assets/houses/furn-*.dfh — каждый предмет отдельной готовой
+# постройкой, чтобы расставлять их так же, как дома.
+add_executable(dfn_furniture tools/forge_furniture.cpp)
+target_link_libraries(dfn_furniture PRIVATE dfn_world dfn_core)
 
 add_executable(dfn_newmap tools/new_map.cpp)

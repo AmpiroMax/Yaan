@@ -56,7 +56,7 @@ vertex v54 free 4.5000 2.5600 6.5700
 vertex v55 free 6.0000 4.3000 3.0000
 vertex v56 free 6.0000 2.5600 -0.5700
 vertex v57 free 6.0000 2.5600 6.5700
-surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1 wear=0.35
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1 wear=0.65
 line e2 v5 v6 style=- radius=0.12 mat=0 tone=2
 line e3 v7 v8 style=- radius=0.12 mat=0 tone=2
 line e4 v9 v10 style=- radius=0.12 mat=0 tone=2
@@ -65,17 +65,17 @@ line e6 v6 v8 style=- radius=0.10 form=square mat=0 tone=2
 line e7 v8 v12 style=- radius=0.10 form=square mat=0 tone=2
 line e8 v12 v10 style=- radius=0.10 form=square mat=0 tone=2
 line e9 v10 v6 style=- radius=0.10 form=square mat=0 tone=2
-surface e10 v9 v5 style=- height=2.9 thickness=0.28 mat=3 tone=1 fill=3 windows=1 plinth=1 wear=0.5
-surface e11 v11 v9 style=- height=2.9 thickness=0.28 mat=3 tone=1 fill=3 windows=1 plinth=1 wear=0.5
-surface e12 v5 v7 style=- height=2.9 thickness=0.28 mat=3 tone=1 fill=3 windows=1 plinth=1 wear=0.5
-surface e13 v7 v11 style=- height=2.9 thickness=0.28 mat=3 tone=1 fill=3 doors=1 porch=1 wear=0.5
+surface e10 v9 v5 style=- height=2.9 thickness=0.28 mat=3 tone=1 fill=3 windows=1 plinth=0 wear=0.78
+surface e11 v11 v9 style=- height=2.9 thickness=0.28 mat=3 tone=1 fill=3 windows=1 plinth=0 wear=0.78
+surface e12 v5 v7 style=- height=2.9 thickness=0.28 mat=3 tone=1 fill=3 windows=1 plinth=0 wear=0.78
+surface e13 v7 v11 style=- height=2.9 thickness=0.28 mat=3 tone=1 fill=3 doors=1 porch=1 wear=0.78
 surface e14 v13 v14 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
 line e15 v15 v16 style=- radius=0.11 mat=0 tone=2
 line e16 v17 v18 style=- radius=0.11 mat=0 tone=2
 line e17 v19 v20 style=- radius=0.09 mat=0 tone=2
-surface e18 v21 v22 v23 v24 style=- closed=1 thickness=0.12 mat=1 tone=2 fill=7 wear=0.4 roof=1 unsupported=1
-surface e19 v25 v26 v27 v28 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.4
-surface e20 v26 v25 v29 v30 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.4
+surface e18 v21 v22 v23 v24 style=- closed=1 thickness=0.12 mat=1 tone=2 fill=7 wear=0.68 roof=1 unsupported=1
+surface e19 v25 v26 v27 v28 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.68
+surface e20 v26 v25 v29 v30 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.68
 line e21 v31 v32 style=- radius=0.12 form=plank mat=1 tone=1
 line e22 v33 v34 style=- radius=0.09 mat=0 tone=2
 line e23 v35 v36 style=- radius=0.12 form=plank mat=1 tone=1

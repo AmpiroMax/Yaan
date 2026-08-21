@@ -1,0 +1,46 @@
+# dfh 1
+vertex v1 free 0.0900 0.0000 0.0900
+vertex v2 free 0.0900 0.9500 0.0900
+vertex v3 free 0.0900 0.0000 1.9100
+vertex v4 free 0.0900 0.5500 1.9100
+vertex v5 free 0.9100 0.0000 0.0900
+vertex v6 free 0.9100 0.9500 0.0900
+vertex v7 free 0.9100 0.0000 1.9100
+vertex v8 free 0.9100 0.5500 1.9100
+vertex v9 free 0.0900 0.3400 0.0900
+vertex v10 free 0.9100 0.3400 0.0900
+vertex v11 free 0.0900 0.3400 1.9100
+vertex v12 free 0.9100 0.3400 1.9100
+vertex v13 free 0.0900 0.3700 0.0900
+vertex v14 free 0.0900 0.3700 1.9100
+vertex v15 free 0.9100 0.3700 1.9100
+vertex v16 free 0.9100 0.3700 0.0900
+vertex v17 free 0.0900 0.4800 0.0900
+vertex v18 free 0.9100 0.4800 0.0900
+vertex v19 free 0.9100 0.8900 0.0900
+vertex v20 free 0.0900 0.8900 0.0900
+vertex v21 free 0.0900 0.4800 1.9100
+vertex v22 free 0.9100 0.4800 1.9100
+vertex v23 free 0.9100 0.4900 1.9100
+vertex v24 free 0.0900 0.4900 1.9100
+vertex v25 free 0.0000 0.9650 0.0000
+vertex v26 free 0.0000 0.9650 0.1800
+vertex v27 free 0.1800 0.9650 0.1800
+vertex v28 free 0.1800 0.9650 0.0000
+vertex v29 free 0.8200 0.9650 0.0000
+vertex v30 free 0.8200 0.9650 0.1800
+vertex v31 free 1.0000 0.9650 0.1800
+vertex v32 free 1.0000 0.9650 0.0000
+line e1 v1 v2 style=- radius=0.060 form=square mat=0 tone=2
+line e2 v3 v4 style=- radius=0.060 form=square mat=0 tone=2
+line e3 v5 v6 style=- radius=0.060 form=square mat=0 tone=2
+line e4 v7 v8 style=- radius=0.060 form=square mat=0 tone=2
+line e5 v9 v10 style=- radius=0.050 form=square mat=0 tone=2
+line e6 v11 v12 style=- radius=0.050 form=square mat=0 tone=2
+line e7 v9 v11 style=- radius=0.050 form=square mat=0 tone=2
+line e8 v10 v12 style=- radius=0.050 form=square mat=0 tone=2
+surface e9 v13 v14 v15 v16 style=- closed=1 thickness=0.060 mat=1 tone=1 fill=5 wear=0.3
+surface e10 v17 v18 v19 v20 style=- closed=1 thickness=0.050 mat=1 tone=2
+surface e11 v21 v22 v23 v24 style=- closed=1 thickness=0.050 mat=1 tone=2
+surface e12 v25 v26 v27 v28 style=- closed=1 thickness=0.050 mat=0 tone=2
+surface e13 v29 v30 v31 v32 style=- closed=1 thickness=0.050 mat=0 tone=2
