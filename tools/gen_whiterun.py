@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 22:08:2026 - 01:30:00
+# Last updated: 22:08:2026 - 02:00:00
 # Module: tools
 # File: tools/gen_whiterun.py
 #
@@ -94,6 +94,13 @@
 #   (экспорт чертежа tools/gen_whiterun_plan.py) — одна правда о городе.
 #   Прежний путь «город руками в коде» с его историей выше заменён планом;
 #   зоны -> пады, дороги -> тропы, дома по kind, дорожки цепочками плит.
+# - 22:08:2026 - 02:00:00: РЕЛЬЕФ РАСТЕРИЗУЕТСЯ ИЗ ПОЛИГОНОВ ЧЕРТЕЖА
+#   (эллипсы-пады дали паразитные горки — бот v5-3 утыкался у рынка): 256х256
+#   point-in-polygon по зонам + микропятна + тройной box-блюр, в relief идут
+#   дельты от натуральной земли (замер WHITERUN_BARE=1 -> dump natural).
+#   Посадка домов ДВЕРНОЙ ГРАНЬЮ на красную линию чертежа с отодвигом от
+#   полос дорог по нормали (rect_road_hit, рынок-буфер исключён); проверки
+#   расстановки в генераторе. Круг v5-5 пройден целиком без застреваний.
 
 import json
 import math
@@ -141,7 +148,9 @@ KIND = {
     "keep":    ("city-keep-s.dfh", 25.0, 9.0),
     "wing":    (None, 0, 0),  # крылья входят в рецепт keep-s
     "donjon":  ("city-donjon.dfh", 3.6, 3.6),
-    "manor":   ("city-manor.dfh", 14.0, 7.0),
+    # city-manor реально 14х15 с крылом — на схемном пятне 9х7 крыло легло
+    # на главную улицу (прогон v5-1). Усадьба плана = крупный дом.
+    "manor":   ("city-house-l.dfh", 10.2, 8.2),
     "temple":  ("city-temple.dfh", 10.0, 8.0),
     "longhall":("city-longhall.dfh", 12.0, 8.0),
     "shop":    ("city-shop.dfh", 6.4, 8.6),
@@ -175,15 +184,49 @@ def put_house(hs):
     # равна Z_loc=(sin yaw, cos yaw) -> yaw из направления двери схемы.
     yaw = math.degrees(math.atan2(dx, dz)) % 360.0
     c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
-    # origin (угол 0,0) из центра схемы: центр = origin + X*w/2 + Z*d/2
-    ox = hs["x"] - (w/2)*c - (d/2)*s
-    oz = hs["z"] + (w/2)*s - (d/2)*c
-    y = sit(hs["x"], hs["z"], 25.0, half=max(w, d)/2)
+    # ПОСАДКА ДВЕРНОЙ ГРАНЬЮ: дверная грань реального дома встаёт туда, где
+    # дверная грань схемного пятна (красная линия чертежа). Рост реальной
+    # глубины уходит НАЗАД во двор — посадка центром выдвигала фасады на
+    # дороги (первый прогон v5: 15 пересечений с полосами).
+    door_face = {"S": hs["d"]/2, "N": hs["d"]/2, "E": hs["w"]/2, "W": hs["w"]/2}[hs["door"]]
+    fx = hs["x"] + dx * door_face
+    fz = hs["z"] + dz * door_face
+    ccx = fx - dx * (d/2)
+    ccz = fz - dz * (d/2)
+    # Отодвиг от дорог: тело пересекает полосу -> шаг по нормали ОТ ближайшей
+    # точки нарушающей дороги (двери может быть недостаточно, дорога бывает
+    # сбоку). Шаг 0.4, не больше 5 м.
+    def nearest_on_roads(px, pz):
+        best, pt = 1e9, (px, pz)
+        for rd in PLAN["roads"]:
+            for (x0,z0),(x1,z1) in zip(rd["pts"], rd["pts"][1:]):
+                vx, vz = x1-x0, z1-z0
+                L2 = vx*vx + vz*vz
+                t = max(0.0, min(1.0, ((px-x0)*vx + (pz-z0)*vz) / L2))
+                qx, qz = x0+vx*t, z0+vz*t
+                dd = math.hypot(px-qx, pz-qz)
+                if dd < best:
+                    best, pt = dd, (qx, qz)
+        return pt
+    moved = 0.0
+    yaw_now = math.degrees(math.atan2(dx, dz)) % 360.0
+    while moved < 8.0 and any(rect_road_hit(ccx, ccz, w, d, yaw_now, rd)
+                              for rd in PLAN["roads"]):
+        qx, qz = nearest_on_roads(ccx, ccz)
+        nx, nz = ccx - qx, ccz - qz
+        nl = math.hypot(nx, nz) or 1.0
+        ccx += nx / nl * 0.4
+        ccz += nz / nl * 0.4
+        moved += 0.4
+    ox = ccx - (w/2)*c - (d/2)*s
+    oz = ccz + (w/2)*s - (d/2)*c
+    y = sit(ccx, ccz, 25.0, half=max(w, d)/2)
     house(rec, ox, y, oz, yaw, hs["name"] or hs["kind"] or "дом")
+    PLACED.append((ccx, ccz, w, d, yaw, hs["name"] or hs["kind"] or "дом"))
     # каменная дорожка с бордюрами: цепочка furn-walk2 от двери до улицы
     if hs["walk"]:
-        door_x = hs["x"] + dx*(d/2)
-        door_z = hs["z"] + dz*(d/2)
+        door_x = fx
+        door_z = fz
         wx, wz = hs["walk"]
         vx, vz = wx - door_x, wz - door_z
         L = math.hypot(vx, vz)
@@ -197,6 +240,102 @@ def put_house(hs):
                 gy = ground(sx, sz)
                 house("furn-walk2.dfh", sx - ux, (25.0 if gy is None else gy) + 0.01,
                       sz - uz + 0.0, wyaw, "дорожка: " + (hs["name"] or hs["kind"] or "дом"))
+
+PLACED = []  # (cx, cz, w, d, yaw_deg, name) реальных тел для проверок
+
+MRX, MRZ, MRW, MRD = PLAN["market"]["rect"]
+
+def on_market(px, pz):
+    """Точка на рыночной площади (с буфером): дороги, влившиеся в площадь,
+    там не считаются — фасады стоят на самой площади, это норма."""
+    return (MRX - 2 <= px <= MRX + MRW + 2) and (MRZ - 2 <= pz <= MRZ + MRD + 2)
+
+def rect_road_hit(cx, cz, w, d, yaw_deg, rd):
+    """Сэмплы осевой дороги в локали дома против [±w/2]x[±d/2]."""
+    r = math.radians(yaw_deg)
+    c, sn = math.cos(r), math.sin(r)
+    for (x0,z0),(x1,z1) in zip(rd["pts"], rd["pts"][1:]):
+        L = math.hypot(x1-x0, z1-z0)
+        for i in range(int(L*2) + 1):
+            t = i / max(1, int(L*2))
+            wx0, wz0 = x0+(x1-x0)*t, z0+(z1-z0)*t
+            if on_market(wx0, wz0):
+                continue
+            px, pz = wx0 - cx, wz0 - cz
+            lx = px*c - pz*sn
+            lz = px*sn + pz*c
+            ddx = max(abs(lx) - w/2, 0.0)
+            ddz = max(abs(lz) - d/2, 0.0)
+            if math.hypot(ddx, ddz) < rd["w"]/2 - 0.3:
+                return True
+    return False
+
+def check_layout():
+    import itertools
+    bad = []
+    for (c1, z1, w1, d1, y1, n1), (c2, z2, w2, d2, y2, n2) in itertools.combinations(PLACED, 2):
+        if math.hypot(c1-c2, z1-z2) < (max(w1,d1) + max(w2,d2)) / 2 * 0.55:
+            bad.append(f"близко: {n1} и {n2}")
+    for rd in PLAN["roads"]:
+        for (cx, cz, w, d, y, n) in PLACED:
+            if n.startswith("дорожка"):
+                continue
+            if rect_road_hit(cx, cz, w, d, y, rd):
+                bad.append(f"на дороге ({rd['mat']}): {n}")
+    if bad:
+        print("ПРОВЕРКА РАССТАНОВКИ:")
+        for b in sorted(set(bad)):
+            print("  -", b)
+
+def point_in_poly(x, z, pts):
+    inside = False
+    n = len(pts)
+    j = n - 1
+    for i in range(n):
+        xi, zi = pts[i]
+        xj, zj = pts[j]
+        if (zi > z) != (zj > z) and x < (xj - xi) * (z - zi) / (zj - zi) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+def build_plan_heights():
+    """256x256 карта высот ИЗ ПОЛИГОНОВ чертежа: последняя содержащая зона
+    побеждает, поверх микропятна, затем гауссово сглаживание — перепады
+    1-3 м из схемы становятся склонами 20-30%, без паразитных горок
+    эллипс-аппроксимации (бот v5-3 утыкался в такую у рынка)."""
+    Hh = [[25.0] * 256 for _ in range(256)]
+    for zn in PLAN["zones"]:
+        xs = [q[0] for q in zn["pts"]]
+        zs = [q[1] for q in zn["pts"]]
+        x0, x1 = max(0, int(min(xs)) - 1), min(255, int(max(xs)) + 2)
+        z0, z1 = max(0, int(min(zs)) - 1), min(255, int(max(zs)) + 2)
+        for gz in range(z0, z1 + 1):
+            for gx in range(x0, x1 + 1):
+                if point_in_poly(gx, gz, zn["pts"]):
+                    Hh[gz][gx] = float(zn["h"])
+    for m in PLAN["micro"]:
+        xs = [q[0] for q in m["pts"]]
+        zs = [q[1] for q in m["pts"]]
+        for gz in range(max(0, int(min(zs))), min(255, int(max(zs))) + 1):
+            for gx in range(max(0, int(min(xs))), min(255, int(max(xs))) + 1):
+                if point_in_poly(gx, gz, m["pts"]):
+                    Hh[gz][gx] += m["dh"]
+    # сепарабельный блюр (три прохода box ~ гаусс сигма ~2.2)
+    for _ in range(3):
+        for row in Hh:
+            acc = row[:]
+            for i in range(256):
+                lo, hi = max(0, i - 2), min(255, i + 2)
+                row[i] = sum(acc[lo:hi + 1]) / (hi - lo + 1)
+        for i in range(256):
+            col = [Hh[r][i] for r in range(256)]
+            for r in range(256):
+                lo, hi = max(0, r - 2), min(255, r + 2)
+                Hh[r][i] = sum(col[lo:hi + 1]) / (hi - lo + 1)
+    return Hh
+
+NATURAL_PATH = "/tmp/whiterun_natural.txt"
 
 def main():
     # --- постройки плана ---
@@ -289,31 +428,8 @@ def main():
         ty = sit(t["x"], t["z"], 25.0, half=1.0)
         place(opts[i % len(opts)], t["x"], ty, t["z"], (i * 47) % 360)
 
-    # --- terrain: пады из зон, микрорельеф, река ---
+    # --- terrain: река; высоты плана пишутся в relief дельтами от natural ---
     terrain = []
-    for zn in PLAN["zones"]:
-        xs = [p[0] for p in zn["pts"]]
-        zs = [p[1] for p in zn["pts"]]
-        cx, cz = sum(xs)/len(xs), sum(zs)/len(zs)
-        hx = max(2.0, (max(xs)-min(xs))/2 - 2)
-        hz = max(2.0, (max(zs)-min(zs))/2 - 2)
-        if zn["h"] == 25:
-            continue  # базовая равнина = натуральная земля
-        terrain.append(f"[pad]\ncenter = {cx:.1f} {cz:.1f}\n"
-                       f"half_extents = {hx:.1f} {hz:.1f}\nblend = 6\n"
-                       f"height = {zn['h']}\nnote = зона плана h={zn['h']}\n")
-    for m in PLAN["micro"]:
-        xs = [p[0] for p in m["pts"]]
-        zs = [p[1] for p in m["pts"]]
-        cx, cz = sum(xs)/len(xs), sum(zs)/len(zs)
-        # микропятно: высота относительно окружения решится вторым проходом
-        base = ground(cx, cz)
-        if base is None:
-            continue
-        terrain.append(f"[pad]\ncenter = {cx:.1f} {cz:.1f}\n"
-                       f"half_extents = {max(2.0,(max(xs)-min(xs))/2):.1f} "
-                       f"{max(2.0,(max(zs)-min(zs))/2):.1f}\nblend = 4\n"
-                       f"height = {base + m['dh']}\nnote = микрорельеф {m['dh']:+d}\n")
     rpts = "\n".join(f"point = {x} {z} {23.6 - i*0.08:.2f}"
                      for i, (x, z) in enumerate(PLAN["river"]))
     terrain.append(f"[river]\nwidth_m = {PLAN['river_half_w']*2:.0f}\ndepth_m = 1.0\n"
@@ -349,9 +465,19 @@ def main():
     open(os.path.join(ROOT, "assets/scenes/whiterun.scene"), "w",
          encoding="utf-8").write("\n".join(out))
 
-    # relief: тропы дорог (свой файл, без копии town-land — рельеф теперь падовый)
-    rel = ["# Daggerfall N relief — Вайтран v5: дороги планом, рельеф падами.",
+    # relief: высоты плана (дельты от натуральной земли) + тропы дорог
+    rel = ["# Daggerfall N relief — Вайтран v5: высоты чертежа + тропы.",
            "step 1"]
+    if os.environ.get("WHITERUN_BARE") != "1" and os.path.exists(NATURAL_PATH):
+        nat = [[float(v) for v in line.split()]
+               for line in open(NATURAL_PATH, encoding="utf-8")
+               if not line.startswith("#")]
+        Hh = build_plan_heights()
+        for gz in range(256):
+            for gx in range(256):
+                dh = Hh[gz][gx] - nat[gz][gx]
+                if abs(dh) > 0.05:
+                    rel.append(f"dh {gx} {gz} {dh:.2f}")
     rel += relief_paths
     open(os.path.join(ROOT, "assets/scenes/whiterun.relief"), "w",
          encoding="utf-8").write("\n".join(rel) + "\n")
@@ -367,6 +493,7 @@ def main():
         "description = Город по плану: река от горного истока рвом вдоль стены, "
         "мост у Восточных ворот, рынок, Гилдергрин, замок; дуб-поляна на юго-западе.\n"
         "built_commit =\n")
+    check_layout()
     print(f"whiterun v5: {len(H)} построек, {len(P)} расстановок, "
           f"{len(terrain)} terrain-блоков, {len(relief_paths)} троп")
 
