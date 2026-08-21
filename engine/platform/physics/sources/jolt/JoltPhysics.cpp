@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 18:08:2026 - 12:06:07
+Last updated: 21:08:2026 - 14:35:00
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -74,6 +74,11 @@ UPD:
                          Jolt's block size. Stamped so nobody reads the stale
                          129 as "the shape choice was tied to that number"
                          and re-opens a settled decision on a wrong premise.
+- 21:08:2026 - 14:35:00: Отладочная дверь DFN_CHAR_TRACE=1 - раз в полсекунды
+  вход/исход CharacterVirtual (позиция, GroundState, нормаль опоры, pending,
+  скорость) и разовая перепись всех тел с габаритами. Ею найден невидимый
+  куб кроны Гилдергрина, о который бился бот Вайтрана: расхождение живого
+  конвейера с голой репродукцией можно было поймать только цифрами изнутри.
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -257,6 +262,7 @@ public:
             update_settings.mWalkStairsStepUp = {0.0f, character.step_height, 0.0f};
             update_settings.mStickToFloorStepDown = {0.0f, -character.step_height, 0.0f};
 
+            const glm::vec3 pending = character.pending;
             character.virtual_character->SetLinearVelocity(to_jph(character.pending / dt));
             const MaskBodyFilter body_filter{body_masks_, character.collides_with};
             character.virtual_character->ExtendedUpdate(
@@ -265,6 +271,57 @@ public:
                 system_->GetDefaultLayerFilter(object_layers::CHARACTER), body_filter,
                 {}, *temp_allocator_);
             character.pending = glm::vec3{0.0f};
+            // ОТЛАДОЧНАЯ ДВЕРЬ DFN_CHAR_TRACE=1: раз в полсекунды — вход и
+            // исход контроллера. Заведена на охоте за ботом Вайтрана, который
+            // намертво вставал на ступени, где голая капсула с теми же
+            // параметрами проходит: расхождение можно поймать только цифрами
+            // из ЖИВОГО конвейера (21.08).
+            static const bool char_trace = std::getenv("DFN_CHAR_TRACE") != nullptr;
+            // Разовая перепись ВСЕХ тел (отладочная дверь): охота на стену,
+            // которой нет ни в одном из известных источников (21.08).
+            static bool bodies_dumped = false;
+            if (char_trace && !bodies_dumped) {
+                bodies_dumped = true;
+                JPH::BodyIDVector ids;
+                system_->GetBodies(ids);
+                std::fprintf(stderr, "[тела] всего %zu\n", ids.size());
+                for (const JPH::BodyID id : ids) {
+                    JPH::AABox box = system_->GetBodyInterface()
+                                         .GetTransformedShape(id)
+                                         .GetWorldSpaceBounds();
+                    std::fprintf(stderr,
+                                 "[тело] id=%u x %.1f..%.1f y %.1f..%.1f "
+                                 "z %.1f..%.1f\n",
+                                 id.GetIndex(),
+                                 static_cast<double>(box.mMin.GetX()),
+                                 static_cast<double>(box.mMax.GetX()),
+                                 static_cast<double>(box.mMin.GetY()),
+                                 static_cast<double>(box.mMax.GetY()),
+                                 static_cast<double>(box.mMin.GetZ()),
+                                 static_cast<double>(box.mMax.GetZ()));
+                }
+            }
+            if (char_trace) {
+                static int trace_tick = 0;
+                if (++trace_tick % 30 == 0) {
+                    const JPH::RVec3 p = character.virtual_character->GetPosition();
+                    const JPH::Vec3 n = character.virtual_character->GetGroundNormal();
+                    const JPH::Vec3 v = character.virtual_character->GetLinearVelocity();
+                    std::fprintf(stderr,
+                                 "[char] pos=(%.2f %.2f %.2f) ground=%d "
+                                 "n=(%.2f %.2f %.2f) pend=(%.3f %.3f %.3f) "
+                                 "v=(%.2f %.2f %.2f)\n",
+                                 static_cast<double>(p.GetX()), static_cast<double>(p.GetY()),
+                                 static_cast<double>(p.GetZ()),
+                                 static_cast<int>(character.virtual_character->GetGroundState()),
+                                 static_cast<double>(n.GetX()), static_cast<double>(n.GetY()),
+                                 static_cast<double>(n.GetZ()),
+                                 static_cast<double>(pending.x), static_cast<double>(pending.y),
+                                 static_cast<double>(pending.z),
+                                 static_cast<double>(v.GetX()), static_cast<double>(v.GetY()),
+                                 static_cast<double>(v.GetZ()));
+                }
+            }
         }
 
         constexpr int COLLISION_STEPS = 1; // one fixed step per call (Rule 12)

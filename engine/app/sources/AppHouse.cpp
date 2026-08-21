@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 21:08:2026 - 02:45:00
+Last updated: 21:08:2026 - 14:35:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -41,6 +41,8 @@ UPD:
 - 20:08:2026 - 22:40:00: scene_index заполняется загрузкой; remap по штампу вместо переинициализации (квадратичный разгон).
 - 21:08:2026 - 01:50:00: Слой грязи и мха v2: пятна по шуму (не градиент), налёт на горизонталях, тёмная грязь у земли — калибровка после трёх слепых приёмок.
 - 21:08:2026 - 02:45:00: Мох v4: жёсткий высотный ноль (бонус горизонталей красил стену доверху), пятна мельче и контрастнее; грязь у земли полметра и темнее.
+- 21:08:2026 - 14:35:00: Потребитель MeshPart.collider_only: часть уходит в
+  коллайдер построек и НЕ уходит в рендер-потоки (невидимый пандус лестниц).
 */
 
 #include "engine/app/sources/App.h"
@@ -626,6 +628,17 @@ void App::upload_house_mesh() {
                 tone = static_cast<std::uint32_t>(part.tone_override) % 4u;
             }
             const bool is_door = graph.param(e->id, "door") == "1";
+            // ЧИСТО ФИЗИЧЕСКАЯ ЧАСТЬ (пандус лестницы): в коллайдер ниже,
+            // в картинку — нет. Симметрия mb.collider=false (21.08).
+            if (part.collider_only) {
+                for (std::uint32_t i = 0; i < part.index_count; ++i) {
+                    const std::uint32_t vi = built.indices[part.index_begin + i];
+                    collider_indices.push_back(
+                        static_cast<std::uint32_t>(house_positions_.size()));
+                    house_positions_.push_back(to_world(built.vertices[vi].pos));
+                }
+                continue;
+            }
             render::MeshData* into = nullptr;
             if (is_door) {
                 doors.emplace_back();

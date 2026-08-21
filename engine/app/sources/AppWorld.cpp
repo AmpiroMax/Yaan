@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 20:08:2026 - 17:30:00
+Last updated: 21:08:2026 - 14:35:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -28,6 +28,12 @@ UPD:
   Список сноса один на два вызова: shutdown() зовёт эту же функцию.
 - 20:08:2026 - 15:30:00: enter_world зовёт load_scene_houses; unload_world чистит placed_houses_.
 - 20:08:2026 - 17:30:00: Дверь DFN_PLAYTEST_ARRIVE=<м>.
+- 21:08:2026 - 14:35:00: ДЕРЕВО СЦЕНЫ КОЛЛАЙДИТ СТВОЛОМ, НЕ ГАБАРИТОМ. Бокс по
+  всему мешу у Гилдергрина (ветки кроны живут в потоке wood) дал невидимый куб
+  53х53х53 с гранью z=123.66 — бот шести прогонов Вайтрана бился именно в него;
+  найден переписью тел Jolt (id=5, x94..147 y30..83 z66..123.7). Сценические
+  деревья (есть листва-карты) получают ствол-бокс в поясе 0.4..2.2 с крышкой
+  12 м — как деревья галерейного грида; прочие объекты — прежний бокс.
 */
 
 #include "engine/app/sources/App.h"
@@ -656,6 +662,44 @@ bool App::enter_world(uint32_t stand) {
                     feed(obj.wood);
                     feed(obj.bark);
                     feed(obj.ground);
+                    ++placed;
+                    continue;
+                }
+                // ДЕРЕВО СЦЕНЫ (есть листва-карты): тело — СТВОЛ, не габарит.
+                // У Гилдергрина деревянные ветки кроны живут в потоке wood, и
+                // «бокс по всему мешу» стал невидимым кубом 53х53х53 с гранью
+                // z=123.66 — бот всех прогонов бился именно в него (перепись
+                // тел Jolt, 21.08). Ствол меряется в поясе 0.4..2.2 и режется
+                // по высоте 12 — как у деревьев галерейного грида ниже.
+                if (!obj.cards.vertices.empty()) {
+                    float trunk_r = 0.15f;
+                    float wood_top = 2.0f;
+                    const auto girth = [&](const render::MeshData& m) {
+                        for (const platform::Vertex& v : m.vertices) {
+                            wood_top = std::max(wood_top, v.position.y * p.scale);
+                            const float yy = v.position.y * p.scale;
+                            if (yy > 0.4f && yy < 2.2f) {
+                                trunk_r = std::max(
+                                    trunk_r,
+                                    p.scale
+                                        * std::sqrt(v.position.x * v.position.x
+                                                    + v.position.z * v.position.z));
+                            }
+                        }
+                    };
+                    girth(obj.bark);
+                    girth(obj.wood);
+                    platform::StaticBoxDesc trunk;
+                    const float bh = std::min(wood_top, 12.0f);
+                    trunk.center = {p.position.x, p.position.y + bh * 0.5f,
+                                    p.position.z};
+                    trunk.half_extents = {trunk_r * 0.75f, bh * 0.5f,
+                                          trunk_r * 0.75f};
+                    trunk.layer = physics::LAYER_STATIC;
+                    const auto tb = physics_->create_static_box(trunk);
+                    if (tb.valid()) {
+                        gallery_bodies_.push_back(tb);
+                    }
                     ++placed;
                     continue;
                 }

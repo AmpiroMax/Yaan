@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 01:50:00
+Last updated: 21:08:2026 - 14:35:00
 Module: engine/world
 File: engine/world/sources/HouseMeshDetail.h
 
@@ -28,6 +28,8 @@ AI Agents Notice (must follow):
 UPD:
 - 21:08:2026 - 00:40:00: Создан при разрезе HouseMesh.cpp на модули.
 - 21:08:2026 - 01:50:00: MeshBuilder.collider — косметический слой без физического тела (плашка подтёка перегородила судью).
+- 21:08:2026 - 14:35:00: MeshBuilder.collider_only - флаг проносится в
+  MeshPart при flush_part (пандус лестниц: физика без картинки).
 */
 
 #pragma once
@@ -64,6 +66,8 @@ struct MeshBuilder {
     /// физике не принадлежат — плашка подтёка в дверном проёме перегородила
     /// судью проходимости. Слой выключает на время своих плашек.
     bool collider = true;
+    /// ФИЗИКА БЕЗ КАРТИНКИ: часть уходит в parts с пометкой collider_only.
+    bool collider_only = false;
 
     void begin_element(ElementId id) {
         part_element = id;
@@ -75,7 +79,7 @@ struct MeshBuilder {
         const std::uint32_t now = static_cast<std::uint32_t>(out->indices.size());
         if (part_element != NO_ELEMENT && now > part_begin) {
             out->parts.push_back({part_element, part_begin, now - part_begin, part_mat,
-                                  part_tone});
+                                  part_tone, collider_only});
         }
         part_begin = now;
     }
