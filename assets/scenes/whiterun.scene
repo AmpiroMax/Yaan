@@ -157,79 +157,79 @@ note = Гилдергрин (розовая листва — заказ зоне
 [place]
 object = birch-forge-a
 pos = 94.000 25.000 158.000
-yaw = 3.665191
+yaw = 0.558505
 scale = 1
 
 [place]
 object = birch-forge-b
 pos = 142.000 25.000 170.000
-yaw = 0.157080
+yaw = 2.286381
 scale = 1
 
 [place]
 object = aspen-forge-a
 pos = 156.000 25.000 146.000
-yaw = 0.244346
+yaw = 0.226893
 scale = 1
 
 [place]
 object = birch-forge-a
 pos = 92.000 31.000 100.000
-yaw = 2.321288
+yaw = 2.565634
 scale = 1
 
 [place]
 object = aspen-forge-a
 pos = 140.000 31.000 108.000
-yaw = 3.054326
+yaw = 6.021386
 scale = 1
 
 [place]
 object = juniper-forge-a
 pos = 124.000 31.000 74.000
-yaw = 6.038839
+yaw = 2.670354
 scale = 1
 
 [place]
 object = juniper-forge-a
 pos = 134.000 31.000 90.000
-yaw = 3.141593
+yaw = 1.815142
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 20.000 25.000 222.000
-yaw = 2.949606
+yaw = 3.351032
 scale = 1
 
 [place]
 object = pine-forge-b
 pos = 44.000 25.000 244.000
-yaw = 0.052360
+yaw = 4.590216
 scale = 1
 
 [place]
 object = spruce-forge-a
 pos = 200.000 23.600 238.000
-yaw = 2.495821
+yaw = 3.909538
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 222.000 24.800 200.000
-yaw = 4.136430
+yaw = 3.665191
 scale = 1
 
 [place]
 object = oak-forge-a
 pos = 32.000 25.000 156.000
-yaw = 3.682645
+yaw = 2.059489
 scale = 1
 
 [place]
 object = spruce-forge-b
 pos = 236.000 25.000 116.000
-yaw = 1.448623
+yaw = 6.195919
 scale = 1
 
 [house]
@@ -1001,10 +1001,10 @@ yaw = 0.011143
 note = Йоррваскр
 
 [house]
-file = assets/houses/stone-replica.dfh
-pos = 82.611 30.920 96.065
-yaw = 0.225111
-note = дом Серых Грив
+file = assets/houses/city-manor.dfh
+pos = 78.677 30.920 90.925
+yaw = 0.432774
+note = усадьба Серых Грив
 
 [house]
 file = assets/houses/stone-replica.dfh
@@ -1013,15 +1013,15 @@ yaw = 1.593767
 note = фронт улицы, запад (rich)
 
 [house]
-file = assets/houses/city-manor.dfh
-pos = 100.382 30.920 96.579
-yaw = 1.587931
+file = assets/houses/city-house-l.dfh
+pos = 99.814 30.920 97.491
+yaw = 1.431799
 note = фронт улицы, запад (rich)
 
 [house]
-file = assets/houses/city-manor.dfh
-pos = 127.559 30.920 103.905
-yaw = 4.812059
+file = assets/houses/city-house-l.dfh
+pos = 129.188 30.920 104.325
+yaw = 4.862252
 note = фронт улицы, восток (rich)
 
 [house]
