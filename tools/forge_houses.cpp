@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 21:08:2026 - 20:55:00
+Last updated: 22:08:2026 - 14:30:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -101,6 +101,32 @@ UPD:
   лестничного колодца: невыпуклый контур пришлось бы триангулировать веером.
   Плиты двора остались на 0.02 при толщине 0.2 (контур растёт в обе стороны
   от своей высоты — 0.3 дало бы порог 0.15 на парадном дворе).
+- 22:08:2026 - 14:30:00: ГОРОД ПО УТВЕРЖДЁННОЙ СХЕМЕ (docs/WHITERUN_PLAN.json)
+  — ДВА НОВЫХ РЕЦЕПТА, прежние 40 .dfh байт-в-байт.
+  city-mill — водяная мельница 7x7: глухой каменный подклет 1.2, фахверк до
+  карниза 3.6, двускат-дранка (конёк 5.5), дверь на ЗАПАД к дороге с
+  площадкой и маршем 1.2 (уклон 26.6 гр.). КОЛЕСО на восточной стене —
+  восьмигранник рукой forge_well/tree_ring: круг из прямых брусьев, гнутого
+  обода в графе нет. Два обода R 2.2 в плоскостях x = W+0.4 и W+1.2 (ширина
+  0.8, выступ за стену ровно 1.2), спицы к ступице в плоскости каждого обода,
+  восемь лопастей-досок 1.55..2.35 по радиусу, ось-балка от подклета наружу и
+  два подкоса-подшипника от стены. Центр на 0.7 при R 2.2 — низ обода на -1.5,
+  под срезом берега: колесо обязано доставать до воды.
+  city-keep-s — компактный замок ПО СХЕМЕ: корпус 15x8, стилобат-камень 1.6,
+  два фахверковых яруса до карниза 7.4, нижние полы к ФОНАРЮ глубиной 4 (из 8)
+  и его двускат — конёк 13.8; два крыла 5x6 у торцов (габарит 25x8), карниз
+  4.2, конёк 6.0; вход по центру юга на уровень стилобата, крыльцо-площадка и
+  ОДИН марш open=2 на 1.6 (стык двух маршей дважды ловил бота). Прежний
+  city-keep 26x14 не тронут — принятая доминанта живёт своим файлом, а ярусная
+  лямбда tier() вынесена в общую руку keep_tier() (порядок стен север-восток-
+  запад-юг — часть контракта: по нему нумеруются вершины, и перестановка
+  перепекла бы принятый .dfh). Ей же добавлена сторона двери: мельница
+  смотрит на запад, замок — на юг.
+  ГЛУХОЙ НИЗ У ОБОИХ: build_house_mesh сказал «проём просит 2.10 м по высоте,
+  стена 1.60» — окно 2.1 и дверь 2.05 в цоколь 1.2-1.6 не влезают. Проёмы
+  ушли в ярус над цоколем, как у принятого city-house-l с его 0.525. У крыльев
+  ради этого карниз поднят 3.4 -> 4.2, а подъём ската срезан 2.6 -> 1.8, чтобы
+  конёк остался на 6.
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -1491,6 +1517,57 @@ static void forge_temple() {
     f.save("assets/houses/city-temple.dfh");
 }
 
+/// ЯРУС ЧЕТЫРЁХ СТЕН — ОБЩАЯ РУКА (была лямбдой внутри forge_keep; вынесена
+/// 22.08, когда за ярусами пришли ещё два рецепта — компактный замок и
+/// мельница). Длинные и короткие стены просят РАЗНОЕ число проёмов: общий
+/// ring() старого замка ставил всем поровну, и торцы шли решетом.
+/// Порядок постановки стен (север, восток, запад, юг) — часть контракта: по
+/// нему нумеруются вершины в .dfh, и перестановка перепекла бы принятый
+/// city-keep.dfh.
+/// door — сторона с проёмом и крыльцом: 0 (нет), 'S' (юг) или 'W' (запад,
+/// мельница смотрит дверью на дорогу вдоль реки); остальные стены получают
+/// свои окна.
+static void keep_tier(Forge& f, float y, float h, float x0, float z0, float x1,
+                      float z1, const char* th, const char* mat,
+                      const char* tone, const char* fill, const char* win_long,
+                      const char* win_short, const char* wear, bool clad,
+                      bool shutters, bool plinth, char door) {
+    char hb[16];
+    std::snprintf(hb, sizeof(hb), "%.2f", h);
+    const VertexId nw = f.v(x0, y, z0);
+    const VertexId ne = f.v(x1, y, z0);
+    const VertexId se = f.v(x1, y, z1);
+    const VertexId sw = f.v(x0, y, z1);
+    const auto put = [&](VertexId a, VertexId b, const char* win, bool has_door) {
+        const ElementId id =
+            f.wall(a, b,
+                   {{"height", hb}, {"thickness", th}, {"mat", mat},
+                    {"tone", tone}, {"wear", wear}});
+        if (fill[0] != 0) {
+            (void)f.g.set_param(id, "fill", fill);
+        }
+        if (clad) {
+            (void)f.g.set_param(id, "clad", "1");
+        }
+        if (shutters) {
+            (void)f.g.set_param(id, "shutters", "1");
+        }
+        if (plinth) {
+            (void)f.g.set_param(id, "plinth", "1");
+        }
+        if (has_door) {
+            (void)f.g.set_param(id, "doors", "1");
+            (void)f.g.set_param(id, "porch", "1");
+        } else if (win[0] != 0) {
+            (void)f.g.set_param(id, "windows", win);
+        }
+    };
+    put(ne, nw, win_long, door == 'N');   // север, лицо на север
+    put(se, ne, win_short, door == 'E');  // восток
+    put(nw, sw, win_short, door == 'W');  // запад
+    put(sw, se, win_long, door == 'S');
+}
+
 /// ЗАМОК-ДОМИНАНТА (Драконий Предел; заказ 21.08 «замок сделать более
 /// солидным»: зал 20x12 с коньком 11.6 читался сараем рядом с донжоном 14).
 /// ЯРУСНЫЙ ОБЪЁМ, как у ставкирки: зал 26x14 на каменном стилобате 2.9, два
@@ -1515,48 +1592,16 @@ static void forge_keep() {
     const float SO = 0.45f;   // свес нижних скатов
     const float RIDGE_H = 4.6f; // конёк 18.8
 
-    // ---------------- ярус стен: одно тело на четыре стены ----------------
-    // Стены длинные (26 м) и короткие (14 м) просят РАЗНОЕ число проёмов:
-    // ring() старого замка ставил всем поровну, и торцы шли решетом.
+    // Ярус четырёх стен — общая рука keep_tier() выше (вынесена 22.08 под
+    // компактный замок и мельницу).
     const auto tier = [&](float y, float h, float x0, float z0, float x1, float z1,
                           const char* th, const char* mat, const char* tone,
                           const char* fill, const char* win_long,
                           const char* win_short, const char* wear, bool clad,
                           bool shutters, bool plinth, bool door_south) {
-        char hb[16];
-        std::snprintf(hb, sizeof(hb), "%.2f", h);
-        const VertexId nw = f.v(x0, y, z0);
-        const VertexId ne = f.v(x1, y, z0);
-        const VertexId se = f.v(x1, y, z1);
-        const VertexId sw = f.v(x0, y, z1);
-        const auto put = [&](VertexId a, VertexId b, const char* win, bool door) {
-            const ElementId id =
-                f.wall(a, b,
-                       {{"height", hb}, {"thickness", th}, {"mat", mat},
-                        {"tone", tone}, {"wear", wear}});
-            if (fill[0] != 0) {
-                (void)f.g.set_param(id, "fill", fill);
-            }
-            if (clad) {
-                (void)f.g.set_param(id, "clad", "1");
-            }
-            if (shutters) {
-                (void)f.g.set_param(id, "shutters", "1");
-            }
-            if (plinth) {
-                (void)f.g.set_param(id, "plinth", "1");
-            }
-            if (door) {
-                (void)f.g.set_param(id, "doors", "1");
-                (void)f.g.set_param(id, "porch", "1");
-            } else if (win[0] != 0) {
-                (void)f.g.set_param(id, "windows", win);
-            }
-        };
-        put(ne, nw, win_long, false);   // север, лицо на север
-        put(se, ne, win_short, false);  // восток
-        put(nw, sw, win_short, false);  // запад
-        put(sw, se, win_long, door_south);
+        keep_tier(f, y, h, x0, z0, x1, z1, th, mat, tone, fill, win_long,
+                  win_short, wear, clad, shutters, plinth,
+                  door_south ? 'S' : '\0');
     };
 
     // ---------------- каменная башенка с шатриком (контрфорс/фланкер) -----
@@ -1814,6 +1859,315 @@ static void forge_keep() {
                      "0.45");
     }
     f.save("assets/houses/city-keep.dfh");
+}
+
+/// ВОДЯНАЯ МЕЛЬНИЦА 7x7 (docs/WHITERUN_PLAN.json, houses[kind=mill]: 7x7 у
+/// излучины, дверь на запад к дороге вдоль реки). Корпус — камень до 1.2 и
+/// фахверк выше под дранкой; на ВОСТОЧНОЙ стене — наливное колесо, которое и
+/// делает сарай мельницей.
+/// ПОЧЕМУ КОЛЕСО ОПУЩЕНО НИЖЕ ПОЛА: постройка садится на берег, а колесо
+/// обязано доставать до воды — центр на 0.7, радиус 2.2, значит низ обода на
+/// -1.5 и уходит под срез берега. Колесо в плане идёт ВОСЬМИГРАННИКОМ (рука
+/// forge_well/tree_ring): круг из прямых брусьев — то же решение, что у
+/// колодезного кольца, а гнутого обода в графе нет.
+static void forge_mill() {
+    Forge f;
+    const float W = 7.0f;
+    const float D = 7.0f;
+    const float YS = 1.2f;  // верх каменного низа = пол рабочего яруса
+    const float H = 3.6f;   // карниз
+    // Пол ПОСТАВА — над каменным подклетом: в подклете сидит вал колеса, и
+    // рабочий ярус мельницы обязан быть выше воды.
+    parquet_floor(f, 0.0f, 0.0f, W, D, YS + 0.06f);
+    // НИЗ — ГЛУХАЯ КЛАДКА: 1.2 м не берут ни окно 2.1, ни дверь 2.05
+    // (build_house_mesh: «проём просит 2.10 м, стена 1.20»), и подклет мельницы
+    // и не должен светиться проёмами. Проёмы живут в фахверке над ним — тот же
+    // порядок, что у city-house-l с его цоколем 0.525.
+    keep_tier(f, 0.0f, YS, 0.0f, 0.0f, W, D, "0.4", "3", "1", "3", "", "",
+              "0.5", false, false, true, '\0');
+    keep_tier(f, YS, H - YS, 0.0f, 0.0f, W, D, "0.3", "5", "0", "", "3", "3",
+              "0.4", true, true, false, 'W');
+    f.door_leaf_x(0.0f, YS, D * 0.5f);
+    // КРЫЛЬЦО НА ЗАПАД (схема: дверь мельницы смотрит на дорогу): площадка на
+    // уровне порога и марш 1.2 на вынос 2.4 — уклон 26.6 гр., по нему бот
+    // ходит. Обход контура «+Z, потом +X» — при нём лицо смотрит вверх.
+    {
+        const VertexId a = f.v(-1.4f, YS - 0.06f, 2.6f);
+        const VertexId b = f.v(-1.4f, YS - 0.06f, 4.4f);
+        const VertexId c = f.v(0.0f, YS - 0.06f, 4.4f);
+        const VertexId d = f.v(0.0f, YS - 0.06f, 2.6f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.12"}, {"fill", "5"}, {"mat", "1"},
+                         {"tone", "1"}, {"wear", "0.45"}});
+    }
+    {
+        const VertexId a = f.v(-3.8f, 0.0f, 2.9f);
+        const VertexId b = f.v(-3.8f, 0.0f, 4.1f);
+        const VertexId c = f.v(-1.4f, YS, 4.1f);
+        const VertexId d = f.v(-1.4f, YS, 2.9f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.12"}, {"fill", "6"}, {"open", "1"},
+                         {"mat", "1"}, {"tone", "1"}, {"wear", "0.4"}});
+    }
+    f.frame_posts(0.0f, 0.0f, W, D, YS, H, "0");
+    f.gable_roof(0.0f, 0.0f, W, D, H, 1.9f, "1", "1", "7", "0.42");
+
+    // ---------------- водяное колесо на восточной стене -------------------
+    const float R = 2.2f;          // радиус обода
+    const float CZ = D * 0.5f;     // ось колеса по глубине
+    const float CY = 0.7f;         // центр: низ обода уходит на -1.5
+    const float X0 = W + 0.4f;     // ближний обод
+    const float X1 = W + 1.2f;     // дальний обод — выступ за стену ровно 1.2
+    const auto ring = [&](float r, int k) {
+        const float t = 0.7853981634f * static_cast<float>(k);
+        return glm::vec3{0.0f, CY + r * std::sin(t), CZ + r * std::cos(t)};
+    };
+    // ОСЬ-БАЛКА СКВОЗЬ СТЕНУ: от подклета (x = W - 0.8) наружу за дальний
+    // обод. Без неё колесо висит в воздухе отдельной деталью.
+    (void)f.beam(f.v(W - 0.8f, CY, CZ), f.v(X1 + 0.25f, CY, CZ),
+                 {{"radius", "0.16"}, {"mat", "0"}, {"tone", "2"}});
+    // Два обода-восьмигранника и спицы к ступице в плоскости каждого обода.
+    for (const float x : {X0, X1}) {
+        for (int k = 0; k < 8; ++k) {
+            const glm::vec3 p = ring(R, k);
+            const glm::vec3 q = ring(R, k + 1);
+            (void)f.beam(f.v(x, p.y, p.z), f.v(x, q.y, q.z),
+                         {{"radius", "0.13"}, {"form", "square"}, {"mat", "0"},
+                          {"tone", "2"}, {"wear", "0.55"}});
+            (void)f.beam(f.v(x, CY, CZ), f.v(x, p.y, p.z),
+                         {{"radius", "0.07"}, {"form", "square"}, {"mat", "0"},
+                          {"tone", "2"}, {"wear", "0.5"}});
+        }
+    }
+    // ЛОПАСТИ: доска между ободами на каждом углу восьмигранника, от 1.55 до
+    // 2.35 по радиусу — она и черпает воду, и не даёт кольцу читаться рамой.
+    for (int k = 0; k < 8; ++k) {
+        const glm::vec3 in = ring(1.55f, k);
+        const glm::vec3 out = ring(2.35f, k);
+        const ElementId s = f.contour({f.v(X0, in.y, in.z), f.v(X1, in.y, in.z),
+                                       f.v(X1, out.y, out.z),
+                                       f.v(X0, out.y, out.z)},
+                                      {{"thickness", "0.07"}, {"mat", "1"},
+                                       {"tone", "2"}, {"wear", "0.55"}});
+        (void)f.g.set_param(s, "unsupported", "1");
+    }
+    // Подкосы-подшипник: от восточной стены к наружному концу оси.
+    for (const float dz : {-1.1f, 1.1f}) {
+        (void)f.beam(f.v(W - 0.05f, 2.6f, CZ + dz), f.v(X1 + 0.2f, CY + 0.05f, CZ),
+                     {{"radius", "0.09"}, {"form", "square"}, {"mat", "0"},
+                      {"tone", "2"}});
+    }
+    f.save("assets/houses/city-mill.dfh");
+}
+
+/// КОМПАКТНЫЙ ЗАМОК ПО СХЕМЕ (docs/WHITERUN_PLAN.json: houses[kind=keep] —
+/// корпус 15x8, дверь на юг; два крыла 5x6 по бокам). Прежний city-keep 26x14
+/// с коньком 18.8 в утверждённую схему не влезает, но и переделывать его
+/// нельзя — принятая доминанта живёт своим файлом; здесь ОТДЕЛЬНЫЙ рецепт на
+/// ОБЩИХ РУКАХ (keep_tier, gable_roof, frame_posts), а не копия тела.
+/// ЯРУСЫ те же, что у большого: стилобат-камень 1.6, два фахверковых яруса до
+/// карниза 7.4, широкие нижние полы к ФОНАРЮ глубиной 4 (из 8) и его двускат
+/// с коньком 13.8 — доминанта читается ступенями, каждая уже нижней
+/// (CITY_DESIGN_GUIDE.md §8). Крылья вдвое ниже корпуса: крыло — подножие,
+/// а не сосед.
+static void forge_keep_small() {
+    Forge f;
+    const float W = 15.0f;     // корпус по фасаду
+    const float D = 8.0f;      // глубина корпуса
+    const float WW = 5.0f;     // крыло по фасаду
+    const float WZ0 = 1.0f;    // крыло: северная стена (глубина 6 из 8)
+    const float WZ1 = 7.0f;
+    const float YS = 1.6f;     // верх каменного стилобата = пол зала
+    const float Y2 = 4.6f;     // пол верхнего зала
+    const float E1 = 7.4f;     // нижний карниз
+    const float LZ0 = 2.0f;    // фонарь: северная стена
+    const float LZ1 = 6.0f;    // фонарь: южная стена
+    const float LTOP = 9.2f;   // где нижняя пола встречает фонарь
+    const float E2 = 10.6f;    // карниз фонаря
+    const float SO = 0.4f;     // свес нижних пол
+    const float RIDGE_H = 3.2f; // конёк 13.8
+    const float WE = 4.2f;     // карниз крыльев (конёк 6.0)
+
+    // ---------------- подошва и парадное крыльцо --------------------------
+    // Плита ЛЕЖИТ НА ЗЕМЛЕ, а не ступенью: контур растёт в обе стороны от
+    // своей высоты, и 0.02 при толщине 0.2 даёт кромку 0.12 — проверенный
+    // подиум большого замка. Толще — и у входа заводится порог.
+    {
+        const VertexId a = f.v(-WW - 0.8f, 0.02f, -0.8f);
+        const VertexId b = f.v(-WW - 0.8f, 0.02f, D + 0.8f);
+        const VertexId c = f.v(W + WW + 0.8f, 0.02f, D + 0.8f);
+        const VertexId d = f.v(W + WW + 0.8f, 0.02f, -0.8f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.2"}, {"mat", "3"}, {"tone", "1"},
+                         {"wear", "0.4"}});
+    }
+    // Площадка крыльца на уровне пола: верх плиты = YS (якорь на YS - th/2).
+    {
+        const VertexId a = f.v(5.5f, YS - 0.1f, D);
+        const VertexId b = f.v(5.5f, YS - 0.1f, D + 2.0f);
+        const VertexId c = f.v(9.5f, YS - 0.1f, D + 2.0f);
+        const VertexId d = f.v(9.5f, YS - 0.1f, D);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.2"}, {"mat", "3"}, {"tone", "1"},
+                         {"wear", "0.4"}, {"unsupported", "1"}});
+    }
+    // Бортики площадки по бокам — марш между ними остаётся свободным.
+    for (const float px : {5.5f, 9.5f}) {
+        (void)f.wall(f.v(px, YS, D), f.v(px, YS, D + 2.0f),
+                     {{"height", "0.7"}, {"thickness", "0.3"}, {"mat", "3"},
+                      {"tone", "1"}, {"fill", "3"}, {"wear", "0.45"},
+                      {"unsupported", "1"}});
+    }
+    // КОРОТКИЙ МАРШ НА 1.6 (open=2): подъём 1.6 на вынос 3.2 — тот же уклон
+    // 26.6 гр., что у принятой уличной лестницы-6, по ней бот ходит. Один
+    // марш, а не два: стык двух маршей дважды ловил бота в щель.
+    {
+        const VertexId a = f.v(6.3f, 0.0f, D + 5.2f);
+        const VertexId b = f.v(8.7f, 0.0f, D + 5.2f);
+        const VertexId c = f.v(8.7f, YS, D + 2.0f);
+        const VertexId d = f.v(6.3f, YS, D + 2.0f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.15"}, {"fill", "6"}, {"open", "2"},
+                         {"mat", "3"}, {"tone", "1"}, {"wear", "0.4"},
+                         {"unsupported", "1"}});
+    }
+
+    // ---------------- ярусы корпуса ---------------------------------------
+    // СТИЛОБАТ БЕЗ ПРОЁМОВ: 1.6 м не берут окно 2.1 (build_house_mesh: «проём
+    // просит 2.10 м, стена 1.60»), да и парадный цоколь замка светиться
+    // окошками не должен — глухая кладка, вход по крыльцу на ярус выше.
+    keep_tier(f, 0.0f, YS, 0.0f, 0.0f, W, D, "0.7", "3", "1", "3", "", "",
+              "0.42", false, false, true, '\0');
+    keep_tier(f, YS, Y2 - YS, 0.0f, 0.0f, W, D, "0.35", "5", "0", "", "3", "2",
+              "0.38", true, true, false, 'S');
+    keep_tier(f, Y2, E1 - Y2, 0.0f, 0.0f, W, D, "0.35", "5", "0", "", "3", "2",
+              "0.35", true, true, false, '\0');
+    // Фонарь: тот же фасад по X, вдвое меньше глубина — ярус сужается.
+    keep_tier(f, E1, E2 - E1, 0.0f, LZ0, W, LZ1, "0.3", "5", "0", "", "4", "1",
+              "0.35", true, false, false, '\0');
+    // Створка — НА УРОВНЕ ПОЛА (YS), а не земли: вход на стилобате, к нему и
+    // ведёт крыльцо.
+    f.door_leaf(W * 0.5f, YS, D);
+    f.frame_posts(0.0f, 0.0f, W, D, YS, E1, "0");
+    // Междуэтажный поясок: без него 5.8 м фахверка над стилобатом стоят одной
+    // пустой доской.
+    {
+        const glm::vec3 p[5] = {{0.0f, Y2, 0.0f}, {W, Y2, 0.0f}, {W, Y2, D},
+                                {0.0f, Y2, D},    {0.0f, Y2, 0.0f}};
+        for (int k = 0; k < 4; ++k) {
+            (void)f.beam(f.v(p[k].x, p[k].y, p[k].z),
+                         f.v(p[k + 1].x, p[k + 1].y, p[k + 1].z),
+                         {{"radius", "0.1"}, {"form", "plank"}, {"mat", "0"},
+                          {"tone", "2"}});
+        }
+    }
+
+    // ---------------- полы и внутренний марш ------------------------------
+    parquet_floor(f, 0.0f, 0.0f, W, D, YS);
+    // Пол верхнего зала — ДВА прямоугольника вокруг лестничного колодца:
+    // невыпуклый контур пришлось бы триангулировать веером.
+    {
+        const VertexId a = f.v(4.0f, Y2, 0.0f);
+        const VertexId b = f.v(4.0f, Y2, D);
+        const VertexId c = f.v(W, Y2, D);
+        const VertexId d = f.v(W, Y2, 0.0f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
+                         {"beams", "1"}});
+    }
+    {
+        const VertexId a = f.v(0.0f, Y2, 7.2f);
+        const VertexId b = f.v(0.0f, Y2, D);
+        const VertexId c = f.v(4.0f, Y2, D);
+        const VertexId d = f.v(4.0f, Y2, 7.2f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
+                         {"beams", "1"}});
+    }
+    // Марш в верхний зал: 3.0 на 6.0 — тот же уклон 26.6 гр.
+    {
+        const VertexId a = f.v(1.0f, YS, 7.2f);
+        const VertexId b = f.v(3.4f, YS, 7.2f);
+        const VertexId c = f.v(3.4f, Y2, 1.2f);
+        const VertexId d = f.v(1.0f, Y2, 1.2f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.12"}, {"fill", "6"}, {"open", "1"},
+                         {"mat", "1"}, {"tone", "1"}, {"wear", "0.35"}});
+    }
+
+    // ---------------- нижние полы к фонарю --------------------------------
+    const auto shed = [&](VertexId a, VertexId b, VertexId c, VertexId d) {
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
+                         {"fill", "7"}, {"wear", "0.4"}});
+    };
+    shed(f.v(-SO, LTOP, LZ0), f.v(W + SO, LTOP, LZ0),
+         f.v(W + SO, E1 - 0.1f, -SO), f.v(-SO, E1 - 0.1f, -SO));
+    shed(f.v(W + SO, LTOP, LZ1), f.v(-SO, LTOP, LZ1),
+         f.v(-SO, E1 - 0.1f, D + SO), f.v(W + SO, E1 - 0.1f, D + SO));
+    f.eaves_trim({-SO, E1 - 0.1f, -SO}, {W + SO, E1 - 0.1f, -SO});
+    f.eaves_trim({-SO, E1 - 0.1f, D + SO}, {W + SO, E1 - 0.1f, D + SO});
+    // Торцы пол: треугольники в плоскостях x=0 и x=W — ими же держится
+    // верхняя кромка полы (правило опоры крыш, check_roof_support).
+    for (const float gx : {0.0f, W}) {
+        (void)f.contour({f.v(gx, E1, -SO), f.v(gx, E1, LZ0), f.v(gx, LTOP, LZ0)},
+                        {{"thickness", "0.14"}, {"mat", "5"}, {"tone", "0"},
+                         {"clad", "1"}, {"wear", "0.35"}});
+        (void)f.contour({f.v(gx, E1, LZ1), f.v(gx, E1, D + SO), f.v(gx, LTOP, LZ1)},
+                        {{"thickness", "0.14"}, {"mat", "5"}, {"tone", "0"},
+                         {"clad", "1"}, {"wear", "0.35"}});
+    }
+    // Стропила нижних пол: ПОД настилом, торцы выглядывают из-под свеса.
+    {
+        const int bays = 8;
+        for (int k = 0; k <= bays; ++k) {
+            const float x = W * static_cast<float>(k) / static_cast<float>(bays);
+            (void)f.beam(f.v(x, LTOP - 0.3f, LZ0), f.v(x, E1 - 0.34f, -SO - 0.22f),
+                         {{"radius", "0.08"}, {"mat", "0"}, {"tone", "2"}});
+            (void)f.beam(f.v(x, LTOP - 0.3f, LZ1),
+                         f.v(x, E1 - 0.34f, D + SO + 0.22f),
+                         {{"radius", "0.08"}, {"mat", "0"}, {"tone", "2"}});
+        }
+    }
+
+    // ---------------- кровля фонаря и резной конёк ------------------------
+    f.gable_roof(0.0f, LZ0, W, LZ1, E2, RIDGE_H, "1", "1", "7", "0.4");
+    const float YR = E2 + RIDGE_H;
+    // Охлупень с выпуском за щипцы и подвесами на торцах.
+    (void)f.beam(f.v(-0.9f, YR + 0.2f, (LZ0 + LZ1) * 0.5f),
+                 f.v(W + 0.9f, YR + 0.2f, (LZ0 + LZ1) * 0.5f),
+                 {{"radius", "0.12"}, {"mat", "0"}, {"tone", "2"}});
+    for (const float ex : {-0.9f, W + 0.9f}) {
+        (void)f.beam(f.v(ex, YR + 0.2f, (LZ0 + LZ1) * 0.5f),
+                     f.v(ex, YR - 0.65f, (LZ0 + LZ1) * 0.5f),
+                     {{"radius", "0.09"}, {"form", "plank"}, {"mat", "0"},
+                      {"tone", "2"}});
+    }
+    // Перекрещённые доски на щипцах — нордский знак дома, читается силуэтом.
+    for (const float gx : {-0.12f, W + 0.12f}) {
+        (void)f.beam(f.v(gx, E2 + 0.2f, LZ0 + 0.4f), f.v(gx, YR + 0.6f, 4.75f),
+                     {{"radius", "0.09"}, {"form", "plank"}, {"mat", "0"},
+                      {"tone", "2"}});
+        (void)f.beam(f.v(gx, E2 + 0.2f, LZ1 - 0.4f), f.v(gx, YR + 0.6f, 3.25f),
+                     {{"radius", "0.09"}, {"form", "plank"}, {"mat", "0"},
+                      {"tone", "2"}});
+    }
+
+    // ---------------- два крыла 5x6 ---------------------------------------
+    // Примыкают к ТОРЦАМ корпуса (x = -WW..0 и W..W+WW): общий габарит 25x8.
+    // Конёк 6.0 — на 1.4 ниже нижнего карниза корпуса и на 7.8 ниже его конька.
+    // КАРНИЗ КРЫЛА 4.2, А НЕ 3.4: фахверк над общим стилобатом 1.6 обязан быть
+    // не ниже 2.5, иначе окно 2.1 в него не влезает; чтобы конёк остался на 6,
+    // подъём ската уменьшен с 2.6 до 1.8.
+    for (const float wx : {-WW, W}) {
+        keep_tier(f, 0.0f, YS, wx, WZ0, wx + WW, WZ1, "0.5", "3", "1", "3", "",
+                  "", "0.45", false, false, true, '\0');
+        keep_tier(f, YS, WE - YS, wx, WZ0, wx + WW, WZ1, "0.35", "5", "0", "",
+                  "1", "2", "0.4", true, true, false, '\0');
+        parquet_floor(f, wx, WZ0, wx + WW, WZ1, YS);
+        f.gable_roof(wx, WZ0, wx + WW, WZ1, WE, 1.8f, "1", "1", "7", "0.45");
+    }
+    f.save("assets/houses/city-keep-s.dfh");
 }
 
 /// БОЛЬШОЙ ЖИЛОЙ ДОМ 10x8, два этажа: каменный цоколь и первый этаж, фахверк
@@ -2264,6 +2618,8 @@ int main() {
     forge_longhall();
     forge_temple();
     forge_keep();
+    forge_keep_small();
+    forge_mill();
     // ЖИЛЫЕ ПОСТРОЙКИ ПЕЧАТАЮТСЯ ДВАЖДЫ — ухоженной и запущенной. Улица из
     // одинаково потрёпанных домов читается одной текстурой; разброс износа
     // между соседями и есть то, из чего глаз собирает возраст города.

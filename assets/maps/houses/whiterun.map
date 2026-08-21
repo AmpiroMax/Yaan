@@ -1,12 +1,9 @@
 name = Вайтран: город на холме
 zone = houses
 size_chunks = 1
-# КОПИЯ ВАЙТРАНА (заказ 21.08) на рельефе town-land пользователя:
-# три террасы, ворота с юга, рынок у реки, Гилдергрин, храм,
-# Йоррваскр, замок на скале; стены с башнями, фермы снаружи.
-# СГЕНЕРИРОВАНО tools/gen_whiterun.py.
+# Вайтран v5 — построен по чертежу docs/WHITERUN_PLAN.html (см. JSON).
 source = stand:Gallery
 scene = assets/scenes/whiterun.scene
 objects = assets/objects/parts;assets/objects/signs;assets/objects/trees
-description = Город на трёх террасах: ворота, рынок, Гилдергрин, замок; стены со смотровыми башнями, мост через реку, фермы за стеной.
+description = Город по плану: река от горного истока рвом вдоль стены, мост у Восточных ворот, рынок, Гилдергрин, замок; дуб-поляна на юго-западе.
 built_commit =

@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 21:08:2026 - 21:45:00
+# Last updated: 22:08:2026 - 01:30:00
 # Module: tools
 # File: tools/gen_whiterun.py
 #
 # Responsibility:
-# - ГОРОД ВАЙТРАН (заказ 21.08: «максимально приближенная копия») на рельефе
-#   пользователя town-land (три террасы 25/31/43, река двумя рукавами, ров).
-#   План — docs/WHITERUN_RESEARCH.md + карта GameMapScout: ворота с юга,
-#   рынок и кузница на нижней террасе, Гилдергрин/храм/Йоррваскр на средней,
-#   замок на верхней; стены с башнями по кромкам, снаружи фермы.
-# - Рельеф НЕ трогается: pads/rivers скопированы из town-land.scene, ручная
-#   лепка town-land.relief копируется файлом whiterun.relief.
+# - ГЕНЕРАТОР КАРТЫ ВАЙТРАНА ИЗ ПЛАНА (заказ 21.08: «с нуля, начав со
+#   схемы»). ЕДИНСТВЕННЫЙ источник композиции — docs/WHITERUN_PLAN.json,
+#   который экспортирует чертёж tools/gen_whiterun_plan.py. Здесь ТОЛЬКО
+#   перевод плана в термины движка: зоны -> пады, дороги -> тропы рельефа,
+#   дома по kind -> .dfh с поворотом от дверей, дорожки -> цепочки плит
+#   furn-walk2, зелень по видам. Править композицию — в чертеже, не тут.
 #
 # UPD:
 # - 21:08:2026 - 04:10:00: Создан.
@@ -91,606 +90,252 @@
 #   кровать, стеллаж; у «-old» беднее с бочкой), furnish() поворачивает
 #   локальные позиции матрицей сцены, +0.12 на верх половой плиты — ~93
 #   предмета. Круг v24 чистый (2943 кадра) под радиусным вотчдогом v2.
+# - 22:08:2026 - 01:30:00: ПЕРЕПИСАН С НУЛЯ: читает docs/WHITERUN_PLAN.json
+#   (экспорт чертежа tools/gen_whiterun_plan.py) — одна правда о городе.
+#   Прежний путь «город руками в коде» с его историей выше заменён планом;
+#   зоны -> пады, дороги -> тропы, дома по kind, дорожки цепочками плит.
 
-import hashlib
+import json
 import math
 import os
 import shutil
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PLAN = json.load(open(os.path.join(ROOT, "docs/WHITERUN_PLAN.json"), encoding="utf-8"))
 
-# --- СЕТКА ВЫСОТ ИТОГОВОЙ ЗЕМЛИ (двухпроходная схема) ------------------------
-# tools-проба dump_heights считает terrain_height по ГОТОВОЙ сцене (пады+relief)
-# и пишет 256x256 шаг 1 м. Генератор сажает стены/башни/мост на неё. Цикл:
-# gen -> dump -> gen; без файла работает старый грубый y_of (первый проход).
+H = []   # [house]
+P = []   # [place]
+
+def house(file, x, y, z, yaw_deg, note):
+    H.append((f"assets/houses/{file}", x, y, z, math.radians(yaw_deg), note))
+
+def place(obj, x, y, z, yaw_deg=0.0, note=None):
+    P.append((obj, x, y, z, math.radians(yaw_deg), note))
+
+# --- сетка высот двухпроходного цикла (gen -> dump_heights -> gen) ----------
 HEIGHTS_PATH = os.environ.get("WHITERUN_HEIGHTS", "/tmp/whiterun_heights.txt")
-_HEIGHTS = None
+_H = None
 if os.path.exists(HEIGHTS_PATH):
-    _HEIGHTS = []
-    for line in open(HEIGHTS_PATH, encoding="utf-8"):
-        if line.startswith("#"):
-            continue
-        _HEIGHTS.append([float(v) for v in line.split()])
-    assert len(_HEIGHTS) == 256 and len(_HEIGHTS[0]) == 256, "heights grid shape"
+    _H = [[float(v) for v in line.split()]
+          for line in open(HEIGHTS_PATH, encoding="utf-8") if not line.startswith("#")]
 
 def ground(x, z):
-    """Высота земли; None-сетки нет — вернёт None (звонящий решает fallback)."""
-    if _HEIGHTS is None:
+    if _H is None:
         return None
     xi = min(max(x, 0.0), 254.999)
     zi = min(max(z, 0.0), 254.999)
     x0, z0 = int(xi), int(zi)
     fx, fz = xi - x0, zi - z0
-    row0, row1 = _HEIGHTS[z0], _HEIGHTS[z0 + 1]
-    return ((row0[x0] * (1 - fx) + row0[x0 + 1] * fx) * (1 - fz)
-            + (row1[x0] * (1 - fx) + row1[x0 + 1] * fx) * fz)
+    r0, r1 = _H[z0], _H[z0 + 1]
+    return ((r0[x0]*(1-fx) + r0[x0+1]*fx) * (1-fz)
+            + (r1[x0]*(1-fx) + r1[x0+1]*fx) * fz)
 
-# --- ВНУТРЕННЕЕ УБРАНСТВО (заказ 21.08: «после к внутреннему убранству») ---
-# Раскладки в ЛОКАЛЬНЫХ координатах дома (origin — его угол, до поворота):
-# очаг к глухой северной стене, стол с лавками в жилой половине, кровать у
-# западной стены в стороне от южной двери, стеллаж у восточной. У «-old»
-# беднее: без стеллажа, с бочкой у входа.
-FURN = {
-    "city-house-s.dfh": [
-        ("furn-hearth.dfh", 2.8, 0.45, 0), ("furn-table.dfh", 0.7, 2.4, 0),
-        ("furn-bench.dfh", 0.8, 1.85, 0), ("furn-bench.dfh", 0.8, 3.5, 0),
-        ("furn-bed.dfh", 0.4, 3.8, 0), ("furn-shelf.dfh", 4.0, 2.4, 270)],
-    "city-house-s-old.dfh": [
-        ("furn-hearth.dfh", 2.8, 0.45, 0), ("furn-table.dfh", 0.7, 2.6, 0),
-        ("furn-bench.dfh", 0.8, 2.05, 0), ("furn-bed.dfh", 0.4, 3.9, 0),
-        ("furn-barrel.dfh", 3.6, 4.9, 0)],
-    "city-house-l.dfh": [
-        ("furn-hearth.dfh", 8.3, 0.6, 0), ("furn-table.dfh", 3.4, 3.0, 0),
-        ("furn-bench.dfh", 3.5, 2.45, 0), ("furn-bench.dfh", 3.5, 4.1, 0),
-        ("furn-bed.dfh", 0.5, 5.4, 0), ("furn-shelf.dfh", 9.2, 3.2, 270),
-        ("furn-column.dfh", 4.3, 3.35, 0)],
-    "city-house-l-old.dfh": [
-        ("furn-hearth.dfh", 8.3, 0.6, 0), ("furn-table.dfh", 3.4, 3.0, 0),
-        ("furn-bench.dfh", 3.5, 2.45, 0), ("furn-bed.dfh", 0.5, 5.4, 0),
-        ("furn-barrel.dfh", 8.9, 6.3, 0)],
-    "log-replica.dfh": [
-        ("furn-hearth.dfh", 6.0, 0.6, 0), ("furn-table.dfh", 2.4, 3.0, 0),
-        ("furn-bench.dfh", 2.5, 2.45, 0), ("furn-bench.dfh", 2.5, 4.1, 0),
-        ("furn-bed.dfh", 0.5, 5.2, 0)],
-    "stone-replica.dfh": [
-        ("furn-hearth.dfh", 6.0, 0.6, 0), ("furn-table.dfh", 2.4, 3.0, 0),
-        ("furn-bench.dfh", 2.5, 2.45, 0), ("furn-bed.dfh", 0.5, 5.2, 0),
-        ("furn-shelf.dfh", 7.0, 2.6, 270)],
-    "frame-replica.dfh": [
-        ("furn-hearth.dfh", 6.0, 0.6, 0), ("furn-table.dfh", 2.4, 3.0, 0),
-        ("furn-bench.dfh", 2.5, 2.45, 0), ("furn-bed.dfh", 0.5, 5.2, 0),
-        ("furn-shelf.dfh", 7.0, 2.6, 270)],
-}
-
-def furnish(file, ox, oy, oz, yaw_deg, note):
-    """Мебель дома: локальные позиции раскладки поворачиваются той же
-    матрицей сцены, что и сам дом (X_loc -> (cos,-sin))."""
-    items = FURN.get(file)
-    if not items:
-        return
-    c = math.cos(math.radians(yaw_deg))
-    sn = math.sin(math.radians(yaw_deg))
-    for ff, lx, lz, lyaw in items:
-        mx = ox + lx * c + lz * sn
-        mz = oz - lx * sn + lz * c
-        # +0.12 — верх половой плиты дома: ножки стоят на полу, не в нём.
-        house(ff, mx, oy + 0.12, mz, (yaw_deg + lyaw) % 360.0, "убранство: " + note)
-
-def sit_y(x, z, fallback, half=3.5):
-    """Посадка дома: МИНИМУМ земли по пятну (центр + 4 угла) минус вкоп.
-    Посадка по одной центральной точке на неровном месте вешала угол дома в
-    воздух — читается «кривым домом» (заказ 21.08: «аккуратнее»)."""
-    gs = [ground(x + dx, z + dz)
-          for dx, dz in ((0, 0), (half, half), (half, -half),
-                         (-half, half), (-half, -half))]
+def sit(x, z, fallback, half=3.5):
+    gs = [ground(x+dx, z+dz) for dx, dz in
+          ((0,0),(half,half),(half,-half),(-half,half),(-half,-half))]
     gs = [g for g in gs if g is not None]
     return fallback if not gs else min(gs) - 0.05
 
-def jitter(key, lo, hi):
-    """Детерминированный джиттер: одно и то же имя — одно и то же число."""
-    h = int(hashlib.md5(key.encode()).hexdigest()[:8], 16) / 0xFFFFFFFF
-    return lo + (hi - lo) * h
-H = []   # [house] rows
-P = []   # [place] rows
-
-def house(file, x, y, z, yaw_deg, note):
-    H.append((f"assets/houses/{file}", x, y, z, math.radians(yaw_deg), note))
-
-# ЖИЛОЙ ПУЛ (заказ 21.08: «дома на карте переделать, добавить новые здания
-# и различные эффекты износа»). Тип выбирается детерминированно по месту;
-# «rich» — центр (крупные дома, свежие), «mid» — улицы, «poor» — у стен и
-# окраины (чаще ветхие -old из кузницы).
-POOLS = {
-    # Усадьбы НЕ в пуле фронтов: крыло манора 14х7 вылезает на осевую улицы
-    # (бот v14 лез на его крышу). Manor ставится только явно, с запасом.
-    "rich": ["city-house-l.dfh", "city-house-l.dfh", "stone-replica.dfh",
-             "city-house-s.dfh"],
-    "mid": ["city-house-s.dfh", "city-house-l.dfh", "city-house-s-old.dfh",
-            "log-replica.dfh", "city-house-s.dfh", "frame-replica.dfh"],
-    "poor": ["city-house-s-old.dfh", "city-house-s.dfh",
-             "log-replica.dfh", "city-house-s-old.dfh"],
+# --- kind -> рецепт и реальные габариты (фронт w вдоль двери, глубина d) ----
+KIND = {
+    "keep":    ("city-keep-s.dfh", 25.0, 9.0),
+    "wing":    (None, 0, 0),  # крылья входят в рецепт keep-s
+    "donjon":  ("city-donjon.dfh", 3.6, 3.6),
+    "manor":   ("city-manor.dfh", 14.0, 7.0),
+    "temple":  ("city-temple.dfh", 10.0, 8.0),
+    "longhall":("city-longhall.dfh", 12.0, 8.0),
+    "shop":    ("city-shop.dfh", 6.4, 8.6),
+    "tavern":  ("city-house-l.dfh", 10.2, 8.2),
+    "smithy":  ("city-shop-old.dfh", 6.4, 8.6),
+    "old":     ("city-house-s-old.dfh", 7.0, 7.0),
+    "farm":    ("city-house-s.dfh", 7.0, 7.0),
+    "barn":    ("city-barn.dfh", 12.0, 9.0),
+    "mill":    ("city-mill.dfh", 7.0, 7.0),
+    "stable":  ("city-barn-old.dfh", 12.0, 9.0),
+    "inn":     ("city-house-l.dfh", 10.2, 8.2),
+    "":        ("city-house-s.dfh", 7.0, 7.0),
 }
+TREE = {"birch": ["birch-forge-a", "birch-forge-b"],
+        "spruce": ["spruce-forge-a", "pine-forge-a", "spruce-forge-b"],
+        "oak": ["oak-forge-a"], "bush": ["juniper-forge-a"]}
 
-def dwelling(cls, x, y, z, yaw_deg, note):
-    pool = POOLS[cls]
-    pick = pool[int(jitter(f"dw:{x}:{z}", 0.0, float(len(pool)) - 0.001))]
-    houseJ(pick, x, y, z, yaw_deg, note + f" ({cls})")
+def door_dir(deg, door):
+    """Мировое направление наружу от дверной стороны прямоугольника схемы."""
+    base = {"S": (0, 1), "N": (0, -1), "E": (1, 0), "W": (-1, 0)}[door]
+    r = math.radians(deg)
+    return (base[0]*math.cos(r) - base[1]*math.sin(r),
+            base[0]*math.sin(r) + base[1]*math.cos(r))
 
-def houseJ(file, x, y, z, yaw_deg, note):
-    """Жилой слой: расстановка НЕ параллельна осям (заказ 21.08) — каждому
-    дому свой детерминированный сдвиг и поворот, а пол садится на землю в
-    итоговой точке (дома у кромок тонули в склонах — глаза, кадр houses).
-    Инфраструктура (лестницы, стены, мост, улицы-плиты) ставится точным
-    house(): там геометрию держит проходимость."""
-    k = f"{file}:{x}:{z}"
-    jx = x + jitter(k + "x", -0.8, 0.8)
-    jz = z + jitter(k + "z", -0.8, 0.8)
-    jy = sit_y(jx, jz, y)
-    jr = yaw_deg + jitter(k + "r", -6.0, 6.0)
-    house(file, jx, jy, jz, jr, note)
-    furnish(file, jx, jy, jz, jr, note)
-
-def place(obj, x, y, z, yaw_deg=0.0, note=None):
-    P.append((obj, x, y, z, math.radians(yaw_deg), note))
-
-# --- террасы (высоты пола) --------------------------------------------------
-T1, T2, T3, NECK = 25.0, 31.0, 43.0, 37.0
-
-def wall_ring(points, y_of):
-    """ЗАМКНУТОЕ кольцо (приёмка №1: прогоны обрывались торцами в поле):
-    сегменты 12 м от вершины к вершине, хвост каждой грани ПЕРЕКРЫВАЕТ угол,
-    в каждой вершине — башня. y_of(x, z) -> высота полки под точкой."""
-    import math as _m
-    n = len(points)
-    for k in range(n):
-        ax, az = points[k]
-        bx, bz = points[(k + 1) % n]
-        dx, dz = bx - ax, bz - az
-        L = _m.hypot(dx, dz)
-        ux, uz = dx / L, dz / L
-        yaw = _m.degrees(_m.atan2(-uz, ux)) % 360.0  # local +X -> (cos,-sin)
-        t = 0.0
-        while t < L - 0.5:
-            seg = min(12.0, L - t)
-            x, z = ax + ux * t, az + uz * t
-            house("city-wall12.dfh", x, y_of(x, z), z, yaw,
-                  "кольцо стены" if seg > 11.0 else "кольцо стены (замык. нахлёст)")
-            t += min(seg, 11.5)  # лёгкий нахлёст: щелей на стыках нет
-    for (x, z) in points:
-        house("city-tower.dfh", x - 1.8, y_of(x, z), z - 1.8, 0, "угловая башня")
-
-def wall_run(a, b, note, step=11.5, sink=0.3):
-    """Цепочка сегментов стены от a к b, каждый посажен на СВОЮ землю:
-    y = min высот его концов - вкоп. На крутых кусках шаг вдвое чаще, чтобы
-    ступени между соседними сегментами были мельче («выровнять стены», 21.08)."""
-    ax, az = a
-    bx, bz = b
-    L = math.hypot(bx - ax, bz - az)
-    if L < 1.0:
+def put_house(hs):
+    rec, w, d = KIND.get(hs["kind"], KIND[""])
+    if rec is None:
         return
-    ux, uz = (bx - ax) / L, (bz - az) / L
-    yaw = math.degrees(math.atan2(-uz, ux)) % 360.0
-    t = 0.0
-    while t < L - 0.5:
-        # Хвост сегмента НЕ вылезает за вершину грани: последний сегмент
-        # прижимается назад (нахлёст с предыдущим — внутрь грани). Хвост,
-        # вылезший за вершину, заложил проём ворот телом стены — бот упирался
-        # в вертикальную грань (char-трасса: нормаль (0.20, 0, 0.98)).
-        last = t + 12.0 >= L
-        st = max(L - 12.0, 0.0) if last else t
-        x, z = ax + ux * st, az + uz * st
-        ex, ez = ax + ux * min(st + 12.0, L), az + uz * min(st + 12.0, L)
-        mx, mz = ax + ux * (st + 6.0), az + uz * (st + 6.0)
-        g0 = ground(x, z)
-        g1 = ground(ex, ez)
-        gm = ground(mx, mz)
-        if g0 is None:
-            y = T1
-            adv = step
-        else:
-            # Середина в min: сегмент через русло опускается дамбой в воду,
-            # а не парит над ней (глаза, walls2: «стена парит над рекой»).
-            y = min(g0, g1, gm) - sink
-            adv = 5.5 if abs(g1 - g0) > 1.2 else step
-        house("city-wall12.dfh", x, y, z, yaw, note)
-        if last:
-            break
-        t += adv
-
-ROADS = []  # [(half_width, softness, [(x, z), ...], note)]
-
-def road(points, half_w=1.8, soft=1.0, note=""):
-    """ДОРОГА — ТРОПОЙ, инструментом рельефа (заказ 21.08: «у нас есть
-    отдельная механика для тропинок, её и использовать»). Кривая пишется в
-    whiterun.relief блоком path/pp — тот же канал износа, которым пользователь
-    рисует тропы кистью; земля протаптывается по любой ломаной, без плит."""
-    ROADS.append((half_w, soft, points, note))
-
-def append_roads(path):
-    """Дописывает дороги города path-блоками в конец whiterun.relief.
-    Формат write_relief: `path <полуширина> <мягкость>` + `pp <x> <z>` в
-    МЕТРАХ; читатель пересчитает канал износа сам (rebake_paths)."""
-    lines = []
-    for half_w, soft, pts, note in ROADS:
-        lines.append("path %g %g" % (half_w, soft))
-        for (x, z) in pts:
-            lines.append("pp %g %g" % (x, z))
-    with open(path, "a", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
-
-# Габариты типов: фронт вдоль улицы, глубина, чтобы ряд стоял ВПЛОТНУЮ
-# (гайд §3: щель 0.3-0.6 м или это проход во двор).
-FOOTPRINT = {
-    "city-house-s.dfh": (7.0, 7.0), "city-house-s-old.dfh": (7.0, 7.0),
-    "city-house-l.dfh": (10.2, 8.2), "city-house-l-old.dfh": (10.2, 8.2),
-    "city-shop.dfh": (6.4, 8.6), "city-shop-old.dfh": (6.4, 8.6),
-    "log-replica.dfh": (8.0, 8.0), "frame-replica.dfh": (8.0, 8.0),
-    "stone-replica.dfh": (8.0, 8.0),
-}
-
-def street_front(axis, side, cls, y, street_w, note, t0=0.0, t1=None):
-    """ФАСАДНЫЙ РЯД вдоль осевой улицы (гайд §0.2, §3): дома вплотную на
-    красной линии (полширины улицы от оси), фасадом к улице, каждый со
-    своим лёгким поворотом (ни один не параллелен соседнему — эталон
-    Вайтрана), позади — дворик с поленницей/бочкой и плетнём между
-    соседями. axis — ломаная [(x,z),...]; side +1/-1."""
-    segs = []
-    total = 0.0
-    for i in range(len(axis) - 1):
-        ax, az = axis[i]
-        bx, bz = axis[i + 1]
-        L = math.hypot(bx - ax, bz - az)
-        segs.append((ax, az, (bx - ax) / L, (bz - az) / L, L))
-        total += L
-    if t1 is None:
-        t1 = total
-    def at(t):
-        rest = t
-        for ax, az, ux, uz, L in segs:
-            if rest <= L:
-                return ax + ux * rest, az + uz * rest, ux, uz
-            rest -= L
-        ax, az, ux, uz, L = segs[-1]
-        return ax + ux * L, az + uz * L, ux, uz
-    t = t0
-    prev_end = None
-    while True:
-        k = f"sf:{axis[0]}:{side}:{t:.1f}"
-        pool = POOLS[cls]
-        pick = pool[int(jitter(k + "p", 0.0, float(len(pool)) - 0.001))]
-        fr, dp = FOOTPRINT.get(pick, (7.0, 7.0))
-        if t + fr > t1:
-            break
-        cx, cz, ux, uz = at(t + fr * 0.5)
-        mx, mz = -uz * side, ux * side       # нормаль от оси в сторону ряда
-        lx, lz = cx + mx * (street_w * 0.5), cz + mz * (street_w * 0.5)
-        # Посадка через матрицу конвенции сцены (X_loc -> (cos,-sin),
-        # Z_loc -> (sin,cos)): при X_loc = +/-T локальный +Z в точности
-        # равен наружной нормали M, дом уходит от красной линии ВГЛУБЬ.
-        # Прежняя формула для side<0 путала знаки, и «западный» ряд лёг на
-        # осевую — бот v16 упёрся в первый же дом (118.7, 206).
-        tx, tz = (ux, uz) if side > 0 else (-ux, -uz)
-        yaw = math.degrees(math.atan2(-tz, tx)) % 360.0
-        yaw += jitter(k + "r", -3.0, 3.0)    # лёгкое дыхание ряда (заказ: «аккуратнее»)
-        c2, s2 = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
-        ox = lx - (fr * 0.5) * c2
-        oz = lz + (fr * 0.5) * s2
-        hy = sit_y(ox, oz, y, half=max(fr, dp) * 0.5)
-        house(pick, ox, hy, oz, yaw, note)
-        furnish(pick, ox, hy, oz, yaw, note)
-        # Дворик позади: поленница или бочка у задней стены, плетень к соседу.
-        bx2 = lx + mx * (dp + 1.2)
-        bz2 = lz + mz * (dp + 1.2)
-        gy = ground(bx2, bz2)
-        yard_y = y if gy is None else gy - 0.02
-        toy = "furn-woodpile.dfh" if jitter(k + "w", 0.0, 1.0) > 0.45 else "furn-barrel.dfh"
-        house(toy, bx2 + jitter(k + "tx", -1.0, 1.0), yard_y,
-              bz2 + jitter(k + "tz", -1.0, 1.0),
-              jitter(k + "tr", 0.0, 360.0), "двор: " + note)
-        if prev_end is not None:
-            fx, fz, fux, fuz = at(t - 0.2)
-            fmx, fmz = -fuz * side, fux * side
-            house("furn-fence2.dfh",
-                  fx + fmx * (street_w * 0.5 + dp * 0.55),
-                  yard_y, fz + fmz * (street_w * 0.5 + dp * 0.55),
-                  math.degrees(math.atan2(-fmz, fmx)) % 360.0,
-                  "межевой плетень: " + note)
-        prev_end = t + fr
-        t += fr + jitter(k + "g", 0.35, 0.7)
-
-def street(points, y, note):
-    """Плиточное мощение — только ПЛОЩАДЯМ; дороги см. road()."""
-    n = len(points)
-    for i, (cx, cz) in enumerate(points):
-        px, pz = points[max(i - 1, 0)]
-        nx, nz = points[min(i + 1, n - 1)]
-        d = math.hypot(nx - px, nz - pz)
-        ux, uz = (nx - px) / d, (nz - pz) / d   # касательная = локальный +Z
-        yaw = math.atan2(ux, uz)
-        c, s = math.cos(yaw), math.sin(yaw)
-        # origin плиты — её угол: центр минус половина обеих местных осей.
-        house("city-plaza12.dfh", cx - 6.0 * (c + s), y, cz - 6.0 * (c - s),
-              math.degrees(yaw), note)
-
-def walls():
-    """Кольцо стен ЕСТЕСТВЕННОЙ формы (заказ 21.08: «не по квадрату»):
-    неровный овал по террасам, каждая грань со своим изломом; сегменты и
-    башни сажаются на землю сеткой высот. Разрывы: ворота юга и створ
-    замковой лестницы (его фланкируют башни соседних вершин)."""
-    ring = [(70, 190), (92, 196), (112, 192),   # юго-запад -> ворота
-            (136, 192),                          # грань ворот ПРОПУСКАЕТСЯ
-            (156, 196), (172, 186), (180, 172),  # юго-восточная дуга
-            (186, 152), (183, 132), (186, 112),  # восточная волна по равнине
-            (181, 92), (184, 72), (180, 52),     # подъём к перешейку
-            (170, 52),                           # створ замковой лестницы (разрыв)
-            (150, 54), (132, 48), (112, 52),     # северная волна
-            (94, 47), (76, 54), (66, 64),        # северо-запад
-            (58, 80), (62, 98), (54, 116),       # западная волна
-            (60, 136), (55, 156), (62, 174)]     # юго-запад, замыкание на (70,190)
-    n = len(ring)
-    for k in range(n):
-        a = ring[k]
-        b = ring[(k + 1) % n]
-        if a == (112, 192) and b == (136, 192):
-            continue  # ворота
-        if a == (180, 52) and b == (170, 52):
-            continue  # марш замка проходит здесь
-        wall_run(a, b, "кольцо стены")
-    for (x, z) in ring:
-        g = ground(x, z)
-        house("city-tower.dfh", x - 1.8, (T1 if g is None else g - 0.2) , z - 1.8,
-              jitter(f"tw:{x}:{z}", 0.0, 360.0), "башня кольца")
-    # ВОРОТА с фланговыми башнями вплотную к косякам.
-    gg = ground(118, 192)
-    gy = T1 if gg is None else gg - 0.1
-    house("city-gate.dfh", 112, gy, 192, 0, "главные ворота (проём 4 м в центре)")
-    house("city-tower.dfh", 108.5, gy, 190.5, 0, "надвратная башня, запад")
-    house("city-tower.dfh", 131.5, gy, 190.5, 0, "надвратная башня, восток")
-    # ПОДПОРНАЯ КРОМКА T1->T2 (z~119): стена во всю грань, проход под лестницу.
-    # 21.08: прогоны шли струной по z=119 и читались как «идеально прямые
-    # линии В-З». Шаг 10 при длине 12 — нахлёст 2 м, поэтому излом +-4 гр. и
-    # смещение +-0.9 м по z не открывают щелей, а линия перестаёт быть струной.
-    for x in range(74, 98, 10):
-        house("city-wall12.dfh", x, T1, 119 + jitter(f"supw:{x}", -0.9, 0.9),
-              jitter(f"supwr:{x}", -4.0, 4.0), "подпор террасы, запад от лестницы")
-    for x in range(126, 162, 10):
-        house("city-wall12.dfh", x, T1, 119 + jitter(f"supe:{x}", -0.9, 0.9),
-              jitter(f"supler:{x}", -4.0, 4.0), "подпор террасы, восток от лестницы")
-    # ПОДПОР ПЛАТО ЗАМКА: южная кромка T3. ДВА разрыва: под марш лестницы
-    # (x174..178) и под ПАРАДНЫЙ марш нового замка (x195..199, спускается с
-    # террасы портала через z43..55 — сплошная стена втыкалась в него).
-    for x in (178, 204, 215):
-        house("city-wall12.dfh", x, NECK, 49, 0, "подпор замкового плато")
-
-def plains():
-    """Нижняя терраса: ворота -> мост -> рынок; кузница и жильё."""
-    # Главная улица: непрерывное мощение хребта + ДОРОГА наружу от ворот.
-    # 21.08: колонна плит по x=118 была одной из «идеально прямых дорог».
-    # Осевая уходит от проёма ворот (x~118) к голове моста (x~127) дугой:
-    # азимут 0 -> 6 -> 12 -> 18 -> 12 гр., изломы по 6 гр.
-    road([(119, 232), (119, 210), (120, 200), (122, 190.3), (125.2, 180.8),
-          (127.3, 171), (129.2, 168.6)], 2.2, 1.2,
-         "главная улица: от южной дороги до головы моста")
-    road([(122.8, 157.5), (119, 152), (117.5, 145), (116.5, 137), (117, 127.5),
-          (117.6, 122.5)], 2.0, 1.2,
-         "северный берег: от моста мимо рынка к лестнице террасы")
-    road([(113.6, 147.5), (104, 150), (92, 150.5), (80, 152)], 1.5, 1.0,
-         "тропа рынка на запад к лавкам")
-    # Мост СТОЯЛ НА ТРАВЕ в шести метрах от русла (глаза, кадр bridge: «реки
-    # под ним нет вовсе») — рукав идёт (160,144)->(120,166), и точка (121,172)
-    # его не пересекает. Центр настила посажен на русло (126,163), ось прежняя
-    # (yaw 120 — поперёк течения). Торцы аппарелей при origin (126.3,167.5):
-    # юг (129.2, 168.6), север (122.8, 157.5); аппарель кончается на 0.5 ниже
-    # origin.y, значит origin.y = земля высокого берега + 0.48 («края мостов
-    # на земле», заказ 21.08).
-    bg_s = ground(129.2, 168.6)
-    bg_n = ground(122.8, 157.5)
-    by = T1 + 0.1 if bg_s is None else max(bg_s, bg_n) + 0.48
-    house("city-bridge.dfh", 126.3, by, 167.5, 120, "мост главной улицы (на русле)")
-    # Рынок севернее реки.
-    house("city-plaza20.dfh", 101.753, T1, 140.929, 15, "рыночная площадь (повёрнута)")
-    houseJ("city-well.dfh", 111.6, T1, 150.5, 0, "колодец рынка")
-    for i, ang in enumerate((15, 75, 140, 200, 262, 322)):
-        sx = 111.6 + 7.0 * math.cos(math.radians(ang))
-        sz = 150.5 + 7.0 * math.sin(math.radians(ang))
-        houseJ("city-stall.dfh", sx, T1, sz, (270 - ang) % 360,
-               f"прилавок рынка {i + 1}")
-    # ФАСАДНЫЕ РЯДЫ главной улицы (гайд §0.2: дом не стоит в поле). Осевая —
-    # та же ломаная, что тропа road() выше; запад плотнее (mid), восток
-    # свободнее. Ряды НЕ доходят до моста и ворот (узлы держат якоря).
-    main_axis = [(119, 210), (120, 200), (122, 190.3), (125.2, 180.8),
-                 (127.3, 171)]
-    street_front(main_axis, -1, "mid", T1, 7.5, "фронт главной улицы, запад",
-                 t0=2.0, t1=30.0)
-    street_front(main_axis, +1, "mid", T1, 7.5, "фронт главной улицы, восток",
-                 t0=6.0, t1=26.0)
-    # Северный берег: ряд лавок-домов лицом к рынку.
-    bank_axis = [(122.8, 157.5), (119, 152), (117.5, 145), (116.5, 137)]
-    street_front(bank_axis, +1, "mid", T1, 6.5, "фронт северного берега",
-                 t0=3.0, t1=21.0)
-    # Якоря узлов: кузница у ворот (эталон: Warmaiden's вплотную к воротам),
-    # таверна на рынке, лавка Белетора фронтом на площадь.
-    # Кузница у ворот — ЗАПАДНЕЕ дороги, фасадом на неё: прежняя посадка
-    # (128.5, 186) телом резала новую осевую улицы.
-    house("city-shop.dfh", 111.5, T1, 199, 8, "кузница у ворот")
-    houseJ("u-house.dfh", 121, T1, 128, 8, "таверна «Гарцующая кобыла»")
-    houseJ("city-shop.dfh", 96.5, T1, 143, 105, "лавка (Белетор), фронтом на рынок")
-    houseJ("frame-replica.dfh", 129.5, T1, 149.5, 187, "алхимик у площади")
-    # Западный берег за рукавом — два бедных двора (fringe к стене).
-    houseJ("city-house-s-old.dfh", 79, T1, 155, 95, "двор за рукавом")
-    houseJ("city-barn.dfh", 72, T1, 146, 130, "хлев за рукавом")
-
-def stairs_t1_t2():
-    """ОДИН марш на полный подъём 25 -> 31 (стыки пар ловили бота в щель).
-
-    Марш лежит НА склоне рельефа: подъём террасы живёт в town-land.relief
-    полосой z120..130 (35 градусов в середине — капсула виснет). Прежний
-    origin z110 клал марш целиком на плато, а бот карабкался по голому
-    склону и застревал на (118, 30.5, 124). Профиль мерён terrain_height:
-    z133=25.0, z121=30.78, z120=31.0 — марш z121..133 идёт НАД землёй всей
-    длиной (+0.2..+1.6) и касается её точно обоими концами; origin z120
-    топил последние три метра марша в склоне 34 гр., и бот застревал на
-    (118, 30.9, 124) уже стоя на ступенях."""
-    house("city-stairs6.dfh", 116, T1, 121, 0, "лестница средней террасы")
-
-def wind():
-    """Средняя терраса: улица лестница->Гилдергрин с фасадными рядами;
-    Йоррваскр повёрнут на 45 (эталон: он «старше города»), храм замыкает
-    западную перспективу."""
-    house("city-plaza12.dfh", 110, T2, 82, 0, "площадь Гилдергрина")
-    place("great-forge-oak", 116, T2, 88, 0, "Гилдергрин (розовая листва — заказ зоне флоры)")
-    house("city-treering.dfh", 113.4, T2, 85.4, 0, "кольцо Гилдергрина")
-    house("city-plaza12.dfh", 82, T2, 62, 0, "двор храма")
-    house("city-temple.dfh", 84, T2, 62, 0, "храм Кинарет")
-    houseJ("city-longhall.dfh", 128, T2, 58, 45, "Йоррваскр (повёрнут — старше города)")
-    # Фасадные ряды улицы средней террасы (осевая = тропа road выше).
-    wind_axis = [(118, 120.5), (118, 108), (117, 98), (115.5, 92.5)]
-    street_front(wind_axis, -1, "rich", T2, 7.0, "фронт улицы Ветров, запад",
-                 t0=1.5, t1=24.0)
-    street_front(wind_axis, +1, "rich", T2, 7.0, "фронт улицы Ветров, восток",
-                 t0=4.0, t1=22.0)
-    # Усадьба Серых Грив — просторный двор западнее храмовой оси.
-    houseJ("city-manor.dfh", 76, T2, 94, 22, "усадьба Серых Грив")
-    # Пара дворов у северной стены (бедновато, fringe).
-    houseJ("city-house-s-old.dfh", 106, T2, 70, 172, "двор у северной стены")
-    houseJ("log-replica.dfh", 122, T2, 74, 195, "сруб у Йоррваскра")
-
-def smooth_keep_hump(path):
-    """Гасит relief-дельты на кромке замкового плато (ядро x169..185 z40..64,
-    кайма 5 м). Ручной горб town-land (+3..5 м) стоял ровно на единственном
-    пологом заходе на плато и превращал кромку в отвес 45-70 градусов —
-    промерено terrain_height. Тропы (path/pp) и mat не трогаются."""
-    lines = open(path, encoding="utf-8").read().split("\n")
-    assert any(l.strip() == "step 1" for l in lines), "relief step != 1"
-    x0, x1, z0, z1, fade = 169.0, 185.0, 40.0, 64.0, 5.0
-    out = []
-    for line in lines:
-        t = line.split()
-        if len(t) == 4 and t[0] == "dh":
-            wx, wz = float(t[1]), float(t[2])  # step 1: индекс == метр
-            o = max(x0 - wx, wx - x1, z0 - wz, wz - z1, 0.0)
-            if o < fade:
-                d = float(t[3]) * (o / fade)
-                if d == 0.0:
-                    continue  # нулевую дельту стирает и set_delta
-                line = "dh %s %s %.9g" % (t[1], t[2], d)
-        out.append(line)
-    open(path, "w", encoding="utf-8").write("\n".join(out))
-
-
-def cloud():
-    """Перешеек и замок."""
-    # Обе лестницы промерены terrain_height по своим осям (x166 и x176):
-    # перешеек — земля 31.6 у z76 и 38.0 у z64 (склон 45 гр. в z65..70),
-    # марш z64..76 с базой 32 входит ступенькой 0.43 и сходит вровень.
-    # Замок — горб relief на кромке гасится smooth_keep_hump; после
-    # чистки кромка это пад: перешеек 37 -> плато 43, марш z50..62.
-    house("city-stairs6.dfh", 164, 32.0, 64, 0, "лестница перешейка (32->38)")
-    house("city-stairs6.dfh", 174, NECK, 50, 0, "лестница замка (37->43)")
-    # Новый солидный замок (21.08): зал 26х14, конёк 18.8, крылья и башенки —
-    # футпринт в мире x175..218, z13..43. Донжоны выведены из его тела и
-    # фланкируют парадный двор.
-    house("city-keep.dfh", 184, T3, 16, 0, "Драконий Предел")
-    houseJ("city-donjon.dfh", 172, T3, 34, 0, "донжон, запад двора")
-    houseJ("city-donjon.dfh", 216, T3, 34, 0, "донжон, восток двора")
-
-def outskirts():
-    """Фермы снаружи и зелень."""
-    houseJ("log-replica.dfh", 56, T1, 214, 0, "ферма у дороги")
-    houseJ("city-barn.dfh", 46, T1, 206, 30, "амбар фермы")
-    # 21.08: с русла — домик стоял верхом на продолжении городского рукава
-    # (88,214)->(108,232); (88,216) -> (140,214), восточная обочина дороги.
-    dwelling("poor", 140, T1, 214, 270, "домик у дороги")
-    # 21.08: с русла — хутор был в 6.9 м от рва (204,206)->(172,228);
-    # (216,214) -> (224,212).
-    houseJ("city-barn-old.dfh", 224, 24.8, 212, 180, "хутор за рвом (восточнее русла)")
-    # Деревья: НЕ на осях улиц, НЕ в постройках, ели — подальше от стен
-    # (приёмка: берёза в портике, дуб за воротами, ели резали стену).
-    trees = [
-        ("birch-forge-a", 94, T1, 158), ("birch-forge-b", 142, T1, 170),
-        ("aspen-forge-a", 156, T1, 146),
-        ("birch-forge-a", 92, T2, 100), ("aspen-forge-a", 140, T2, 108),
-        ("juniper-forge-a", 124, T2, 74), ("juniper-forge-a", 134, T2, 90),
-        ("pine-forge-a", 20, T1, 222), ("pine-forge-b", 44, T1, 244),
-        ("spruce-forge-a", 200, 23.6, 238), ("pine-forge-a", 222, 24.8, 200),
-        ("oak-forge-a", 32, 25.0, 156), ("spruce-forge-b", 236, 25.0, 116),
-    ]
-    for obj, x, y, z in trees:
-        place(obj, x, y, z, (hash(obj + str(x)) % 360))
+    dx, dz = door_dir(hs["deg"], hs["door"])
+    # у рецептов дверь на локальной стороне z=d: её наружная нормаль в мире
+    # равна Z_loc=(sin yaw, cos yaw) -> yaw из направления двери схемы.
+    yaw = math.degrees(math.atan2(dx, dz)) % 360.0
+    c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
+    # origin (угол 0,0) из центра схемы: центр = origin + X*w/2 + Z*d/2
+    ox = hs["x"] - (w/2)*c - (d/2)*s
+    oz = hs["z"] + (w/2)*s - (d/2)*c
+    y = sit(hs["x"], hs["z"], 25.0, half=max(w, d)/2)
+    house(rec, ox, y, oz, yaw, hs["name"] or hs["kind"] or "дом")
+    # каменная дорожка с бордюрами: цепочка furn-walk2 от двери до улицы
+    if hs["walk"]:
+        door_x = hs["x"] + dx*(d/2)
+        door_z = hs["z"] + dz*(d/2)
+        wx, wz = hs["walk"]
+        vx, vz = wx - door_x, wz - door_z
+        L = math.hypot(vx, vz)
+        if L > 0.8:
+            ux, uz = vx/L, vz/L
+            wyaw = math.degrees(math.atan2(-uz, ux)) % 360.0
+            n = max(1, int(L / 1.9))
+            for i in range(n):
+                t = (i + 0.5) * L / n
+                sx, sz = door_x + ux*t, door_z + uz*t
+                gy = ground(sx, sz)
+                house("furn-walk2.dfh", sx - ux, (25.0 if gy is None else gy) + 0.01,
+                      sz - uz + 0.0, wyaw, "дорожка: " + (hs["name"] or hs["kind"] or "дом"))
 
 def main():
-    walls()
-    plains()
-    stairs_t1_t2()
-    wind()
-    cloud()
-    outskirts()
+    # --- постройки плана ---
+    for hs in PLAN["houses"]:
+        put_house(hs)
+    # рынок: плита, колодец, прилавки
+    mx, mz, mw, md = PLAN["market"]["rect"]
+    my = sit(mx + mw/2, mz + md/2, 27.0, half=max(mw, md)/2)
+    house("city-plaza12.dfh", mx + 1, my, mz, 0, "рыночная площадь")
+    wx, wz = PLAN["market"]["well"]
+    house("city-well.dfh", wx, my + 0.02, wz, 0, "колодец рынка")
+    for i, (sx, sz) in enumerate(PLAN["market"]["stalls"]):
+        house("city-stall.dfh", sx - 1.2, my + 0.02, sz - 0.5, 180, f"прилавок {i+1}")
+    # стена и башни
+    wall = PLAN["wall"]
+    for (ax, az), (bx, bz) in zip(wall, wall[1:] + [wall[0]]):
+        L = math.hypot(bx-ax, bz-az)
+        ux, uz = (bx-ax)/L, (bz-az)/L
+        yaw = math.degrees(math.atan2(-uz, ux)) % 360.0
+        t = 0.0
+        while t < L - 0.5:
+            last = t + 12.0 >= L
+            st = max(L - 12.0, 0.0) if last else t
+            x, z = ax + ux*st, az + uz*st
+            mxp, mzp = ax + ux*(st+6), az + uz*(st+6)
+            g0, g1, gm = ground(x, z), ground(ax+ux*min(st+12, L), az+uz*min(st+12, L)), ground(mxp, mzp)
+            gs = [g for g in (g0, g1, gm) if g is not None]
+            y = (min(gs) - 0.3) if gs else 25.0
+            # разрывы под ворота
+            skip = False
+            for g in PLAN["gates"]:
+                gx, gz = g["pos"]
+                if min(math.hypot(gx-(x+ux*tt), gz-(z+uz*tt)) for tt in (0, 6, 12)) < 7.0:
+                    skip = True
+            if not skip:
+                house("city-wall12.dfh", x, y, z, yaw, "стена кольца")
+            if last:
+                break
+            t += 11.5
+    ccx = sum(p[0] for p in wall)/len(wall)
+    ccz = sum(p[1] for p in wall)/len(wall)
+    for tx, tz in PLAN["towers"]:
+        ang = math.degrees(math.atan2(tz-ccz, tx-ccx))
+        # башня выдвинута наружу по нормали
+        nx, nz = (tx-ccx), (tz-ccz)
+        nl = math.hypot(nx, nz)
+        px, pz = tx + nx/nl*1.5, tz + nz/nl*1.5
+        g = ground(px, pz)
+        house("city-tower.dfh", px - 1.8, (25.0 if g is None else g - 0.2), pz - 1.8,
+              (ang + 90) % 360, "башня кольца (наружу)")
+    for g in PLAN["gates"]:
+        gx, gz = g["pos"]
+        gy = ground(gx, gz)
+        # ворота вдоль ближайшей грани стены
+        best, byaw = 1e9, 0.0
+        for (ax, az), (bx, bz) in zip(wall, wall[1:] + [wall[0]]):
+            mxp, mzp = (ax+bx)/2, (az+bz)/2
+            dd = (mxp-gx)**2 + (mzp-gz)**2
+            if dd < best:
+                best = dd
+                byaw = math.degrees(math.atan2(-(bz-az), bx-ax)) % 360.0
+        house("city-gate.dfh", gx - 6, (25.0 if gy is None else gy - 0.1), gz, byaw,
+              f"ворота {g['name']}")
+    # мост
+    b = PLAN["bridge"]
+    bx, bz = b["center"]
+    gb = ground(bx + 7, bz)
+    house("city-bridge.dfh", bx - 4, (25.0 if gb is None else gb + 0.45), bz - 2,
+          -b["deg"], "мост через реку")
+    # Гилдергрин и дуб-поляна
+    gg = PLAN["gildergreen"]
+    ggy = sit(gg[0], gg[1], 30.0, half=3)
+    place("great-forge-oak", gg[0], ggy, gg[1], 0, "Гилдергрин (розовая листва — зона флоры)")
+    house("city-treering.dfh", gg[0] - 2.6, ggy, gg[1] - 2.6, 0, "кольцо Гилдергрина")
+    og = PLAN["oak_glade"]
+    oy = sit(og["oak"][0], og["oak"][1], 26.0, half=3)
+    place("great-forge-oak", og["oak"][0], oy, og["oak"][1], 137, "дуб поляны")
+    for i, (tx, tz) in enumerate(og["trees"]):
+        ty = sit(tx, tz, 26.0, half=1.5)
+        place(TREE["birch"][i % 2] , tx, ty, tz, (i * 61) % 360)
+    # огороды
+    for i, (gx, gz) in enumerate(PLAN["gardens"]):
+        gy = sit(gx, gz, 33.0, half=1.5)
+        for k in (0, 1):
+            house("furn-bed-garden.dfh", gx - 0.5 + k * 1.6, gy, gz - 1.2, (i*23) % 20 - 10,
+                  "огород")
+    # деревья и кусты
+    for i, t in enumerate(PLAN["trees"]):
+        opts = TREE.get(t["kind"], TREE["bush"])
+        ty = sit(t["x"], t["z"], 25.0, half=1.0)
+        place(opts[i % len(opts)], t["x"], ty, t["z"], (i * 47) % 360)
 
-    # Рельеф: копия ручной лепки пользователя (его файл не трогаем).
-    src_rel = os.path.join(ROOT, "assets/scenes/town-land.relief")
-    dst_rel = os.path.join(ROOT, "assets/scenes/whiterun.relief")
-    if os.path.exists(src_rel):
-        shutil.copyfile(src_rel, dst_rel)
-        smooth_keep_hump(dst_rel)
-        append_roads(dst_rel)
-        relief_line = "relief = whiterun.relief\n"
-    else:
-        relief_line = ""
+    # --- terrain: пады из зон, микрорельеф, река ---
+    terrain = []
+    for zn in PLAN["zones"]:
+        xs = [p[0] for p in zn["pts"]]
+        zs = [p[1] for p in zn["pts"]]
+        cx, cz = sum(xs)/len(xs), sum(zs)/len(zs)
+        hx = max(2.0, (max(xs)-min(xs))/2 - 2)
+        hz = max(2.0, (max(zs)-min(zs))/2 - 2)
+        if zn["h"] == 25:
+            continue  # базовая равнина = натуральная земля
+        terrain.append(f"[pad]\ncenter = {cx:.1f} {cz:.1f}\n"
+                       f"half_extents = {hx:.1f} {hz:.1f}\nblend = 6\n"
+                       f"height = {zn['h']}\nnote = зона плана h={zn['h']}\n")
+    for m in PLAN["micro"]:
+        xs = [p[0] for p in m["pts"]]
+        zs = [p[1] for p in m["pts"]]
+        cx, cz = sum(xs)/len(xs), sum(zs)/len(zs)
+        # микропятно: высота относительно окружения решится вторым проходом
+        base = ground(cx, cz)
+        if base is None:
+            continue
+        terrain.append(f"[pad]\ncenter = {cx:.1f} {cz:.1f}\n"
+                       f"half_extents = {max(2.0,(max(xs)-min(xs))/2):.1f} "
+                       f"{max(2.0,(max(zs)-min(zs))/2):.1f}\nblend = 4\n"
+                       f"height = {base + m['dh']}\nnote = микрорельеф {m['dh']:+d}\n")
+    rpts = "\n".join(f"point = {x} {z} {23.6 - i*0.08:.2f}"
+                     for i, (x, z) in enumerate(PLAN["river"]))
+    terrain.append(f"[river]\nwidth_m = {PLAN['river_half_w']*2:.0f}\ndepth_m = 1.0\n"
+                   f"bank_m = 5\nnote = река плана: один рукав от истока\n{rpts}\n")
 
-    # Полки и реки — снятые с town-land.scene пользователя блоки.
-    src_scene = open(os.path.join(ROOT, "assets/scenes/town-land.scene"),
-                     encoding="utf-8").read()
-    keep = []
-    take = False
-    for line in src_scene.split("\n"):
-        if line.startswith("[river]") or line.startswith("[pad]"):
-            take = True
-        elif line.startswith("["):
-            take = False
-        if take:
-            keep.append(line)
-    terrain = "\n".join(keep).strip("\n")
+    # --- дороги: тропы рельефа ---
+    relief_paths = []
+    for rd in PLAN["roads"]:
+        half = max(0.8, rd["w"] / 2)
+        soft = 1.2 if rd["mat"] == "stone" else 1.0
+        pts = "\n".join(f"pp {x} {z}" for x, z in rd["pts"])
+        relief_paths.append(f"path {half:g} {soft:g}\n{pts}")
 
-    terrain += ("\n\n[pad]\ncenter = 118 116\nhalf_extents = 47 4\nblend = 2\n"
-                "height = 31\n"
-                "note = резкая кромка T2: подпорные стены стоят у настоящей ступени\n"
-                "\n[pad]\ncenter = 118 128\nhalf_extents = 3 6\nblend = 1\n"
-                "height = 25\n"
-                "note = просека лестницы T2: марш стоит над плоским дном, а не в склоне\n"
-                "\n[pad]\ncenter = 195 45\nhalf_extents = 24 5\nblend = 2\n"
-                "height = 43\n"
-                "note = резкая кромка замкового плато\n"
-                "\n[river]\nwidth_m = 5\ndepth_m = 0.8\nbank_m = 6\n"
-                "note = продолжение городского рукава: рукав обрывался у моста\n"
-                "point = 120 166 23.4\npoint = 104 186 23.1\npoint = 98 206 22.9\n"
-                "point = 106 228 22.7\npoint = 126 248 22.5\n"
-                "\n[pad]\ncenter = 197 54\nhalf_extents = 6 4\nblend = 2\n"
-                "height = 43\n"
-                "note = парадный двор замка: подножие большого марша на земле\n"
-                "\n[pad]\ncenter = 36 80\nhalf_extents = 12 10\nblend = 10\n"
-                "height = 29\n"
-                "note = холм за западной стеной (ландшафт, заказ 21.08)\n"
-                "\n[pad]\ncenter = 30 190\nhalf_extents = 10 8\nblend = 9\n"
-                "height = 27.8\n"
-                "note = холм юго-запада\n"
-                "\n[pad]\ncenter = 216 238\nhalf_extents = 9 7\nblend = 8\n"
-                "height = 27\n"
-                "note = холм юго-востока, в стороне от рва\n"
-                "\n[pad]\ncenter = 150 10\nhalf_extents = 16 7\nblend = 10\n"
-                "height = 30\n"
-                "note = гряда за замком, север\n"
-                "\n[pad]\ncenter = 46 132\nhalf_extents = 8 6\nblend = 8\n"
-                "height = 24\n"
-                "note = ложбина у западной стены\n")
-    out = ["# Daggerfall N scene — ВАЙТРАН (заказ 21.08: копия города на холме).",
-           "# СГЕНЕРИРОВАНО tools/gen_whiterun.py — правки вносить в генератор.",
-           "# Рельеф — ручная лепка пользователя (town-land), скопирован файлом.",
+    out = ["# Daggerfall N scene — ВАЙТРАН v5 ПО ПЛАНУ (docs/WHITERUN_PLAN.json).",
+           "# СГЕНЕРИРОВАНО tools/gen_whiterun.py; композицию править в чертеже",
+           "# tools/gen_whiterun_plan.py и перегонять оба генератора.",
            "map = houses/whiterun",
            "world_span_m = 256",
-           relief_line.strip(),
-           "spawn = 124 0 214",
-           "spawn_yaw = 0",
-           "", terrain, ""]
+           "relief = whiterun.relief",
+           "spawn = 113 0 248",
+           "spawn_yaw = 0", ""]
+    out.append("\n".join(terrain))
     for obj, x, y, z, yaw, note in P:
         out += ["[place]", f"object = {obj}",
                 f"pos = {x:.3f} {y:.3f} {z:.3f}", f"yaw = {yaw:.6f}", "scale = 1"]
@@ -704,22 +349,26 @@ def main():
     open(os.path.join(ROOT, "assets/scenes/whiterun.scene"), "w",
          encoding="utf-8").write("\n".join(out))
 
+    # relief: тропы дорог (свой файл, без копии town-land — рельеф теперь падовый)
+    rel = ["# Daggerfall N relief — Вайтран v5: дороги планом, рельеф падами.",
+           "step 1"]
+    rel += relief_paths
+    open(os.path.join(ROOT, "assets/scenes/whiterun.relief"), "w",
+         encoding="utf-8").write("\n".join(rel) + "\n")
+
     open(os.path.join(ROOT, "assets/maps/houses/whiterun.map"), "w",
          encoding="utf-8").write(
         "name = Вайтран: город на холме\n"
-        "zone = houses\n"
-        "size_chunks = 1\n"
-        "# КОПИЯ ВАЙТРАНА (заказ 21.08) на рельефе town-land пользователя:\n"
-        "# три террасы, ворота с юга, рынок у реки, Гилдергрин, храм,\n"
-        "# Йоррваскр, замок на скале; стены с башнями, фермы снаружи.\n"
-        "# СГЕНЕРИРОВАНО tools/gen_whiterun.py.\n"
+        "zone = houses\nsize_chunks = 1\n"
+        "# Вайтран v5 — построен по чертежу docs/WHITERUN_PLAN.html (см. JSON).\n"
         "source = stand:Gallery\n"
         "scene = assets/scenes/whiterun.scene\n"
         "objects = assets/objects/parts;assets/objects/signs;assets/objects/trees\n"
-        "description = Город на трёх террасах: ворота, рынок, Гилдергрин, замок; "
-        "стены со смотровыми башнями, мост через реку, фермы за стеной.\n"
+        "description = Город по плану: река от горного истока рвом вдоль стены, "
+        "мост у Восточных ворот, рынок, Гилдергрин, замок; дуб-поляна на юго-западе.\n"
         "built_commit =\n")
-    print(f"whiterun: {len(H)} построек, {len(P)} расстановок")
+    print(f"whiterun v5: {len(H)} построек, {len(P)} расстановок, "
+          f"{len(terrain)} terrain-блоков, {len(relief_paths)} троп")
 
 if __name__ == "__main__":
     main()
