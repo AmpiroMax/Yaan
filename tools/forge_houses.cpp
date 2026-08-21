@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 21:08:2026 - 16:40:00
+Last updated: 21:08:2026 - 20:55:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -82,6 +82,25 @@ UPD:
   отрисовка уводит деталь в ВЫВЕТРЕННЫЙ ряд атласа. Все 31 прежний .dfh
   после правки байт-в-байт: свежий вызов обязан дать ту же строку, что
   стояла литералом.
+- 21:08:2026 - 20:55:00: СОЛИДНЫЙ ЗАМОК (заказ 21.08: «замок сделать более
+  солидным»). Прежний city-keep — зал 20x12 с коньком 11.6 — рядом с
+  донжоном 14 читался сараем, а §8 гайда просит доминанту в 2-3 раза выше
+  второго объекта. Переписан forge_keep: зал 26x14, ЯРУСЫ по ставкирке —
+  каменный стилобат 0..2.9 (толщина 0.9 против прежних 0.5), два фахверковых
+  яруса до нижнего карниза 9.8, широкие нижние полы 9.8 -> 12.4 и ФОНАРЬ
+  глубиной 7 (вместо 14) со своим двускатом, конёк 18.8. Один скат от 9.8 до
+  18.8 дал бы полсилуэта гонта — доминанта читается ступенями, каждая уже
+  нижней. Четыре угловые башенки-контрфорса 2.5x2.5 до нижнего карниза с
+  шатриками, заведённые НА угол на 0.2 (тангенциальная отрывается щелью).
+  Портал: терраса с бортиками, ОДИН широкий марш 12 м (open=2; стык двух
+  маршей дважды ловил бота), две башенки-фланкера 6.6 и две колонны под
+  навесом. Резной конёк: охлупень с выпуском 1.1 и подвесами на торцах,
+  перекрещённые доски на щипцах. Верхняя кромка нижних пол держится
+  торцовыми треугольниками в плоскостях x=0 и x=W — check_roof_support видит
+  опору, находок 0. Пол верхнего зала — ДВА прямоугольника вокруг
+  лестничного колодца: невыпуклый контур пришлось бы триангулировать веером.
+  Плиты двора остались на 0.02 при толщине 0.2 (контур растёт в обе стороны
+  от своей высоты — 0.3 дало бы порог 0.15 на парадном дворе).
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -1472,106 +1491,328 @@ static void forge_temple() {
     f.save("assets/houses/city-temple.dfh");
 }
 
-/// ЗАМОК (Драконий Предел, упрощение): зал 20x12 камень+фахверк, два крыла,
-/// парадный подиум с двумя маршами, высокий двускат.
+/// ЗАМОК-ДОМИНАНТА (Драконий Предел; заказ 21.08 «замок сделать более
+/// солидным»: зал 20x12 с коньком 11.6 читался сараем рядом с донжоном 14).
+/// ЯРУСНЫЙ ОБЪЁМ, как у ставкирки: зал 26x14 на каменном стилобате 2.9, два
+/// фахверковых яруса до нижнего карниза 9.8, широкие нижние скаты уходят к
+/// узкому ФОНАРЮ (глубина 7 вместо 14) со своей двускатной кровлей — конёк
+/// 18.8. Четыре угловые каменные башенки-контрфорса до нижнего карниза с
+/// шатриками, парадный портал с террасой, широким маршем и двумя башенками.
+/// ПОЧЕМУ ЯРУСЫ, А НЕ ПРОСТО ВЫШЕ КОНЁК: один скат от 9.8 до 18.8 дал бы
+/// 60-градусную стену гонта в пол-силуэта — доминанта читается ступенями,
+/// каждая уже нижней (CITY_DESIGN_GUIDE.md §8).
 static void forge_keep() {
     Forge f;
-    const float W = 20.0f;
-    const float D = 12.0f;
-    const float H1 = 4.2f;
-    const float H2 = 8.0f;
-    // Подиум-плаза перед входом (юг), два марша.
+    const float W = 26.0f;    // зал по фасаду
+    const float D = 14.0f;    // глубина зала
+    const float YS = 2.9f;    // верх каменного стилобата
+    const float Y2 = 6.35f;   // пол верхнего зала
+    const float E1 = 9.8f;    // нижний карниз (и верх угловых башенок)
+    const float LZ0 = 3.5f;   // фонарь: северная стена
+    const float LZ1 = 10.5f;  // фонарь: южная стена
+    const float LTOP = 12.4f; // где нижний скат встречает фонарь
+    const float E2 = 14.2f;   // карниз фонаря
+    const float SO = 0.45f;   // свес нижних скатов
+    const float RIDGE_H = 4.6f; // конёк 18.8
+
+    // ---------------- ярус стен: одно тело на четыре стены ----------------
+    // Стены длинные (26 м) и короткие (14 м) просят РАЗНОЕ число проёмов:
+    // ring() старого замка ставил всем поровну, и торцы шли решетом.
+    const auto tier = [&](float y, float h, float x0, float z0, float x1, float z1,
+                          const char* th, const char* mat, const char* tone,
+                          const char* fill, const char* win_long,
+                          const char* win_short, const char* wear, bool clad,
+                          bool shutters, bool plinth, bool door_south) {
+        char hb[16];
+        std::snprintf(hb, sizeof(hb), "%.2f", h);
+        const VertexId nw = f.v(x0, y, z0);
+        const VertexId ne = f.v(x1, y, z0);
+        const VertexId se = f.v(x1, y, z1);
+        const VertexId sw = f.v(x0, y, z1);
+        const auto put = [&](VertexId a, VertexId b, const char* win, bool door) {
+            const ElementId id =
+                f.wall(a, b,
+                       {{"height", hb}, {"thickness", th}, {"mat", mat},
+                        {"tone", tone}, {"wear", wear}});
+            if (fill[0] != 0) {
+                (void)f.g.set_param(id, "fill", fill);
+            }
+            if (clad) {
+                (void)f.g.set_param(id, "clad", "1");
+            }
+            if (shutters) {
+                (void)f.g.set_param(id, "shutters", "1");
+            }
+            if (plinth) {
+                (void)f.g.set_param(id, "plinth", "1");
+            }
+            if (door) {
+                (void)f.g.set_param(id, "doors", "1");
+                (void)f.g.set_param(id, "porch", "1");
+            } else if (win[0] != 0) {
+                (void)f.g.set_param(id, "windows", win);
+            }
+        };
+        put(ne, nw, win_long, false);   // север, лицо на север
+        put(se, ne, win_short, false);  // восток
+        put(nw, sw, win_short, false);  // запад
+        put(sw, se, win_long, door_south);
+    };
+
+    // ---------------- каменная башенка с шатриком (контрфорс/фланкер) -----
+    const auto turret = [&](float x0, float z0, float s, float h, float rise,
+                            const char* th, const char* wear) {
+        const float x1 = x0 + s;
+        const float z1 = z0 + s;
+        char hb[16];
+        std::snprintf(hb, sizeof(hb), "%.2f", h);
+        const auto q = [&](float ax, float az, float bx, float bz) {
+            (void)f.wall(f.v(ax, 0.0f, az), f.v(bx, 0.0f, bz),
+                         {{"height", hb}, {"thickness", th}, {"mat", "3"},
+                          {"tone", "1"}, {"fill", "3"}, {"wear", wear}});
+        };
+        q(x1, z0, x0, z0);  // север
+        q(x1, z1, x1, z0);  // восток
+        q(x0, z0, x0, z1);  // запад
+        q(x0, z1, x1, z1);  // юг
+        const float o = 0.22f;
+        {
+            const VertexId a = f.v(x0 - o, h, z0 - o);
+            const VertexId b = f.v(x0 - o, h, z1 + o);
+            const VertexId c = f.v(x1 + o, h, z1 + o);
+            const VertexId d = f.v(x1 + o, h, z0 - o);
+            (void)f.contour({a, b, c, d},
+                            {{"thickness", "0.2"}, {"mat", "3"}, {"tone", "1"},
+                             {"wear", wear}, {"unsupported", "1"}});
+        }
+        // Шатрик: четыре треугольника к вершине (рука башни/донжона).
+        const float base = h + 0.2f;
+        const glm::vec3 corners[4] = {{x0 - o, base, z0 - o},
+                                      {x1 + o, base, z0 - o},
+                                      {x1 + o, base, z1 + o},
+                                      {x0 - o, base, z1 + o}};
+        const glm::vec3 apex{(x0 + x1) * 0.5f, base + rise, (z0 + z1) * 0.5f};
+        for (int k = 0; k < 4; ++k) {
+            const glm::vec3 c1 = corners[k];
+            const glm::vec3 c2 = corners[(k + 1) % 4];
+            const ElementId t = f.contour({f.v(c1.x, c1.y, c1.z),
+                                           f.v(c2.x, c2.y, c2.z),
+                                           f.v(apex.x, apex.y, apex.z)},
+                                          {{"thickness", "0.12"}, {"mat", "1"},
+                                           {"tone", "1"}, {"wear", "0.4"},
+                                           {"unsupported", "1"}});
+            (void)f.g.set_param(t, "roof", "1");
+        }
+    };
+
+    // ---------------- подошва-стилобат и парадный двор --------------------
+    // Плита на 1.6 шире плана: замок СТОИТ НА ПЛИТЕ, а не воткнут в землю.
+    // Плита ЛЕЖИТ НА ЗЕМЛЕ, а не ступенью: контур выдавливается ОТ СВОЕЙ
+    // высоты в обе стороны, и 0.02 при толщине 0.2 даёт кромку 0.12 —
+    // проверенный подиум прежнего замка. Толще — и парадный двор обзаводится
+    // порогом на входе.
     {
-        const VertexId a = f.v(3.0f, 0.02f, D + 0.0f);
-        const VertexId b = f.v(3.0f, 0.02f, D + 6.0f);
-        const VertexId c = f.v(W - 3.0f, 0.02f, D + 6.0f);
-        const VertexId d = f.v(W - 3.0f, 0.02f, D + 0.0f);
+        const VertexId a = f.v(-1.6f, 0.02f, -1.6f);
+        const VertexId b = f.v(-1.6f, 0.02f, D + 1.6f);
+        const VertexId c = f.v(W + 1.6f, 0.02f, D + 1.6f);
+        const VertexId d = f.v(W + 1.6f, 0.02f, -1.6f);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.2"}, {"mat", "3"}, {"tone", "1"},
-                         {"wear", "0.35"}});
+                         {"wear", "0.4"}});
     }
-    for (const float x0 : {5.0f, W - 9.0f}) {
-        const VertexId a = f.v(x0, -3.0f, D + 12.0f);
-        const VertexId b = f.v(x0 + 4.0f, -3.0f, D + 12.0f);
-        const VertexId c = f.v(x0 + 4.0f, 0.0f, D + 6.0f);
-        const VertexId d = f.v(x0, 0.0f, D + 6.0f);
+    // Терраса перед порталом (стык с подошвой в z = D+1.6, без нахлёста:
+    // две компланарные плиты на одной высоте дерутся за пиксель).
+    {
+        const VertexId a = f.v(5.0f, 0.02f, D + 1.6f);
+        const VertexId b = f.v(5.0f, 0.02f, D + 7.0f);
+        const VertexId c = f.v(W - 5.0f, 0.02f, D + 7.0f);
+        const VertexId d = f.v(W - 5.0f, 0.02f, D + 1.6f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.2"}, {"mat", "3"}, {"tone", "1"},
+                         {"wear", "0.4"}});
+    }
+    // Бортики террасы по бокам (марш посередине остаётся свободным).
+    for (const float px : {5.0f, W - 5.0f}) {
+        (void)f.wall(f.v(px, 0.0f, D + 1.6f), f.v(px, 0.0f, D + 7.0f),
+                     {{"height", "0.7"}, {"thickness", "0.4"}, {"mat", "3"},
+                      {"tone", "1"}, {"fill", "3"}, {"wear", "0.45"}});
+    }
+    // ОДИН ШИРОКИЙ МАРШ 12 м (open=2): стык двух маршей дважды ловил бота в
+    // щель, и парадному входу пара узких лесенок всё равно не по чину.
+    {
+        const VertexId a = f.v(7.0f, -3.0f, D + 13.0f);
+        const VertexId b = f.v(W - 7.0f, -3.0f, D + 13.0f);
+        const VertexId c = f.v(W - 7.0f, 0.0f, D + 7.0f);
+        const VertexId d = f.v(7.0f, 0.0f, D + 7.0f);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.15"}, {"fill", "6"}, {"open", "2"},
                          {"mat", "3"}, {"tone", "1"}, {"wear", "0.4"},
                          {"unsupported", "1"}});
     }
-    // Зал: низ камень (эт.1), верх фахверк (эт.2).
-    const auto ring = [&](float y, float h, bool stone, bool door_south) {
-        char hb[16];
-        std::snprintf(hb, sizeof(hb), "%.2f", h);
-        const VertexId nw = f.v(0.0f, y, 0.0f);
-        const VertexId ne = f.v(W, y, 0.0f);
-        const VertexId se = f.v(W, y, D);
-        const VertexId sw = f.v(0.0f, y, D);
-        Params wallp =
-            stone ? Params{{"height", hb}, {"thickness", "0.5"}, {"mat", "3"},
-                           {"tone", "1"}, {"fill", "3"}, {"windows", "2"},
-                           {"plinth", "1"}, {"wear", "0.35"}}
-                  : Params{{"height", hb}, {"thickness", "0.35"}, {"mat", "5"},
-                           {"tone", "0"}, {"clad", "1"}, {"windows", "3"},
-                           {"shutters", "1"}, {"wear", "0.3"}};
-        (void)f.wall(ne, nw, wallp);
-        (void)f.wall(se, ne, wallp);
-        (void)f.wall(nw, sw, wallp);
-        if (door_south) {
-            Params dp = stone ? Params{{"height", hb}, {"thickness", "0.5"},
-                                       {"mat", "3"}, {"tone", "1"}, {"fill", "3"},
-                                       {"doors", "1"}, {"porch", "1"},
-                                       {"wear", "0.35"}}
-                              : wallp;
-            (void)f.wall(sw, se, dp);
-        } else {
-            (void)f.wall(sw, se, wallp);
-        }
-    };
-    ring(0.0f, H1, true, true);
-    ring(H1, H2 - H1, false, false);
+
+    // ---------------- три яруса стен зала ---------------------------------
+    // Стилобат: камень 0.9 толщиной — в полтора раза толще прежнего низа,
+    // и уступ на 2.9 читается тенью по всему периметру.
+    tier(0.0f, YS, 0.0f, 0.0f, W, D, "0.9", "3", "1", "3", "3", "2", "0.42",
+         false, false, true, true);
+    tier(YS, Y2 - YS, 0.0f, 0.0f, W, D, "0.4", "5", "0", "", "4", "2", "0.38",
+         true, true, false, false);
+    tier(Y2, E1 - Y2, 0.0f, 0.0f, W, D, "0.4", "5", "0", "", "4", "2", "0.35",
+         true, true, false, false);
+    // Фонарь: тот же фасад по X, но вдвое меньше глубина — ярус сужается.
+    tier(E1, E2 - E1, 0.0f, LZ0, W, LZ1, "0.35", "5", "0", "", "5", "1", "0.35",
+         true, false, false, false);
     f.door_leaf(W * 0.5f, 0.0f, D);
-    // Межэтажный пол с балками.
+    // Каркас фахверка: угловые стойки от стилобата до карниза + обвязка-карниз.
+    f.frame_posts(0.0f, 0.0f, W, D, YS, E1, "0");
+    // Междуэтажный поясок — тёсовая слега по всем четырём фасадам: без него
+    // 6.9 м фахверка над стилобатом стоят одной пустой доской.
     {
-        const VertexId a = f.v(0.0f, H1, 0.0f);
-        const VertexId b = f.v(0.0f, H1, D);
-        const VertexId c = f.v(W, H1, D);
-        const VertexId d = f.v(W, H1, 0.0f);
+        const glm::vec3 p[5] = {{0.0f, Y2, 0.0f}, {W, Y2, 0.0f}, {W, Y2, D},
+                                {0.0f, Y2, D},    {0.0f, Y2, 0.0f}};
+        for (int k = 0; k < 4; ++k) {
+            (void)f.beam(f.v(p[k].x, p[k].y, p[k].z),
+                         f.v(p[k + 1].x, p[k + 1].y, p[k + 1].z),
+                         {{"radius", "0.11"}, {"form", "plank"}, {"mat", "0"},
+                          {"tone", "2"}});
+        }
+    }
+
+    // ---------------- полы, лестница --------------------------------------
+    // Пол верхнего зала — ДВА прямоугольника вокруг лестничного колодца:
+    // невыпуклый контур пришлось бы триангулировать веером, а колодец нужен —
+    // марш упирался в сплошную плиту.
+    {
+        const VertexId a = f.v(4.7f, Y2, 0.0f);
+        const VertexId b = f.v(4.7f, Y2, D);
+        const VertexId c = f.v(W, Y2, D);
+        const VertexId d = f.v(W, Y2, 0.0f);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
                          {"beams", "1"}});
     }
-    // Внутренняя лестница на второй этаж.
     {
-        const VertexId a = f.v(1.0f, 0.0f, 9.5f);
-        const VertexId b = f.v(3.2f, 0.0f, 9.5f);
-        const VertexId c = f.v(3.2f, H1, 3.4f);
-        const VertexId d = f.v(1.0f, H1, 3.4f);
+        const VertexId a = f.v(0.0f, Y2, 5.5f);
+        const VertexId b = f.v(0.0f, Y2, D);
+        const VertexId c = f.v(4.7f, Y2, D);
+        const VertexId d = f.v(4.7f, Y2, 5.5f);
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
+                         {"beams", "1"}});
+    }
+    // Марш в верхний зал: 6.35 на 12.7 — тот же уклон 26.6 гр., что у
+    // проверенной уличной лестницы-6 (по ней бот ходит).
+    {
+        const VertexId a = f.v(1.0f, 0.0f, 13.4f);
+        const VertexId b = f.v(4.2f, 0.0f, 13.4f);
+        const VertexId c = f.v(4.2f, Y2, 0.7f);
+        const VertexId d = f.v(1.0f, Y2, 0.7f);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.12"}, {"fill", "6"}, {"open", "1"},
-                         {"mat", "1"}, {"tone", "1"}, {"wear", "0.3"}});
+                         {"mat", "1"}, {"tone", "1"}, {"wear", "0.35"}});
     }
-    f.frame_posts(0.0f, 0.0f, W, D, 0.0f, H2, "3");
-    // Крылья по бокам, ниже зала.
-    // Крылья отодвинуты от зала (приёмка: крыша крыла резала щипец).
+
+    // ---------------- нижние скаты к фонарю -------------------------------
+    // Не двускат: широкая пола от карниза 9.8 вверх к стене фонаря 12.4.
+    const auto shed = [&](VertexId a, VertexId b, VertexId c, VertexId d) {
+        (void)f.contour({a, b, c, d},
+                        {{"thickness", "0.16"}, {"mat", "1"}, {"tone", "1"},
+                         {"fill", "7"}, {"wear", "0.4"}});
+    };
+    shed(f.v(-SO, LTOP, LZ0), f.v(W + SO, LTOP, LZ0),
+         f.v(W + SO, E1 - 0.1f, -SO), f.v(-SO, E1 - 0.1f, -SO));
+    shed(f.v(W + SO, LTOP, LZ1), f.v(-SO, LTOP, LZ1),
+         f.v(-SO, E1 - 0.1f, D + SO), f.v(W + SO, E1 - 0.1f, D + SO));
+    f.eaves_trim({-SO, E1 - 0.1f, -SO}, {W + SO, E1 - 0.1f, -SO});
+    f.eaves_trim({-SO, E1 - 0.1f, D + SO}, {W + SO, E1 - 0.1f, D + SO});
+    // Торцы скатов: треугольники в плоскостях x=0 и x=W по бокам от фонаря —
+    // ими же держится верхняя кромка полы (правило опоры крыш).
+    for (const float gx : {0.0f, W}) {
+        (void)f.contour({f.v(gx, E1, -SO), f.v(gx, E1, LZ0), f.v(gx, LTOP, LZ0)},
+                        {{"thickness", "0.14"}, {"mat", "5"}, {"tone", "0"},
+                         {"clad", "1"}, {"wear", "0.35"}});
+        (void)f.contour({f.v(gx, E1, LZ1), f.v(gx, E1, D + SO), f.v(gx, LTOP, LZ1)},
+                        {{"thickness", "0.14"}, {"mat", "5"}, {"tone", "0"},
+                         {"clad", "1"}, {"wear", "0.35"}});
+    }
+    // Стропила нижних пол: под настилом, торцы выглядывают из-под свеса.
+    {
+        const int bays = 13;
+        for (int k = 0; k <= bays; ++k) {
+            const float x = W * static_cast<float>(k) / static_cast<float>(bays);
+            (void)f.beam(f.v(x, LTOP - 0.3f, LZ0), f.v(x, E1 - 0.34f, -SO - 0.22f),
+                         {{"radius", "0.09"}, {"mat", "0"}, {"tone", "2"}});
+            (void)f.beam(f.v(x, LTOP - 0.3f, LZ1),
+                         f.v(x, E1 - 0.34f, D + SO + 0.22f),
+                         {{"radius", "0.09"}, {"mat", "0"}, {"tone", "2"}});
+        }
+    }
+
+    // ---------------- кровля фонаря и резной конёк ------------------------
+    f.gable_roof(0.0f, LZ0, W, LZ1, E2, RIDGE_H, "1", "1", "7", "0.4");
+    const float YR = E2 + RIDGE_H;
+    // ОХЛУПЕНЬ поверх конька с выпуском 1.1 за щипцы и резными подвесами на
+    // торцах — «торцы коньковых брёвен выступают» из заказа.
+    (void)f.beam(f.v(-1.1f, YR + 0.2f, (LZ0 + LZ1) * 0.5f),
+                 f.v(W + 1.1f, YR + 0.2f, (LZ0 + LZ1) * 0.5f),
+                 {{"radius", "0.13"}, {"mat", "0"}, {"tone", "2"}});
+    for (const float ex : {-1.1f, W + 1.1f}) {
+        (void)f.beam(f.v(ex, YR + 0.2f, (LZ0 + LZ1) * 0.5f),
+                     f.v(ex, YR - 0.75f, (LZ0 + LZ1) * 0.5f),
+                     {{"radius", "0.1"}, {"form", "plank"}, {"mat", "0"},
+                      {"tone", "2"}});
+    }
+    // ПЕРЕКРЕЩЁННЫЕ ДОСКИ на щипцах: сходятся под коньком и расходятся выше
+    // него рогами — нордский знак дома, читается с площади силуэтом.
+    for (const float gx : {-0.12f, W + 0.12f}) {
+        (void)f.beam(f.v(gx, E2 + 0.2f, LZ0 + 0.4f), f.v(gx, YR + 0.7f, 7.75f),
+                     {{"radius", "0.1"}, {"form", "plank"}, {"mat", "0"},
+                      {"tone", "2"}});
+        (void)f.beam(f.v(gx, E2 + 0.2f, LZ1 - 0.4f), f.v(gx, YR + 0.7f, 6.25f),
+                     {{"radius", "0.1"}, {"form", "plank"}, {"mat", "0"},
+                      {"tone", "2"}});
+    }
+
+    // ---------------- четыре угловые башенки-контрфорса -------------------
+    // Заходят на угол зала на 0.2: тангенциальная башенка отрывается от
+    // фасада щелью, а контрфорс обязан читаться сросшимся с ним.
+    for (const float tx : {-2.3f, W - 0.2f}) {
+        for (const float tz : {-2.3f, D - 0.2f}) {
+            turret(tx, tz, 2.5f, E1, 2.3f, "0.5", "0.45");
+        }
+    }
+
+    // ---------------- парадный портал -------------------------------------
+    // Две башенки-фланкера у входа + две колонны держат навес: проём между
+    // ними 4 м — ширина парадного хода, а не двери.
+    turret(8.6f, D + 0.6f, 2.4f, 6.6f, 1.9f, "0.45", "0.45");
+    turret(W - 11.0f, D + 0.6f, 2.4f, 6.6f, 1.9f, "0.45", "0.45");
+    for (const float cx : {11.35f, W - 11.35f}) {
+        (void)f.beam(f.v(cx, 0.0f, D + 4.0f), f.v(cx, 5.3f, D + 4.0f),
+                     {{"radius", "0.28"}, {"sides", "8"}, {"mat", "3"},
+                      {"tone", "1"}});
+    }
+    {
+        const VertexId a = f.v(10.9f, 6.3f, D - 0.1f);
+        const VertexId b = f.v(W - 10.9f, 6.3f, D - 0.1f);
+        const VertexId c = f.v(W - 10.9f, 5.3f, D + 4.1f);
+        const VertexId d = f.v(10.9f, 5.3f, D + 4.1f);
+        const ElementId s = f.contour({a, b, c, d},
+                                      {{"thickness", "0.15"}, {"mat", "1"},
+                                       {"tone", "1"}, {"fill", "7"},
+                                       {"wear", "0.4"}});
+        (void)f.g.set_param(s, "roof", "1");
+        (void)f.g.set_param(s, "unsupported", "1");
+    }
+
+    // ---------------- крылья ----------------------------------------------
+    // Ниже нижнего карниза вдвое: крыло — подножие доминанты, а не сосед.
     for (const float wx : {-8.4f, W + 0.4f}) {
-        const float x0 = wx;
-        const float x1 = wx + 8.0f;
-        const VertexId nw = f.v(x0, 0.0f, 1.5f);
-        const VertexId ne = f.v(x1, 0.0f, 1.5f);
-        const VertexId se = f.v(x1, 0.0f, D - 1.5f);
-        const VertexId sw = f.v(x0, 0.0f, D - 1.5f);
-        Params wing = {{"height", "3.6"}, {"thickness", "0.4"}, {"mat", "3"},
-                       {"tone", "1"}, {"fill", "3"}, {"windows", "1"},
-                       {"plinth", "1"}, {"wear", "0.4"}};
-        (void)f.wall(ne, nw, wing);
-        (void)f.wall(se, ne, wing);
-        (void)f.wall(nw, sw, wing);
-        (void)f.wall(sw, se, wing);
-        f.gable_roof(x0, 1.5f, x1, D - 1.5f, 3.6f, 1.8f, "1", "1", "7", "0.45");
+        tier(0.0f, 4.6f, wx, 2.0f, wx + 8.0f, 12.0f, "0.45", "3", "1", "3", "2",
+             "1", "0.45", false, false, true, false);
+        f.gable_roof(wx, 2.0f, wx + 8.0f, 12.0f, 4.6f, 2.2f, "1", "1", "7",
+                     "0.45");
     }
-    f.gable_roof(0.0f, 0.0f, W, D, H2, 3.6f, "1", "1", "7", "0.35");
     f.save("assets/houses/city-keep.dfh");
 }
 

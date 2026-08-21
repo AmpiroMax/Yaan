@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 21:08:2026 - 20:35:00
+# Last updated: 21:08:2026 - 21:45:00
 # Module: tools
 # File: tools/gen_whiterun.py
 #
@@ -80,6 +80,17 @@
 #   Йоррваскр повёрнут на 45 («старше города»), рынок — колодец в центре
 #   кольца прилавков на повёрнутой плите. Улицы упираются в доминанты:
 #   главная — в мост и лестницу, улица Ветров — в Гилдергрин.
+# - 21:08:2026 - 21:45:00: ВОЛНА «ЗАМОК, АККУРАТНОСТЬ, УБРАНСТВО» (заказы
+#   21.08 вечера). Дома аккуратнее: дыхание ряда ±3, дворов ±6, посадка
+#   sit_y по МИНИМУМУ пятна (центр+4 угла) — угол больше не висит на склоне.
+#   Новый солидный замок (26х14, конёк 18.8 ярусами): донжоны выведены во
+#   фланги двора, в подпоре плато прорезан проход под парадный марш, пад
+#   «парадный двор» (197,54) сажает подножие марша на землю. Кузница у
+#   ворот и алхимик сведены с осевых улиц. ВНУТРЕННЕЕ УБРАНСТВО v1:
+#   FURN-раскладки по типам жилья (очаг у глухой стены, стол+лавки,
+#   кровать, стеллаж; у «-old» беднее с бочкой), furnish() поворачивает
+#   локальные позиции матрицей сцены, +0.12 на верх половой плиты — ~93
+#   предмета. Круг v24 чистый (2943 кадра) под радиусным вотчдогом v2.
 
 import hashlib
 import math
@@ -113,6 +124,67 @@ def ground(x, z):
     row0, row1 = _HEIGHTS[z0], _HEIGHTS[z0 + 1]
     return ((row0[x0] * (1 - fx) + row0[x0 + 1] * fx) * (1 - fz)
             + (row1[x0] * (1 - fx) + row1[x0 + 1] * fx) * fz)
+
+# --- ВНУТРЕННЕЕ УБРАНСТВО (заказ 21.08: «после к внутреннему убранству») ---
+# Раскладки в ЛОКАЛЬНЫХ координатах дома (origin — его угол, до поворота):
+# очаг к глухой северной стене, стол с лавками в жилой половине, кровать у
+# западной стены в стороне от южной двери, стеллаж у восточной. У «-old»
+# беднее: без стеллажа, с бочкой у входа.
+FURN = {
+    "city-house-s.dfh": [
+        ("furn-hearth.dfh", 2.8, 0.45, 0), ("furn-table.dfh", 0.7, 2.4, 0),
+        ("furn-bench.dfh", 0.8, 1.85, 0), ("furn-bench.dfh", 0.8, 3.5, 0),
+        ("furn-bed.dfh", 0.4, 3.8, 0), ("furn-shelf.dfh", 4.0, 2.4, 270)],
+    "city-house-s-old.dfh": [
+        ("furn-hearth.dfh", 2.8, 0.45, 0), ("furn-table.dfh", 0.7, 2.6, 0),
+        ("furn-bench.dfh", 0.8, 2.05, 0), ("furn-bed.dfh", 0.4, 3.9, 0),
+        ("furn-barrel.dfh", 3.6, 4.9, 0)],
+    "city-house-l.dfh": [
+        ("furn-hearth.dfh", 8.3, 0.6, 0), ("furn-table.dfh", 3.4, 3.0, 0),
+        ("furn-bench.dfh", 3.5, 2.45, 0), ("furn-bench.dfh", 3.5, 4.1, 0),
+        ("furn-bed.dfh", 0.5, 5.4, 0), ("furn-shelf.dfh", 9.2, 3.2, 270),
+        ("furn-column.dfh", 4.3, 3.35, 0)],
+    "city-house-l-old.dfh": [
+        ("furn-hearth.dfh", 8.3, 0.6, 0), ("furn-table.dfh", 3.4, 3.0, 0),
+        ("furn-bench.dfh", 3.5, 2.45, 0), ("furn-bed.dfh", 0.5, 5.4, 0),
+        ("furn-barrel.dfh", 8.9, 6.3, 0)],
+    "log-replica.dfh": [
+        ("furn-hearth.dfh", 6.0, 0.6, 0), ("furn-table.dfh", 2.4, 3.0, 0),
+        ("furn-bench.dfh", 2.5, 2.45, 0), ("furn-bench.dfh", 2.5, 4.1, 0),
+        ("furn-bed.dfh", 0.5, 5.2, 0)],
+    "stone-replica.dfh": [
+        ("furn-hearth.dfh", 6.0, 0.6, 0), ("furn-table.dfh", 2.4, 3.0, 0),
+        ("furn-bench.dfh", 2.5, 2.45, 0), ("furn-bed.dfh", 0.5, 5.2, 0),
+        ("furn-shelf.dfh", 7.0, 2.6, 270)],
+    "frame-replica.dfh": [
+        ("furn-hearth.dfh", 6.0, 0.6, 0), ("furn-table.dfh", 2.4, 3.0, 0),
+        ("furn-bench.dfh", 2.5, 2.45, 0), ("furn-bed.dfh", 0.5, 5.2, 0),
+        ("furn-shelf.dfh", 7.0, 2.6, 270)],
+}
+
+def furnish(file, ox, oy, oz, yaw_deg, note):
+    """Мебель дома: локальные позиции раскладки поворачиваются той же
+    матрицей сцены, что и сам дом (X_loc -> (cos,-sin))."""
+    items = FURN.get(file)
+    if not items:
+        return
+    c = math.cos(math.radians(yaw_deg))
+    sn = math.sin(math.radians(yaw_deg))
+    for ff, lx, lz, lyaw in items:
+        mx = ox + lx * c + lz * sn
+        mz = oz - lx * sn + lz * c
+        # +0.12 — верх половой плиты дома: ножки стоят на полу, не в нём.
+        house(ff, mx, oy + 0.12, mz, (yaw_deg + lyaw) % 360.0, "убранство: " + note)
+
+def sit_y(x, z, fallback, half=3.5):
+    """Посадка дома: МИНИМУМ земли по пятну (центр + 4 угла) минус вкоп.
+    Посадка по одной центральной точке на неровном месте вешала угол дома в
+    воздух — читается «кривым домом» (заказ 21.08: «аккуратнее»)."""
+    gs = [ground(x + dx, z + dz)
+          for dx, dz in ((0, 0), (half, half), (half, -half),
+                         (-half, half), (-half, -half))]
+    gs = [g for g in gs if g is not None]
+    return fallback if not gs else min(gs) - 0.05
 
 def jitter(key, lo, hi):
     """Детерминированный джиттер: одно и то же имя — одно и то же число."""
@@ -151,11 +223,12 @@ def houseJ(file, x, y, z, yaw_deg, note):
     Инфраструктура (лестницы, стены, мост, улицы-плиты) ставится точным
     house(): там геометрию держит проходимость."""
     k = f"{file}:{x}:{z}"
-    jx = x + jitter(k + "x", -1.2, 1.2)
-    jz = z + jitter(k + "z", -1.2, 1.2)
-    g = ground(jx, jz)
-    house(file, jx, y if g is None else g - 0.08, jz,
-          yaw_deg + jitter(k + "r", -14.0, 14.0), note)
+    jx = x + jitter(k + "x", -0.8, 0.8)
+    jz = z + jitter(k + "z", -0.8, 0.8)
+    jy = sit_y(jx, jz, y)
+    jr = yaw_deg + jitter(k + "r", -6.0, 6.0)
+    house(file, jx, jy, jz, jr, note)
+    furnish(file, jx, jy, jz, jr, note)
 
 def place(obj, x, y, z, yaw_deg=0.0, note=None):
     P.append((obj, x, y, z, math.radians(yaw_deg), note))
@@ -291,20 +364,20 @@ def street_front(axis, side, cls, y, street_w, note, t0=0.0, t1=None):
         cx, cz, ux, uz = at(t + fr * 0.5)
         mx, mz = -uz * side, ux * side       # нормаль от оси в сторону ряда
         lx, lz = cx + mx * (street_w * 0.5), cz + mz * (street_w * 0.5)
-        yaw = math.degrees(math.atan2(-uz, ux)) % 360.0
-        if side < 0:
-            yaw = (yaw + 180.0) % 360.0      # фасад лицом к улице с той стороны
-        yaw += jitter(k + "r", -7.0, 7.0)    # никто не параллелен соседу
-        # origin — угол: сдвиг на полфронта назад вдоль ряда и весь depth
-        # вглубь при side<0 (у него +Z локальный уходит К улице).
+        # Посадка через матрицу конвенции сцены (X_loc -> (cos,-sin),
+        # Z_loc -> (sin,cos)): при X_loc = +/-T локальный +Z в точности
+        # равен наружной нормали M, дом уходит от красной линии ВГЛУБЬ.
+        # Прежняя формула для side<0 путала знаки, и «западный» ряд лёг на
+        # осевую — бот v16 упёрся в первый же дом (118.7, 206).
+        tx, tz = (ux, uz) if side > 0 else (-ux, -uz)
+        yaw = math.degrees(math.atan2(-tz, tx)) % 360.0
+        yaw += jitter(k + "r", -3.0, 3.0)    # лёгкое дыхание ряда (заказ: «аккуратнее»)
         c2, s2 = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
         ox = lx - (fr * 0.5) * c2
         oz = lz + (fr * 0.5) * s2
-        if side < 0:
-            ox -= dp * s2
-            oz -= dp * c2
-        g = ground(ox, oz)
-        house(pick, ox, y if g is None else g - 0.08, oz, yaw, note)
+        hy = sit_y(ox, oz, y, half=max(fr, dp) * 0.5)
+        house(pick, ox, hy, oz, yaw, note)
+        furnish(pick, ox, hy, oz, yaw, note)
         # Дворик позади: поленница или бочка у задней стены, плетень к соседу.
         bx2 = lx + mx * (dp + 1.2)
         bz2 = lz + mz * (dp + 1.2)
@@ -383,8 +456,10 @@ def walls():
     for x in range(126, 162, 10):
         house("city-wall12.dfh", x, T1, 119 + jitter(f"supe:{x}", -0.9, 0.9),
               jitter(f"supler:{x}", -4.0, 4.0), "подпор террасы, восток от лестницы")
-    # ПОДПОР ПЛАТО ЗАМКА: южная кромка T3, разрыв под марш замка (x174..178).
-    for x in range(178, 218, 11):
+    # ПОДПОР ПЛАТО ЗАМКА: южная кромка T3. ДВА разрыва: под марш лестницы
+    # (x174..178) и под ПАРАДНЫЙ марш нового замка (x195..199, спускается с
+    # террасы портала через z43..55 — сплошная стена втыкалась в него).
+    for x in (178, 204, 215):
         house("city-wall12.dfh", x, NECK, 49, 0, "подпор замкового плато")
 
 def plains():
@@ -435,10 +510,12 @@ def plains():
                  t0=3.0, t1=21.0)
     # Якоря узлов: кузница у ворот (эталон: Warmaiden's вплотную к воротам),
     # таверна на рынке, лавка Белетора фронтом на площадь.
-    house("city-shop.dfh", 128.5, T1, 186, 262, "кузница у ворот")
+    # Кузница у ворот — ЗАПАДНЕЕ дороги, фасадом на неё: прежняя посадка
+    # (128.5, 186) телом резала новую осевую улицы.
+    house("city-shop.dfh", 111.5, T1, 199, 8, "кузница у ворот")
     houseJ("u-house.dfh", 121, T1, 128, 8, "таверна «Гарцующая кобыла»")
     houseJ("city-shop.dfh", 96.5, T1, 143, 105, "лавка (Белетор), фронтом на рынок")
-    houseJ("frame-replica.dfh", 125, T1, 146, 190, "алхимик у площади")
+    houseJ("frame-replica.dfh", 129.5, T1, 149.5, 187, "алхимик у площади")
     # Западный берег за рукавом — два бедных двора (fringe к стене).
     houseJ("city-house-s-old.dfh", 79, T1, 155, 95, "двор за рукавом")
     houseJ("city-barn.dfh", 72, T1, 146, 130, "хлев за рукавом")
@@ -510,9 +587,12 @@ def cloud():
     # чистки кромка это пад: перешеек 37 -> плато 43, марш z50..62.
     house("city-stairs6.dfh", 164, 32.0, 64, 0, "лестница перешейка (32->38)")
     house("city-stairs6.dfh", 174, NECK, 50, 0, "лестница замка (37->43)")
+    # Новый солидный замок (21.08): зал 26х14, конёк 18.8, крылья и башенки —
+    # футпринт в мире x175..218, z13..43. Донжоны выведены из его тела и
+    # фланкируют парадный двор.
     house("city-keep.dfh", 184, T3, 16, 0, "Драконий Предел")
-    houseJ("city-donjon.dfh", 176, T3, 17, 0, "донжон, запад")
-    houseJ("city-donjon.dfh", 204, T3, 17, 0, "донжон, восток")
+    houseJ("city-donjon.dfh", 172, T3, 34, 0, "донжон, запад двора")
+    houseJ("city-donjon.dfh", 216, T3, 34, 0, "донжон, восток двора")
 
 def outskirts():
     """Фермы снаружи и зелень."""
@@ -584,6 +664,9 @@ def main():
                 "note = продолжение городского рукава: рукав обрывался у моста\n"
                 "point = 120 166 23.4\npoint = 104 186 23.1\npoint = 98 206 22.9\n"
                 "point = 106 228 22.7\npoint = 126 248 22.5\n"
+                "\n[pad]\ncenter = 197 54\nhalf_extents = 6 4\nblend = 2\n"
+                "height = 43\n"
+                "note = парадный двор замка: подножие большого марша на земле\n"
                 "\n[pad]\ncenter = 36 80\nhalf_extents = 12 10\nblend = 10\n"
                 "height = 29\n"
                 "note = холм за западной стеной (ландшафт, заказ 21.08)\n"

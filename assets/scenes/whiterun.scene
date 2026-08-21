@@ -112,6 +112,13 @@ point = 106 228 22.7
 point = 126 248 22.5
 
 [pad]
+center = 197 54
+half_extents = 6 4
+blend = 2
+height = 43
+note = парадный двор замка: подножие большого марша на земле
+
+[pad]
 center = 36 80
 half_extents = 12 10
 blend = 10
@@ -157,79 +164,79 @@ note = Гилдергрин (розовая листва — заказ зоне
 [place]
 object = birch-forge-a
 pos = 94.000 25.000 158.000
-yaw = 2.844887
+yaw = 2.513274
 scale = 1
 
 [place]
 object = birch-forge-b
 pos = 142.000 25.000 170.000
-yaw = 5.777040
+yaw = 6.178466
 scale = 1
 
 [place]
 object = aspen-forge-a
 pos = 156.000 25.000 146.000
-yaw = 5.934119
+yaw = 2.007129
 scale = 1
 
 [place]
 object = birch-forge-a
 pos = 92.000 31.000 100.000
-yaw = 4.031711
+yaw = 3.944444
 scale = 1
 
 [place]
 object = aspen-forge-a
 pos = 140.000 31.000 108.000
-yaw = 3.159046
+yaw = 5.654867
 scale = 1
 
 [place]
 object = juniper-forge-a
 pos = 124.000 31.000 74.000
-yaw = 5.916666
+yaw = 6.056293
 scale = 1
 
 [place]
 object = juniper-forge-a
 pos = 134.000 31.000 90.000
-yaw = 4.694936
+yaw = 1.780236
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 20.000 25.000 222.000
-yaw = 4.834562
+yaw = 1.448623
 scale = 1
 
 [place]
 object = pine-forge-b
 pos = 44.000 25.000 244.000
-yaw = 3.490659
+yaw = 4.834562
 scale = 1
 
 [place]
 object = spruce-forge-a
 pos = 200.000 23.600 238.000
-yaw = 2.967060
+yaw = 4.433136
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 222.000 24.800 200.000
-yaw = 4.363323
+yaw = 3.124139
 scale = 1
 
 [place]
 object = oak-forge-a
 pos = 32.000 25.000 156.000
-yaw = 4.782202
+yaw = 5.131268
 scale = 1
 
 [place]
 object = spruce-forge-b
 pos = 236.000 25.000 116.000
-yaw = 1.378810
+yaw = 4.625123
 scale = 1
 
 [house]
@@ -792,19 +799,13 @@ note = подпор замкового плато
 
 [house]
 file = assets/houses/city-wall12.dfh
-pos = 189.000 37.000 49.000
+pos = 204.000 37.000 49.000
 yaw = 0.000000
 note = подпор замкового плато
 
 [house]
 file = assets/houses/city-wall12.dfh
-pos = 200.000 37.000 49.000
-yaw = 0.000000
-note = подпор замкового плато
-
-[house]
-file = assets/houses/city-wall12.dfh
-pos = 211.000 37.000 49.000
+pos = 215.000 37.000 49.000
 yaw = 0.000000
 note = подпор замкового плато
 
@@ -822,51 +823,81 @@ note = рыночная площадь (повёрнута)
 
 [house]
 file = assets/houses/city-well.dfh
-pos = 112.712 24.920 151.647
-yaw = 0.003422
+pos = 112.341 24.950 151.265
+yaw = 0.001466
 note = колодец рынка
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 118.908 24.920 153.465
-yaw = 4.629636
+pos = 118.726 24.628 153.081
+yaw = 4.527324
 note = прилавок рынка 1
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 114.074 24.920 157.742
-yaw = 3.477821
+pos = 113.853 23.221 157.582
+yaw = 3.435290
 note = прилавок рынка 2
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 106.029 24.920 153.923
-yaw = 2.299308
+pos = 106.099 24.950 154.282
+yaw = 2.281948
 note = прилавок рынка 3
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 105.778 24.920 147.629
-yaw = 1.067460
+pos = 105.526 24.950 147.788
+yaw = 1.155614
 note = прилавок рынка 4
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 110.627 24.920 143.863
-yaw = 0.123299
+pos = 110.626 24.950 143.765
+yaw = 0.132629
 note = прилавок рынка 5
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 117.326 24.920 146.518
-yaw = 5.420064
+pos = 117.256 24.950 146.409
+yaw = 5.394664
 note = прилавок рынка 6
 
 [house]
 file = assets/houses/city-house-s-old.dfh
-pos = 123.210 25.383 201.590
-yaw = 4.582607
+pos = 116.209 25.181 200.676
+yaw = 4.599815
 note = фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 115.447 25.301 203.408
+yaw = 4.599815
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 113.547 25.301 201.080
+yaw = 4.599815
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 114.082 25.301 201.241
+yaw = 4.599815
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 112.289 25.301 200.636
+yaw = 4.599815
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 110.936 25.301 203.703
+yaw = 4.599815
+note = убранство: фронт главной улицы, запад
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -876,9 +907,39 @@ note = двор: фронт главной улицы, запад
 
 [house]
 file = assets/houses/log-replica.dfh
-pos = 125.893 25.187 194.373
-yaw = 4.400912
+pos = 118.040 24.950 191.852
+yaw = 4.462707
 note = фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 115.976 25.070 197.518
+yaw = 4.462707
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 114.540 25.070 193.437
+yaw = 4.462707
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 115.048 25.070 193.670
+yaw = 4.462707
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 113.450 25.070 193.262
+yaw = 4.462707
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 112.878 25.070 191.052
+yaw = 4.462707
+note = убранство: фронт главной улицы, запад
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -894,9 +955,39 @@ note = межевой плетень: фронт главной улицы, за
 
 [house]
 file = assets/houses/city-house-s-old.dfh
-pos = 126.651 24.920 185.687
-yaw = 4.470725
+pos = 120.015 24.196 184.055
+yaw = 4.423159
 note = фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 118.785 24.316 186.610
+yaw = 4.423159
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 117.323 24.316 183.984
+yaw = 4.423159
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 117.822 24.316 184.237
+yaw = 4.423159
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 116.163 24.316 183.326
+yaw = 4.423159
+note = убранство: фронт главной улицы, запад
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 114.292 24.316 186.108
+yaw = 4.423159
+note = убранство: фронт главной улицы, запад
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -912,9 +1003,45 @@ note = межевой плетень: фронт главной улицы, за
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 123.268 25.108 204.396
-yaw = 1.453676
+pos = 123.302 25.104 204.400
+yaw = 1.463648
 note = фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 124.049 25.224 201.664
+yaw = 1.463648
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 125.763 25.224 203.961
+yaw = 1.463648
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 125.227 25.224 203.803
+yaw = 1.463648
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 126.868 25.224 203.979
+yaw = 1.463648
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 127.123 25.224 204.409
+yaw = 1.463648
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 126.116 25.224 200.680
+yaw = 6.176037
+note = убранство: фронт главной улицы, восток
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -924,9 +1051,39 @@ note = двор: фронт главной улицы, восток
 
 [house]
 file = assets/houses/frame-replica.dfh
-pos = 124.180 25.360 197.289
-yaw = 1.316661
+pos = 124.293 24.952 197.317
+yaw = 1.345689
 note = фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 126.217 25.072 191.602
+yaw = 1.345689
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 127.753 25.072 195.647
+yaw = 1.345689
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 127.239 25.072 195.427
+yaw = 1.345689
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 129.474 25.072 197.990
+yaw = 1.345689
+note = убранство: фронт главной улицы, восток
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 128.390 25.072 191.074
+yaw = 6.058078
+note = убранство: фронт главной улицы, восток
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -942,9 +1099,51 @@ note = межевой плетень: фронт главной улицы, во
 
 [house]
 file = assets/houses/city-house-l.dfh
-pos = 122.555 24.909 154.991
-yaw = 1.703304
+pos = 122.781 22.570 154.955
+yaw = 1.748210
 note = фронт северного берега
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 121.907 22.690 146.680
+yaw = 1.748210
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 125.134 22.690 151.079
+yaw = 1.748210
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 124.575 22.690 151.078
+yaw = 1.748210
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 126.199 22.690 150.787
+yaw = 1.748210
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 128.008 22.690 153.510
+yaw = 1.748210
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 124.308 22.690 145.335
+yaw = 0.177414
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-column.dfh
+pos = 125.320 22.690 150.132
+yaw = 1.748210
+note = убранство: фронт северного берега
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -954,9 +1153,45 @@ note = двор: фронт северного берега
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 120.379 24.920 144.847
-yaw = 1.587897
+pos = 120.593 24.950 144.837
+yaw = 1.649185
 note = фронт северного берега
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 120.822 25.070 142.010
+yaw = 1.649185
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 122.931 25.070 143.951
+yaw = 1.649185
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 122.374 25.070 143.894
+yaw = 1.649185
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 124.019 25.070 143.765
+yaw = 1.649185
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 124.350 25.070 144.140
+yaw = 1.649185
+note = убранство: фронт северного берега
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 122.672 25.070 140.661
+yaw = 0.078389
+note = убранство: фронт северного берега
 
 [house]
 file = assets/houses/furn-barrel.dfh
@@ -972,38 +1207,98 @@ note = межевой плетень: фронт северного берега
 
 [house]
 file = assets/houses/city-shop.dfh
-pos = 128.500 25.000 186.000
-yaw = 4.572763
+pos = 111.500 25.000 199.000
+yaw = 0.139626
 note = кузница у ворот
 
 [house]
 file = assets/houses/u-house.dfh
-pos = 120.998 24.920 128.236
-yaw = 0.356013
+pos = 120.999 24.950 128.157
+yaw = 0.232363
 note = таверна «Гарцующая кобыла»
 
 [house]
 file = assets/houses/city-shop.dfh
-pos = 96.198 24.920 142.868
-yaw = 1.676368
+pos = 96.299 24.950 142.912
+yaw = 1.765641
 note = лавка (Белетор), фронтом на рынок
 
 [house]
 file = assets/houses/frame-replica.dfh
-pos = 125.800 24.920 145.121
-yaw = 3.267079
+pos = 129.424 23.813 149.025
+yaw = 3.312557
 note = алхимик у площади
 
 [house]
+file = assets/houses/furn-hearth.dfh
+pos = 123.410 23.933 149.455
+yaw = 3.312557
+note = убранство: алхимик у площади
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 126.549 23.933 146.477
+yaw = 3.312557
+note = убранство: алхимик у площади
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 126.544 23.933 147.036
+yaw = 3.312557
+note = убранство: алхимик у площади
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 128.047 23.933 143.986
+yaw = 3.312557
+note = убранство: алхимик у площади
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 122.084 23.933 147.654
+yaw = 1.741761
+note = убранство: алхимик у площади
+
+[house]
 file = assets/houses/city-house-s-old.dfh
-pos = 78.302 24.920 154.294
-yaw = 1.856001
+pos = 78.535 24.950 154.529
+yaw = 1.742893
 note = двор за рукавом
 
 [house]
+file = assets/houses/furn-hearth.dfh
+pos = 78.499 25.070 151.694
+yaw = 1.742893
+note = убранство: двор за рукавом
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 80.977 25.070 153.394
+yaw = 1.742893
+note = убранство: двор за рукавом
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 80.418 25.070 153.390
+yaw = 1.742893
+note = убранство: двор за рукавом
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 82.309 25.070 153.467
+yaw = 1.742893
+note = убранство: двор за рукавом
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 82.746 25.070 150.143
+yaw = 1.742893
+note = убранство: двор за рукавом
+
+[house]
 file = assets/houses/city-barn.dfh
-pos = 72.744 24.920 145.501
-yaw = 2.230068
+pos = 72.496 24.950 145.667
+yaw = 2.252274
 note = хлев за рукавом
 
 [house]
@@ -1038,15 +1333,51 @@ note = храм Кинарет
 
 [house]
 file = assets/houses/city-longhall.dfh
-pos = 126.988 30.920 58.384
-yaw = 0.589781
+pos = 127.325 30.950 58.256
+yaw = 0.701562
 note = Йоррваскр (повёрнут — старше города)
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 121.610 30.920 112.229
-yaw = 4.679902
+pos = 114.549 30.950 112.000
+yaw = 4.698466
 note = фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 114.060 31.070 114.794
+yaw = 4.698466
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 112.139 31.070 112.667
+yaw = 4.698466
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 112.688 31.070 112.775
+yaw = 4.698466
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 111.038 31.070 112.752
+yaw = 4.698466
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 110.744 31.070 112.347
+yaw = 4.698466
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 112.093 31.070 115.967
+yaw = 3.127670
+note = убранство: фронт улицы Ветров, запад
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -1056,9 +1387,51 @@ note = двор: фронт улицы Ветров, запад
 
 [house]
 file = assets/houses/city-house-l.dfh
-pos = 121.400 30.920 100.059
-yaw = 4.908054
+pos = 113.632 30.950 101.606
+yaw = 4.853199
 note = фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 114.203 31.070 109.908
+yaw = 4.853199
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 111.139 31.070 105.393
+yaw = 4.853199
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 111.698 31.070 105.415
+yaw = 4.853199
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 110.064 31.070 105.647
+yaw = 4.853199
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 108.356 31.070 102.859
+yaw = 4.853199
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 111.755 31.070 111.164
+yaw = 3.282403
+note = убранство: фронт улицы Ветров, запад
+
+[house]
+file = assets/houses/furn-column.dfh
+pos = 110.919 31.070 106.334
+yaw = 4.853199
+note = убранство: фронт улицы Ветров, запад
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -1074,9 +1447,39 @@ note = межевой плетень: фронт улицы Ветров, зап
 
 [house]
 file = assets/houses/stone-replica.dfh
-pos = 121.542 30.920 116.500
-yaw = 1.581358
+pos = 121.518 30.840 116.500
+yaw = 1.575323
 note = фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 122.091 30.960 110.497
+yaw = 1.575323
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 124.507 30.960 114.086
+yaw = 1.575323
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 123.957 30.960 113.989
+yaw = 1.575323
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 126.716 30.960 115.976
+yaw = 1.575323
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 124.086 30.960 109.488
+yaw = 0.004527
+note = убранство: фронт улицы Ветров, восток
 
 [house]
 file = assets/houses/furn-barrel.dfh
@@ -1086,9 +1489,45 @@ note = двор: фронт улицы Ветров, восток
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 121.873 30.920 107.519
-yaw = 1.785360
+pos = 121.647 30.950 107.560
+yaw = 1.719706
 note = фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 121.676 31.070 104.724
+yaw = 1.719706
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 123.916 31.070 106.512
+yaw = 1.719706
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 123.357 31.070 106.495
+yaw = 1.719706
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 124.989 31.070 106.250
+yaw = 1.719706
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 125.345 31.070 106.601
+yaw = 1.719706
+note = убранство: фронт улицы Ветров, восток
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 123.427 31.070 103.248
+yaw = 0.148910
+note = убранство: фронт улицы Ветров, восток
 
 [house]
 file = assets/houses/furn-woodpile.dfh
@@ -1104,21 +1543,81 @@ note = межевой плетень: фронт улицы Ветров, вос
 
 [house]
 file = assets/houses/city-manor.dfh
-pos = 76.696 30.920 95.171
-yaw = 0.496668
+pos = 76.464 30.950 94.781
+yaw = 0.432271
 note = усадьба Серых Грив
 
 [house]
 file = assets/houses/city-house-s-old.dfh
-pos = 105.346 30.920 70.295
-yaw = 2.912050
+pos = 105.564 30.950 70.197
+yaw = 2.963431
 note = двор у северной стены
 
 [house]
+file = assets/houses/furn-hearth.dfh
+pos = 102.888 31.070 69.258
+yaw = 2.963431
+note = убранство: двор у северной стены
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 105.336 31.070 67.514
+yaw = 2.963431
+note = убранство: двор у северной стены
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 105.140 31.070 68.037
+yaw = 2.963431
+note = убранство: двор у северной стены
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 105.862 31.070 66.287
+yaw = 2.963431
+note = убранство: двор у северной стены
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 102.890 31.070 64.736
+yaw = 2.963431
+note = убранство: двор у северной стены
+
+[house]
 file = assets/houses/log-replica.dfh
-pos = 122.178 30.920 75.105
-yaw = 3.527587
+pos = 122.119 30.950 74.736
+yaw = 3.456618
 note = сруб у Йоррваскра
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 116.228 31.070 76.025
+yaw = 3.456618
+note = убранство: сруб у Йоррваскра
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 118.907 31.070 72.628
+yaw = 3.456618
+note = убранство: сруб у Йоррваскра
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 118.983 31.070 73.182
+yaw = 3.456618
+note = убранство: сруб у Йоррваскра
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 118.471 31.070 71.613
+yaw = 3.456618
+note = убранство: сруб у Йоррваскра
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 120.032 31.070 69.947
+yaw = 3.456618
+note = убранство: сруб у Йоррваскра
 
 [house]
 file = assets/houses/city-stairs6.dfh
@@ -1140,36 +1639,96 @@ note = Драконий Предел
 
 [house]
 file = assets/houses/city-donjon.dfh
-pos = 175.248 42.658 17.406
-yaw = 0.190397
-note = донжон, запад
+pos = 172.429 42.349 34.514
+yaw = -0.004710
+note = донжон, запад двора
 
 [house]
 file = assets/houses/city-donjon.dfh
-pos = 203.929 42.920 18.085
-yaw = -0.010879
-note = донжон, восток
+pos = 216.064 42.950 33.275
+yaw = 0.019931
+note = донжон, восток двора
 
 [house]
 file = assets/houses/log-replica.dfh
-pos = 56.546 25.420 212.858
-yaw = 0.180472
+pos = 56.364 25.307 213.239
+yaw = 0.077345
 note = ферма у дороги
 
 [house]
+file = assets/houses/furn-hearth.dfh
+pos = 62.393 25.427 213.373
+yaw = 0.077345
+note = убранство: ферма у дороги
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 58.989 25.427 216.044
+yaw = 0.077345
+note = убранство: ферма у дороги
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 59.046 25.427 215.488
+yaw = 0.077345
+note = убранство: ферма у дороги
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 59.174 25.427 217.133
+yaw = 0.077345
+note = убранство: ферма у дороги
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 57.265 25.427 218.385
+yaw = 0.077345
+note = убранство: ферма у дороги
+
+[house]
 file = assets/houses/city-barn.dfh
-pos = 46.670 25.470 207.140
-yaw = 0.367692
+pos = 46.447 25.311 206.760
+yaw = 0.456781
 note = амбар фермы
 
 [house]
 file = assets/houses/log-replica.dfh
-pos = 140.150 24.910 213.768
-yaw = 4.529139
+pos = 140.100 24.728 213.845
+yaw = 4.633853
 note = домик у дороги (poor)
 
 [house]
+file = assets/houses/furn-hearth.dfh
+pos = 139.031 24.848 219.780
+yaw = 4.633853
+note = убранство: домик у дороги (poor)
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 136.921 24.848 216.002
+yaw = 4.633853
+note = убранство: домик у дороги (poor)
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 137.462 24.848 216.145
+yaw = 4.633853
+note = убранство: домик у дороги (poor)
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 135.817 24.848 216.016
+yaw = 4.633853
+note = убранство: домик у дороги (poor)
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 134.877 24.848 213.936
+yaw = 4.633853
+note = убранство: домик у дороги (poor)
+
+[house]
 file = assets/houses/city-barn-old.dfh
-pos = 223.029 24.442 211.212
-yaw = 2.904109
+pos = 223.353 24.416 211.474
+yaw = 3.039814
 note = хутор за рвом (восточнее русла)
