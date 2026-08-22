@@ -1,0 +1,47 @@
+# dfh 1
+vertex v1 free 0.5700 0.0000 0.1900
+vertex v2 free 0.5700 0.5200 0.1900
+vertex v3 free 0.7044 0.5050 0.0556
+vertex v4 free 0.5700 0.5050 0.0000
+vertex v5 free 0.4356 0.5050 0.0556
+vertex v6 free 0.3800 0.5050 0.1900
+vertex v7 free 0.4356 0.5050 0.3244
+vertex v8 free 0.5700 0.5050 0.3800
+vertex v9 free 0.7044 0.5050 0.3244
+vertex v10 free 0.7600 0.5050 0.1900
+vertex v11 free 0.3800 0.5700 0.0700
+vertex v12 free 0.3800 0.5700 0.3100
+vertex v13 free 0.7600 0.5700 0.3100
+vertex v14 free 0.7600 0.5700 0.0700
+vertex v15 free 0.5700 0.6200 0.1900
+vertex v16 free 0.5700 0.6900 0.1900
+vertex v17 free 0.3100 0.7350 0.0900
+vertex v18 free 0.3100 0.7350 0.2900
+vertex v19 free 0.8300 0.7350 0.2900
+vertex v20 free 0.8300 0.7350 0.0900
+vertex v21 free 0.3100 0.7800 0.0900
+vertex v22 free 0.3100 0.7800 0.2900
+vertex v23 free 0.0100 0.7450 0.2200
+vertex v24 free 0.0100 0.7450 0.1600
+vertex v25 free 0.3100 0.6900 0.2900
+vertex v26 free 0.3100 0.6900 0.0900
+vertex v27 free 0.8300 0.7450 0.1100
+vertex v28 free 0.8300 0.7450 0.2700
+vertex v29 free 0.9700 0.7450 0.2700
+vertex v30 free 0.9700 0.7450 0.1100
+vertex v31 free 0.5100 0.8300 0.1700
+vertex v32 free 0.7900 0.8300 0.2200
+vertex v33 free 0.4300 0.8300 0.1600
+vertex v34 free 0.5200 0.8300 0.1700
+line e1 v1 v2 style=- radius=0.190 form=round mat=0 tone=2
+surface e2 v3 v4 v5 v6 v7 v8 v9 v10 style=- closed=1 thickness=0.030 mat=2 tone=1
+surface e3 v11 v12 v13 v14 style=- closed=1 thickness=0.100 mat=0 tone=2 paint=6
+line e4 v15 v16 style=- radius=0.075 form=square mat=0 tone=2 paint=6
+surface e5 v17 v18 v19 v20 style=- closed=1 thickness=0.090 mat=0 tone=2 paint=6
+surface e6 v21 v22 v23 v24 style=- closed=1 thickness=0.020 mat=0 tone=2 paint=6
+surface e7 v25 v26 v24 v23 style=- closed=1 thickness=0.020 mat=0 tone=2 paint=6
+surface e8 v21 v24 v26 style=- closed=1 thickness=0.02 mat=0 tone=2 paint=6
+surface e9 v25 v23 v22 style=- closed=1 thickness=0.02 mat=0 tone=2 paint=6
+surface e10 v27 v28 v29 v30 style=- closed=1 thickness=0.070 mat=0 tone=2 paint=6
+line e11 v31 v32 style=- radius=0.028 form=round mat=0 tone=2
+line e12 v33 v34 style=- radius=0.050 form=square mat=0 tone=2 paint=6
