@@ -8549,648 +8549,723 @@ note = бордюр тропы
 
 [light]
 pos = 100.000 38.646 61.150
-color = 1 0.52 0.2
-radius_m = 13
+color = 1.000 0.536 0.210
+radius_m = 12.84
 casts_shadow = 1
 interior = 1
 room = 100.000 66.200 12.200 5.900
 softness = 0.25
+flicker = 0.51
 note = очаг: ЗАМОК
 
 [light]
 pos = 83.487 35.631 91.954
-color = 1 0.52 0.2
-radius_m = 10.751
+color = 0.901 0.486 0.194
+radius_m = 10.15
 casts_shadow = 0
 interior = 1
 room = 87.117 90.865 5.681 5.641
 softness = 0.25
+flicker = 0.43
 note = очаг: усадьба
 
 [light]
 pos = 102.440 36.392 84.132
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 0.995 0.548 0.222
+radius_m = 6.64
 casts_shadow = 0
 interior = 1
 room = 103.000 86.000 2.464 3.081
 softness = 0.25
+flicker = 0.50
 note = очаг: дом
 
 [light]
 pos = 114.128 34.178 93.256
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 0.855 0.423 0.155
+radius_m = 6.79
 casts_shadow = 0
 interior = 1
 room = 115.000 95.000 2.867 3.278
 softness = 0.25
+flicker = 0.40
 note = очаг: дом
 
 [light]
 pos = 84.700 34.008 106.300
-color = 1 0.52 0.2
-radius_m = 11.8919
+color = 0.877 0.473 0.189
+radius_m = 12.11
 casts_shadow = 0
 interior = 1
 room = 89.000 110.015 5.300 4.485
 softness = 0.25
+flicker = 0.42
 note = очаг: ХРАМ
 
 [light]
 pos = 93.300 34.008 106.300
-color = 1 0.52 0.2
-radius_m = 11.8919
+color = 1.000 0.553 0.217
+radius_m = 12.23
 casts_shadow = 0
 interior = 1
 room = 89.000 110.015 5.300 4.485
 softness = 0.25
+flicker = 0.53
 note = очаг: ХРАМ
 
 [light]
 pos = 130.414 32.792 107.414
-color = 1 0.52 0.2
-radius_m = 13
+color = 0.977 0.496 0.186
+radius_m = 13.68
 casts_shadow = 1
 interior = 1
 room = 130.414 107.414 8.071 8.071
 softness = 0.25
+flicker = 0.48
 note = очаг: ЙОРРВАСКР 45°
 
 [light]
 pos = 115.613 34.130 105.301
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 1.000 0.605 0.236
+radius_m = 6.06
 casts_shadow = 0
 interior = 1
 room = 116.298 107.127 2.635 3.173
 softness = 0.25
+flicker = 0.60
 note = очаг: дом
 
 [light]
 pos = 124.106 33.695 117.949
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 0.983 0.484 0.176
+radius_m = 6.16
 casts_shadow = 0
 interior = 1
 room = 123.421 116.124 2.635 3.173
 softness = 0.25
+flicker = 0.49
 note = очаг: дом
 
 [light]
 pos = 99.363 33.316 124.264
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 1.000 0.533 0.204
+radius_m = 5.87
 casts_shadow = 0
 interior = 1
 room = 101.303 124.070 2.716 1.892
 softness = 0.25
+flicker = 0.52
 note = очаг: дом
 
 [light]
 pos = 117.170 32.935 129.277
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 1.000 0.532 0.207
+radius_m = 6.39
 casts_shadow = 0
 interior = 1
 room = 115.320 129.893 3.125 2.543
 softness = 0.25
+flicker = 0.51
 note = очаг: дом
 
 [light]
 pos = 101.600 30.710 148.350
-color = 1 0.52 0.2
-radius_m = 7.8793
+color = 1.000 0.551 0.210
+radius_m = 7.30
 casts_shadow = 0
 interior = 1
 room = 104.415 146.500 3.385 2.300
 softness = 0.25
+flicker = 0.55
 note = очаг: лавка
 
 [light]
 pos = 100.770 28.721 164.762
-color = 1 0.52 0.2
-radius_m = 7.8793
+color = 1.000 0.538 0.197
+radius_m = 7.68
 casts_shadow = 0
 interior = 1
 room = 103.585 162.912 3.385 2.300
 softness = 0.25
+flicker = 0.56
 note = очаг: лавка
 
 [light]
 pos = 132.224 29.430 153.675
-color = 1 0.52 0.2
-radius_m = 10.751
+color = 0.854 0.449 0.174
+radius_m = 10.86
 casts_shadow = 0
 interior = 1
 room = 128.434 153.675 4.360 4.300
 softness = 0.25
+flicker = 0.40
 note = очаг: таверна
 
 [light]
 pos = 124.580 28.469 174.329
-color = 1 0.52 0.2
-radius_m = 7.8793
+color = 0.967 0.488 0.182
+radius_m = 8.38
 casts_shadow = 0
 interior = 1
 room = 124.580 171.514 2.300 3.385
 softness = 0.25
+flicker = 0.48
 note = очаг: кузница
 
 [light]
 pos = 130.364 30.679 139.091
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 1.000 0.567 0.226
+radius_m = 6.21
 casts_shadow = 0
 interior = 1
 room = 129.747 137.241 2.543 3.125
 softness = 0.25
+flicker = 0.53
 note = очаг: дом
 
 [light]
 pos = 137.478 28.933 146.421
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 1.000 0.543 0.208
+radius_m = 6.46
 casts_shadow = 0
 interior = 1
 room = 138.446 148.114 2.972 3.314
 softness = 0.25
+flicker = 0.53
 note = очаг: дом
 
 [light]
 pos = 110.173 28.492 169.058
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 0.870 0.446 0.169
+radius_m = 6.26
 casts_shadow = 0
 interior = 1
 room = 112.115 168.882 2.695 1.862
 softness = 0.25
+flicker = 0.41
 note = очаг: дом
 
 [light]
 pos = 133.218 28.345 163.415
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 1.000 0.591 0.230
+radius_m = 6.84
 casts_shadow = 0
 interior = 1
 room = 131.276 163.592 2.695 1.862
 softness = 0.25
+flicker = 0.58
 note = очаг: дом
 
 [light]
 pos = 91.453 29.186 152.443
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 0.892 0.440 0.160
+radius_m = 6.68
 casts_shadow = 0
 interior = 1
 room = 90.685 154.235 2.742 3.225
 softness = 0.25
+flicker = 0.43
 note = очаг: ветхий
 
 [light]
 pos = 85.218 29.362 147.477
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 0.919 0.482 0.187
+radius_m = 5.87
 casts_shadow = 0
 interior = 1
 room = 84.000 149.000 3.199 3.343
 softness = 0.25
+flicker = 0.45
 note = очаг: ветхий
 
 [light]
 pos = 103.732 27.130 197.888
-color = 1 0.52 0.2
-radius_m = 6.22448
+color = 1.000 0.526 0.194
+radius_m = 6.07
 casts_shadow = 0
 interior = 1
 room = 101.785 197.991 2.604 1.734
 softness = 0.25
+flicker = 0.54
 note = очаг: ферма
 
 [light]
 pos = 135.541 28.318 181.061
-color = 1 0.52 0.2
-radius_m = 10.2955
+color = 1.000 0.598 0.235
+radius_m = 10.74
 casts_shadow = 0
 interior = 1
 room = 133.025 180.949 5.280 6.199
 softness = 0.25
+flicker = 0.58
 note = очаг: МЕЛЬНИЦА
 
 [light]
 pos = 178.764 27.287 116.654
-color = 1 0.52 0.2
-radius_m = 10.751
+color = 1.000 0.547 0.211
+radius_m = 9.74
 casts_shadow = 0
 interior = 1
 room = 178.228 120.406 5.018 5.069
 softness = 0.25
+flicker = 0.53
 note = очаг: постоялый двор
 
 [light]
 pos = 109.500 30.472 153.500
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 1.000 0.501 0.166
+radius_m = 10.82
+casts_shadow = 1
 softness = 0.2
+flicker = 0.75
 note = жаровня рынка
 
 [light]
 pos = 110.310 30.222 154.323
-color = 1 0.8 0.58
-radius_m = 8.5
-casts_shadow = 0
+color = 1.000 0.866 0.651
+radius_m = 8.67
+casts_shadow = 1
 softness = 0.65
+flicker = 0.58
 note = фонарь рынка
 
 [light]
 pos = 129.492 28.713 175.285
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 1.000 0.570 0.200
+radius_m = 10.06
+casts_shadow = 1
 softness = 0.2
+flicker = 0.82
 note = жаровня: south
 
 [light]
 pos = 110.905 28.712 175.789
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 1.000 0.541 0.179
+radius_m = 9.69
+casts_shadow = 1
 softness = 0.2
+flicker = 0.82
 note = жаровня: south
 
 [light]
 pos = 151.518 29.674 125.639
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 0.949 0.476 0.166
+radius_m = 9.24
+casts_shadow = 1
 softness = 0.2
+flicker = 0.65
 note = жаровня: east
 
 [light]
 pos = 138.585 32.034 127.420
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 0.906 0.424 0.138
+radius_m = 9.98
+casts_shadow = 1
 softness = 0.2
+flicker = 0.61
 note = жаровня: east
 
 [light]
 pos = 122.349 30.473 142.694
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 0.879 0.422 0.140
+radius_m = 9.35
+casts_shadow = 1
 softness = 0.2
+flicker = 0.59
 note = жаровня: главная улица
 
 [light]
 pos = 119.329 34.556 125.849
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 0.975 0.483 0.166
+radius_m = 10.76
+casts_shadow = 1
 softness = 0.2
+flicker = 0.68
 note = жаровня: главная улица
 
 [light]
 pos = 109.268 35.418 109.287
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 1.000 0.545 0.186
+radius_m = 9.38
+casts_shadow = 1
 softness = 0.2
+flicker = 0.80
 note = жаровня: главная улица
 
 [light]
 pos = 106.174 36.406 89.751
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 0.854 0.387 0.121
+radius_m = 10.18
+casts_shadow = 1
 softness = 0.2
+flicker = 0.56
 note = жаровня: главная улица
 
 [light]
 pos = 103.008 30.575 153.297
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 1.000 0.485 0.159
+radius_m = 10.00
+casts_shadow = 1
 softness = 0.2
+flicker = 0.72
 note = жаровня: рынок
 
 [light]
 pos = 122.062 30.204 159.804
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 1.000 0.526 0.169
+radius_m = 10.24
+casts_shadow = 1
 softness = 0.2
+flicker = 0.82
 note = жаровня: рынок
 
 [light]
 pos = 150.498 29.563 137.899
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 0.852 0.407 0.135
+radius_m = 10.46
+casts_shadow = 1
 softness = 0.2
+flicker = 0.56
 note = жаровня: мост
 
 [light]
 pos = 124.580 27.892 176.599
-color = 1 0.4 0.12
-radius_m = 6.5
-casts_shadow = 0
+color = 0.851 0.332 0.097
+radius_m = 6.17
+casts_shadow = 1
 softness = 0.15
+flicker = 0.48
 note = горн: кузница
 
 [light]
 pos = 113.492 34.126 124.201
-color = 1 0.8 0.58
-radius_m = 8.5
-casts_shadow = 0
+color = 1.000 0.874 0.633
+radius_m = 7.72
+casts_shadow = 1
 softness = 0.65
+flicker = 0.62
 note = фонарь сквера Гилдергрина
 
 [light]
 pos = 111.640 34.076 123.291
-color = 1 0.8 0.58
-radius_m = 8.5
-casts_shadow = 0
+color = 0.985 0.770 0.545
+radius_m = 9.23
+casts_shadow = 1
 softness = 0.65
+flicker = 0.54
 note = фонарь сквера Гилдергрина
 
 [light]
 pos = 109.000 38.633 75.000
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 1.000 0.500 0.163
+radius_m = 10.50
+casts_shadow = 1
 softness = 0.2
+flicker = 0.76
 note = жаровня парадного двора
 
 [light]
 pos = 107.000 38.654 75.000
-color = 1 0.48 0.16
-radius_m = 10
-casts_shadow = 0
+color = 0.986 0.478 0.161
+radius_m = 10.92
+casts_shadow = 1
 softness = 0.2
+flicker = 0.69
 note = жаровня парадного двора
 
 [light]
 pos = 90.840 36.767 80.795
-color = 1 0.8 0.58
-radius_m = 8.5
-casts_shadow = 0
+color = 0.932 0.775 0.584
+radius_m = 9.23
+casts_shadow = 1
 softness = 0.65
+flicker = 0.50
 note = фонарь парадного двора
 
 [light]
 pos = 107.171 37.308 82.196
-color = 1 0.8 0.58
-radius_m = 8.5
-casts_shadow = 0
+color = 0.881 0.699 0.502
+radius_m = 7.71
+casts_shadow = 1
 softness = 0.65
+flicker = 0.46
 note = фонарь парадного двора
 
 [light]
 pos = 122.471 29.830 164.728
-color = 1 0.78 0.52
-radius_m = 7
+color = 1.000 0.811 0.514
+radius_m = 6.79
 casts_shadow = 0
 softness = 0.6
+flicker = 0.13
 note = фонарь улицы
 
 [light]
 pos = 103.076 34.611 119.463
-color = 1 0.78 0.52
-radius_m = 7
+color = 1.000 0.825 0.528
+radius_m = 6.53
 casts_shadow = 0
 softness = 0.6
+flicker = 0.14
 note = фонарь улицы
 
 [light]
 pos = 104.479 35.411 101.829
-color = 1 0.78 0.52
-radius_m = 7
+color = 1.000 0.836 0.545
+radius_m = 7.47
 casts_shadow = 0
 softness = 0.6
+flicker = 0.14
 note = фонарь улицы
 
 [light]
 pos = 100.114 37.508 74.169
-color = 1 0.78 0.52
-radius_m = 7
+color = 0.966 0.789 0.550
+radius_m = 6.58
 casts_shadow = 0
 softness = 0.6
+flicker = 0.11
 note = фонарь улицы
 
 [light]
 pos = 140.644 30.011 135.194
-color = 1 0.78 0.52
-radius_m = 7
+color = 0.918 0.758 0.533
+radius_m = 7.56
 casts_shadow = 0
 softness = 0.6
+flicker = 0.11
 note = фонарь улицы
 
 [light]
 pos = 249.795 27.470 153.642
-color = 1 0.78 0.52
-radius_m = 7
+color = 0.903 0.736 0.512
+radius_m = 7.10
 casts_shadow = 0
 softness = 0.6
+flicker = 0.10
 note = фонарь улицы
 
 [light]
 pos = 232.382 27.470 154.439
-color = 1 0.78 0.52
-radius_m = 7
+color = 1.000 0.782 0.505
+radius_m = 7.50
 casts_shadow = 0
 softness = 0.6
+flicker = 0.13
 note = фонарь улицы
 
 [light]
 pos = 220.567 27.470 140.803
-color = 1 0.78 0.52
-radius_m = 7
+color = 0.894 0.676 0.436
+radius_m = 7.62
 casts_shadow = 0
 softness = 0.6
+flicker = 0.10
 note = фонарь улицы
 
 [light]
 pos = 203.284 27.478 141.312
-color = 1 0.78 0.52
-radius_m = 7
+color = 1.000 0.905 0.611
+radius_m = 7.26
 casts_shadow = 0
 softness = 0.6
+flicker = 0.14
 note = фонарь улицы
 
 [light]
 pos = 190.897 27.595 127.850
-color = 1 0.78 0.52
-radius_m = 7
+color = 0.871 0.651 0.414
+radius_m = 6.69
 casts_shadow = 0
 softness = 0.6
+flicker = 0.10
 note = фонарь улицы
 
 [light]
 pos = 173.914 27.867 132.055
-color = 1 0.78 0.52
-radius_m = 7
+color = 0.948 0.767 0.529
+radius_m = 7.26
 casts_shadow = 0
 softness = 0.6
+flicker = 0.11
 note = фонарь улицы
 
 [light]
 pos = 115.348 34.503 116.844
-color = 1 0.78 0.52
-radius_m = 4.5
+color = 0.892 0.731 0.511
+radius_m = 4.92
 casts_shadow = 0
 softness = 0.6
+flicker = 0.10
 note = фонарь улицы
 
 [light]
 pos = 110.987 38.256 61.644
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 0.952 0.686 0.423
+radius_m = 4.27
 casts_shadow = 0
 softness = 0.5
+flicker = 0.14
 note = фонарь у двери: донжон
 
 [light]
 pos = 103.065 36.211 89.593
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 0.912 0.674 0.426
+radius_m = 4.88
 casts_shadow = 0
 softness = 0.5
+flicker = 0.13
 note = фонарь у двери: дом
 
 [light]
 pos = 115.680 35.340 98.529
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.778 0.469
+radius_m = 4.89
 casts_shadow = 0
 softness = 0.5
+flicker = 0.17
 note = фонарь у двери: дом
 
 [light]
 pos = 88.030 35.121 113.460
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.797 0.503
+radius_m = 4.28
 casts_shadow = 0
 softness = 0.5
+flicker = 0.17
 note = фонарь у двери: ХРАМ
 
 [light]
 pos = 125.118 33.992 100.746
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.687 0.387
+radius_m = 4.63
 casts_shadow = 0
 softness = 0.5
+flicker = 0.16
 note = фонарь у двери: ЙОРРВАСКР 45°
 
 [light]
 pos = 106.960 30.306 147.470
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 0.905 0.661 0.413
+radius_m = 4.28
 casts_shadow = 0
 softness = 0.5
+flicker = 0.13
 note = фонарь у двери: лавка
 
 [light]
 pos = 107.875 29.670 161.622
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 0.893 0.630 0.380
+radius_m = 4.17
 casts_shadow = 0
 softness = 0.5
+flicker = 0.13
 note = фонарь у двери: лавка
 
 [light]
 pos = 123.376 30.108 150.934
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.717 0.406
+radius_m = 4.53
 casts_shadow = 0
 softness = 0.5
+flicker = 0.17
 note = фонарь у двери: таверна
 
 [light]
 pos = 124.921 29.463 164.949
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.789 0.468
+radius_m = 4.74
 casts_shadow = 0
 softness = 0.5
+flicker = 0.18
 note = фонарь у двери: кузница
 
 [light]
 pos = 129.826 31.515 134.411
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 0.963 0.648 0.373
+radius_m = 4.43
 casts_shadow = 0
 softness = 0.5
+flicker = 0.14
 note = фонарь у двери: дом
 
 [light]
 pos = 138.957 29.480 150.538
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 0.868 0.638 0.401
+radius_m = 4.57
 casts_shadow = 0
 softness = 0.5
+flicker = 0.12
 note = фонарь у двери: дом
 
 [light]
 pos = 115.651 29.655 169.072
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 0.864 0.570 0.321
+radius_m = 4.27
 casts_shadow = 0
 softness = 0.5
+flicker = 0.12
 note = фонарь у двери: дом
 
 [light]
 pos = 124.172 29.742 161.753
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 0.882 0.609 0.361
+radius_m = 4.61
 casts_shadow = 0
 softness = 0.5
+flicker = 0.13
 note = фонарь у двери: дом
 
 [light]
 pos = 88.745 29.913 156.298
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.716 0.406
+radius_m = 4.93
 casts_shadow = 0
 softness = 0.5
+flicker = 0.17
 note = фонарь у двери: ветхий
 
 [light]
 pos = 81.081 30.025 151.096
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.767 0.449
+radius_m = 4.77
 casts_shadow = 0
 softness = 0.5
+flicker = 0.17
 note = фонарь у двери: ветхий
 
 [light]
 pos = 98.003 28.325 195.137
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.705 0.405
+radius_m = 4.27
 casts_shadow = 0
 softness = 0.5
+flicker = 0.16
 note = фонарь у двери: ферма
 
 [light]
 pos = 97.855 27.889 203.619
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.744 0.427
+radius_m = 4.62
 casts_shadow = 0
 softness = 0.5
+flicker = 0.17
 note = фонарь у двери: амбар
 
 [light]
 pos = 135.139 28.328 178.892
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.781 0.457
+radius_m = 4.73
 casts_shadow = 0
 softness = 0.5
+flicker = 0.18
 note = фонарь у двери: МЕЛЬНИЦА
 
 [light]
 pos = 107.227 28.340 190.471
-color = 1 0.7 0.42
-radius_m = 4.5
+color = 1.000 0.738 0.424
+radius_m = 4.92
 casts_shadow = 0
 softness = 0.5
+flicker = 0.17
 note = фонарь у двери: конюшни

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 24:08:2026 - 00:20:00
+# Last updated: 23:08:2026 - 01:20:58
 # Module: tools
 # File: tools/gen_whiterun.py
 #
@@ -848,6 +848,7 @@
 #   висит 0 из 26; худшая утопленность -0.07 (движок) / -0.08 (PLAN_H), худший
 #   вкоп -0.29 / -0.30. check_floors 26 из 26, мебель 205 из 205.
 # - 24:08:2026 - 00:20:00: ПОЛНЫЙ ПРОГОН ЗАПИСАН КОМАНДАМИ (см. блок под OUT).
+# - 23:08:2026 - 01:20:58: палитра огня: мерцание и просьба тени в таблице типов, экземплярная дрожь из позиции (яркость/радиус/теплота) — 19 одинаковых фонарей круга 6 получили лица; ключ flicker в [light].
 #   Оба файла, от которых зависит вся посадка города, побывали снимками разовой
 #   руки — дамп высот и натуральная земля, — и оба врали МОЛЧА: сцена
 #   собирается, приёмки зелёные, дома в земле. Порядок «замер натуральной ->
@@ -921,26 +922,50 @@ def place(obj, x, y, z, yaw_deg=0.0, note=None):
 #   фонарь-столб            тёплый белый         7.0    0.60
 #   фонарь у двери          тусклый тёплый       4.5    0.50
 #   огонь сквера/двора      тёплый белый ярче    8.5    0.65
+# Четвёртое число — МЕРЦАНИЕ (ключ flicker, движок 23.08): живой огонь дышит,
+# стекло фонаря почти ровное. Пятое — ПРОСИТ ЛИ ТЕНЬ: слотов на кадр два, и
+# движок раздаёт их ближайшим просящим — просят открытые огни, а не стёкла
+# (тень от собственного короба фонаря мигала бы на каждом шаге).
 LIGHT = {
-    "brazier":  ((1.00, 0.48, 0.16), 10.0, 0.20),
-    "forge":    ((1.00, 0.40, 0.12),  6.5, 0.15),
-    "hearth":   ((1.00, 0.52, 0.20),  0.0, 0.25),
-    "lamp":     ((1.00, 0.78, 0.52),  7.0, 0.60),
-    "door":     ((1.00, 0.70, 0.42),  4.5, 0.50),
-    "square":   ((1.00, 0.80, 0.58),  8.5, 0.65),
+    "brazier":  ((1.00, 0.48, 0.16), 10.0, 0.20, 0.70, True),
+    "forge":    ((1.00, 0.40, 0.12),  6.5, 0.15, 0.60, True),
+    "hearth":   ((1.00, 0.52, 0.20),  0.0, 0.25, 0.50, False),
+    "lamp":     ((1.00, 0.78, 0.52),  7.0, 0.60, 0.12, False),
+    "door":     ((1.00, 0.70, 0.42),  4.5, 0.50, 0.15, False),
+    "square":   ((1.00, 0.80, 0.58),  8.5, 0.65, 0.55, True),
 }
 
-def light(x, y, z, color, radius, note, shadow=False, interior=False, room=None,
-          soft=0.0):
-    LIGHTS.append((x, y, z, color, radius, shadow, note, interior, room, soft))
+def _light_jitter(x, z):
+    """Экземплярная дрожь огня из позиции (круг 6: «19 надверных фонарей все
+    бит-в-бит — ни джиттера радиуса, ни разброса температуры»). Хэш координат,
+    не random: две сборки одной руки дают побайтово одну сцену."""
+    h1 = math.modf(abs(math.sin(x * 12.9898 + z * 78.233)) * 43758.5453)[0]
+    h2 = math.modf(abs(math.sin(x * 39.3467 + z * 11.135)) * 24634.6345)[0]
+    h3 = math.modf(abs(math.sin(x * 26.6519 + z * 41.741)) * 61234.8123)[0]
+    return h1, h2, h3
 
-def lamp(kind, x, y, z, note, radius=None, shadow=False, interior=False, room=None):
+def light(x, y, z, color, radius, note, shadow=False, interior=False, room=None,
+          soft=0.0, flick=0.0):
+    LIGHTS.append((x, y, z, color, radius, shadow, note, interior, room, soft,
+                   flick))
+
+def lamp(kind, x, y, z, note, radius=None, shadow=None, interior=False, room=None):
     """Огонь ИМЕНОВАННОГО ТИПА. Числа берутся из одной таблицы, а не пишутся у
     каждого вызова: разнообразие света — это шесть выдержанных типов, а не
-    тридцать разных чисел, которые через неделю никто не сведёт."""
-    col, rad, soft = LIGHT[kind]
-    light(x, y, z, col, radius if radius is not None else rad, note,
-          shadow=shadow, interior=interior, room=room, soft=soft)
+    тридцать разных чисел, которые через неделю никто не сведёт. Поверх типа —
+    экземплярная дрожь из позиции: яркость ±15%, радиус ±10%, теплота лёгким
+    сдвигом зелёного/синего. Тип держит характер, экземпляр — лицо."""
+    col, rad, soft, flick, wants_shadow = LIGHT[kind]
+    h1, h2, h3 = _light_jitter(x, z)
+    bright = 0.85 + 0.30 * h1
+    col = (min(col[0] * bright, 1.0),
+           min(col[1] * bright * (0.94 + 0.12 * h3), 1.0),
+           min(col[2] * bright * (0.88 + 0.24 * h3), 1.0))
+    rad_base = radius if radius is not None else rad
+    light(x, y, z, col, rad_base * (0.90 + 0.20 * h2), note,
+          shadow=wants_shadow if shadow is None else shadow,
+          interior=interior, room=room, soft=soft,
+          flick=flick * (0.8 + 0.4 * h1))
 
 # --- сетка высот двухпроходного цикла (gen -> dump_heights -> gen) ----------
 HEIGHTS_PATH = os.environ.get("WHITERUN_HEIGHTS", "/tmp/whiterun_heights.txt")
@@ -5118,10 +5143,10 @@ def main():
                 f"note = {note}", ""]
     # СВЕТ ОЧАГОВ. Рендер зажигает восемь ближайших ([light] — не объект),
     # тени просит только тот, кому они по сюжету (слотов два).
-    for x, y, z, col, rad, shadow, note, inter, room, soft in LIGHTS:
+    for x, y, z, col, rad, shadow, note, inter, room, soft, flick in LIGHTS:
         out += ["[light]", f"pos = {x:.3f} {y:.3f} {z:.3f}",
-                f"color = {col[0]:g} {col[1]:g} {col[2]:g}",
-                f"radius_m = {rad:g}",
+                f"color = {col[0]:.3f} {col[1]:.3f} {col[2]:.3f}",
+                f"radius_m = {rad:.2f}",
                 f"casts_shadow = {1 if shadow else 0}"]
         if inter:
             out += ["interior = 1"]
@@ -5130,6 +5155,8 @@ def main():
                     f"{room[2]:.3f} {room[3]:.3f}"]
         if soft > 0.0:
             out += [f"softness = {soft:g}"]
+        if flick > 0.0:
+            out += [f"flicker = {flick:.2f}"]
         out += [f"note = {note}", ""]
     open(os.path.join(ROOT, f"assets/scenes/{OUT}.scene"), "w",
          encoding="utf-8").write("\n".join(out))
