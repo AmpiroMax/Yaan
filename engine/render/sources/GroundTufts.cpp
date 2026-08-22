@@ -1,6 +1,6 @@
 /*
 Created: 12:08:2026 - 00:47:30
-Last updated: 12:08:2026 - 00:47:30
+Last updated: 23:08:2026 - 07:20:00
 Module: engine/render
 File: engine/render/sources/GroundTufts.cpp
 
@@ -32,6 +32,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 12:08:2026 - 00:47:30: Created with the layer.
+- 23:08:2026 - 07:20:00: фильтр пятен построек в цикле выращивания.
 */
 
 #include "engine/render/sources/GroundTufts.h"
@@ -267,7 +268,8 @@ std::vector<TuftSpot> harvest_tuft_spots(const math::VoxelMeshView& mesh,
 }
 
 MeshData build_ground_tufts(std::span<const TuftSpot> spots, glm::vec3 eye,
-                            const GroundTuftParams& params) {
+                            const GroundTuftParams& params,
+                            std::span<const glm::vec4> exclusions) {
     MeshData mesh;
     const float r = params.view_distance_m;
     if (r <= 0.0f) {
@@ -275,6 +277,18 @@ MeshData build_ground_tufts(std::span<const TuftSpot> spots, glm::vec3 eye,
     }
     const float r2 = r * r;
     for (const TuftSpot& s : spots) {
+        // Пятно постройки — пол, а не луг («былинки сквозь пол», 23.08).
+        bool inside_building = false;
+        for (const glm::vec4& rect : exclusions) {
+            if (std::abs(s.position.x - rect.x) <= rect.z
+                && std::abs(s.position.z - rect.y) <= rect.w) {
+                inside_building = true;
+                break;
+            }
+        }
+        if (inside_building) {
+            continue;
+        }
         const glm::vec3 d = s.position - eye;
         if (glm::dot(d, d) > r2) {
             continue;

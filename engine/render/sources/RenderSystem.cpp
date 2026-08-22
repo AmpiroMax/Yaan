@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 07:20:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -175,6 +175,7 @@ UPD:
   нарезкой ключа (AppHouse) отсечению снова есть что отвергать.
 - 23:08:2026 - 00:30:00: поле классов уходит в оба мешера; путевой атлас едет в террейн-дро
   вторым доп. листом (aux2, стадия 5).
+- 23:08:2026 - 07:20:00: выращивание травы получает пятна построек.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1546,7 +1547,7 @@ void RenderSystem::refresh_ground_tufts(platform::IRenderer& renderer, glm::vec3
     const GroundTuftParams params = tuft_params();
     MeshData grown;
     for (const auto& [coord, spots] : tuft_spots_) {
-        MeshData part = build_ground_tufts(spots, eye, params);
+        MeshData part = build_ground_tufts(spots, eye, params, ground_exclusions_);
         if (part.vertices.empty()) {
             continue;
         }

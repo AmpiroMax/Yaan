@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 23:08:2026 - 01:40:00
+Last updated: 23:08:2026 - 07:20:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -171,6 +171,8 @@ UPD:
 - 23:08:2026 - 00:30:00: set_path_classes — поле классов полотна от композиции; действует на
   чанки, воксельную землю и LOD одной упаковкой.
 - 23:08:2026 - 01:40:00: коробка комнаты у ExtraLight/кандидата.
+- 23:08:2026 - 07:20:00: set_ground_exclusions — пятна построек для травы; сброс tuft_built_
+  пересевает уже выращенное.
 */
 
 #pragma once
@@ -490,6 +492,16 @@ public:
     /// Back to the global constants (a map without [air] must not inherit the
     /// previous map's air).
     void clear_air_override() { air_override_set_ = false; }
+
+    /// ПЯТНА ПОСТРОЕК для травы (cx, cz, hx, hz в плане): внутри них пучки не
+    /// растут — «былинки сквозь пол» (владелец 23.08). Пишет AppHouse после
+    /// заливки построек; фильтр живёт на выращивании, порядок загрузки чанков
+    /// не важен.
+    void set_ground_exclusions(std::vector<glm::vec4> rects) {
+        ground_exclusions_ = std::move(rects);
+        // Пересев принудительно: уже выращенная трава могла стоять в домах.
+        tuft_built_ = false;
+    }
 
     /// ПОЛЕ КЛАССОВ ПОЛОТНА (22.08, владелец: «тропинки опять плитами
     /// кладутся, а не тропинкой каменной»): материал троп композиции — в
@@ -872,6 +884,8 @@ private:
     /// crack in the colour). Handed to every foliage draw as
     /// DrawParams::aux_texture; 0 until the atlas is built.
     uint32_t leaf_normal_asset_ = 0;
+    // Пятна построек для травы (см. set_ground_exclusions()).
+    std::vector<glm::vec4> ground_exclusions_;
     // Поле классов полотна троп (см. set_path_classes()).
     PathClassField path_classes_;
     bool path_classes_set_ = false;

@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 22:08:2026 - 18:40:00
+Last updated: 23:08:2026 - 07:20:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -57,6 +57,8 @@ UPD:
 - 22:08:2026 - 18:40:00: пространственная часть ключа потока (ячейка 32 м по первой вершине
   части): «материал|тон» сливал город в ~15 мешей размером с карту, и
   отсечение не могло отвергнуть ничего по построению.
+- 23:08:2026 - 07:20:00: пятна построек для травы собираются при заливке (габарит по вершинам,
+  усадка 0.45 — габарит несёт свес, трава у стены снаружи законна).
 */
 
 #include "engine/app/sources/App.h"
@@ -519,11 +521,31 @@ void App::upload_house_mesh() {
         return it->second;
     };
 
+    // ПЯТНА ПОСТРОЕК ДЛЯ ТРАВЫ («былинки сквозь пол», владелец 23.08): трава
+    // сеялась, не зная о домах — пад кладёт травяную землю ровно под полом.
+    // Собираются здесь, где габарит уже считается; усадка 0.45 внутрь, чтобы
+    // не съесть законную траву у стены снаружи (габарит несёт свес кровли).
+    std::vector<glm::vec4> ground_exclusions;
+
     const auto append_graph = [&](const world::HouseGraph& graph,
                                   const auto& to_world) {
         const world::HouseMesh built = world::build_house_mesh(graph);
         const std::vector<std::uint8_t>& sky_vis = ao_of(built);
         const glm::vec3 zero = to_world(glm::vec3{0.0f});
+        {
+            glm::vec2 lo{1e9f};
+            glm::vec2 hi{-1e9f};
+            for (const world::HouseVertex& hv : built.vertices) {
+                const glm::vec3 wp = to_world(hv.pos);
+                lo = glm::min(lo, {wp.x, wp.z});
+                hi = glm::max(hi, {wp.x, wp.z});
+            }
+            const glm::vec2 half = (hi - lo) * 0.5f - glm::vec2{0.45f};
+            if (half.x > 0.5f && half.y > 0.5f) {
+                const glm::vec2 c = (lo + hi) * 0.5f;
+                ground_exclusions.push_back({c.x, c.y, half.x, half.y});
+            }
+        }
         // НИЗ ПОСТРОЙКИ — для мха износа: зелёный налёт живёт в первом метре
         // от самой низкой точки, как сырость от земли.
         float gmin_y = 1e9f;
@@ -798,6 +820,7 @@ void App::upload_house_mesh() {
     const std::size_t n_streams = stream_list.size();
     const std::size_t n_doors = doors.size();
     render_system_.set_house_mesh(*renderer_, std::move(stream_list), std::move(doors));
+    render_system_.set_ground_exclusions(std::move(ground_exclusions));
 
     // СКВОЗЬ ДОМ ХОДИТЬ НЕЛЬЗЯ (кроме дверей — они качаются). Коллайдер из тех
     // же треугольников, что и картинка: два описания одного дома разъезжаются в

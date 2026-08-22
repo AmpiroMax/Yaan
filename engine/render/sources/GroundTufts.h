@@ -1,6 +1,6 @@
 /*
 Created: 12:08:2026 - 00:44:12
-Last updated: 12:08:2026 - 00:44:12
+Last updated: 23:08:2026 - 07:20:00
 Module: engine/render
 File: engine/render/sources/GroundTufts.h
 
@@ -50,6 +50,9 @@ UPD:
   просто как поверхность где ходим, а добавить мелкую разную траву, её должно
   быть не много, но она должна быть везде и прикрывать плоскость, особенно в
   зоне равнин». Read carefully, that is not a lawn: SPARSE, VARIED, EVERYWHERE.
+- 23:08:2026 - 07:20:00: build_ground_tufts принимает пятна построек (cx,cz,hx,hz) — внутри
+  них пучки не растут («былинки сквозь пол», владелец 23.08). Фильтр на
+  выращивании, а не на сборе: порядок загрузки чанков и домов не важен.
 */
 
 #pragma once
@@ -102,8 +105,16 @@ harvest_tuft_spots(const math::VoxelMeshView& mesh, const GroundTuftParams& para
 /// tones, so a screen of tufts does not read as a stamp — which is the same
 /// failure R5 just fixed in the ground colour, and it would be absurd to fix it
 /// there and re-introduce it here.
+/// `exclusions` — осевые прямоугольники в плане (cx, cz, hx, hz), внутри
+/// которых пучки НЕ растут: пятна построек (владелец 23.08: «былинки сквозь
+/// пол» — трава сеялась, не зная о домах; пад под домом кладёт травяную
+/// землю ровно под полом, и точки урожая честно лежат там). Фильтр на
+/// ВЫРАЩИВАНИИ, а не на сборе: пятна собираются при загрузке чанка, когда
+/// домов может ещё не быть, а строится трава каждый пересев — порядок
+/// загрузки перестаёт иметь значение. Пустой список — прежнее поведение.
 [[nodiscard]] MeshData build_ground_tufts(std::span<const TuftSpot> spots,
                                           glm::vec3 eye,
-                                          const GroundTuftParams& params);
+                                          const GroundTuftParams& params,
+                                          std::span<const glm::vec4> exclusions = {});
 
 } // namespace dfn::render
