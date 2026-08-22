@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 22:08:2026 - 17:45:00
+Last updated: 22:08:2026 - 22:46:52
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -44,6 +44,7 @@ UPD:
 - 20:08:2026 - 22:40:00: param_slots() — одна таблица числовых полей на лексер и слияние (не-число больше не подменяет значение дефолтом); обшивка только для fill 2/3/4; мёртвые ветка и параметр сняты.
 - 21:08:2026 - 00:40:00: Разрезан по файлу на алгоритм (решение пользователя 21.08): здесь осталась СБОРКА (ordered_elements, build_house_mesh, surface_centre/normal); алгоритмы — House{Geom,Params,Bodies,Stairs,Parquet,Roof,Plate,Walls,Rules}.cpp, общие руки — HouseMeshDetail.h.
 - 22:08:2026 - 17:45:00: тело bake_house_sky_visibility().
+- 22:08:2026 - 22:46:52: AO крупных горизонтальных панелей усредняется по части: интерполяция от тёмного угла тянула КЛИН через плиту 2х2 м, триангуляция проступала тенью (владелец: «чёрные треугольники на террасе»). Порог 3 м², грани n.y>0.7.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -377,6 +378,53 @@ std::vector<std::uint8_t> bake_house_sky_visibility(const HouseMesh& mesh) {
             std::lround(255.0f * (FLOOR + (1.0f - FLOOR) * vis)));
         sample.emplace(key, byte);
         out[vi] = byte;
+    }
+    // КРУПНАЯ ГОРИЗОНТАЛЬНАЯ ПАНЕЛЬ НЕСЁТ ОДНО НЕБО, А НЕ ГРАДИЕНТ ПО УГЛАМ
+    // (владелец 23.08: «у террасы какие-то чёрные треугольники рисуются»).
+    // У плиты 2х2 м вершины стоят только по углам; угол у подпорной стенки
+    // видит меньше неба, и интерполяция тянет его затемнение КЛИНОМ через
+    // весь треугольник — триангуляция проступает тенью. Небо над открытой
+    // плитой не меняется на её же метрах: верхним граням крупных частей
+    // видимость усредняется по части. Порог площади 3 м² оставляет ступени,
+    // подоконники и мелочь с их честными перепадами; порог нормали 0.7
+    // не трогает стены и скаты.
+    for (const MeshPart& part : mesh.parts) {
+        if (part.collider_only || part.index_count < 3) {
+            continue;
+        }
+        float area2 = 0.0f;
+        double sum = 0.0;
+        std::size_t n_up = 0;
+        for (std::uint32_t i = part.index_begin;
+             i + 2 < part.index_begin + part.index_count; i += 3) {
+            const glm::vec3& a = mesh.vertices[mesh.indices[i]].pos;
+            const glm::vec3& b = mesh.vertices[mesh.indices[i + 1]].pos;
+            const glm::vec3& c = mesh.vertices[mesh.indices[i + 2]].pos;
+            area2 += glm::length(glm::cross(b - a, c - a));
+        }
+        if (area2 * 0.5f < 3.0f) {
+            continue;
+        }
+        for (std::uint32_t i = part.index_begin;
+             i < part.index_begin + part.index_count; ++i) {
+            const std::uint32_t vi2 = mesh.indices[i];
+            if (mesh.vertices[vi2].normal.y > 0.7f) {
+                sum += out[vi2];
+                ++n_up;
+            }
+        }
+        if (n_up < 3) {
+            continue;
+        }
+        const auto avg = static_cast<std::uint8_t>(
+            std::lround(sum / static_cast<double>(n_up)));
+        for (std::uint32_t i = part.index_begin;
+             i < part.index_begin + part.index_count; ++i) {
+            const std::uint32_t vi2 = mesh.indices[i];
+            if (mesh.vertices[vi2].normal.y > 0.7f) {
+                out[vi2] = avg;
+            }
+        }
     }
     return out;
 }
