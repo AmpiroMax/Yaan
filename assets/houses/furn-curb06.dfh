@@ -15,7 +15,7 @@ vertex v13 free 0.0000 0.1300 0.2040
 vertex v14 free 0.6000 0.1300 0.2040
 vertex v15 free 0.6000 0.1600 0.1850
 vertex v16 free 0.0000 0.1600 0.1850
-surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.220 mat=3 tone=1
-surface e2 v5 v6 v7 v8 style=- closed=1 thickness=0.030 mat=3 tone=1
-surface e3 v9 v10 v11 v12 style=- closed=1 thickness=0.020 mat=3 tone=1
-surface e4 v13 v14 v15 v16 style=- closed=1 thickness=0.020 mat=3 tone=1
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.220 mat=3 tone=1 paint=7
+surface e2 v5 v6 v7 v8 style=- closed=1 thickness=0.030 mat=3 tone=1 paint=7
+surface e3 v9 v10 v11 v12 style=- closed=1 thickness=0.020 mat=3 tone=1 paint=7
+surface e4 v13 v14 v15 v16 style=- closed=1 thickness=0.020 mat=3 tone=1 paint=7
