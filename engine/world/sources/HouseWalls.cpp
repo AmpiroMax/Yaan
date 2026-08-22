@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 02:45:00
+Last updated: 22:08:2026 - 23:00:32
 Module: engine/world
 File: engine/world/sources/HouseWalls.cpp
 
@@ -28,6 +28,7 @@ UPD:
 - 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
 - 21:08:2026 - 01:50:00: build_weathering: подтёки под проёмами и трещины-зигзаги по износу; косметика без коллайдера; трещины не висят в проёмах.
 - 21:08:2026 - 02:45:00: Подтёки только на камне/штукатурке (на досках — «узор обоев»); трещины поверх кладки, 2-4 на пролёт.
+- 22:08:2026 - 23:00:32: фаза плитки у досок обшивки (uv_shift через push_wall_slab): доски-клоны фасада получили разные волокна, дрожь той же course_jitter, что пол и кладка.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -55,7 +56,7 @@ inline constexpr float HOUSE_FRAME_TH_M = 0.06f;   ///< вынос рамы пр
 static void push_wall_slab(MeshBuilder& mb, HouseMesh& mesh, ElementId owner,
                            const glm::vec3& a, const glm::vec3& dir, const glm::vec3& face_n,
                            float base_out, float thickness, const glm::vec2 quad[4],
-                           float tex_deg) {
+                           float tex_deg, glm::vec2 uv_shift = {}) {
     float area2 = 0.0f;
     for (int i = 0; i < 4; ++i) {
         const glm::vec2& p0 = quad[i];
@@ -69,7 +70,7 @@ static void push_wall_slab(MeshBuilder& mb, HouseMesh& mesh, ElementId owner,
         loop[i] = a + dir * c.x + glm::vec3{0.0f, c.y, 0.0f} + face_n * base_out;
     }
     const std::uint32_t tris[6] = {0, 1, 2, 0, 2, 3};
-    push_prism(mb, loop, tris, face_n * thickness, tex_deg, mesh, owner);
+    push_prism(mb, loop, tris, face_n * thickness, tex_deg, mesh, owner, uv_shift);
 }
 
 
@@ -242,10 +243,19 @@ static void build_cladding(const Element& e, const ElementParams& p, const glm::
     }
     // Фахверк: доски, раскосы и рамы — тёсаный брус поверх элементного фона.
     mb.set_material(0, 1);
+    // ДОСКИ-КЛОНЫ (владелец 23.08: «на досках всё ещё текстуры одинаковые»):
+    // рамка uv центрируется на грани, и каждая доска обшивки сэмплила плитку
+    // с одного места — фасад читался ксерокопией. Фаза от положения доски на
+    // стене (та же дрожь course_jitter, что у пола и кладки): две сборки
+    // одного графа дают побайтово один меш, соседние доски — разные волокна.
     for (const BoardRun& b : lay.boards) {
         const glm::vec2 quad[4] = {{b.u0, b.v0}, {b.u1, b.v0}, {b.u1, b.v1}, {b.u0, b.v1}};
+        const int bu = static_cast<int>(std::lround(b.u0 * 8.0f));
+        const int bv = static_cast<int>(std::lround(b.v0 * 8.0f));
+        const glm::vec2 phase{course_jitter(bu * 13 + 5, bv * 17 + 7) * 0.731f,
+                              course_jitter(bu * 19 + 11, bv * 23 + 3) * 0.517f};
         push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, HOUSE_BOARD_TH_M, quad,
-                       p.tex_deg);
+                       p.tex_deg, phase);
     }
     for (const BracePlacement& br : lay.braces) {
         const glm::vec2 low{br.u_low, br.v_low};
