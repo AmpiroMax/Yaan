@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 22:08:2026 - 22:46:52
+Last updated: 23:08:2026 - 02:01:25
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -45,6 +45,7 @@ UPD:
 - 21:08:2026 - 00:40:00: Разрезан по файлу на алгоритм (решение пользователя 21.08): здесь осталась СБОРКА (ordered_elements, build_house_mesh, surface_centre/normal); алгоритмы — House{Geom,Params,Bodies,Stairs,Parquet,Roof,Plate,Walls,Rules}.cpp, общие руки — HouseMeshDetail.h.
 - 22:08:2026 - 17:45:00: тело bake_house_sky_visibility().
 - 22:08:2026 - 22:46:52: AO крупных горизонтальных панелей усредняется по части: интерполяция от тёмного угла тянула КЛИН через плиту 2х2 м, триангуляция проступала тенью (владелец: «чёрные треугольники на террасе»). Порог 3 м², грани n.y>0.7.
+- 23:08:2026 - 02:01:25: AO-печка: косинусные веса и деление на их сумму — мера перестала штрафовать за наклон (скат терял половину веера по касательной, потолок стены был 0.5).
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -363,17 +364,27 @@ std::vector<std::uint8_t> bake_house_sky_visibility(const HouseMesh& mesh) {
             out[vi] = it->second;
             continue;
         }
-        int open = 0;
+        // КОСИНУСНОЕ ВЗВЕШИВАНИЕ И ДЕЛЕНИЕ НА СУММУ ВЕСОВ, А НЕ НА 16
+        // (заказ архитектора, волна 23.08). Прежняя мера штрафовала предмет
+        // ЗА НАКЛОН, а не за заслонение: у ската 25-35° половина веера
+        // уходит по касательной и мертва по построению, у вертикальной
+        // стены потолок был 0.5 — «открытое небо» стены не existовало.
+        // Вес max(0, dot) — вклад луча в облучённость по Ламберту.
+        float open_w = 0.0f;
+        float total_w = 0.0f;
         for (const glm::vec3& d : dirs) {
-            // Луч, уходящий под собственную поверхность, неба не видит.
-            if (glm::dot(d, v.normal) <= 0.05f) {
+            const float wgt = glm::dot(d, v.normal);
+            // Луч, уходящий под собственную поверхность, неба не видит —
+            // и не входит в знаменатель: он не «закрыт», его просто нет.
+            if (wgt <= 0.05f) {
                 continue;
             }
+            total_w += wgt;
             if (!blocked(v.pos + v.normal * PUSH_M + d * PUSH_M, d)) {
-                ++open;
+                open_w += wgt;
             }
         }
-        const float vis = static_cast<float>(open) / static_cast<float>(AZ * 2);
+        const float vis = total_w > 0.0f ? open_w / total_w : 1.0f;
         const auto byte = static_cast<std::uint8_t>(
             std::lround(255.0f * (FLOOR + (1.0f - FLOOR) * vis)));
         sample.emplace(key, byte);

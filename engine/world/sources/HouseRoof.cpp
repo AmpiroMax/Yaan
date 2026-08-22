@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 00:40:00
+Last updated: 23:08:2026 - 02:01:25
 Module: engine/world
 File: engine/world/sources/HouseRoof.cpp
 
@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
+- 23:08:2026 - 02:01:25: подъём дранки += th*0.8*row — ряды перестали лежать на одной высоте (пронизывание 38% и лотерея глубины; заказ архитектора волны 23.08).
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -98,7 +99,13 @@ void build_roof_courses(const Element& e, const ElementParams& p,
             }
             // Ряд выше лежит поверх нижнего: подъём растёт с рядом, плюс
             // дрожь куска (износ её углубляет).
+            // ЧЛЕН ПО НОМЕРУ РЯДА, которого формула не имела, хотя
+            // комментарий выше это утверждал (архитектор, волна 23.08): без
+            // него все ряды лежали НА ОДНОЙ высоте, дранка пронизывала
+            // соседнюю на 38% длины, а нижняя грань каждой призмы выигрывала
+            // лотерею глубины у верхней — скат читался чёрным.
             const float lift = p.thickness * 0.5f + th * 0.6f
+                             + th * 0.8f * static_cast<float>(row)
                              + th * (0.5f + 0.5f * p.wear) * course_jitter(row, col);
             std::vector<glm::vec3> loop;
             loop.reserve(piece.size());

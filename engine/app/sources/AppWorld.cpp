@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 23:08:2026 - 01:17:49
+Last updated: 23:08:2026 - 02:00:26
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -49,6 +49,7 @@ UPD:
 - 22:08:2026 - 23:15:13: доза DFN_GRASS_LUSH (дефолт 1) — пышность травы в render_system_.set_grass_lushness.
 - 22:08:2026 - 23:50:11: растеризация маски троп (1/4 м, поперечник relief_path_wear) в render_system_.set_path_mask — кромка полотна из фрагмента, лечение «шевронов» круга 5.
 - 23:08:2026 - 01:17:49: паром SceneLight.flicker с дозой DFN_LIGHT_FLICKER (0 = ровный свет бит-в-бит).
+- 23:08:2026 - 02:00:26: маска троп несёт альфу 255 по всему полю — тексели с альфой 0 включали мип-эвристику листвы, и мип усреднял канал класса (лоскуты классов, которых нет в файле).
 */
 
 #include "engine/app/sources/App.h"
@@ -348,6 +349,16 @@ bool App::enter_world(uint32_t stand) {
                 4096.0f, std::ceil(span * px_per_m)));
             const float m_per_px = span / static_cast<float>(res);
             std::vector<uint8_t> mask(static_cast<size_t>(res) * res * 4, 0);
+            // АЛЬФА 255 ПО ВСЕЙ МАСКЕ, а не только по полотну (архитектор,
+            // волна 23.08): тексель с альфой < 255 включает у бэкенда
+            // эвристику «это вырезка листвы» -> мип-цепочку, а мип УСРЕДНЯЕТ
+            // КАНАЛ КЛАССА — на средней дистанции появлялись классы, которых
+            // нет ни в одной строке файла (0 и 3 дают 1). Полная альфа
+            // оставляет маску без мипов; канал B свободен под «городскую
+            // историю» земли следующей волной.
+            for (size_t ai = 3; ai < mask.size(); ai += 4) {
+                mask[ai] = 255;
+            }
             for (const world::ReliefPath& rp : relief_.paths()) {
                 glm::vec2 lo, hi;
                 if (!world::relief_path_bounds(rp, lo, hi)) {
@@ -399,7 +410,6 @@ bool App::enter_world(uint32_t stand) {
                             std::lround(wear * 255.0f));
                         px[0] = std::max(px[0], w8);
                         px[1] = cls_byte;
-                        px[3] = 255;
                     }
                 }
             }
