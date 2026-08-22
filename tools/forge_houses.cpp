@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 22:08:2026 - 17:05:00
+Last updated: 22:08:2026 - 18:10:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -201,6 +201,24 @@ UPD:
   В БЭКЛОГ, отдельной строкой: претензия критика [13] звучала «ни печной трубы,
   НИ ДЫМА». Трубы закрыты, ДЫМ — НЕТ: это система частиц, которой в движке нет.
   [13] закрыта НАПОЛОВИНУ, и считать её закрытой целиком нельзя.
+- 22:08:2026 - 18:10:00: НАКЛОННЫЕ КУСКИ МОСТОВОЙ city-cobble{6x6,8x6}-s{04,06,08,10}.
+  Заказ раскладчика по замеру: подъём к замку идёт 8.3%, и приёмка «пройти ось,
+  не сходя с мощения» на нём проваливалась (29.3% покрытия, разрыв 33 м). Причина
+  не в раскладке, а в геометрии: плоская жёсткая плита 6 м на 8% разбегается с
+  землёй на 0.48 м — либо висит краем, либо даёт соседке ступеньку в полметра.
+  ПЛОСКИМИ КУСКАМИ НЕПРЕРЫВНО ЗАМОСТИТЬ СКЛОН НЕЛЬЗЯ.
+  Параметр slope (подъём на метр вдоль локального +X) ведёт ВСЮ плиту: основание,
+  камни и все четыре фаски считаются через Y(y,x) = y + slope*x. Все контуры
+  остаются плоскими (у трапеции фаски плоскость y = slope*x + g(z)), поэтому
+  находок построения 0 и круговой прогон сходится.
+  СТЫК ДВУХ НАКЛОННЫХ СОВПАДАЕТ ПО ПОСТРОЕНИЮ: внешняя кромка куска на x=w
+  поднята ровно на slope*w, то есть ровно туда, где раскладчик сажает следующий
+  кусок по профилю. Замерено: 0.482 против 0.483 — расхождение 1 мм.
+  ШАГ 2% ВЫБРАН ПО ОСТАТКУ, а не на глаз: раскладка берёт ближайший уклон, промах
+  не больше 1%, на шестиметровом куске это 6 см — вчетверо ниже её же порога
+  ступени 0.20 м; на восьмиметровом 8 см, всё ещё под порогом.
+  slope = 0 даёт y + 0*x, то есть РОВНО y: прежние семь плит и все остальные 44
+  постройки перепечены бит в бит (сверено хешами до и после).
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -1350,9 +1368,19 @@ static void forge_plaza(const char* file, float w, float d) {
 /// - ВЕРХ НИЗКО: 0.08 м над землёй. Мостовая — покрытие, а не подиум.
 ///
 /// stone_m — целевая сторона плиты камня; сетка подгоняется под размер участка.
+/// slope — ПРОДОЛЬНЫЙ УКЛОН вдоль локального +X, подъём на метр длины (0.08 =
+/// 8%). Заведён по замеру раскладчика: подъём к замку идёт 8.3%, а плоская
+/// жёсткая плита 6 м на таком уклоне разбегается с землёй на 0.48 м — либо
+/// висит краем, либо даёт соседке ступеньку в полметра. Плоскими кусками
+/// непрерывно замостить склон НЕЛЬЗЯ, это геометрия, а не огрех раскладки.
+/// Наклонный кусок снимает и то и другое: верх следует за подъёмом улицы, а
+/// стык двух одинаково наклонных совпадает ПО ПОСТРОЕНИЮ.
 static void forge_cobble(const char* file, float w, float d, float stone_m,
-                         const char* tone, float wear) {
+                         const char* tone, float wear, float slope = 0.0f) {
     Forge f;
+    // Высота точки с учётом уклона. slope = 0 даёт y + 0*x, то есть РОВНО y:
+    // прежние семь плит перепекаются бит в бит, и это проверено хешами.
+    const auto Y = [slope](float y, float x) { return y + slope * x; };
     std::deque<std::string> said;
     const auto num = [&said](float value) {
         char buf[32];
@@ -1385,8 +1413,8 @@ static void forge_cobble(const char* file, float w, float d, float stone_m,
     {
         const float th = 0.09f;
         const float y = base_top - th * 0.5f;
-        (void)f.contour({f.v(ix0, y, iz0), f.v(ix0, y, iz1), f.v(ix1, y, iz1),
-                         f.v(ix1, y, iz0)},
+        (void)f.contour({f.v(ix0, Y(y, ix0), iz0), f.v(ix0, Y(y, ix0), iz1),
+                         f.v(ix1, Y(y, ix1), iz1), f.v(ix1, Y(y, ix1), iz0)},
                         {{"thickness", "0.09"}, {"mat", "3"}, {"tone", tone},
                          {"wear", num(std::min(wear + 0.15f, 0.85f))}});
     }
@@ -1410,8 +1438,8 @@ static void forge_cobble(const char* file, float w, float d, float stone_m,
             // зерна, иначе весь участок читается одним растянутым куском.
             const float deg = 15.0f * static_cast<float>(
                 static_cast<int>(jit(i + 97, j + 31) * 5.99f));
-            (void)f.contour({f.v(x0, y, z0), f.v(x0, y, z1), f.v(x1, y, z1),
-                             f.v(x1, y, z0)},
+            (void)f.contour({f.v(x0, Y(y, x0), z0), f.v(x0, Y(y, x0), z1),
+                             f.v(x1, Y(y, x1), z1), f.v(x1, Y(y, x1), z0)},
                             {{"thickness", "0.05"}, {"mat", "3"}, {"tone", tone},
                              {"tex_deg", num(deg)},
                              {"wear", num(std::min(wear + jit(j, i) * 0.2f, 0.85f))}});
@@ -1430,17 +1458,17 @@ static void forge_cobble(const char* file, float w, float d, float stone_m,
         const Params skirt = {{"thickness", "0.06"}, {"mat", "3"}, {"tone", tone},
                               {"wear", num(std::min(wear + 0.2f, 0.85f))}};
         // юг (z=0)
-        (void)f.contour({f.v(0.0f, yo, 0.0f), f.v(ix0, yi, iz0), f.v(ix1, yi, iz0),
-                         f.v(w, yo, 0.0f)}, skirt);
+        (void)f.contour({f.v(0.0f, Y(yo, 0.0f), 0.0f), f.v(ix0, Y(yi, ix0), iz0),
+                         f.v(ix1, Y(yi, ix1), iz0), f.v(w, Y(yo, w), 0.0f)}, skirt);
         // север (z=d)
-        (void)f.contour({f.v(0.0f, yo, d), f.v(w, yo, d), f.v(ix1, yi, iz1),
-                         f.v(ix0, yi, iz1)}, skirt);
+        (void)f.contour({f.v(0.0f, Y(yo, 0.0f), d), f.v(w, Y(yo, w), d),
+                         f.v(ix1, Y(yi, ix1), iz1), f.v(ix0, Y(yi, ix0), iz1)}, skirt);
         // запад (x=0)
-        (void)f.contour({f.v(0.0f, yo, 0.0f), f.v(0.0f, yo, d), f.v(ix0, yi, iz1),
-                         f.v(ix0, yi, iz0)}, skirt);
+        (void)f.contour({f.v(0.0f, Y(yo, 0.0f), 0.0f), f.v(0.0f, Y(yo, 0.0f), d),
+                         f.v(ix0, Y(yi, ix0), iz1), f.v(ix0, Y(yi, ix0), iz0)}, skirt);
         // восток (x=w)
-        (void)f.contour({f.v(w, yo, d), f.v(w, yo, 0.0f), f.v(ix1, yi, iz0),
-                         f.v(ix1, yi, iz1)}, skirt);
+        (void)f.contour({f.v(w, Y(yo, w), d), f.v(w, Y(yo, w), 0.0f),
+                         f.v(ix1, Y(yi, ix1), iz0), f.v(ix1, Y(yi, ix1), iz1)}, skirt);
     }
     f.save(file);
 }
@@ -2936,6 +2964,18 @@ int main() {
     forge_cobble("assets/houses/city-cobble12x6.dfh", 12.0f, 6.0f, 2.0f, "1", 0.35f);
     forge_cobble("assets/houses/city-cobble8x6.dfh", 8.0f, 6.0f, 2.0f, "1", 0.35f);
     forge_cobble("assets/houses/city-cobble6x6.dfh", 6.0f, 6.0f, 2.0f, "1", 0.35f);
+    // НАКЛОННЫЕ КУСКИ ПОД ПОДЪЁМ К ЗАМКУ (замер раскладчика: 8.3% на 108 м).
+    // Шаг 2% выбран по остатку: раскладка берёт ближайший уклон, промах не
+    // больше 1%, и на шестиметровом куске это 6 см — вчетверо ниже её же
+    // порога ступени 0.20 м. Восьмиметровые для пологих участков: там промах
+    // 8 см, всё ещё под порогом.
+    for (const auto& s : {std::pair<const char*, float>{"04", 0.04f},
+                          {"06", 0.06f}, {"08", 0.08f}, {"10", 0.10f}}) {
+        forge_cobble((std::string("assets/houses/city-cobble6x6-s") + s.first
+                      + ".dfh").c_str(), 6.0f, 6.0f, 2.0f, "1", 0.35f, s.second);
+        forge_cobble((std::string("assets/houses/city-cobble8x6-s") + s.first
+                      + ".dfh").c_str(), 8.0f, 6.0f, 2.0f, "1", 0.35f, s.second);
+    }
     // ВТОРОСТЕПЕННЫЙ ПРОХОД — тот же приём, другая одежда: камень МЕЛЬЧЕ
     // (1.7 против 2.0), тон ТЁМНЫЙ и износ выше порога 0.7, на котором
     // отрисовка уводит деталь в выветренный ряд атласа. Разница читается
