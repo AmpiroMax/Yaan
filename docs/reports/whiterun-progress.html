@@ -1,0 +1,147 @@
+<!--
+Created: 23:08:2026 - 08:40:00
+Last updated: 23:08:2026 - 08:40:00
+Module: docs/reports
+File: docs/reports/whiterun-progress.html
+
+Responsibility:
+- Отчёт владельцу по волнам правок Вайтрана (круги приёмки 1..5): пары
+  «до/после», текущее состояние, что закрыто и что открыто у критика.
+  Картинки лежат рядом в whiterun-progress/img (сжатые копии кадров из
+  screenshots/whiterun-v5, whiterun-v6 и кадров критика).
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- Это СНИМОК на дату: числа и вердикты не обновляются сами; новый круг
+  приёмки — новая правка этого файла с UPD-записью.
+-->
+<!--
+UPD:
+- 23:08:2026 - 08:40:00: Создан по запросу владельца («отчёт со скринами, что
+  есть, что нравится, что не нравилось критику раньше и что сейчас, sbs до/
+  после») после интеграции волны кузни-2 (гнутое кольцо, арка, огонь).
+-->
+<meta charset="utf-8">
+<title>Вайтран — отчёт волн</title>
+<style>
+  body{font-family:-apple-system,'Segoe UI',sans-serif;background:#14161a;color:#dcd7cd;
+       max-width:1360px;margin:0 auto;padding:24px 20px 80px;line-height:1.55}
+  h1{font-size:26px;margin:8px 0 2px} h2{font-size:20px;margin:38px 0 10px;color:#e8c87a}
+  h3{font-size:15px;margin:18px 0 6px;color:#b9c3cf}
+  .sub{color:#8b93a0;font-size:13px;margin-bottom:22px}
+  .sbs{display:flex;gap:10px;margin:10px 0 4px;flex-wrap:wrap}
+  .sbs figure{flex:1 1 420px;margin:0}
+  figure img{width:100%;border-radius:6px;display:block;border:1px solid #2a2e35}
+  figcaption{font-size:12.5px;color:#9aa3ae;padding:5px 2px 0}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;
+       padding:1px 8px;border-radius:4px;margin-right:6px;vertical-align:1px}
+  .before .tag{background:#5b2b2b;color:#f0b9b9}.after .tag{background:#2b4a2e;color:#b9e8bd}
+  .note{font-size:13px;color:#a7afba;margin:2px 0 16px}
+  table{border-collapse:collapse;font-size:13.5px;margin:8px 0 18px;width:100%}
+  td,th{border:1px solid #2b2f36;padding:6px 10px;text-align:left;vertical-align:top}
+  th{background:#1b1e24;color:#c8cdd6}
+  .ok{color:#8fd695}.mid{color:#e2c56f}.bad{color:#e08a8a}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px;margin:12px 0}
+  ul{margin:6px 0 14px 20px;padding:0} li{margin:4px 0}
+  .small{font-size:12px;color:#7d8590}
+  code{background:#20242b;padding:1px 5px;border-radius:4px;font-size:12.5px}
+</style>
+
+<h1>Вайтран — отчёт по волнам правок</h1>
+<div class="sub">23.08 · пять кругов приёмки · конвейер: критик → архитектор → рабочие (город, кузница) → движок · все кадры из игры, полные оригиналы в <code>screenshots/whiterun-v5, -v6</code> и <code>scratchpad/critic4</code></div>
+
+<h2>До → После</h2>
+<p class="note">Пары сняты одной позой камеры, где это было возможно (стена, улица, зал — буквально один и тот же кадр до и после правки).</p>
+
+<h3>Город целиком: от макета на столе — к городу за стеной и рекой</h3>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-progress/img/city_before.jpg"><figcaption><span class="tag">ДО</span>v5: плоский блин, лес внутри стен, реки нет, стена пунктиром</figcaption></figure>
+  <figure class="after"><img src="whiterun-progress/img/city_after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>река рвом вдоль стены, кольцо с башнями, одно дерево-доминанта</figcaption></figure>
+</div>
+
+<h3>Мост: стоял на траве — стал аркой над водой</h3>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-progress/img/bridge_before.jpg"><figcaption><span class="tag">ДО</span>«реки нет, мост стоит на траве» — вода лежала на 3.7 м ПОД землёй</figcaption></figure>
+  <figure class="after"><img src="whiterun-progress/img/bridge_after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>арка со сводом и парапетами, быки в воде; бот ходит в обе стороны 1.8 м/с</figcaption></figure>
+</div>
+
+<h3>Улицы: газон с грязью — каменное полотно самой земли</h3>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-progress/img/street_before.jpg"><figcaption><span class="tag">ДО</span>ни метра покрытия: материал дорог чертежа выбрасывался, всё красилось одной грязью</figcaption></figure>
+  <figure class="after"><img src="whiterun-progress/img/street_after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>полотно — свойство земли (твоё правило от 17.08): без настила, швов и ступенек на склонах</figcaption></figure>
+</div>
+
+<h3>Кольцо стены: клинья на изломах — гнутые прогоны (замечание №6)</h3>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-progress/img/wallarc_before.jpg"><figcaption><span class="tag">ДО</span>прямые куски: на каждом изломе клин до 0.55 м глубиной — «видны стыки»</figcaption></figure>
+  <figure class="after"><img src="whiterun-progress/img/wallarc_after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>15 гнутых рецептов, торцы перпендикулярны касательной: изломов ≥0.2 м — 10 → 0</figcaption></figure>
+</div>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-progress/img/wallhole_before.jpg"><figcaption><span class="tag">ДО</span>сквозная дыра 20 м между башней и воротами — город виден насквозь</figcaption></figure>
+  <figure class="after"><img src="whiterun-progress/img/wallhole_after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>кольцо цепью по дуге: непокрытая дуга 0.00 м, дубли сегментов сняты</figcaption></figure>
+</div>
+
+<h3>Зал замка днём: чёрная коробка — очаг с огнём</h3>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-progress/img/hall_before.jpg"><figcaption><span class="tag">ДО</span>ярчайший пиксель кадра 26/255: очаг душил себя кубовой тенью собственного лотка</figcaption></figure>
+  <figure class="after"><img src="whiterun-progress/img/hall_after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>ближний окклюдер = своя оснастка (фикс движка) + дрова и пламя в лотке</figcaption></figure>
+</div>
+
+<h3>Тени: жёсткая лесенка — мягкий край (твоё «резкие тени бесят»)</h3>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-progress/img/shadow_before.jpg"><figcaption><span class="tag">ДО</span>один жёсткий тап: диагональ ската — лесенка 0.156 м</figcaption></figure>
+  <figure class="after"><img src="whiterun-progress/img/shadow_after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>3×3 PCF + тексель вдвое мельче: гладкая полутень</figcaption></figure>
+</div>
+
+<h2>Что есть сейчас</h2>
+<div class="grid">
+  <figure><img src="whiterun-progress/img/now_ascent.jpg"><figcaption>Подъём к Гилдергрину: камень вьётся в земле, травяные обочины</figcaption></figure>
+  <figure><img src="whiterun-progress/img/now_street.jpg"><figcaption>Главная улица: полотно, дворы, заборы, трубы</figcaption></figure>
+  <figure><img src="whiterun-progress/img/now_brazier.jpg"><figcaption>Ночь: жаровня-чаша с пламенем, пятно на мостовой; ночь −62% от дня</figcaption></figure>
+  <figure><img src="whiterun-progress/img/now_smithy.jpg"><figcaption>Кузница: горн, наковальня, закалочная бочка</figcaption></figure>
+  <figure><img src="whiterun-progress/img/now_gate_bridge.jpg"><figcaption>Восточные ворота и арочный мост сверху</figcaption></figure>
+  <figure><img src="whiterun-progress/img/now_market.jpg"><figcaption>Рынок: терраса с парадным маршем, площадь заподлицо</figcaption></figure>
+</div>
+
+<h2>Что мне самому нравится</h2>
+<ul>
+  <li><b>Дороги стали землёй.</b> Твоё правило «тропинка — свойство земли» теперь работает до конца: материал из чертежа доезжает до пикселя, и целый класс дефектов (настилы, губы, ступеньки, острова плит) умер по построению, а не по заплатке.</li>
+  <li><b>Свет стал честным.</b> Очаг заперт в коробке своей комнаты (утечка сквозь кладку — 0.000 на стенде), пасмурность рассеивает, а не поглощает, ночь читается ночью, исподы навесов кормит отскок от земли.</li>
+  <li><b>Гнутая стена.</b> Кольцо на дугах с перпендикулярными торцами — первый ассет, который спроектирован от замера дефекта (клин = толщина·tg(излом/2)), и он закрыл твоё замечание в ноль.</li>
+  <li><b>Каждый фикс с контрольной ручкой.</b> Любую правку можно выключить env-переменной и получить прежний кадр бит-в-бит — команда трижды ловила «мёртвые» фиксы именно этим.</li>
+</ul>
+
+<h2>Что критик ругал раньше — и что уже закрыто</h2>
+<table>
+<tr><th>круг</th><th>итог</th></tr>
+<tr><td>1 (30 претензий)</td><td>река отсутствовала, мощения ноль, интерьеры пустые, теней нет, замок — «два сарая», стена пунктиром</td></tr>
+<tr><td>2</td><td><span class="ok">починено 8</span> · <span class="mid">лучше 13</span> · <span class="bad">без изменений 9</span> — река, мощение, двери, срывы бота</td></tr>
+<tr><td>3</td><td><span class="ok">починено 3</span> — стоп на осевой (колодец стоял в улице!), шахматка стыков, свет сквозь стены</td></tr>
+<tr><td>4 (жёсткий: чистые камеры, дозовые пары)</td><td><span class="ok">починено 1</span> (тени на земле, −42% замером) · <span class="mid">лучше 7</span> · <span class="bad">31 без изменений</span> — но он же вскрыл два «мёртвых» фикса, оба перечинены в тот же день</td></tr>
+<tr><td>после 4 (интеграция)</td><td>кольцо на дугах (клинья 10→0), арка моста, огонь в 24 очагах и жаровнях, кузница, дома на площадках 26/26, трава не растёт в домах, доски пола перестали быть клонами</td></tr>
+<tr><td>5</td><td><b>идёт сейчас</b> — отдельной секцией проверяет все шесть твоих замечаний</td></tr>
+</table>
+
+<h2>Что критику не нравится сейчас (открытый топ после круга 4)</h2>
+<p class="note">Часть уже должна закрыться интеграцией — вердикты даст круг 5. Помечено: <span class="mid">✻ — в работе/проверяется</span>.</p>
+<table>
+<tr><th>тяжесть</th><th>претензия</th><th>состояние</th></tr>
+<tr><td class="bad">3</td><td>Мир обрывается плитой: за краем карты серое ничто, гор нет</td><td>большой worldgen, следующая эпоха</td></tr>
+<tr><td class="bad">3</td><td>Замок едва выше рядовых крыш, фасад 20 м — сплошная доска, террас мало</td><td>террасы + фасад замка — своя волна</td></tr>
+<tr><td class="bad">3</td><td>Река — прямой канал, вода без отражений и течения</td><td>берега/вода — своя волна (рендер воды)</td></tr>
+<tr><td class="mid">3 ✻</td><td>Интерьеры бедны: ни посуды, ни тканей; окна — чернота; зал тёмен</td><td>огонь сел; утварь и окна — очередь</td></tr>
+<tr><td class="bad">2</td><td>Дома-близнецы: два пиксельно одинаковых дома в одном кадре</td><td>поинстансная вариативность — очередь</td></tr>
+<tr><td class="bad">2</td><td>Дыма из труб нет; города «без жизни» (люди, телеги, бельё)</td><td>дым = система частиц (её нет); жизнь — эпоха</td></tr>
+<tr><td class="bad">2</td><td>Облачная «крышка» с резким краем; кровля — плоский квад; берег — кляксы</td><td>облака и кровля — очередь рендера/кузни</td></tr>
+<tr><td class="mid">2 ✻</td><td>Ночная стена темнеет слабее цели; трава ночью ярче камня</td><td>перепроверка кругом 5 после жаровен</td></tr>
+</table>
+
+<h2>Кадры претензий критика (как он это видит)</h2>
+<div class="grid">
+  <figure><img src="whiterun-progress/img/crit_worldedge.jpg"><figcaption>[2] «мир обрывается плитой» — бритвенный край, вода свисает</figcaption></figure>
+  <figure><img src="whiterun-progress/img/crit_keepstreet.jpg"><figcaption>[3]/[18] «замок не доминанта», рваное полотно на подъёме (уже перечинено полотном)</figcaption></figure>
+  <figure><img src="whiterun-progress/img/crit_riverbank.jpg"><figcaption>[N20] «берег — топографические кляксы», урез без мокрой полосы</figcaption></figure>
+  <figure><img src="whiterun-progress/img/crit_twins.jpg"><figcaption>[14] «дома-близнецы»: одна обшивка, одно окно, один скат</figcaption></figure>
+</div>
+
+<p class="small">Оригиналы: screenshots/whiterun-v5 (эпоха «до»), screenshots/whiterun-v6/00–47 (по волнам, включая пары BEFORE/AFTER одной позой), scratchpad/critic2–4 (кадры кругов). Все замеры и методики — docs/acceptance/. Отчёт круга 5 добавится сюда следующей правкой.</p>
