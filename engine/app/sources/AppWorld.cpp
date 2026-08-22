@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 22:08:2026 - 14:30:00
+Last updated: 22:08:2026 - 16:20:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -36,6 +36,8 @@ UPD:
   12 м — как деревья галерейного грида; прочие объекты — прежний бокс.
 - 22:08:2026 - 14:30:00: Дверь DFN_PLAYTEST_GLANCE=<0..1> — масштаб обзорного
   качания взгляда бота (0 = ровный взгляд операторской ленты). Разбор строгий.
+- 22:08:2026 - 16:20:00: паром [air] из сцены в render_system_ (clear на каждой загрузке —
+  воздух прошлой карты не наследуется).
 */
 
 #include "engine/app/sources/App.h"
@@ -237,12 +239,22 @@ bool App::enter_world(uint32_t stand) {
     // natural ground: a composition with a typo in it should be diagnosable
     // from inside the world it failed to shape.
     scene_doc_ = {};
+    // Воздух прошлой карты не наследуется: карта без [air] живёт на
+    // глобальных константах.
+    render_system_.clear_air_override();
     if (!gallery_scene_.empty()) {
         std::string serr;
         if (!world::read_scene(gallery_scene_, scene_doc_, serr)) {
             std::fprintf(stderr, "[scene] %s: %s -- NOTHING PLACED\n",
                          gallery_scene_.c_str(), serr.c_str());
             scene_doc_ = {};
+        }
+        if (scene_doc_.air.set) {
+            render_system_.set_air_override(scene_doc_.air.fog_start_m,
+                                            scene_doc_.air.fog_end_m);
+            std::fprintf(stderr, "[scene] air: fog %.0f..%.0f m\n",
+                         static_cast<double>(scene_doc_.air.fog_start_m),
+                         static_cast<double>(scene_doc_.air.fog_end_m));
         }
         for (const world::ScenePad& P : scene_doc_.pads) {
             world::BuildingPad pad;

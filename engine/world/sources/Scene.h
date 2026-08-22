@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 22:08:2026 - 16:20:00
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -112,6 +112,8 @@ UPD:
   лепка лежит в git рядом. Ключ необязательный, его отсутствие — прежнее
   поведение до последнего бита.
 - 20:08:2026 - 15:30:00: Секция [house]: готовая постройка (.dfh) + место — регистрация домов кузницы.
+- 22:08:2026 - 16:20:00: SceneAir / [air] — туман композиции: спан под масштаб карты
+  (город 256 м против лесного километра констант). Необязателен.
 */
 
 #pragma once
@@ -211,6 +213,18 @@ struct SceneRiver {
     std::string note;
 };
 
+/// THE COMPOSITION'S AIR ([air], 22.08). A 256 m walled city needs its fog to
+/// span ITS scale, not the forest kilometre the look-dev constants were tuned
+/// for: at start 300 m the whole map sits in clear air, the world's edge reads
+/// as a table edge, and (since the soft-shadow cascade shrank to 160 m) the
+/// band 160..300 m shows unshadowed, unfogged ground. Optional — a scene
+/// without it keeps the global constants, which is the control arm.
+struct SceneAir {
+    bool set = false;
+    float fog_start_m = 0.0f;
+    float fog_end_m = 0.0f;
+};
+
 /// One composed scene: the placements of one map.
 struct SceneDoc {
     std::string map;         ///< "category/stem" this scene composes
@@ -231,6 +245,7 @@ struct SceneDoc {
     std::vector<SceneLight> lights;
     std::vector<ScenePad> pads;
     std::vector<SceneRiver> rivers;
+    SceneAir air;
     /// THE HAND-PAINTED GROUND, by filename — the .relief sidecar next to this
     /// file (world::ReliefLayer). Empty on every map nobody sculpted, and then
     /// the world is exactly what the generator and the pads make it.

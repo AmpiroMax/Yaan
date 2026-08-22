@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 22:08:2026 - 15:40:00
+Last updated: 22:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -168,6 +168,9 @@ UPD:
 - 22:08:2026 - 15:40:00: печётся и подаётся лист нормалей земли (PROC_KEY_TERRAIN_NORMALS,
   DrawParams::aux_texture у чанков и LOD-кольца). Дверь DFN_TERRAIN_NORMALS,
   0 = плоская земля прежнего кадра.
+- 22:08:2026 - 16:20:00: воздух композиции применяется после apply_sky_time и заморозки часа
+  (оба переписывают fog_start/end покадрово — запись на загрузке жила бы
+  один кадр).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -812,6 +815,15 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // frame, so the frozen hour has to be re-asserted here, after it.
     if (sky_frozen_) {
         apply_sky_time(environment_, frozen_day_, frozen_moon_phase_);
+    }
+    // ВОЗДУХ КОМПОЗИЦИИ ([air]) — ПОСЛЕ обоих путей, переписывающих туман
+    // (apply_sky_time приложения и заморозка часа строкой выше): городская
+    // карта в 256 м живёт в спане под свой масштаб, а не под лесной километр.
+    // Абсолютная перезапись — идемпотентна; карта без [air] идёт на
+    // константах, и это контрольная рука.
+    if (air_override_set_) {
+        environment_.fog_start_m = air_fog_start_m_;
+        environment_.fog_end_m = air_fog_end_m_;
     }
     // THE SHARED WIND (W3) drives everything that moves: foliage sway, the
     // audio bed's gain (sim reads env.wind_strength), and the cloud drift.

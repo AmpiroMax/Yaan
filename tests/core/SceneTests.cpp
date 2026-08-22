@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 22:08:2026 - 16:20:00
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -44,6 +44,7 @@ UPD:
   доме (не находка), контроль рядом, и то же самое в обратном порядке записи —
   правило не должно зависеть от того, кого поставили первым.
 - 20:08:2026 - 15:30:00: [house] в круговороте; кривое pos — отказ со строкой.
+- 22:08:2026 - 16:20:00: раунд-трип [air] + контроль «без записи air.set == false».
 */
 
 #include "engine/world/sources/Scene.h"
@@ -496,6 +497,36 @@ TEST_CASE("scene: lamps survive the round trip and an unlit one stays unlit") {
     // while gaining lamps would be a very expensive trade.
     REQUIRE(back.placements.size() == 1);
     CHECK(back.placements[0].object == "tree");
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
+
+TEST_CASE("scene: [air] survives the round trip and its absence means absence") {
+    const auto path = std::filesystem::temp_directory_path() / "dfn_scene_air.scene";
+    SceneDoc doc;
+    doc.map = "houses/whiterun";
+    doc.world_span_m = 256.0f;
+    doc.air.set = true;
+    doc.air.fog_start_m = 110.0f;
+    doc.air.fog_end_m = 380.0f;
+    REQUIRE(write_scene(doc, path));
+
+    SceneDoc back;
+    std::string error;
+    REQUIRE(read_scene(path, back, error));
+    REQUIRE(back.air.set);
+    CHECK(back.air.fog_start_m == doctest::Approx(110.0f));
+    CHECK(back.air.fog_end_m == doctest::Approx(380.0f));
+
+    // Контрольная рука: сцена БЕЗ [air] обязана вернуться с air.set == false —
+    // карта без записи живёт на глобальных константах, а не на воздухе
+    // предыдущей карты или на нулевом тумане.
+    doc.air = {};
+    REQUIRE(write_scene(doc, path));
+    SceneDoc plain;
+    REQUIRE(read_scene(path, plain, error));
+    CHECK_FALSE(plain.air.set);
 
     std::error_code ec;
     std::filesystem::remove(path, ec);

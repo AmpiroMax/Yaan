@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 22:08:2026 - 16:20:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -76,6 +76,7 @@ UPD:
   именем сиделки .relief. Необязательный ключ, его отсутствие — прежний файл
   до последнего бита.
 - 20:08:2026 - 15:30:00: Чтение и запись [house].
+- 22:08:2026 - 16:20:00: чтение и запись [air] (fog_start / fog_end).
 */
 
 #include "engine/world/sources/Scene.h"
@@ -139,6 +140,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
     bool in_pad = false;
     bool in_river = false;
     bool in_house = false;
+    bool in_air = false;
     const auto flush = [&] {
         if (in_placement && !current.object.empty()) {
             out.placements.push_back(current);
@@ -158,6 +160,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_light = false;
             in_pad = false;
             in_river = false;
+            in_air = false;
             continue;
         }
         if (t == "[river]") {
@@ -168,6 +171,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_pad = false;
             in_river = true;
             out.rivers.emplace_back();
+            in_air = false;
             continue;
         }
         if (t == "[pad]") {
@@ -178,6 +182,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_river = false;
             in_pad = true;
             out.pads.emplace_back();
+            in_air = false;
             continue;
         }
         if (t == "[light]") {
@@ -188,6 +193,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_river = false;
             in_light = true;
             out.lights.emplace_back();
+            in_air = false;
             continue;
         }
         if (t == "[house]") {
@@ -197,7 +203,19 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_pad = false;
             in_river = false;
             in_house = true;
+            in_air = false;
             out.houses.emplace_back();
+            continue;
+        }
+        if (t == "[air]") {
+            flush();
+            in_placement = false;
+            in_light = false;
+            in_pad = false;
+            in_river = false;
+            in_house = false;
+            in_air = true;
+            out.air.set = true;
             continue;
         }
         // ANY OTHER SECTION IS SKIPPED, not fatal. The format grows — the
@@ -212,6 +230,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             in_pad = false;
             in_river = false;
             in_house = false;
+            in_air = false;
             continue;
         }
         const auto eq = t.find('=');
@@ -229,6 +248,20 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             return true;
         };
+        if (in_air) {
+            SceneAir& A = out.air;
+            if (key == "fog_start") {
+                if (!number(A.fog_start_m)) {
+                    return false;
+                }
+            } else if (key == "fog_end") {
+                if (!number(A.fog_end_m)) {
+                    return false;
+                }
+            }
+            // Неизвестный ключ пропускается — та же позиция, что у секций.
+            continue;
+        }
         if (in_house) {
             ScenePlacedHouse& H = out.houses.back();
             if (key == "file") {
@@ -506,6 +539,11 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         if (!L.note.empty()) {
             out << "note = " << L.note << "\n";
         }
+    }
+    if (doc.air.set) {
+        out << "\n[air]\n"
+            << "fog_start = " << doc.air.fog_start_m << "\n"
+            << "fog_end = " << doc.air.fog_end_m << "\n";
     }
     const std::string text = out.str();
     // Atomic: a half-written scene is a map that opens to nothing.

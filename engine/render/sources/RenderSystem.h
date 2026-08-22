@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 22:08:2026 - 15:40:00
+Last updated: 22:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -160,6 +160,8 @@ UPD:
 - 20:08:2026 - 18:40:00: HouseDoor.demo_swing — качается только выбранная в сессии дверь.
 - 22:08:2026 - 15:40:00: terrain_normal_asset_ — лист нормалей земли для террейн-дро
   (aux_texture, как кора у листвы).
+- 22:08:2026 - 16:20:00: set_air_override()/clear_air_override() — туман композиции,
+  применяется внутри render() после всех перезаписей неба.
 */
 
 #pragma once
@@ -456,6 +458,21 @@ public:
         visual_time_told_ = true;
         told_visual_time_ = static_cast<float>(seconds);
     }
+
+    /// THE COMPOSITION'S AIR ([air] в .scene, 22.08): a fog span sized to the
+    /// map's own scale. Applied INSIDE render(), after every path that
+    /// rewrites fog per frame (the app's day/night apply_sky_time and the
+    /// DFN_TIME frozen-hour re-assert both stomp fog_start/end from the
+    /// look-dev constants) — a load-time write would survive exactly one
+    /// frame. Absolute overwrite, not a scale: idempotent by construction.
+    void set_air_override(float fog_start_m, float fog_end_m) {
+        air_override_set_ = true;
+        air_fog_start_m_ = fog_start_m;
+        air_fog_end_m_ = fog_end_m;
+    }
+    /// Back to the global constants (a map without [air] must not inherit the
+    /// previous map's air).
+    void clear_air_override() { air_override_set_ = false; }
 
     // Water plane capability (stage 3) -----------------------------------------
     // Creates (or replaces) a flat water plane at world height `height_m`
@@ -809,6 +826,10 @@ private:
     /// crack in the colour). Handed to every foliage draw as
     /// DrawParams::aux_texture; 0 until the atlas is built.
     uint32_t leaf_normal_asset_ = 0;
+    // Воздух композиции ([air]): см. set_air_override().
+    bool air_override_set_ = false;
+    float air_fog_start_m_ = 0.0f;
+    float air_fog_end_m_ = 0.0f;
     /// The terrain NORMAL atlas, same 2x2 layout as the splat atlas and baked
     /// from the same pre-ramp fields (ProcTexture::terrain_field_t) — the
     /// ground's own crack cannot part company with its shading. Handed to
