@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:04:34
-Last updated: 18:08:2026 - 18:04:34
+Last updated: 23:08:2026 - 02:49:00
 Module: engine/world
 File: engine/world/sources/HouseStyle.cpp
 
@@ -25,6 +25,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 18:04:34: Создан вместе с HouseStyle.h.
+- 23:08:2026 - 02:49:00: доски раскладки сужены внутри колонны на HOUSE_BOARD_GAP_M — швы обшивки появились (был ноль).
 */
 
 #include "engine/world/sources/HouseStyle.h"
@@ -391,8 +392,12 @@ WallLayout lay_out_wall(const WallSpec& spec, const WallStyle& style) {
     }
 
     for (int c = 0; c < out.board_columns; ++c) {
-        const float cu0 = start + static_cast<float>(c) * step;
-        const float cu1 = cu0 + step;
+        // Доска сужена ВНУТРИ колонны на HOUSE_BOARD_GAP_M (волна 23.08:
+        // зазор был ровно ноль, и фасад читался сплошной плитой). Шаг,
+        // деление остатка и торцевая проверка не тронуты по построению.
+        const float cu0 = start + static_cast<float>(c) * step
+                        + HOUSE_BOARD_GAP_M * 0.5f;
+        const float cu1 = cu0 + step - HOUSE_BOARD_GAP_M;
         std::vector<std::pair<float, float>> spans{{0.0f, spec.height}};
         for (const OpeningPlacement& o : out.openings) {
             // Касание торцами не считается пересечением: доска, вставшая ровно

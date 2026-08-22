@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:12:54
-Last updated: 18:08:2026 - 18:12:54
+Last updated: 23:08:2026 - 02:52:13
 Module: tests
 File: tests/core/HouseStyleTests.cpp
 
@@ -35,6 +35,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 18:08:2026 - 18:12:54: Создан вместе с HouseStyle.
+- 23:08:2026 - 02:52:13: контракт зазора: между досками ровно HOUSE_BOARD_GAP_M (§2 уточнён 23.08), лицо доски = шаг − зазор.
 */
 
 #include <doctest/doctest.h>
@@ -144,10 +145,13 @@ TEST_CASE("обшивка тянется: на длине L ложится floor
         if (lay.boards.front().u0 < -1e-5f || lay.boards.back().u1 > r.len + 1e-5f) {
             ++overshoot_ours;
         }
-        // И НЕ ОСТАВЛЯЮТ ЩЕЛЕЙ МЕЖДУ СОБОЙ: шаг и есть ширина доски (HOUSES.md
-        // §2 — «ни щели между досками»).
+        // МЕЖДУ СОСЕДНИМИ ДОСКАМИ — РОВНО HOUSE_BOARD_GAP_M (23.08, §2
+        // уточнён: за досками сплошная пластина, канавка 12 мм обязана быть —
+        // без неё фасад читался сплошной плитой). Считаем пары, где зазор НЕ
+        // равен контрактному.
         for (std::size_t i = 0; i + 1 < lay.boards.size(); ++i) {
-            if (quant(lay.boards[i].u1) != quant(lay.boards[i + 1].u0)) {
+            if (quant(lay.boards[i + 1].u0 - lay.boards[i].u1)
+                != quant(dfn::world::HOUSE_BOARD_GAP_M)) {
                 ++gap_count;
             }
         }
@@ -175,7 +179,7 @@ TEST_CASE("обшивка тянется: на длине L ложится floor
     const float ours3 = l3.boards.front().u1 - l3.boards.front().u0;
     const float ours6 = l6.boards.front().u1 - l6.boards.front().u0;
     CHECK(quant(ours3) == quant(ours6));
-    CHECK(quant(ours3) == 2300);
+    CHECK(quant(ours3) == 2300 - quant(dfn::world::HOUSE_BOARD_GAP_M)); // лицо = шаг − зазор
     const float frac3 = 3.00f / 13.0f;
     const float frac6 = 6.00f / 13.0f;
     CHECK(frac6 / frac3 == doctest::Approx(2.0f).epsilon(1e-5));

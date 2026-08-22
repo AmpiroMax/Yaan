@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 22:08:2026 - 23:00:32
+Last updated: 23:08:2026 - 02:49:00
 Module: engine/world
 File: engine/world/sources/HouseWalls.cpp
 
@@ -29,6 +29,7 @@ UPD:
 - 21:08:2026 - 01:50:00: build_weathering: подтёки под проёмами и трещины-зигзаги по износу; косметика без коллайдера; трещины не висят в проёмах.
 - 21:08:2026 - 02:45:00: Подтёки только на камне/штукатурке (на досках — «узор обоев»); трещины поверх кладки, 2-4 на пролёт.
 - 22:08:2026 - 23:00:32: фаза плитки у досок обшивки (uv_shift через push_wall_slab): доски-клоны фасада получили разные волокна, дрожь той же course_jitter, что пол и кладка.
+- 23:08:2026 - 02:49:00: профиль обшивки: чередование выноса досок 4 мм по колонне (b.column) — шов тенью, перенос образца build_courses.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -254,8 +255,12 @@ static void build_cladding(const Element& e, const ElementParams& p, const glm::
         const int bv = static_cast<int>(std::lround(b.v0 * 8.0f));
         const glm::vec2 phase{course_jitter(bu * 13 + 5, bv * 17 + 7) * 0.731f,
                               course_jitter(bu * 19 + 11, bv * 23 + 3) * 0.517f};
-        push_wall_slab(mb, mesh, e.id, a, dir, face_n, half, HOUSE_BOARD_TH_M, quad,
-                       p.tex_deg, phase);
+        // ПРОФИЛЬ: чётные колонны выступают на 4 мм — шов даёт собственную
+        // тень при любом освещении и дистанции (перенос образца
+        // build_courses: каждый кусок кладки уже несёт свою глубину).
+        const float board_out = half + ((b.column & 1) != 0 ? 0.004f : 0.0f);
+        push_wall_slab(mb, mesh, e.id, a, dir, face_n, board_out,
+                       HOUSE_BOARD_TH_M, quad, p.tex_deg, phase);
     }
     for (const BracePlacement& br : lay.braces) {
         const glm::vec2 low{br.u_low, br.v_low};
