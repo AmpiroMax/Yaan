@@ -14,3 +14,4 @@ pine-forge-a | pine-forge-a.dfo | bef06ba5eeae5696 | 160 | 3128 | 0.95
 pine-forge-b | pine-forge-b.dfo | f175892630162bb3 | 160 | 3256 | 0.95
 larch-forge-a | larch-forge-a.dfo | d554c141c43765f2 | 160 | 1468 | 0.90
 great-forge-oak | great-forge-oak.dfo | 6921273853f4c205 | 5034 | 5616 | 0.53
+gildergreen-forge | gildergreen-forge.dfo | 13bfeefb19b32265 | 3904 | 4888 | 0.56

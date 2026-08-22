@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 11:16:13
+Last updated: 22:08:2026 - 12:10:00
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -52,11 +52,20 @@ UPD:
 - 17:08:2026 - 09:54:18: bake_tree: каждое дерево полки glade печётся парой <имя> + <имя>-far (дальняя форма для пополиточного LOD лида).
 - 17:08:2026 - 10:02:06: bake_bush: ягодники, орешник и можжевельник печутся парой <имя>+<имя>-far; голые кусты bush-a/b/c и мелочь (трава/цветы/грибы/брёвна/лампы) far-форм не имеют — экономить там нечего.
 - 17:08:2026 - 11:16:13: glade-torch-flame и glade-lantern-glass — светящиеся половины ламп.
+- 22:08:2026 - 12:10:00: ГИЛДЕРГРИН gildergreen-forge — одно дерево на город (решение владельца,
+  волна 1 по Вайтрану): 14 м под кроной Ø18.2, W/H 1.30 против 0.87 у великана,
+  сучья с 3.1 м, ствол 0.85. Разрешённое исключение из табу на деревья: НОВЫЙ
+  рецепт, great-forge-oak и вся полка перепечены байт-в-байт. spray_frac 0.198
+  (=0.09*20/9.1) — правило «лист остаётся листом» применено к вдвое меньшей
+  кроне, а не скопировано буквой. Плюс кузница печатает ИЗМЕРЕННЫЕ габариты
+  (measure_object), а не переписанные из рецепта: ниже/шире — это про
+  геометрию, и спрашивать надо у неё.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
 #include "engine/render/sources/TreeForge.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <string>
@@ -229,6 +238,41 @@ int main(int argc, char** argv) {
         giant.core_frac = 0.30f;
         gallery.push_back(giant);
     }
+    {
+        // ГИЛДЕРГРИН — ОДНО дерево на весь город, у алтаря Кинарет (решение
+        // владельца, волна 1 по Вайтрану). Это НЕ второй гигант: скайримский
+        // Гилдергрин значительно НИЖЕ и ШИРЕ великана — купол шире собственной
+        // высоты, ствол короткий и кряжистый, нижние сучья почти над головой.
+        // Отдельный рецепт, а не правка great-forge-oak: гигант стоит дубом
+        // поляны к ЮЗ от стен (gen_whiterun.py), и перекроить его ради города
+        // значило бы переписать чужое принятое дерево.
+        //
+        // ЧИСЛА СОГЛАСОВАНЫ С АРХИТЕКТОРОМ и с docs/TREE_PASSPORTS.md §2.5
+        // (купол шире высоты, W/H 1.1-1.3, крона с 0.2-0.3h):
+        //   W/H = 2*9.1/14.0 = 1.30   против 0.87 у великана;
+        //   нижние сучья на 0.22*14 = 3.1 м — под ними ходят.
+        TreeForgeParams gilder;
+        gilder.seed = 1187;
+        gilder.name = "gildergreen-forge";
+        gilder.height = 14.0f;
+        gilder.crown_radius = 9.1f;
+        gilder.crown_base_frac = 0.22f;
+        gilder.trunk_radius = 0.85f;
+        gilder.tone = LeafTone::OakDeep;
+        gilder.card_shape = LeafShape::RoundLobed;
+        gilder.scaffold_count = 10;
+        gilder.secondary_per_scaffold = 4;
+        gilder.spray_per_branch = 3;
+        // ЛИСТ ОСТАЁТСЯ ЛИСТОМ — правило рецепта великана, применённое честно:
+        // spray_frac задан ДОЛЕЙ кроны, поэтому при кроне вдвое меньшей то же
+        // число дало бы вдвое мелкие полотна. 0.09*(20.0/9.1) = 0.198 — то же
+        // АБСОЛЮТНОЕ полотно (~1.7 м полуширины), что у великана и у рядового
+        // дуба галереи. Скопировать 0.09 буквой значило бы посыпать крону
+        // конфетти — ровно тот промах, против которого правило и написано.
+        gilder.spray_frac = 0.198f;
+        gilder.core_frac = 0.30f;
+        gallery.push_back(gilder);
+    }
 
     std::string index;
     index += "# Реестр объектов: деревья кузницы\n#\n";
@@ -258,9 +302,23 @@ int main(int argc, char** argv) {
         // table is checked by eye on the gallery frames. Stated, not hidden.
         const double share = static_cast<double>(leaf_tris)
                            / static_cast<double>(wood_tris + leaf_tris);
-        std::printf("[forge] %-14s %6zu wood+ground  %4zu card  (%.0f%% cards)  hash %016llx\n",
+        std::printf("[forge] %-18s %6zu wood+ground  %4zu card  (%.0f%% cards)  hash %016llx\n",
                     params.name.c_str(), wood_tris, leaf_tris, share * 100.0,
                     static_cast<unsigned long long>(obj.content_hash));
+        // ГАБАРИТЫ — ИЗМЕРЕННЫЕ, а не переписанные из параметров (ObjectRegistry.h:
+        // «размер, вписанный рядом с деталью, протухает молча»). Купол шире
+        // высоты или нет — это про ГЕОМЕТРИЮ, и спрашивать надо у неё: свес
+        // лап уводит крону за crown_radius, а рецепт об этом не знает.
+        const ObjectExtent ext = measure_object(obj);
+        std::printf("           габарит  H %.1f м  W %.1f м (Ø крона)  W/H %.2f"
+                    "  твёрдый след Ø %.2f м  низ %.2f\n",
+                    static_cast<double>(ext.top - ext.bottom),
+                    static_cast<double>(ext.radius * 2.0f),
+                    static_cast<double>(ext.radius * 2.0f
+                                        / std::max(ext.top - ext.bottom, 0.01f)),
+                    static_cast<double>((ext.shi.x - ext.slo.x + ext.shi.y - ext.slo.y)
+                                        * 0.5f),
+                    static_cast<double>(ext.bottom));
         char row[256];
         std::snprintf(row, sizeof(row), "%s | %s | %016llx | %zu | %zu | %.2f\n",
                       params.name.c_str(), file.filename().string().c_str(),
