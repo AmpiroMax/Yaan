@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 23:08:2026 - 07:20:00
+Last updated: 22:08:2026 - 22:52:34
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -172,6 +172,7 @@ UPD:
   чанки, воксельную землю и LOD одной упаковкой.
 - 23:08:2026 - 01:40:00: коробка комнаты у ExtraLight/кандидата.
 - 23:08:2026 - 07:20:00: set_ground_exclusions — пятна построек для травы; сброс tuft_built_
+- 22:08:2026 - 22:52:34: softness у ExtraLight/PointLightCandidate — мягкость источника доезжает от сцены до PointLight.
   пересевает уже выращенное.
 */
 
@@ -595,6 +596,8 @@ public:
         /// Коробка комнаты (план): см. platform::PointLight.
         glm::vec2 room_center_xz{0.0f};
         glm::vec2 room_half_xz{0.0f};
+        /// Мягкость источника 0..1 — см. platform::PointLight::softness.
+        float softness = 0.0f;
     };
     /// Lamps the map's composition owns. Set once when a map opens; survives
     /// until the next one. A composition of a hundred lamps is legal — only
@@ -732,6 +735,7 @@ private:
         bool interior = false;
         glm::vec2 room_center_xz{0.0f};
         glm::vec2 room_half_xz{0.0f};
+        float softness = 0.0f;
     };
     void publish_point_lights(std::vector<PointLightCandidate>& candidates);
     void collect_point_lights(ecs::World& world, const FirstPersonCamera& camera,

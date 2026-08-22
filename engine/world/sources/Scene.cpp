@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 23:08:2026 - 01:40:00
+Last updated: 22:08:2026 - 22:51:38
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -80,6 +80,7 @@ UPD:
 - 22:08:2026 - 20:10:00: ключ cloud в [air] (необязателен; без него -1 «не задана»).
 - 22:08:2026 - 21:00:00: ключ interior у [light].
 - 23:08:2026 - 01:40:00: ключ room = cx cz hx hz у [light].
+- 22:08:2026 - 22:51:38: ключ softness у [light] — мягкость источника 0..1.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -393,6 +394,9 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                 L.casts_shadow = value == "1" || value == "true" || value == "yes";
             } else if (key == "interior") {
                 L.interior = value == "1" || value == "true" || value == "yes";
+            } else if (key == "softness") {
+                L.softness = std::clamp(std::strtof(value.c_str(), nullptr),
+                                        0.0f, 1.0f);
             } else if (key == "room") {
                 float cx = 0.0f, cz = 0.0f, hx = 0.0f, hz = 0.0f;
                 if (std::sscanf(value.c_str(), "%f %f %f %f",
@@ -557,6 +561,9 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         }
         if (L.interior) {
             out << "interior = 1\n";
+        }
+        if (L.softness > 0.0f) {
+            out << "softness = " << L.softness << "\n";
         }
         if (L.room_half.x > 0.0f || L.room_half.y > 0.0f) {
             out << "room = " << L.room_center.x << ' ' << L.room_center.y << ' '

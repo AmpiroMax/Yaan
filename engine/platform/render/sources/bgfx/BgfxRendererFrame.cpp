@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 06:30:00
+Last updated: 22:08:2026 - 22:58:55
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -196,6 +196,7 @@ UPD:
   (0 = прежний 8-битный износ и прежняя грязь бит-в-бит).
 - 23:08:2026 - 01:40:00: packed[41+i] — коробка комнаты света; packed[15].w — доза DFN_LIGHT_ROOM (0 = окно игнорируется, прежний гейт по AO бит-в-бит).
 - 23:08:2026 - 06:30:00: подача u_psNear (DFN_PS_NEAR_EXCLUDE, 0.6 м; 0 = прежнее сравнение
+- 22:08:2026 - 22:58:55: packed[24+i].w — плюс мягкость источника в дробной части (масштаб 0.9); packed[13].w — доза DFN_LIGHT_SOFT (дефолт 1, 0 = мягкость игнорируется бит-в-бит).
   бит-в-бит).
 */
 
@@ -504,6 +505,16 @@ static float hemi_bounce_dose() {
     return value;
 }
 
+// Доза мягкости точечных светов (DFN_LIGHT_SOFT, слот 13.w): 0 = дробная
+// часть w цвета игнорируется шейдером целиком — прежний кадр бит-в-бит;
+// 1 = softness источника из сцены работает (wrap-диффуз + пологое затухание,
+// dfn_env.sh). Заказ владельца 23.08: «разнообразные источники с разным
+// уровнем яркости и мягкости света».
+static float light_soft_dose() {
+    static const float dose = dose_env_override("DFN_LIGHT_SOFT", 1.0f);
+    return dose;
+}
+
 static float moon_ground_gain() {
     static const float value = dose_env_override("DFN_MOON_GROUND",
                           static_cast<float>(config::MOON_GROUND_GAIN));
@@ -608,7 +619,8 @@ void BgfxRenderer::Impl::apply_environment() const {
         // .z — доза материала троп (DFN_PATH_MAT: 0 = прежний 8-битный износ
         // и прежняя грязь бит-в-бит; обе решётки — упаковка мешеров и разбор
         // fs_terrain — переключаются одной дверью).
-        {hemi_bounce_dose(), e.path_tiles_per_m, path_mat_dose(), 0.0f},
+        {hemi_bounce_dose(), e.path_tiles_per_m, path_mat_dose(),
+         light_soft_dose()},
         {0.0f, 0.0f, 0.0f, e.star_intensity},
     };
     // Lights come from the ORDERED array (order_lights), not straight from
@@ -703,8 +715,12 @@ void BgfxRenderer::Impl::apply_environment() const {
         // w — БИТЫ ФЛАГОВ: 1 = casts_shadow (тень решается индексом слота,
         // бит информационный), 2 = interior (шейдер гейтит свет небесной
         // видимостью приёмника — dfn_env.sh, u_lightColor(i).w).
-        packed[24 + i] = {l.color, (l.casts_shadow ? 1.0f : 0.0f)
-                                       + (l.interior ? 2.0f : 0.0f)};
+        // Дробная часть w — МЯГКОСТЬ источника (0..1, масштаб 0.9, чтобы
+        // не переползти в следующий бит флага); целая — прежние биты.
+        packed[24 + i] = {l.color,
+                          (l.casts_shadow ? 1.0f : 0.0f)
+                              + (l.interior ? 2.0f : 0.0f)
+                              + glm::clamp(l.softness, 0.0f, 1.0f) * 0.9f};
     }
     bgfx::setUniform(u_env_params, packed, ENV_PARAM_VEC4S);
 }

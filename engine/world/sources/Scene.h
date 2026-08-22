@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 23:08:2026 - 01:40:00
+Last updated: 22:08:2026 - 22:51:38
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -118,6 +118,7 @@ UPD:
   под вечной палубой 0.45 тень дома на земле неотличима от облачного пятна).
 - 22:08:2026 - 21:00:00: SceneLight.interior — интерьерный свет гейтится небесной видимостью приёмника (очаг не светит улице сквозь кладку).
 - 23:08:2026 - 01:40:00: SceneLight.room_center/room_half — коробка комнаты у [light].
+- 22:08:2026 - 22:51:38: SceneLight.softness — мягкость источника, ключ softness у [light].
 */
 
 #pragma once
@@ -178,6 +179,9 @@ struct SceneLight {
     /// Нулевые полуразмеры — коробки нет (прежний гейт по AO приёмника).
     glm::vec2 room_center{0.0f};
     glm::vec2 room_half{0.0f};
+    // Мягкость источника 0..1 (ключ softness): 0 — резкий факельный профиль,
+    // 1 — свет огибает форму и затухает полого (фонарь со «стеклом»).
+    float softness = 0.0f;
     std::string note;
 };
 

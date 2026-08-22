@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 23:08:2026 - 04:10:00
+Last updated: 22:08:2026 - 22:58:55
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -226,6 +226,7 @@ UPD:
   0.3 м) ЗАМЕНЯЕТ гейт по AO у источников с коробкой; без коробки — прежний
   гейт. Массив 41 -> 49 парой с Impl.h.
 - 23:08:2026 - 04:10:00: ворота отскока прижаты к полу AO ((sky_vis-0.305)/0.08): круг 4 поймал
+- 22:08:2026 - 22:58:55: мягкость точечного света: дробная часть w цвета — softness 0..1 (wrap-диффуз + пологое затухание pow(fall, 1->0.6)); u_lightSoftDose (слот 13.w, DFN_LIGHT_SOFT, 0 = бит-в-бит). Заказ владельца: разнообразные источники по яркости и мягкости.
   их мёртвыми на рыночном навесе (|dRGB| 0.003 между дозами) — испод сидит на
   0.30..0.34, порог 0.32 съедал эффект; запечатанный интерьер остаётся нулём.
 */
@@ -289,6 +290,7 @@ uniform vec4 u_envParams[49]; // 41..48 — коробки комнат свет
 // Повторов путевого атласа на метр полотна и доза материала троп (fs_terrain).
 #define u_pathTiles         (u_envParams[13].y)
 #define u_pathMatDose       (u_envParams[13].z)
+#define u_lightSoftDose     (u_envParams[13].w)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
@@ -1040,6 +1042,23 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
         // до него у фрагмента не было понятия «я внутри». Остаточная утечка
         // «очаг дома A в интерьер дома B в паре метров» ослаблена затуханием
         // и признана в плане; уличные жаровни флаг не ставят.
+        // МЯГКОСТЬ ИСТОЧНИКА (владелец 23.08: «свет от фонарей скудный,
+        // рисуется неправильно — нужны разнообразные источники с разной
+        // яркостью и мягкостью»). Дробная часть w цвета — softness 0..1
+        // (целая часть остаётся битами флагов): мягкий свет ОГИБАЕТ форму
+        // (wrap-диффуз — терминатор не режет цилиндр столба пополам) и
+        // затухает ПОЛОЖЕ (степень окна 1 -> 0.6). soft = 0 не трогает ни
+        // одной операции — прежний кадр бит-в-бит; доза DFN_LIGHT_SOFT
+        // (слот 13.w, 0 = мягкость игнорируется целиком).
+        float soft = fract(u_lightColor(i).w) * (1.0 / 0.9) * u_lightSoftDose;
+        float ndl = max(dot(n, to_light / max(dist, 0.0001)), 0.0);
+        float fall = atten * atten * (3.0 - 2.0 * atten);
+        if (soft > 0.01) {
+            float wrapv = 0.5 * soft;
+            ndl = max((dot(n, to_light / max(dist, 0.0001)) + wrapv)
+                          / (1.0 + wrapv), 0.0);
+            fall = pow(fall, mix(1.0, 0.6, soft));
+        }
         float gate = 1.0;
         if (u_lightColor(i).w >= 2.0) {
             vec4 room = u_lightRoom(i);
@@ -1054,9 +1073,7 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
                 float outside = max(dxz.x, dxz.y);
                 gate = mix(1.0, clamp(1.0 - outside / 0.3, 0.0, 1.0),
                            u_lightInteriorGate);
-                light += u_lightColor(i).rgb
-                       * (atten * atten * (3.0 - 2.0 * atten) * occl * gate
-                          * max(dot(n, to_light / max(dist, 0.0001)), 0.0));
+                light += u_lightColor(i).rgb * (fall * occl * gate * ndl);
                 continue;
             }
             // DFN_GATE_RECEIVER: чем фрагмент отвечает гейту. По умолчанию —
@@ -1069,8 +1086,7 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
             gate = mix(1.0, clamp(1.0 - DFN_GATE_RECEIVER(sky_vis), 0.0, 1.0),
                        u_lightInteriorGate);
         }
-        light += u_lightColor(i).rgb * (atten * atten * (3.0 - 2.0 * atten) * occl
-                    * gate * max(dot(n, to_light / max(dist, 0.0001)), 0.0));
+        light += u_lightColor(i).rgb * (fall * occl * gate * ndl);
     }
     return light;
 }
