@@ -4,6 +4,6 @@ size_chunks = 1
 # Вайтран v5 — построен по чертежу docs/WHITERUN_PLAN.html (см. JSON).
 source = stand:Gallery
 scene = assets/scenes/whiterun.scene
-objects = assets/objects/parts;assets/objects/signs;assets/objects/trees
+objects = assets/objects/parts;assets/objects/signs;assets/objects/trees;assets/objects/glade
 description = Город по плану: река от горного истока рвом вдоль стены, мост у Восточных ворот, рынок, Гилдергрин, замок; дуб-поляна на юго-западе.
 built_commit =
