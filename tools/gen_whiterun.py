@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 22:08:2026 - 02:00:00
+# Last updated: 22:08:2026 - 14:20:00
 # Module: tools
 # File: tools/gen_whiterun.py
 #
@@ -101,6 +101,23 @@
 #   Посадка домов ДВЕРНОЙ ГРАНЬЮ на красную линию чертежа с отодвигом от
 #   полос дорог по нормали (rect_road_hit, рынок-буфер исключён); проверки
 #   расстановки в генераторе. Круг v5-5 пройден целиком без застреваний.
+# - 22:08:2026 - 14:20:00: ВОДА ЛЕЖИТ НА ЗЕМЛЕ (претензия критика: «мост стоит
+#   на траве», тяжесть 3). Отметка воды задавалась формулой 23.6 - i*0.08 и
+#   уходила на 3-4 м НИЖЕ земли, а ручной relief — он в compose_passes идёт
+#   ПОСЛЕ apply_rivers — своими дельтами зарисовывал русло обратно: реки в
+#   кадре не было вовсе. Теперь (1) river_levels снимает отметку с ФАКТИЧЕСКОЙ
+#   земли — минимальная кромка двух берегов минус 0.40, монотонно НЕВОЗРАСТАЯ
+#   вниз по течению (проверено: 37.9 у истока -> 24.6 к устью); (2) дельты
+#   relief гасятся river_taper — тем же smoothstep, каким движок сводит дно с
+#   берегом, поэтому вырез движка доживает до кадра (дно 23.60, вода 24.60,
+#   кромка 25.0-27.6 на профиле z=130); (3) натуральная земля меряется
+#   WHITERUN_BARE=1 БЕЗ [river] — иначе в nat уже сидит вырез старого русла и
+#   дельта берега считается от дна. bank_m 5 -> 3.0: берег 1.4 м на 3 м (25
+#   гр., ходибельно) и торцы моста выходят ЗА зону сведения. Мост: отметка
+#   бралась с земли в 7 м восточнее (на дамбе) — теперь от воды, +1.05 к
+#   origin; пролёт центрируется на осевой (точка [center] чертежа лежала в
+#   0.66 м западнее, восточная аппарель висела метром выше земли), подходы
+#   планируются grade_corridor — новый инструмент планировки поля высот.
 
 import json
 import math
@@ -337,7 +354,159 @@ def build_plan_heights():
 
 NATURAL_PATH = "/tmp/whiterun_natural.txt"
 
+# --- РЕКА: отметка воды снимается с ЗЕМЛИ, а не задаётся формулой -----------
+# Порядок движка (Worldgen.cpp compose_passes): пады -> РЕКА -> ручной relief.
+# Ручной слой говорит ПОСЛЕДНИМ, поэтому дельты чертежа зарисовывали русло
+# обратно, а вода 23.6-i*0.08 оставалась на 3-4 м ниже земли — реки в кадре
+# не было. Лечится двумя вещами:
+#   1) вода = минимальная кромка ДВУХ берегов минус RIVER_FREEBOARD, с
+#      монотонностью вниз по течению (река с горы-истока не течёт вверх);
+#   2) дельты relief ГАСЯТСЯ в коридоре русла тем же smoothstep, каким движок
+#      сводит дно с берегом (river_taper) — вырез движка остаётся вырезом.
+# Дно = вода - RIVER_DEPTH берётся движком безусловно (apply_rivers), поэтому
+# отдельные dh на дно не нужны: они бы его и засыпали.
+RIVER_BANK_M = 3.0      # ширина сведения дна с берегом (1.4 м на 3 м ~ 25 гр.)
+RIVER_DEPTH = 1.0       # дно ниже воды
+RIVER_FREEBOARD = 0.40  # вода ниже кромки берега
+
+def hh_at(Hh, x, z):
+    xi = min(max(x, 0.0), 254.999)
+    zi = min(max(z, 0.0), 254.999)
+    x0, z0 = int(xi), int(zi)
+    fx, fz = xi - x0, zi - z0
+    r0, r1 = Hh[z0], Hh[z0 + 1]
+    return ((r0[x0]*(1-fx) + r0[x0+1]*fx) * (1-fz)
+            + (r1[x0]*(1-fx) + r1[x0+1]*fx) * fz)
+
+def river_tangent(pts, i):
+    a = pts[max(0, i-1)]
+    b = pts[min(len(pts)-1, i+1)]
+    vx, vz = b[0]-a[0], b[1]-a[1]
+    L = math.hypot(vx, vz) or 1.0
+    return vx/L, vz/L
+
+def river_levels(Hh):
+    """Отметка воды в каждой вершине осевой: ниже НИЖНЕГО из двух берегов на
+    RIVER_FREEBOARD, монотонно НЕВОЗРАСТАЯ вниз по течению."""
+    pts = PLAN["river"]
+    off = PLAN["river_half_w"] + RIVER_BANK_M
+    lv = []
+    for i, (x, z) in enumerate(pts):
+        ux, uz = river_tangent(pts, i)
+        nx, nz = -uz, ux
+        banks = []
+        for s in (-1.0, 1.0):
+            # берег меряется тремя отсчётами вдоль течения — одиночная точка
+            # ловила случайную кочку блюра и роняла плёс на полметра
+            banks.append(min(hh_at(Hh, x + nx*off*s + ux*t, z + nz*off*s + uz*t)
+                             for t in (-2.0, 0.0, 2.0)))
+        lv.append(min(banks) - RIVER_FREEBOARD)
+    for i in range(1, len(lv)):
+        lv[i] = min(lv[i], lv[i-1])
+    return lv
+
+def river_dist(x, z):
+    best = 1e9
+    pts = PLAN["river"]
+    for (x0, z0), (x1, z1) in zip(pts, pts[1:]):
+        dx, dz = x1-x0, z1-z0
+        L2 = dx*dx + dz*dz
+        t = max(0.0, min(1.0, ((x-x0)*dx + (z-z0)*dz) / L2))
+        best = min(best, math.hypot(x - (x0+dx*t), z - (z0+dz*t)))
+    return best
+
+def river_taper(x, z):
+    """Доля ручной дельты, доживающая до этой точки: 0 в русле, 1 за берегом.
+    Тот же smoothstep, что у apply_rivers, — берег сходится без ступеньки."""
+    half = PLAN["river_half_w"]
+    d = river_dist(x, z)
+    if d <= half:
+        return 0.0
+    if d >= half + RIVER_BANK_M:
+        return 1.0
+    t = (d - half) / RIVER_BANK_M
+    return t * t * (3.0 - 2.0 * t)
+
+def grade_corridor(Hh, nodes, halfw, feather):
+    """ПЛАНИРОВКА КОРИДОРА в поле высот чертежа: вдоль ломаной [(x,z,h)…] поле
+    прижимается к заданной отметке (интерполяция по длине), с полной силой в
+    полосе halfw и затуханием smoothstep до нуля на halfw+feather. Поле
+    чертежа И ЕСТЬ земля (relief пишет дельту к ней), поэтому подходы,
+    подъезды и срезы делаются здесь, а не отдельным слоем."""
+    segs = list(zip(nodes, nodes[1:]))
+    xs = [n[0] for n in nodes]
+    zs = [n[1] for n in nodes]
+    R = halfw + feather
+    x0 = max(0, int(min(xs) - R) - 1)
+    x1 = min(255, int(max(xs) + R) + 1)
+    z0 = max(0, int(min(zs) - R) - 1)
+    z1 = min(255, int(max(zs) + R) + 1)
+    for gz in range(z0, z1 + 1):
+        for gx in range(x0, x1 + 1):
+            best, lvl = 1e9, None
+            for (ax, az, ah), (bx, bz, bh) in segs:
+                vx, vz = bx-ax, bz-az
+                L2 = vx*vx + vz*vz
+                t = max(0.0, min(1.0, ((gx-ax)*vx + (gz-az)*vz) / L2))
+                d = math.hypot(gx - (ax+vx*t), gz - (az+vz*t))
+                if d < best:
+                    best, lvl = d, ah + (bh-ah)*t
+            if best >= R:
+                continue
+            if best <= halfw:
+                w = 1.0
+            else:
+                u = 1.0 - (best - halfw) / feather
+                w = u * u * (3.0 - 2.0 * u)
+            Hh[gz][gx] = Hh[gz][gx] * (1.0 - w) + lvl * w
+
+def water_at(levels, x, z):
+    """Отметка воды у ближайшей точки осевой (как river_nearest движка)."""
+    pts = PLAN["river"]
+    best, w = 1e9, levels[0]
+    for i, ((x0, z0), (x1, z1)) in enumerate(zip(pts, pts[1:])):
+        dx, dz = x1-x0, z1-z0
+        L2 = dx*dx + dz*dz
+        t = max(0.0, min(1.0, ((x-x0)*dx + (z-z0)*dz) / L2))
+        d = math.hypot(x - (x0+dx*t), z - (z0+dz*t))
+        if d < best:
+            best, w = d, levels[i] + (levels[i+1] - levels[i]) * t
+    return w
+
+def bridge_frame():
+    """Рама моста: (origin рецепта, середина торца, вектор вдоль пролёта).
+    Рецепт city-bridge занимает локально x -2.4..10.4, z 0..4; кладётся
+    origin-ом в (bx-4, bz-2) с yaw = -deg (локальный +X = (cos, -sin)).
+    ПРОЛЁТ ЦЕНТРИРУЕТСЯ НА РУСЛЕ: точка [center] чертежа лежала в 0.66 м
+    западнее осевой, и торцы уходили на 7.0 и 5.3 м от неё — восточная
+    аппарель оставалась внутри берегового сведения движка и висела метром
+    выше земли. Сдвиг вдоль пролёта делает оба выхода симметричными."""
+    b = PLAN["bridge"]
+    bx, bz = b["center"]
+    yaw = math.radians(-b["deg"])
+    ux, uz = math.cos(yaw), -math.sin(yaw)
+    zx, zz = math.sin(yaw), math.cos(yaw)
+    ox, oz = bx - 4.0, bz - 2.0
+    mx, mz = ox + zx*2.0, oz + zz*2.0
+    sh = min(((river_dist(mx + ux*(4.0+s), mz + uz*(4.0+s)), s)
+              for s in (i*0.05 for i in range(-80, 81))))[1]
+    return (ox + ux*sh, oz + uz*sh), (mx + ux*sh, mz + uz*sh), (ux, uz)
+
 def main():
+    PLAN_H = build_plan_heights()
+    WLEV = river_levels(PLAN_H)
+    # ПОДХОДЫ МОСТА. Западный берег — кромка городского шельфа (27.6 против
+    # 25.4 на востоке): без планировки западная аппарель уходила в откос на
+    # полтора метра, а мост читался «воткнутым в холм». Оба торца сажаются на
+    # отметку аппарели, дальше отметка возвращается к чертежу за 9 м.
+    (box, boz), (mx, mz), (ux, uz) = bridge_frame()
+    bwat = water_at(WLEV, mx + ux*4.0, mz + uz*4.0)
+    ramp_g = bwat + 0.50
+    nodes = []
+    for t, h in ((-11.0, None), (-2.4, ramp_g), (10.4, ramp_g), (19.0, None)):
+        px, pz = mx + ux*t, mz + uz*t
+        nodes.append((px, pz, hh_at(PLAN_H, px, pz) if h is None else h))
+    grade_corridor(PLAN_H, nodes, 3.0, 3.0)
     # --- постройки плана ---
     for hs in PLAN["houses"]:
         put_house(hs)
@@ -401,9 +570,13 @@ def main():
               f"ворота {g['name']}")
     # мост
     b = PLAN["bridge"]
-    bx, bz = b["center"]
-    gb = ground(bx + 7, bz)
-    house("city-bridge.dfh", bx - 4, (25.0 if gb is None else gb + 0.45), bz - 2,
+    # МОСТ СТОИТ НА ВОДЕ, А НЕ НА БЕРЕГУ. Отметка бралась с земли в 7 м к
+    # востоку — на дамбе берега, и настил уезжал от русла. Настил рецепта
+    # лежит на +0.20..+0.35 от origin, аппарели спускаются к -0.50, быки
+    # уходят на -2.20: origin на 1.05 над водой даёт проезжую часть в 1.25-1.40
+    # м над плёсом, торцы аппарелей — на планированную кромку (вода+0.50),
+    # быки — на 0.15 в дно.
+    house("city-bridge.dfh", box, bwat + 1.05, boz,
           -b["deg"], "мост через реку")
     # Гилдергрин и дуб-поляна
     gg = PLAN["gildergreen"]
@@ -429,11 +602,18 @@ def main():
         place(opts[i % len(opts)], t["x"], ty, t["z"], (i * 47) % 360)
 
     # --- terrain: река; высоты плана пишутся в relief дельтами от natural ---
+    # ЗАМЕР НАТУРАЛЬНОЙ ЗЕМЛИ ИДЁТ БЕЗ РЕКИ (WHITERUN_BARE=1): иначе в nat уже
+    # сидит вырез старого русла, и дельта у берега считается от дна, а не от
+    # земли. Дельты в коридоре гасятся river_taper, поэтому вырез там делает
+    # только движок — от отметки воды, снятой с берегов.
     terrain = []
-    rpts = "\n".join(f"point = {x} {z} {23.6 - i*0.08:.2f}"
-                     for i, (x, z) in enumerate(PLAN["river"]))
-    terrain.append(f"[river]\nwidth_m = {PLAN['river_half_w']*2:.0f}\ndepth_m = 1.0\n"
-                   f"bank_m = 5\nnote = река плана: один рукав от истока\n{rpts}\n")
+    if os.environ.get("WHITERUN_BARE") != "1":
+        rpts = "\n".join(f"point = {x} {z} {WLEV[i]:.2f}"
+                         for i, (x, z) in enumerate(PLAN["river"]))
+        terrain.append(f"[river]\nwidth_m = {PLAN['river_half_w']*2:.1f}\n"
+                       f"depth_m = {RIVER_DEPTH:.1f}\nbank_m = {RIVER_BANK_M:.1f}\n"
+                       f"note = река плана: вода по земле, дно на {RIVER_DEPTH:.1f} м ниже\n"
+                       f"{rpts}\n")
 
     # --- дороги: тропы рельефа ---
     relief_paths = []
@@ -472,10 +652,10 @@ def main():
         nat = [[float(v) for v in line.split()]
                for line in open(NATURAL_PATH, encoding="utf-8")
                if not line.startswith("#")]
-        Hh = build_plan_heights()
+        Hh = PLAN_H
         for gz in range(256):
             for gx in range(256):
-                dh = Hh[gz][gx] - nat[gz][gx]
+                dh = (Hh[gz][gx] - nat[gz][gx]) * river_taper(gx, gz)
                 if abs(dh) > 0.05:
                     rel.append(f"dh {gx} {gz} {dh:.2f}")
     rel += relief_paths

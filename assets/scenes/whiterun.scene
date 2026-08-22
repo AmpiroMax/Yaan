@@ -8,23 +8,23 @@ spawn = 113 0 248
 spawn_yaw = 0
 
 [river]
-width_m = 7
+width_m = 7.2
 depth_m = 1.0
-bank_m = 5
-note = река плана: один рукав от истока
-point = 224 40 23.60
-point = 214 52 23.52
-point = 202 66 23.44
-point = 188 82 23.36
-point = 172 102 23.28
-point = 162 120 23.20
-point = 158 138 23.12
-point = 152 158 23.04
-point = 143 178 22.96
-point = 133 198 22.88
-point = 126 220 22.80
-point = 122 242 22.72
-point = 121 256 22.64
+bank_m = 3.0
+note = река плана: вода по земле, дно на 1.0 м ниже
+point = 224 40 38.40
+point = 214 52 32.74
+point = 202 66 25.26
+point = 188 82 24.60
+point = 172 102 24.60
+point = 162 120 24.60
+point = 158 138 24.60
+point = 152 158 24.60
+point = 143 178 24.60
+point = 133 198 24.60
+point = 126 220 24.60
+point = 122 242 24.60
+point = 121 256 24.60
 
 [place]
 object = great-forge-oak
@@ -750,7 +750,7 @@ note = дорожка: амбар
 
 [house]
 file = assets/houses/city-mill.dfh
-pos = 135.237 25.358 186.435
+pos = 135.237 23.550 186.435
 yaw = 2.677945
 note = МЕЛЬНИЦА
 
@@ -1032,7 +1032,7 @@ note = башня кольца (наружу)
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 147.565 26.758 140.821
+pos = 147.565 26.727 140.821
 yaw = 1.997934
 note = башня кольца (наружу)
 
@@ -1074,13 +1074,13 @@ note = ворота south
 
 [house]
 file = assets/houses/city-gate.dfh
-pos = 141.600 27.560 130.000
+pos = 141.600 26.926 130.000
 yaw = 1.612439
 note = ворота east
 
 [house]
 file = assets/houses/city-bridge.dfh
-pos = 155.500 26.030 128.000
+pos = 156.131 25.650 128.157
 yaw = -0.244346
 note = мост через реку
 
