@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 01:16:53
+Last updated: 23:08:2026 - 02:07:35
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -200,6 +200,8 @@ UPD:
 - 22:08:2026 - 23:48:50: packed[49] — маска троп (начало, 1/спан, разрешение); доза DFN_PATH_FRAG (0 = вершинная альфа бит-в-бит).
 - 23:08:2026 - 00:28:33: packed[34].w — доза DFN_NIGHT_SCOTOPIC (скотопическая ночь, дефолт 1).
 - 23:08:2026 - 01:16:53: packed[36].w — доза DFN_LIGHT_ISO (изотропная доля точечного света, дефолт 1).
+- 23:08:2026 - 02:05:56: packed[14].x — доза DFN_CLOUD_LIT (освещённое облако, дефолт 1).
+- 23:08:2026 - 02:07:35: packed[14].y — доза DFN_CLOUD_ANISO (анизотропный фильтр поля облаков, дефолт 1).
   бит-в-бит).
 */
 
@@ -542,6 +544,21 @@ static float light_iso_dose() {
     return dose;
 }
 
+// Доза освещённого облака (DFN_CLOUD_LIT, слот 14.x): двухтоновое кучевое —
+// потолок яркости по люме с сохранением оттенка, тень подмесом зенита.
+// 0 = прежний нейтрально-серый потолок бит-в-бит.
+static float cloud_lit_dose() {
+    static const float dose = dose_env_override("DFN_CLOUD_LIT", 1.0f);
+    return dose;
+}
+
+// Доза анизотропного фильтра облачного поля (DFN_CLOUD_ANISO, слот 14.y):
+// мера разрешимости по малой оси следа пикселя. 0 = прежний max() бит-в-бит.
+static float cloud_aniso_dose() {
+    static const float dose = dose_env_override("DFN_CLOUD_ANISO", 1.0f);
+    return dose;
+}
+
 static float moon_ground_gain() {
     static const float value = dose_env_override("DFN_MOON_GROUND",
                           static_cast<float>(config::MOON_GROUND_GAIN));
@@ -648,7 +665,7 @@ void BgfxRenderer::Impl::apply_environment() const {
         // fs_terrain — переключаются одной дверью).
         {hemi_bounce_dose(), e.path_tiles_per_m, path_mat_dose(),
          light_soft_dose()},
-        {0.0f, 0.0f, 0.0f, e.star_intensity},
+        {cloud_lit_dose(), cloud_aniso_dose(), 0.0f, e.star_intensity},
     };
     // Lights come from the ORDERED array (order_lights), not straight from
     // the environment: shadow casters must occupy the first slots because

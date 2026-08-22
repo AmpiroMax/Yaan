@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 23:08:2026 - 01:16:53
+Last updated: 23:08:2026 - 02:07:35
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -230,6 +230,8 @@ UPD:
 - 22:08:2026 - 23:48:50: массив 49 -> 50; u_pathMask (слот 49) — маска троп для fs_terrain.
 - 23:08:2026 - 00:28:33: скотопическая ночь в dfn_aerial (u_nightScotopic, слот 34.w): тёмное десатурируется к люме, яркое держит цвет; гейт u_moonLight, доза 0 — бит-в-бит.
 - 23:08:2026 - 01:16:53: изотропная составляющая точечного света (u_lightIsoDose, слот 36.w, DFN_LIGHT_ISO): вплотную к огню поверхность горит со всех сторон — стекло, столб, чаша; 0 — бит-в-бит.
+- 23:08:2026 - 02:05:00: u_cloudLitDose (слот 14.x, DFN_CLOUD_LIT) — освещённое двухтоновое облако (Э5).
+- 23:08:2026 - 02:07:35: Э4 — DFN_CLOUD_CELLS_PX_ANISO (малая ось следа, доза DFN_CLOUD_ANISO, слот 14.y): рябь рабочей зоны от преждевременного площадного среднего по радиали.
   их мёртвыми на рыночном навесе (|dRGB| 0.003 между дозами) — испод сидит на
   0.30..0.34, порог 0.32 съедал эффект; запечатанный интерьер остаётся нулём.
 */
@@ -297,6 +299,8 @@ uniform vec4 u_envParams[50]; // 41..48 — коробки комнат; 49 — 
 #define u_pathMask          (u_envParams[49])
 #define u_nightScotopic     (u_envParams[34].w)
 #define u_lightIsoDose      (u_envParams[36].w)
+#define u_cloudLitDose      (u_envParams[14].x)
+#define u_cloudAnisoDose    (u_envParams[14].y)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
@@ -635,6 +639,18 @@ float dfn_cloud_alpha(vec2 p, float cover, float cells_px)
 // cover-0 control, which was clean blue beside it. FRAGMENT SHADERS ONLY.
 #define DFN_CLOUD_CELLS_PX(p) \
     (max(length(dFdx(p)), length(dFdy(p))) / max(u_cloudWavelength, 1.0))
+
+// Э4 (волна 23.08): АНИЗОТРОПНАЯ мера — по МАЛОЙ оси следа пикселя. «Худшая
+// ось побеждает» валила поле в площадное среднее радиально уже на средних
+// высотах (сжатие 1/dir.y = 3.9x на 15°), пока тангенциально структура ещё
+// резолвилась — рабочая зона неба рассыпалась в горизонтальную рябь из
+// чёрточек. Усреднение вдоль БОЛЬШОЙ (радиальной) оси уже делает слэб:
+// DECK_SLICES сэмплов вдоль луча ложатся в поле по той же радиали. Доза
+// DFN_CLOUD_ANISO, 0 — прежний max() бит-в-бит.
+#define DFN_CLOUD_CELLS_PX_ANISO(p) \
+    (u_cloudAnisoDose > 0.5 \
+         ? (min(length(dFdx(p)), length(dFdy(p))) / max(u_cloudWavelength, 1.0)) \
+         : DFN_CLOUD_CELLS_PX(p))
 
 // The two sheets, as the ONLY two ways to read the field. Layer 1 is the main
 // sheet (full cover weight); layer 2 is the high thin sheet (reduced cover).

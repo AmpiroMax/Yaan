@@ -146,6 +146,16 @@ $input v_dir
 // slabs, the cumulus are a slab, and the HIGH deck stays a plane on purpose —
 // it is a cirrus veil at 4.4 km and cirrus have no depth to show.
 
+// UPD 23:08:2026 - 02:05:56: Э5а+б (волна 23.08) — освещённое двухтоновое облако:
+// потолок яркости по люме с сохранением оттенка (unit-luma hue вместо
+// покомпонентного min) и тень подмесом зенита k=0.419. Доза DFN_CLOUD_LIT
+// (слот 14.x), 0 — прежний кадр бит-в-бит.
+
+// UPD 23:08:2026 - 02:07:35: Э4 — три места cells_px переведены на анизотропную
+// меру (малая ось следа пикселя, DFN_CLOUD_CELLS_PX_ANISO): радиальное
+// усреднение уже дают DECK_SLICES вдоль луча, а max() валил поле в среднее
+// преждевременно — горизонтальная рябь рабочей зоны неба.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
@@ -404,6 +414,19 @@ vec3 dfn_cloud_bright()
 {
     vec3 c = u_ambientColor * 1.9 + clamp(u_sunColor, 0.0, 1.0) * 0.50
            + u_moonColor * (u_moonLight * 0.22);
+    // Э5а (волна 23.08): потолок по ЛЮМЕ с сохранением оттенка. Днём все
+    // три канала выше 1.12, и покомпонентный min выдавал ровно
+    // (1.12,1.12,1.12) — нейтрально-серое облако БЕЗ ПРАВА на тёплую
+    // макушку по построению (замер: зенитная облачность #8e8f90 при
+    // SD 3.27/255). Механизм тот же, что у диска солнца ниже: unit-luma
+    // hue. Доза DFN_CLOUD_LIT, 0 — прежний min бит-в-бит.
+    if (u_cloudLitDose > 0.5) {
+        float cl = dot(c, DFN_LUMA_WEIGHTS);
+        if (cl > 1.12) {
+            c *= 1.12 / cl;
+        }
+        return c;
+    }
     return min(c, vec3(1.12, 1.12, 1.12));
 }
 
@@ -427,6 +450,14 @@ void main()
     vec3 eye = mul(u_invView, vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec3 cloud_bright = dfn_cloud_bright();
     vec3 cloud_dark = cloud_bright * 0.58;
+    // Э5б: тень облака — ПОДМЕШИВАНИЕ НЕБА ЗЕНИТА, не скаляр. Скалярное
+    // *0.58 давало серый низ того же оттенка (перепад 1.59x против
+    // эталонных 2.2x, холодное днище недостижимо). k = 0.419 выведен из
+    // эталона верх/низ 2.2x (0.9216/2.2). Ночью зенит темнее облака — низ
+    // сам становится темнее просвета из той же формулы, без ночного флага.
+    if (u_cloudLitDose > 0.5) {
+        cloud_dark = mix(cloud_bright, u_skyZenith, 0.419);
+    }
     // THE LOW DECK IS COMPOSITED AFTER THE CUMULUS, so its alpha and colour are
     // carried out of the deck block. The cumulus slab STARTS at the low deck's
     // own altitude, so the deck is the nearest thing in the sky and has to be
@@ -447,7 +478,7 @@ void main()
         // 4.4 km has no depth to shade.
         float dist2 = (u_cloudDeckHigh - eye.y) / dir.y;
         vec2 p2 = eye.xz + dir.xz * dist2;
-        float a2 = dfn_cloud_sheet2_alpha(p2, DFN_CLOUD_CELLS_PX(p2))
+        float a2 = dfn_cloud_sheet2_alpha(p2, DFN_CLOUD_CELLS_PX_ANISO(p2))
                  * exp(-dist2 / SHEET_EXTINCTION_M) * 0.55;
 
         // --- MID: the main sheet, AND IT HAS A THICKNESS NOW.
@@ -495,7 +526,7 @@ void main()
         // from a third noise dimension, so nothing is given back for it.
         float dist1 = (u_cloudDeckMid - eye.y) / dir.y;
         vec2 p1 = eye.xz + dir.xz * dist1;
-        float cpx1 = DFN_CLOUD_CELLS_PX(p1);
+        float cpx1 = DFN_CLOUD_CELLS_PX_ANISO(p1);
         // THE PATH IS A COUNT OF CELLS CROSSED, not 1/dir.y, and the zero-dose
         // arm is what forced the correction. The first form read
         // `clamp(1/dir.y, 1, 12)`, which does not contain the thickness at all
@@ -561,7 +592,7 @@ void main()
         // stratocumulus at 2:1.
         float dist0 = (u_cloudDeckLow - eye.y) / dir.y;
         vec2 p0 = eye.xz + dir.xz * dist0;
-        float cpx0 = DFN_CLOUD_CELLS_PX(p0);
+        float cpx0 = DFN_CLOUD_CELLS_PX_ANISO(p0);
         float thick0 = u_deckThick * DECK_LOW_THICK_FRAC;
         float path0 = clamp((thick0 / max(dir.y, 0.001))
                             / max(u_cloudWavelength, 1.0), 1.0, DECK_PATH_MAX);
