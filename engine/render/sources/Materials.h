@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 10:08:2026 - 21:35:12
+Last updated: 22:08:2026 - 15:40:00
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -65,6 +65,8 @@ UPD:
   constant is the only source of rock. Note now separates the two quantities
   that were being swapped, and records that the pixel-space question is still
   open (Rule 41) and is render's.
+- 22:08:2026 - 15:40:00: LOOKDEV_ATLAS_CELL_PX 128 -> 512 — земля была 6.25 см/тексель против
+  3.9 мм у стен; узор не меняется (поля нормированы), цена 4 МБ на атлас.
 */
 
 #pragma once
@@ -312,7 +314,12 @@ inline constexpr float PATH_SURFACE_LIFT_M = static_cast<float>(config::VOXEL_SI
 // stone is ~0.25 m, so one repeat should span ~2.2 m of ground.
 inline constexpr float PATH_TILES_PER_M = 0.45f;
 
-inline constexpr uint32_t LOOKDEV_ATLAS_CELL_PX = 128;
+// 128 -> 512 (22.08): при 128 пикс на 8 м повтора земля несла 6.25 см/тексель
+// против 3.9 мм/тексель у стен — два класса точности в одном кадре («земля —
+// крашеный ковёр»). Узор НЕ меняется: поля клеток нормированы (uv 0..1,
+// частоты в циклах на тайл), растёт только выборка. Цена: 4 клетки x 512^2 x
+// 4 Б = 4 МБ на атлас (сплат + путевой + нормали).
+inline constexpr uint32_t LOOKDEV_ATLAS_CELL_PX = 512;
 inline constexpr uint32_t LOOKDEV_WATER_TEX_PX = 128;
 inline constexpr uint32_t LOOKDEV_TEXTURE_SEED = 1337; // visual seed, not worldgen
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:13:00
-Last updated: 19:08:2026 - 04:05:50
+Last updated: 22:08:2026 - 15:40:00
 Module: tests
 File: tests/render/RenderSystemTests.cpp
 
@@ -64,6 +64,7 @@ UPD:
 - 15:08:2026 - 16:10:00: счёт процедурных текстур 4 -> 5: добавился лист нормалей коры.
 - 19:08:2026 - 02:48:10: Счёт текстур 5 -> 7: две плитки постройки (брус и штукатурка) из листа набора.
 - 19:08:2026 - 04:05:50: Счёт текстур на init обратно 5: плитки постройки стали ленивыми.
+- 22:08:2026 - 15:40:00: Счёт текстур на init 6 — прибавился лист нормалей земли.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -97,11 +98,12 @@ TEST_CASE("init uploads the procedural textures once and shutdown releases all")
     RenderSystem system;
     REQUIRE(system.init(renderer));
     // Terrain atlas + water texture + the leaf mask atlas + the §8.1 path
-    // surface atlas + the BARK NORMAL sheet (flora's). Плитки постройки на
+    // surface atlas + the BARK NORMAL sheet (flora's) + the TERRAIN NORMAL
+    // atlas (22.08, рельеф земли). Плитки постройки на
     // init НЕ печутся: они ленивые, по первому выбранному материалу — платим
     // только за то, что реально носится. Точное число — и есть прибор: он
     // ловит текстуру, залитую дважды или не освобождённую.
-    CHECK(renderer.live_textures() == 5);
+    CHECK(renderer.live_textures() == 6);
     CHECK_FALSE(system.water_enabled());
 
     system.shutdown(renderer);

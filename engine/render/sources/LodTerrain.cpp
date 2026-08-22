@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 13:08:2026 - 22:28:39
+Last updated: 22:08:2026 - 15:40:00
 Module: engine/render
 File: engine/render/sources/LodTerrain.cpp
 
@@ -31,6 +31,7 @@ UPD:
 - 13:08:2026 - 22:28:39: LOD draws set casts_in_point_shadows = false: the coarse
   stand-in is built without carves, so inside a tunnel it is rock through the
   corridor's air, and a torch's cube map filled with it lights nothing.
+- 22:08:2026 - 15:40:00: params.aux_texture = aux — рельеф кольца тот же, что у чанков.
 */
 
 #include "engine/render/sources/LodTerrain.h"
@@ -198,7 +199,8 @@ void LodTerrain::destroy_all(platform::IRenderer& renderer) {
 
 size_t LodTerrain::draw(platform::IRenderer& renderer, const math::Frustum& frustum,
                         platform::ProgramHandle program,
-                        platform::TextureHandle atlas) const {
+                        platform::TextureHandle atlas,
+                        platform::TextureHandle aux) const {
     last_draw_count_ = 0;
     if (program.id == 0) {
         return 0;
@@ -214,6 +216,9 @@ size_t LodTerrain::draw(platform::IRenderer& renderer, const math::Frustum& frus
         }
         platform::DrawParams params;
         params.fade = draw_node.fade;
+        // The relief sheet the chunk ground shades with — the coarse ring
+        // must not go flat at the cross-fade seam (see the header).
+        params.aux_texture = aux;
         // A COARSE STAND-IN NEVER CASTS INTO A CARRIED LIGHT'S CUBE. These
         // nodes are built from the heightfield WITHOUT the carves, so inside
         // a tunnel their geometry is solid rock through the corridor's own

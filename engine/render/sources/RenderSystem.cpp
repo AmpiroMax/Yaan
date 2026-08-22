@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 18:40:00
+Last updated: 22:08:2026 - 15:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -165,6 +165,9 @@ UPD:
   зазоров; shutdown() уничтожает меши светляков/свечения/призрака, потоки и двери
   постройки и программу оверлея; DFN_WIND_FREEZE читается один раз.
 - 20:08:2026 - 18:40:00: Двери без demo_swing стоят закрытыми (приёмка: «все двери перекошены»).
+- 22:08:2026 - 15:40:00: печётся и подаётся лист нормалей земли (PROC_KEY_TERRAIN_NORMALS,
+  DrawParams::aux_texture у чанков и LOD-кольца). Дверь DFN_TERRAIN_NORMALS,
+  0 = плоская земля прежнего кадра.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -208,6 +211,17 @@ namespace {
     }();
     return on;
 }
+
+// Рельеф земли (22.08). ВКЛЮЧЁН по умолчанию — владелец прямо разрешил
+// принципиальные изменения текстур; DFN_TERRAIN_NORMALS=0 — контрольная
+// рука «плоская земля» из того же бинарника.
+[[nodiscard]] bool terrain_normals_on() {
+    static const bool on = [] {
+        const char* v = std::getenv("DFN_TERRAIN_NORMALS");
+        return v == nullptr || *v == '\0' || *v != '0';
+    }();
+    return on;
+}
 } // namespace
 
 namespace {
@@ -219,6 +233,7 @@ constexpr uint64_t PROC_KEY_LEAF_ATLAS = 0x03;
 constexpr uint64_t PROC_KEY_LEAF_NORMALS = 0x07; // bark relief, same layout
 constexpr uint64_t PROC_KEY_PATH_ATLAS = 0x04;
 constexpr uint64_t PROC_KEY_HOUSE_TILE = 0x08; // одна плитка набора, seed = материал
+constexpr uint64_t PROC_KEY_TERRAIN_NORMALS = 0x09; // рельеф земли, слои сплата
 
 uint64_t proc_key(uint64_t kind, uint32_t size, uint32_t seed) {
     return (kind << 56) | (static_cast<uint64_t>(size) << 32) | seed;
@@ -410,6 +425,18 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
             proc_key(PROC_KEY_TERRAIN_ATLAS, LOOKDEV_ATLAS_CELL_PX,
                      LOOKDEV_TEXTURE_SEED),
             LOOKDEV_ATLAS_CELL_PX * 2, LOOKDEV_ATLAS_CELL_PX * 2, atlas.data());
+
+        // The terrain NORMAL atlas (22.08, «земля — крашеный ковёр рядом с
+        // детализированной стеной»): same layout, same fields, tangent-space
+        // relief for the ground the way the parts sheet does it for walls.
+        const auto terrain_normals = generate_terrain_normal_atlas(
+            LOOKDEV_ATLAS_CELL_PX, LOOKDEV_TEXTURE_SEED);
+        terrain_normal_asset_ = procedural_texture_asset(
+            renderer,
+            proc_key(PROC_KEY_TERRAIN_NORMALS, LOOKDEV_ATLAS_CELL_PX,
+                     LOOKDEV_TEXTURE_SEED),
+            LOOKDEV_ATLAS_CELL_PX * 2, LOOKDEV_ATLAS_CELL_PX * 2,
+            terrain_normals.data());
 
         // The §8.1 path atlas: cell index IS core's PathClass ordinal.
         const auto path_atlas =
@@ -735,6 +762,7 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     water_texture_asset_ = 0;
     leaf_texture_asset_ = 0;
     leaf_normal_asset_ = 0;
+    terrain_normal_asset_ = 0;
     next_texture_asset_ = 1;
     renderer.destroy_program(platform::ProgramHandle{terrain_program_});
     renderer.destroy_program(platform::ProgramHandle{unlit_program_});
@@ -907,11 +935,22 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         it != texture_cache_.end()) {
         atlas.id = it->second;
     }
+    // The ground's relief sheet rides DrawParams::aux_texture exactly like
+    // bark normals on foliage; params.w>0.5 is what lets fs_terrain perturb.
+    // DFN_TERRAIN_NORMALS=0 is the flat-ground control arm out of one binary.
+    platform::DrawParams terrain_params;
+    if (terrain_normals_on()) {
+        if (const auto it = texture_cache_.find(terrain_normal_asset_);
+            it != texture_cache_.end()) {
+            terrain_params.aux_texture.id = it->second;
+        }
+    }
     for (const auto& [coord, res] : terrain_meshes_) {
         if (!visible_or_casting(frustum, res.bounds, cull_eye)) {
             continue;
         }
-        renderer.submit(platform::MeshHandle{res.mesh_id}, terrain, identity, atlas);
+        renderer.submit(platform::MeshHandle{res.mesh_id}, terrain, identity, atlas,
+                        terrain_params);
     }
 
     // Coarse LOD nodes: the same program, the same atlas, the same splat — the
@@ -919,7 +958,7 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // submitted AFTER the chunk terrain so that in the one case the two can
     // overlap (a streamed rectangle not aligned to the 128 m node grid) the
     // near, finer surface has already written depth.
-    lod_.draw(renderer, frustum, terrain, atlas);
+    lod_.draw(renderer, frustum, terrain, atlas, terrain_params.aux_texture);
 
     // The §8.1 PATH SURFACE, drawn after the ground it lies on. Depth alone
     // would resolve the order (the tread sits PATH_GROOVE_DEPTH proud of the

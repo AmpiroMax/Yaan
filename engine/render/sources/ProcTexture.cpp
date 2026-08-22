@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:48:00
-Last updated: 10:08:2026 - 11:34:12
+Last updated: 22:08:2026 - 15:40:00
 Module: engine/render
 File: engine/render/sources/ProcTexture.cpp
 
@@ -31,11 +31,16 @@ UPD:
   distance, so the quantiser sees a few flat plates with dark lines between
   them rather than a continuous field — which is what makes them read as set
   stones at 640x360 instead of as grey noise.
+- 22:08:2026 - 15:40:00: terrain_field_t() извлечён из shade_texel (четыре клетки сплата) —
+  до-квантовое поле одно, альбедо и нормали не могут разойтись;
+  generate_terrain_normal_atlas() — центральные разности того же поля,
+  рельеф на клетку художественно завышен по прецеденту PartsAtlas.
 */
 
 #include "engine/render/sources/ProcTexture.h"
 
 #include <glm/common.hpp>
+#include <glm/geometric.hpp>
 #include <glm/vec3.hpp>
 
 #include <algorithm>
@@ -173,14 +178,18 @@ constexpr glm::vec3 TRAIL_STOPS[] = {
 constexpr glm::vec3 SLAB_STOPS[] = {
     {0.14f, 0.14f, 0.15f}, {0.37f, 0.38f, 0.38f}, {0.60f, 0.61f, 0.60f}};
 
-glm::vec3 shade_texel(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
+// THE PRE-RAMP SCALAR of the four terrain cells, extracted so the normal
+// atlas differentiates the SAME field the albedo quantizes — one groove, two
+// projections (the PartsAtlas contract). NOT a general height model: only the
+// terrain splat kinds live here; the path/water cells shade shapes (stone id,
+// bevel) whose height is not their albedo t.
+float terrain_field_t(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
     switch (kind) {
     case ProcTextureKind::GRASS: {
         // Meadow mottling + fine blade grain.
         const float patches = tileable_fbm(uv, {4, 4}, seed, 3);
         const float blades = tileable_fbm(uv, {24, 24}, seed ^ 0x51u, 2);
-        const float t = 0.55f * patches + 0.45f * blades;
-        return ramp_quantized(GRASS_STOPS, 3, t, 6);
+        return 0.55f * patches + 0.45f * blades;
     }
     case ProcTextureKind::ROCK: {
         // Grey mottling with darker crack lines (ridged high-frequency noise).
@@ -191,7 +200,7 @@ glm::vec3 shade_texel(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
         if (ridge > 0.86f) {
             t -= 0.35f; // crack
         }
-        return ramp_quantized(ROCK_STOPS, 3, t, 7);
+        return t;
     }
     case ProcTextureKind::SAND: {
         // Fine grain + faint ripple bands (integer cycle count keeps it
@@ -200,15 +209,28 @@ glm::vec3 shade_texel(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
         const float warp = tileable_fbm(uv, {4, 4}, seed, 2);
         const float ripple =
             0.5f + 0.5f * std::sin((uv.y * 5.0f + warp * 0.35f) * 6.2831853f);
-        const float t = 0.62f * grain + 0.18f * ripple + 0.20f * warp;
-        return ramp_quantized(SAND_STOPS, 3, t, 5);
+        return 0.62f * grain + 0.18f * ripple + 0.20f * warp;
     }
     case ProcTextureKind::DIRT: {
         const float clods = tileable_fbm(uv, {6, 6}, seed, 3);
         const float grit = tileable_fbm(uv, {28, 28}, seed ^ 0x99u, 2);
-        const float t = 0.65f * clods + 0.35f * grit;
-        return ramp_quantized(DIRT_STOPS, 3, t, 6);
+        return 0.65f * clods + 0.35f * grit;
     }
+    default:
+        return 0.5f; // flat: kinds outside the terrain splat carry no field
+    }
+}
+
+glm::vec3 shade_texel(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
+    switch (kind) {
+    case ProcTextureKind::GRASS:
+        return ramp_quantized(GRASS_STOPS, 3, terrain_field_t(kind, uv, seed), 6);
+    case ProcTextureKind::ROCK:
+        return ramp_quantized(ROCK_STOPS, 3, terrain_field_t(kind, uv, seed), 7);
+    case ProcTextureKind::SAND:
+        return ramp_quantized(SAND_STOPS, 3, terrain_field_t(kind, uv, seed), 5);
+    case ProcTextureKind::DIRT:
+        return ramp_quantized(DIRT_STOPS, 3, terrain_field_t(kind, uv, seed), 6);
     case ProcTextureKind::WATER: {
         // Horizontally streaked waves (anisotropic period).
         const float streaks = tileable_fbm(uv, {10, 3}, seed, 3);
@@ -364,6 +386,81 @@ std::vector<uint8_t> generate_terrain_atlas(uint32_t cell_size, uint32_t seed) {
         desc.size = cell_size;
         desc.seed = seed;
         write_tile(pixels, side, (i & 1u) * cell_size, (i >> 1u) * cell_size, desc);
+    }
+    return pixels;
+}
+
+std::vector<uint8_t> generate_terrain_normal_atlas(uint32_t cell_size,
+                                                   uint32_t seed) {
+    std::vector<uint8_t> pixels;
+    if (cell_size == 0) {
+        return pixels;
+    }
+    const uint32_t side = cell_size * 2;
+    pixels.resize(static_cast<size_t>(side) * side * 4);
+    // Layout mirrors generate_terrain_atlas — the shader picks the SAME cell
+    // for both sheets, so the layouts drifting apart would tilt grass with
+    // rock's cracks. One repeat spans 8 m of ground (32 tiles per 256 m chunk,
+    // LOOKDEV_TERRAIN_TILES_PER_CHUNK).
+    constexpr float SPAN_M = 8.0f;
+    const float texel_m = SPAN_M / static_cast<float>(cell_size);
+    // Relief per kind, metres over the full 0..1 field swing. Deliberately
+    // 2-3x over honest physics, the PartsAtlas precedent (its own header:
+    // a groove read from 3 m without AO has to lie). Rock carries the most:
+    // its cracks are the feature the eye reads slope from.
+    const auto relief_m = [](ProcTextureKind k) {
+        switch (k) {
+        case ProcTextureKind::GRASS: return 0.070f;
+        case ProcTextureKind::ROCK:  return 0.110f;
+        case ProcTextureKind::SAND:  return 0.030f;
+        case ProcTextureKind::DIRT:  return 0.085f;
+        default:                     return 0.0f;
+        }
+    };
+    const ProcTextureKind cells[] = {ProcTextureKind::GRASS, ProcTextureKind::ROCK,
+                                     ProcTextureKind::SAND, ProcTextureKind::DIRT};
+    std::vector<float> height(static_cast<size_t>(cell_size) * cell_size, 0.0f);
+    const float inv = 1.0f / static_cast<float>(cell_size);
+    for (uint32_t i = 0; i < 4; ++i) {
+        const ProcTextureKind kind = cells[i];
+        const float relief = relief_m(kind);
+        for (uint32_t y = 0; y < cell_size; ++y) {
+            for (uint32_t x = 0; x < cell_size; ++x) {
+                const glm::vec2 uv{(static_cast<float>(x) + 0.5f) * inv,
+                                   (static_cast<float>(y) + 0.5f) * inv};
+                height[static_cast<size_t>(y) * cell_size + x] =
+                    terrain_field_t(kind, uv, seed);
+            }
+        }
+        const uint32_t x0 = (i & 1u) * cell_size;
+        const uint32_t y0 = (i >> 1u) * cell_size;
+        // Central differences of the same field the albedo shaded with; the
+        // cells tile, so the differences wrap.
+        const auto at = [&](int x, int y) {
+            x = (x + static_cast<int>(cell_size)) % static_cast<int>(cell_size);
+            y = (y + static_cast<int>(cell_size)) % static_cast<int>(cell_size);
+            return height[static_cast<size_t>(y) * cell_size
+                          + static_cast<size_t>(x)];
+        };
+        for (uint32_t y = 0; y < cell_size; ++y) {
+            for (uint32_t x = 0; x < cell_size; ++x) {
+                const int xi = static_cast<int>(x);
+                const int yi = static_cast<int>(y);
+                const float dhdx = (at(xi + 1, yi) - at(xi - 1, yi)) * 0.5f * relief;
+                const float dhdy = (at(xi, yi + 1) - at(xi, yi - 1)) * 0.5f * relief;
+                const glm::vec3 n = glm::normalize(
+                    glm::vec3{-dhdx / texel_m, -dhdy / texel_m, 1.0f});
+                const size_t o = (static_cast<size_t>(y0 + y) * side + (x0 + x)) * 4;
+                const auto to_byte = [](float v) {
+                    return static_cast<uint8_t>(
+                        std::clamp(v * 255.0f + 0.5f, 0.0f, 255.0f));
+                };
+                pixels[o + 0] = to_byte(n.x * 0.5f + 0.5f);
+                pixels[o + 1] = to_byte(n.y * 0.5f + 0.5f);
+                pixels[o + 2] = to_byte(n.z * 0.5f + 0.5f);
+                pixels[o + 3] = 255u;
+            }
+        }
     }
     return pixels;
 }

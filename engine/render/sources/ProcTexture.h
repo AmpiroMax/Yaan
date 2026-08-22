@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:48:00
-Last updated: 10:08:2026 - 11:34:12
+Last updated: 22:08:2026 - 15:40:00
 Module: engine/render
 File: engine/render/sources/ProcTexture.h
 
@@ -56,6 +56,8 @@ UPD:
   CUT_SLAB — plus generate_path_atlas(), whose cell index is core's PathClass
   ordinal. The stone kinds are CELLULAR, not fBm: a path made of stones reads
   by its JOINTS, and fBm has none.
+- 22:08:2026 - 15:40:00: generate_terrain_normal_atlas() — лист нормалей земли, тот же 2x2
+  слой и те же поля (контракт PartsAtlas: одна борозда — две проекции).
 */
 
 #pragma once
@@ -112,6 +114,14 @@ struct ProcTextureDesc {
 // within itself; the shader wraps per-cell with fract().
 [[nodiscard]] std::vector<uint8_t> generate_terrain_atlas(uint32_t cell_size,
                                                           uint32_t seed);
+
+// The terrain NORMAL atlas: same 2x2 layout, same seeds, same noise fields —
+// central differences of the SAME pre-ramp scalar the albedo shaded with, so
+// the two sheets cannot disagree about where a crack or a clod is (the
+// PartsAtlas contract, applied to the ground). Tangent space is the ground
+// plane: +x uv = +x world, +y uv = +z world, z up. RGB8 packs n*0.5+0.5.
+[[nodiscard]] std::vector<uint8_t> generate_terrain_normal_atlas(uint32_t cell_size,
+                                                                 uint32_t seed);
 
 // Periodic cellular (Worley) field over the tile domain. Returns the distance
 // to the SECOND nearest feature point minus the distance to the nearest, in

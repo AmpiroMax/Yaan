@@ -4,6 +4,10 @@ UPD:
   (255 = нет тропы), протоптанное берёт текстуру земли и темнеет к голому
   центру. Небесная видимость здесь теперь 1.0 — канал, который её нёс,
   никогда не писался ничем, кроме 255.
+- 22:08:2026 - 15:40:00: рельеф земли — s_texAux (стадия 4, лист нормалей), выбор клетки
+  нормали теми же step()/bayer, что у альбедо, TBN из экранных производных
+  (механизм fs_prop). u_params.w > 0.5 = лист подан; DFN_TERRAIN_NORMALS=0
+  снимает подачу — плоская земля прежнего кадра.
 */
 $input v_color0, v_normal, v_texcoord0, v_wpos
 
@@ -38,6 +42,11 @@ $input v_color0, v_normal, v_texcoord0, v_wpos
 #include "dfn_shadow.sh"
 
 SAMPLER2D(s_texColor, 0);
+// THE GROUND'S RELIEF SHEET (22.08): the terrain normal atlas, same 2x2
+// layout as the splat atlas, baked from the same pre-ramp fields. Stage 4 is
+// the aux-sheet contract (BgfxRendererSubmit binds a neutral 1x1 when no
+// draw supplies one); u_params.w > 0.5 = a real sheet is bound.
+SAMPLER2D(s_texAux, 4);
 uniform vec4 u_params;
 
 vec3 atlas_sample(vec2 tiled_uv, vec2 cell)
@@ -45,6 +54,11 @@ vec3 atlas_sample(vec2 tiled_uv, vec2 cell)
     // Each atlas cell tiles independently: wrap inside the cell, then map the
     // fractional uv into the cell's quarter of the atlas.
     return texture2D(s_texColor, (cell + fract(tiled_uv)) * 0.5).rgb;
+}
+
+vec3 nrm_sample(vec2 tiled_uv, vec2 cell)
+{
+    return texture2D(s_texAux, (cell + fract(tiled_uv)) * 0.5).xyz * 2.0 - 1.0;
 }
 
 float bayer2(vec2 p) // [[0,2],[3,1]] as arithmetic: 2x + 3y - 4xy
@@ -117,6 +131,33 @@ void main()
     // worn centre. Painted last so a path crosses sand and rock as a path —
     // a trail over a shingle bank is still a trail.
     albedo = mix(albedo, dirt * mix(1.0, 0.62, path_w), step(bayer, path_w));
+
+    // THE GROUND'S RELIEF (22.08, «земля — крашеный ковёр рядом со стеной с
+    // рельефом»). The normal is picked by the SAME step()/bayer selections
+    // the albedo used — the texel whose colour you see is the texel whose
+    // slope shades, one groove in both sheets. TBN from screen derivatives:
+    // fs_prop's mechanism copied deliberately (no shared include exists, and
+    // two DIFFERENT basis derivations would tilt the ground's relief against
+    // the wall standing on it).
+    if (u_params.w > 0.5) {
+        vec3 tn = nrm_sample(tuv, vec2(0.0, 0.0));
+        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 1.0)), step(bayer, bed_w));
+        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 0.0)), step(bayer, rock_w));
+        tn = mix(tn, nrm_sample(tuv, vec2(0.0, 1.0)), step(bayer, sand_w));
+        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 1.0)), step(bayer, path_w));
+        vec3 dp1 = dFdx(v_wpos);
+        vec3 dp2 = dFdy(v_wpos);
+        vec2 du1 = dFdx(tuv);
+        vec2 du2 = dFdy(tuv);
+        float det = du1.x * du2.y - du2.x * du1.y;
+        if (abs(det) > 1e-12) {
+            vec3 tangent = normalize((dp1 * du2.y - dp2 * du1.y) / det);
+            tangent = normalize(tangent - n * dot(n, tangent));
+            vec3 bitangent = cross(n, tangent);
+            tn = normalize(tn);
+            n = normalize(tangent * tn.x + bitangent * tn.y + n * tn.z);
+        }
+    }
 
     float vis = dfn_shadow_factor(v_wpos, n);
     // Sky visibility is 1 here: the channel that used to carry it was never

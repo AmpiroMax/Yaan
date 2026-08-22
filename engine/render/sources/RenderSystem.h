@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 20:08:2026 - 18:40:00
+Last updated: 22:08:2026 - 15:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -158,6 +158,8 @@ UPD:
   функции, у обеих появился прибор); листы набора кэшируются полями вместо печати
   9.4 МБ на каждый промах кэша плитки.
 - 20:08:2026 - 18:40:00: HouseDoor.demo_swing — качается только выбранная в сессии дверь.
+- 22:08:2026 - 15:40:00: terrain_normal_asset_ — лист нормалей земли для террейн-дро
+  (aux_texture, как кора у листвы).
 */
 
 #pragma once
@@ -807,6 +809,11 @@ private:
     /// crack in the colour). Handed to every foliage draw as
     /// DrawParams::aux_texture; 0 until the atlas is built.
     uint32_t leaf_normal_asset_ = 0;
+    /// The terrain NORMAL atlas, same 2x2 layout as the splat atlas and baked
+    /// from the same pre-ramp fields (ProcTexture::terrain_field_t) — the
+    /// ground's own crack cannot part company with its shading. Handed to
+    /// terrain draws (chunks + LOD) as DrawParams::aux_texture.
+    uint32_t terrain_normal_asset_ = 0;
     uint32_t path_atlas_asset_ = 0;    // §8.1 path surface atlas (engine asset id)
     uint32_t water_mesh_ = 0;          // MeshHandle.id, 0 = no debug water plane
     uint32_t overlay_mesh_ = 0;        // MeshHandle.id, screen-filling quad

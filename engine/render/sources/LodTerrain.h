@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 18:08:2026 - 12:06:07
+Last updated: 22:08:2026 - 15:40:00
 Module: engine/render
 File: engine/render/sources/LodTerrain.h
 
@@ -64,6 +64,9 @@ UPD:
   reader who assumed this 129 tracked the chunk would now be wrong about the
   seam with core — the exact kind of silent divergence this note exists to
   prevent.
+- 22:08:2026 - 15:40:00: draw() принимает aux-лист нормалей — кольцо обязано шейдить рельеф
+  как чанковая земля, иначе шов LOD мигает плоскостью; заметка о марже
+  тени обновлена под полуохват 160 (маржа выросла до 3.2x).
 */
 
 #pragma once
@@ -149,15 +152,22 @@ public:
     /// running build: the streamed rectangle is CHUNK_LOAD_RADIUS chunks each
     /// way of the focus chunk, so its nearest edge is 2*CHUNK_SIZE = 512 m
     /// from the eye at worst (eye at its chunk's far corner) and 768 m at
-    /// best, against SHADOW_HALF_EXTENT_M = 320 m. Margin 1.6x at the worst
-    /// eye position. It is NOT a large margin, and it is what decides whether
-    /// a cross-fading node can put a second version of the same ground into
-    /// the sun shadow map: shrink CHUNK_LOAD_RADIUS, or grow the shadow
-    /// volume past 512 m for a second cascade, and coarse geometry enters the
-    /// map. The backend's SHADOW_CASTER_MIN_FADE gate makes that safe in
-    /// advance rather than after the frame that shows it.
+    /// best, against SHADOW_HALF_EXTENT_M = 160 m (was 320 until 22.08; the
+    /// soft-edge halving GREW this margin to 3.2x at the worst eye position).
+    /// The margin is what decides whether a cross-fading node can put a
+    /// second version of the same ground into the sun shadow map: shrink
+    /// CHUNK_LOAD_RADIUS, or grow the shadow volume past 512 m for a second
+    /// cascade, and coarse geometry enters the map. The backend's
+    /// SHADOW_CASTER_MIN_FADE gate makes that safe in advance rather than
+    /// after the frame that shows it.
+    ///
+    /// `aux` is the terrain normal atlas (DrawParams::aux_texture), passed so
+    /// the coarse ring shades its relief exactly like the chunk ground it
+    /// cross-fades with — a ring that went flat at the LOD seam would flash
+    /// the seam every re-selection.
     size_t draw(platform::IRenderer& renderer, const math::Frustum& frustum,
-                platform::ProgramHandle program, platform::TextureHandle atlas) const;
+                platform::ProgramHandle program, platform::TextureHandle atlas,
+                platform::TextureHandle aux = {}) const;
 
     /// What the last update() decided to draw, with each node's fade. Exposed
     /// because a draw COUNT cannot see a wrong fade: a renderer that ignored
