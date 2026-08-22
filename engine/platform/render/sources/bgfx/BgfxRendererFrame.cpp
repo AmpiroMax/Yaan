@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 21:50:00
+Last updated: 22:08:2026 - 22:20:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -190,6 +190,8 @@ UPD:
 - 22:08:2026 - 21:50:00: дефолт дизера — гладкое смешение (DFN_DITHER8=2): кадры
   трёх рук показали крап у кромки мостовой на обеих решётках; обоснование
   дизера (палитра + 640x360) истекло. 0/1 — живые контрольные руки.
+- 22:08:2026 - 22:20:00: packed[13].x = hemi_bounce_dose() — зарезервированный слот занят
+  отскоком от земли (G3).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -476,6 +478,13 @@ static float ground_tint_dose() {
 // DFN_MOON_GROUND is that dose, and 0 is the zero-dose control: at 0 the moon
 // stops lighting the ground and only the night ambient is left, which is the arm
 // the 7.43 above was read from.
+// Отскок от земли для нижней полусферы (G3, dfn_env.sh u_hemiBounce). Читается
+// один раз, как остальные дозы; 0 — прежний кадр бит-в-бит.
+static float hemi_bounce_dose() {
+    static const float value = dose_env_override("DFN_AMBIENT_HEMI", 0.22f);
+    return value;
+}
+
 static float moon_ground_gain() {
     static const float value = dose_env_override("DFN_MOON_GROUND",
                           static_cast<float>(config::MOON_GROUND_GAIN));
@@ -573,7 +582,10 @@ void BgfxRenderer::Impl::apply_environment() const {
         {e.water_scroll_uv, 0.0f, 0.0f},
         {e.moon_direction, e.moon_phase},
         {e.moon_color, e.moon_light},
-        {0.0f, 0.0f, 0.0f, 0.0f}, // [13] reserved (was the single light)
+        // [13].x — отскок от земли для нижней полусферы (G3, u_hemiBounce):
+        // доля солнца, которую освещённая земля отдаёт нижним граням.
+        // 0.22 — порядок альбедо травы/пыли; DFN_AMBIENT_HEMI, 0 = бит-в-бит.
+        {hemi_bounce_dose(), 0.0f, 0.0f, 0.0f},
         {0.0f, 0.0f, 0.0f, e.star_intensity},
     };
     // Lights come from the ORDERED array (order_lights), not straight from

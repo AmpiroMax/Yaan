@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 22:08:2026 - 21:00:00
+Last updated: 22:08:2026 - 22:40:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -212,6 +212,13 @@ UPD:
   люма на 48 строк была насыщением двухстопного mix). Доза DFN_SKY_GLOW
   через u_envParams[40].z, 0 = прежний градиент бит-в-бит.
 - 22:08:2026 - 21:00:00: гейт интерьерного света небесной видимостью приёмника (u_lightColor(i).w бит 2, доза u_lightInteriorGate). Различение «внутри/снаружи» дало запечённое AO построек.
+- 22:08:2026 - 22:20:00: G3 — отскок от земли нижней полусфере (u_hemiBounce, слот 13.x):
+  испод навеса терял свет дважды (fillUp + пол AO), теперь получает долю
+  солнца, отражённую землёй; гейт по sky_vis не пускает отскок в
+  запечатанный интерьер. DFN_AMBIENT_HEMI, 0 = бит-в-бит.
+- 22:08:2026 - 22:40:00: ворота отскока сужены ((sky_vis-0.32)/0.22): широкая
+  рампа душила испод навеса до долей процента (A/B: 347 пикселей из 3.7 млн);
+  теперь испод крыльца +31 люма, запечатанный интерьер по-прежнему ноль.
 */
 
 #ifndef DFN_ENV_SH
@@ -257,6 +264,9 @@ uniform vec4 u_envParams[41];
 #define u_lightCount      (u_envParams[15].y)
 // Доза гейта интерьерного света (DFN_LIGHT_INTERIOR; 0 = флаг игнорируется).
 #define u_lightInteriorGate (u_envParams[15].z)
+// Отскок от земли для нижней полусферы (G3; слот 13 стоял зарезервированным
+// «was the single light»). DFN_AMBIENT_HEMI, 0 = без отскока бит-в-бит.
+#define u_hemiBounce        (u_envParams[13].x)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
@@ -933,6 +943,24 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
     sun_h = sun_h_len > 1e-4 ? sun_h / sun_h_len : vec3(0.0, 0.0, 0.0);
     float fill = 1.0 + u_fillUp * min(n.y, 0.0) + u_fillSun * dot(n, sun_h);
     vec3 light = u_ambientColor * (sky * max(fill, 0.0));
+    // ОТСКОК ОТ ЗЕМЛИ (G3, 22.08, приёмка [N9]: испод навеса — сплошной
+    // чёрный лист). Нижняя полусфера теряла свет ДВАЖДЫ — fillUp гасит
+    // min(n.y, 0), запечённое AO прижимает к полу 0.30, — а в жизни её
+    // кормит освещённая земля. Член добавляет НИЖНИМ граням долю солнца,
+    // отражённую землёй; верхним (max(-n.y, 0) = 0) не даёт ничего, среднее
+    // кадра не двигает — кадр в основном земля. Ворота от утечки в
+    // запечатанный интерьер: гейт по sky_vis — потолок закрытой комнаты
+    // сидит на полу AO (0.30) и получает ноль, испод уличного навеса с
+    // открытыми боками (AO выше пола) — долю. Затенение облаками — то же,
+    // что у прямого солнца: отскок это его отражение, а не второй источник.
+    // u_hemiBounce — доза (DFN_AMBIENT_HEMI, 0 = прежний кадр бит-в-бит).
+    // Ворота узкие нарочно: запечатанный интерьер сидит РОВНО на полу AO
+    // (0.30) и обязан получить ноль, а испод уличного навеса с открытыми
+    // боками живёт на 0.4-0.6 — широкая рампа (until 22:20 — /0.70) душила
+    // его до долей процента, и A/B из 3.7 млн пикселей сдвинул 347.
+    float bounce_gate = clamp((sky_vis - 0.32) / 0.22, 0.0, 1.0);
+    light += u_sunColor * (u_hemiBounce * max(-n.y, 0.0) * bounce_gate
+                           * dfn_cloud_sun_vis(wpos));
     // Cloud shadow (W4): the same coverage field the sky draws, projected
     // along the sun. Lives HERE so every surface-lit thing — terrain, props,
     // foliage — darkens under the same crawling shadow (Rule 32).
