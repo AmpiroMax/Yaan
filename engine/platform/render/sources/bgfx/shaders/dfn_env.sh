@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 23:08:2026 - 02:15:40
+Last updated: 23:08:2026 - 02:45:45
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -234,6 +234,7 @@ UPD:
 - 23:08:2026 - 02:07:35: Э4 — DFN_CLOUD_CELLS_PX_ANISO (малая ось следа, доза DFN_CLOUD_ANISO, слот 14.y): рябь рабочей зоны от преждевременного площадного среднего по радиали.
 - 23:08:2026 - 02:13:26: Э3 — пятиоктавное листовое поле (сверх-октавы 0.25/0.50, mean/sd ЗАМЕРЕНЫ на 409600 образцах: 0.498204/0.104267); куб кумулюсов намеренно на прежней тройке; доза DFN_CLOUD_MACRO (слот 14.z), 0 = бит-в-бит.
 - 23:08:2026 - 02:15:40: u_cloudPathResDose (слот 38.w, DFN_CLOUD_PATHRES) — Э6.
+- 23:08:2026 - 02:45:45: u_pathBombDose (слот 50.x, DFN_PATH_TILES_BOMB); массив 50 -> 51 — анти-повтор мостовой.
   их мёртвыми на рыночном навесе (|dRGB| 0.003 между дозами) — испод сидит на
   0.30..0.34, порог 0.32 съедал эффект; запечатанный интерьер остаётся нулём.
 */
@@ -252,7 +253,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[50]; // 41..48 — коробки комнат; 49 — маска троп (пара с Impl.h)
+uniform vec4 u_envParams[51]; // 41..48 — коробки; 49 — маска троп; 50 — дозы (пара с Impl.h)
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -305,6 +306,7 @@ uniform vec4 u_envParams[50]; // 41..48 — коробки комнат; 49 — 
 #define u_cloudAnisoDose    (u_envParams[14].y)
 #define u_cloudMacroDose    (u_envParams[14].z)
 #define u_cloudPathResDose  (u_envParams[38].w)
+#define u_pathBombDose      (u_envParams[50].x)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])

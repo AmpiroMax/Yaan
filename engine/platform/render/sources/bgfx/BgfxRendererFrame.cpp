@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 02:15:40
+Last updated: 23:08:2026 - 02:45:45
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -204,6 +204,7 @@ UPD:
 - 23:08:2026 - 02:07:35: packed[14].y — доза DFN_CLOUD_ANISO (анизотропный фильтр поля облаков, дефолт 1).
 - 23:08:2026 - 02:13:26: packed[14].z — доза DFN_CLOUD_MACRO (сверх-октавы поля, дефолт 1).
 - 23:08:2026 - 02:15:40: packed[38].w — доза DFN_CLOUD_PATHRES (дефолт 1).
+- 23:08:2026 - 02:45:45: packed[50].x — доза DFN_PATH_TILES_BOMB (дефолт 1); массив 50 -> 51.
   бит-в-бит).
 */
 
@@ -577,6 +578,14 @@ static float cloud_pathres_dose() {
     return dose;
 }
 
+// Доза анти-повтора мостовой (DFN_PATH_TILES_BOMB, слот 34.z): второй фетч
+// клетки атласа на несоизмеримом масштабе, как у травы. 0 = один штамп
+// бит-в-бит.
+static float path_bomb_dose() {
+    static const float dose = dose_env_override("DFN_PATH_TILES_BOMB", 1.0f);
+    return dose;
+}
+
 static float moon_ground_gain() {
     static const float value = dose_env_override("DFN_MOON_GROUND",
                           static_cast<float>(config::MOON_GROUND_GAIN));
@@ -773,6 +782,8 @@ void BgfxRenderer::Impl::apply_environment() const {
     // Слот 49 — МАСКА ТРОП: начало композиции, 1/спан, разрешение маски в
     // текселях (w = 0 — маски нет ИЛИ доза DFN_PATH_FRAG = 0: одна проверка
     // в шейдере на оба случая).
+    // Слот 50 — россыпь доз волны 23.08 (x — анти-повтор мостовой).
+    packed[50] = {path_bomb_dose(), 0.0f, 0.0f, 0.0f};
     packed[49] = {e.path_mask_origin_xz.x, e.path_mask_origin_xz.y,
                   e.path_mask_span_m > 0.0f ? 1.0f / e.path_mask_span_m : 0.0f,
                   path_frag_dose() > 0.5f ? e.path_mask_res_px : 0.0f};
