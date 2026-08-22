@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 22:08:2026 - 17:10:00
+# Last updated: 22:08:2026 - 19:40:00
 # Module: tools
 # File: tools/gen_whiterun.py
 #
@@ -160,6 +160,31 @@
 #   sit_rect с его вкопом оставлял над травой 3.7 см мостовой, и площадь в
 #   кадре была травой. Заодно кайма спланированного подхода к мосту 3 -> 6 м:
 #   её собственная кромка давала 41 гр. на осевой дороги в (166,127).
+# - 22:08:2026 - 19:40:00: ОСЬ ДВЕРИ, ГИЛДЕРГРИН, МОЩЕНИЕ, ВОЗДУХ.
+#   (1) Габарит и дверь рецепта СНИМАЮТСЯ С .dfh (recipe_box), а не пишутся в
+#   таблицу: у city-longhall дверь на x=w, у city-mill на x=0 — Йоррваскр и
+#   мельница стояли к своей улице глухой стеной, повёрнутые на 90 гр. от
+#   красной стрелки чертежа (согласовано с архитектором; §11 называет разворот
+#   Йоррваскра отдельной осью контраста). Центр габарита тоже замеренный:
+#   у замка тело идёт от -5.8 до 20.8, и посадка «центр в (w/2, d/2)» уводила
+#   его на 5.8 м. (2) Гилдергрин — свой рецепт gildergreen-forge (H 16.7)
+#   вместо great-forge-oak (H 53.4): верхушка 49.3 против 50.5 у конька замка
+#   и 51.5 у донжона, §11 выполнена; дуб поляны на ЮЗ остаётся великаном.
+#   (3) МОЩЕНИЕ каменных трактов плитами city-cobble. Три вещи, которые
+#   пришлось решить по замерам wr-forge: длина куска выбирается по РОВНОСТИ
+#   пятна (плита жёсткая); отметка берётся с ОБЩЕГО профиля улицы, а не с
+#   максимума своего пятна (две идеально состыкованные соседки расходились на
+#   0.87 м); стык круче PAVE_STEP не кладётся вовсе — склон остаётся тропой,
+#   это дело лестниц. Полоса тракта планируется по сглаженному профилю
+#   (grade_corridor): поперечный уклон в ноль, продольный — честный уклон
+#   горы. check_paving меряет наложения и стыки полигонами. Покрытие 51%
+#   каменных трактов; подъём к замку (8%) плоской плитой не мостится в
+#   принципе — нужен наклонный кусок или террасы с маршами. (4) Секция [air]
+#   (туман 110/380) под масштаб карты; DFN_GEN_NO_COBBLE=1 собирает ту же
+#   сцену без плит — рука A замера цены мощения из одного бинарника.
+#   (5) Потолок смещения тела 6 -> 10 м: конюшни (схема 8х5, рецепт 13.0х12.35)
+#   не успевали сойти с южного переулка, и бот упирался в их южную стену в
+#   (115.3, 195.3) — char-трасса, нормаль (0.05,0,1.00), 68 м от спавна.
 
 import json
 import math
@@ -234,25 +259,79 @@ def sit_rect(cx, cz, w, d, yaw_deg, fallback):
 # дворовый клаттер садился бы в стену. Габарит берётся ПО КОРПУСУ вместе с
 # навесом/портиком: они тоже занимают землю.
 KIND = {
-    "keep":    ("city-keep-s.dfh", 26.6, 14.0),
-    "wing":    (None, 0, 0),  # крылья входят в рецепт keep-s
-    "donjon":  ("city-donjon.dfh", 5.1, 5.1),
+    "keep":    "city-keep-s.dfh",
+    "wing":    None,  # крылья входят в рецепт keep-s
+    "donjon":  "city-donjon.dfh",
     # city-manor реально 14х15 с крылом — на схемном пятне 9х7 крыло легло
     # на главную улицу (прогон v5-1). Усадьба плана = крупный дом.
-    "manor":   ("city-house-l.dfh", 10.0, 8.0),
-    "temple":  ("city-temple.dfh", 12.0, 10.2),
-    "longhall":("city-longhall.dfh", 16.0, 8.0),
-    "shop":    ("city-shop.dfh", 6.0, 8.0),
-    "tavern":  ("city-house-l.dfh", 10.0, 8.0),
-    "smithy":  ("city-shop-old.dfh", 6.0, 8.0),
-    "old":     ("city-house-s-old.dfh", 4.5, 6.0),
-    "farm":    ("city-house-s.dfh", 4.5, 6.0),
-    "barn":    ("city-barn.dfh", 12.0, 9.0),
-    "mill":    ("city-mill.dfh", 7.0, 7.0),
-    "stable":  ("city-barn-old.dfh", 12.0, 9.0),
-    "inn":     ("city-house-l.dfh", 10.0, 8.0),
-    "":        ("city-house-s.dfh", 4.5, 6.0),
+    "manor":   "city-house-l.dfh",
+    "temple":  "city-temple.dfh",
+    "longhall":"city-longhall.dfh",
+    "shop":    "city-shop.dfh",
+    "tavern":  "city-house-l.dfh",
+    "smithy":  "city-shop-old.dfh",
+    "old":     "city-house-s-old.dfh",
+    "farm":    "city-house-s.dfh",
+    "barn":    "city-barn.dfh",
+    "mill":    "city-mill.dfh",
+    "stable":  "city-barn-old.dfh",
+    "inn":     "city-house-l.dfh",
+    "":        "city-house-s.dfh",
 }
+
+_REC = {}
+
+def recipe_box(rec):
+    """ГАБАРИТ И ДВЕРЬ РЕЦЕПТА СНИМАЮТСЯ С САМОГО .dfh, а не пишутся в
+    таблицу: (центр габарита в локали, w, d, ось двери, вынос двери от
+    центра). Таблица чисел «на глаз» уже дала city-house-s 7х7 при факте
+    4.5х6.0 и Йоррваскр на 4 м короче своего тела; кузница мебели к тому же
+    перепекает рецепты каждую волну, и любая переписанная цифра — будущая
+    ложь. ОСЬ ДВЕРИ ВАЖНА ОТДЕЛЬНО: put_house считал, что дверь всегда на
+    стороне z=d, а у city-longhall она на x=w и у city-mill на x=0 — обе
+    постройки стояли к своей улице глухой стеной, повёрнутые на 90 гр. от
+    красной стрелки чертежа (Йоррваскр — одна из четырёх названных доминант
+    гайда §11). Дверь узнаётся по атрибуту door=1; у ворот амбара его нет —
+    им остаётся сторона z=d."""
+    if rec in _REC:
+        return _REC[rec]
+    V, door = {}, None
+    for line in open(os.path.join(ROOT, "assets/houses", rec), encoding="utf-8"):
+        t = line.split()
+        if not t:
+            continue
+        if t[0] == "vertex":
+            V[t[1]] = (float(t[3]), float(t[5]))
+        elif "door=1" in line:
+            pts = [V[v] for v in t[2:] if v in V]
+            if pts:
+                door = (sum(p[0] for p in pts)/len(pts),
+                        sum(p[1] for p in pts)/len(pts))
+    xs = [p[0] for p in V.values()]
+    zs = [p[1] for p in V.values()]
+    cx, cz = (min(xs)+max(xs))/2, (min(zs)+max(zs))/2
+    w, d = max(xs)-min(xs), max(zs)-min(zs)
+    if door is None:
+        axis, off = "+Z", d/2
+    else:
+        dxl, dzl = door[0]-cx, door[1]-cz
+        if abs(dzl) >= abs(dxl):
+            axis, off = ("+Z", dzl) if dzl > 0 else ("-Z", -dzl)
+        else:
+            axis, off = ("+X", dxl) if dxl > 0 else ("-X", -dxl)
+    _REC[rec] = (cx, cz, w, d, axis, off)
+    return _REC[rec]
+
+def yaw_for_door(axis, dx, dz):
+    """yaw сцены, при котором наружная нормаль двери рецепта смотрит в (dx,dz).
+    Конвенция: +X_лок = (cos, -sin), +Z_лок = (sin, cos)."""
+    if axis == "+Z":
+        return math.degrees(math.atan2(dx, dz)) % 360.0
+    if axis == "-Z":
+        return math.degrees(math.atan2(-dx, -dz)) % 360.0
+    if axis == "+X":
+        return math.degrees(math.atan2(-dz, dx)) % 360.0
+    return math.degrees(math.atan2(dz, -dx)) % 360.0
 
 # --- ВНУТРЕННЕЕ УБРАНСТВО (возврат системы 21.08 21:45, вырезанной при
 # переписывании 22.08) -------------------------------------------------------
@@ -401,23 +480,23 @@ def house_frame(hs):
     """Геометрия посадки БЕЗ земли: (рецепт, центр тела, w, d, yaw, дверь).
     Отделена от put_house, потому что площадку под крупное здание надо
     спланировать в поле высот ДО того, как здание на неё сядет."""
-    rec, w, d = KIND.get(hs["kind"], KIND[""])
+    rec = KIND.get(hs["kind"], KIND[""])
     if rec is None:
         return None
+    lcx, lcz, w, d, axis, off = recipe_box(rec)
     dx, dz = door_dir(hs["deg"], hs["door"])
-    # у рецептов дверь на локальной стороне z=d: её наружная нормаль в мире
-    # равна Z_loc=(sin yaw, cos yaw) -> yaw из направления двери схемы.
-    yaw = math.degrees(math.atan2(dx, dz)) % 360.0
-    c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
-    # ПОСАДКА ДВЕРНОЙ ГРАНЬЮ: дверная грань реального дома встаёт туда, где
-    # дверная грань схемного пятна (красная линия чертежа). Рост реальной
-    # глубины уходит НАЗАД во двор — посадка центром выдвигала фасады на
-    # дороги (первый прогон v5: 15 пересечений с полосами).
+    yaw = yaw_for_door(axis, dx, dz)
+    # ПОСАДКА ДВЕРНОЙ ГРАНЬЮ: дверь реального дома встаёт туда, где дверная
+    # грань схемного пятна (красная линия чертежа). Рост реального тела уходит
+    # НАЗАД во двор — посадка центром выдвигала фасады на дороги (первый
+    # прогон v5: 15 пересечений с полосами). Вынос двери от центра габарита
+    # берётся у рецепта: у лавки её закрывает навес (2.0 вместо 4.0), у замка
+    # зал сидит в глубине пятна (1.0 вместо 7.0).
     door_face = {"S": hs["d"]/2, "N": hs["d"]/2, "E": hs["w"]/2, "W": hs["w"]/2}[hs["door"]]
     fx = hs["x"] + dx * door_face
     fz = hs["z"] + dz * door_face
-    ccx = fx - dx * (d/2)
-    ccz = fz - dz * (d/2)
+    ccx = fx - dx * off
+    ccz = fz - dz * off
     return (rec, ccx, ccz, w, d, yaw, (fx, fz))
 
 def nearest_on_roads(px, pz):
@@ -457,7 +536,12 @@ def half_proj(w, d, yaw_deg, ux, uz):
 # старше города — всё наросло вокруг него»). Их тела в разведении неподвижны.
 FIXED_KINDS = ("keep", "longhall", "temple", "mill")
 GAP_M = 0.35    # норматив щели фасадного ряда (гайд §10: 0.35-0.7)
-MOVE_CAP = 6.0  # дальше схемного пятна тело не уходит — это чужой чертёж
+# Потолок смещения от схемного пятна. Был 6 м, поднят до 10: у конюшен
+# схемное пятно 8х5, а рецепт city-barn-old — 13.0х12.35, и на шести метрах
+# тело не успевало сойти с южного переулка. Бот упирался в его южную стену в
+# (115.3, 195.3) и там же прыгал на месте (char-трасса: нормаль (0.05,0,1.00),
+# ground мигает 0/1) — 68 м от спавна и ни разу не дошёл до Гилдергрина.
+MOVE_CAP = 10.0
 
 def resolve_frames():
     """ТЕЛА ГОРОДА, РАЗВЕДЁННЫЕ МЕЖДУ СОБОЙ. Отодвиг от дорог считался
@@ -514,7 +598,7 @@ def resolve_frames():
                     f["x"], f["z"] = f["x0"]+dx/Lm*MOVE_CAP, f["z0"]+dz/Lm*MOVE_CAP
                 if road_pass and f["hs"]["kind"] not in FIXED_KINDS:
                     f["x"], f["z"] = push_off_roads(f["x"], f["z"], f["w"],
-                                                    f["d"], f["yaw"], budget=3.0)
+                                                    f["d"], f["yaw"], budget=6.0)
         if worst < 0.02 and not road_pass:
             break
     return fr
@@ -524,8 +608,12 @@ def put_house(f):
     ccx, ccz, w, d, yaw = f["x"], f["z"], f["w"], f["d"], f["yaw"]
     fx, fz = f["door"]
     c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
-    ox = ccx - (w/2)*c - (d/2)*s
-    oz = ccz + (w/2)*s - (d/2)*c
+    # origin рецепта лежит в УГЛУ, а центр габарита — не в (w/2, d/2): у замка
+    # тело идёт от -5.8 до 20.8, у мельницы от -3.8 (вылет колеса). Считаем от
+    # ЗАМЕРЕННОГО центра, иначе тело уезжает на разницу.
+    lcx, lcz = recipe_box(rec)[0], recipe_box(rec)[1]
+    ox = ccx - lcx*c - lcz*s
+    oz = ccz + lcx*s - lcz*c
     y = sit_rect(ccx, ccz, w, d, yaw, 25.0)
     name = hs["name"] or hs["kind"] or "дом"
     house(rec, ox, y, oz, yaw, name)
@@ -639,20 +727,38 @@ def yards():
         if rec in ("city-keep-s.dfh", "city-donjon.dfh", "city-temple.dfh",
                    "city-longhall.dfh"):
             continue  # у доминант двор не бытовой
-        # набор двора; локальное z отрицательное = за глухой стеной
-        kit = [("furn-woodpile.dfh", 0.45, -1.30, 0, 0.9),
-               ("furn-barrel.dfh", w - 1.05, -1.25, 0, 0.6)]
-        if w >= 8.0:
-            kit.append(("furn-barrel.dfh", w - 1.90, -1.30, 0, 0.6))
-            kit.append(("furn-woodpile.dfh", 2.20, -1.30, 0, 0.9))
+        # ЗАДНЯЯ ГРАНЬ — ПРОТИВОПОЛОЖНАЯ ДВЕРНОЙ, а дверь у рецептов не всегда
+        # на z=d: у мельницы она на x=0, и двор, посчитанный «за z<0», уходил
+        # ей в бок. Строим двор в системе (вдоль фронта, вглубь от задней грани).
+        lcx, lcz, _, _, axis, _ = recipe_box(rec)
+        back = {"+Z": (0.0, -1.0), "-Z": (0.0, 1.0),
+                "+X": (-1.0, 0.0), "-X": (1.0, 0.0)}[axis]
+        along = (-back[1], back[0])
+        span_m = d if axis in ("+X", "-X") else w
+        # точка на задней грани, от центра габарита
+        bx = lcx + back[0]*(w/2 if axis in ("+X", "-X") else 0.0)
+        bz = lcz + back[1]*(d/2 if axis in ("+Z", "-Z") else 0.0)
+        def yard_loc(t, deep):
+            """t — вдоль задней грани от её начала, deep — вглубь двора."""
+            return (bx + along[0]*(t - span_m/2) + back[0]*deep,
+                    bz + along[1]*(t - span_m/2) + back[1]*deep)
+        # поворот, при котором +X детали ложится ВДОЛЬ задней грани (звенья
+        # плетня и поленница длинные по x)
+        yaw_along = math.degrees(math.atan2(-along[1], along[0])) % 360.0
+        kit = [("furn-woodpile.dfh", 0.8, 1.3, 0.9),
+               ("furn-barrel.dfh", span_m - 1.0, 1.25, 0.6)]
+        if span_m >= 8.0:
+            kit.append(("furn-barrel.dfh", span_m - 1.9, 1.30, 0.6))
+            kit.append(("furn-woodpile.dfh", 2.6, 1.30, 0.9))
         # межевой плетень поперёк двора, звенья по 2 м с калиткой посередине
-        fence_z = -3.6 - (i % 3) * 0.35
-        span = max(2, int(round(w / 2.0)))
+        deep_fence = 3.6 + (i % 3) * 0.35
+        span = max(2, int(round(span_m / 2.0)))
         for k in range(span):
-            lx = (w / span) * k
             kind = "furn-fence-gate.dfh" if k == span // 2 else "furn-fence2.dfh"
-            kit.append((kind, lx, fence_z, 0, 0.5))
-        for ff, lx, lz, lyaw, rad in kit:
+            kit.append((kind, (span_m / span) * k, deep_fence, 0.5))
+        for ff, t, deep, rad in kit:
+            lx, lz = yard_loc(t, deep)
+            lyaw = yaw_along
             mx, mz = loc_to_world(ox, oz, yaw, lx, lz)
             if not spot_free(mx, mz, rad, skip=name):
                 continue
@@ -661,6 +767,235 @@ def yards():
                   (yaw + lyaw) % 360.0, "двор: " + name)
             n_items += 1
     return n_items
+
+# --- МОЩЕНИЕ (плиты wr-forge, семейство city-cobble) -------------------------
+# «Композиция земли» ведёт игрока увереннее всего (гайд §10: мощение 55%
+# против 40% у цвета), поэтому камнем идёт процессионная ось: южные ворота ->
+# рынок -> замок, рынок -> восточные ворота, выход с моста. Плиты ЖЁСТКИЕ —
+# рельеф они не повторяют, поэтому длина куска выбирается по РОВНОСТИ пятна:
+# на плато ложится 24 м, на переломе 6. Кромка у city-cobble — наклонный
+# поясок 0.30 м под 15 гр. (замер wr-forge: скачок 3 см против 22 см отвеса у
+# прежних city-plaza), так что улицу можно переходить поперёк где угодно.
+COBBLE = [(24.0, "city-cobble24x6.dfh"), (12.0, "city-cobble12x6.dfh"),
+          (8.0, "city-cobble8x6.dfh"), (6.0, "city-cobble6x6.dfh")]
+PAVE_W = 6.0        # ширина плиты поперёк улицы
+PAVE_FLAT = 0.22    # допуск неровности пятна под жёсткой плитой, м
+PAVE_TOP = 0.087    # верх мостовой city-cobble над её origin
+
+def slab_ground(cx, cz, w, d, yaw):
+    gs = [g for g in (ground(px, pz)
+                      for px, pz in rect_points(cx, cz, w, d, yaw, n=5))
+          if g is not None]
+    return (min(gs), max(gs)) if gs else (None, None)
+
+# Тело дома в PLACED меряется по ГАБАРИТУ, а габарит включает свес кровли
+# (0.4-0.6 м). Плита толщиной 8 см, заехавшая под свес, ничему не мешает —
+# наоборот, так мостовая и подходит к порогу. Запрещаем только настоящий
+# заход в пятно стен.
+PAVE_TOL = 1.2
+
+def slab_blocked(cx, cz, w, d, yaw):
+    """Плита не ложится в стены дома, в воду и на уже мощёный рынок."""
+    for px, pz in rect_points(cx, cz, w, d, yaw, n=5):
+        if river_dist(px, pz) < PLAN["river_half_w"] + 1.5:
+            return True
+    # КАСАНИЕ РЫНКА — НЕ ЗАПРЕТ, А СТЫК. Прежде плита отбрасывалась целиком,
+    # если хоть одна из 25 точек пятна задела прямоугольник площади, и подход
+    # к рынку с востока выметался начисто: 53 м тракта без единой плиты (замер
+    # wr-forge). Запрещён только центр на площади; наложение краем ловит общий
+    # разбор PAVED — плита сдвигается вперёд и встаёт ВСТЫК, наложения нет по
+    # построению. Просто снять вето было нельзя: две плиты в одной плоскости
+    # мерцают, и это в самом людном месте города.
+    if (MRX <= cx <= MRX + MRW) and (MRZ <= cz <= MRZ + MRD):
+        return True
+    for (bx, bz, bw, bd, byaw, n) in PLACED:
+        D = math.hypot(bx-cx, bz-cz) or 1e-6
+        ux, uz = (bx-cx)/D, (bz-cz)/D
+        if (D - half_proj(w, d, yaw, ux, uz)
+                - half_proj(bw, bd, byaw, ux, uz)) < -PAVE_TOL:
+            return True
+    return False
+
+PAVED = []          # (cx, cz, w, d, yaw) уже уложенных плит
+PAVE_OVERLAP = 1.0  # м2: больше — считается наложением плиты на плиту
+PAVE_MAX_DROP = 0.35  # круче — мостовую не кладём вовсе, это дело лестниц
+PAVE_STEP = 0.20      # предельная ступень между СОСЕДНИМИ плитами одной улицы
+
+def rect_poly(cx, cz, w, d, yaw_deg):
+    c = math.cos(math.radians(yaw_deg))
+    sn = math.sin(math.radians(yaw_deg))
+    return [(cx + lx*c + lz*sn, cz - lx*sn + lz*c)
+            for lx, lz in ((-w/2, -d/2), (w/2, -d/2), (w/2, d/2), (-w/2, d/2))]
+
+def poly_clip_area(subject, clip):
+    """Площадь пересечения двух ВЫПУКЛЫХ многоугольников (Сазерленд-Ходжман).
+    Нужна честная площадь, а не «касаются ли»: на изломе улицы соседние плиты
+    задевают друг друга углом на десятки сантиметров — это нормальный шов, а
+    вот 16 м2 в одной плоскости мерцают, и 15 м2 со ступенькой 0.40 м дают
+    ровно ту кромку, ради которой у city-cobble делалась фаска (замер
+    wr-forge: девять пар наложений в первой раскладке)."""
+    out = subject
+    n = len(clip)
+    for i in range(n):
+        ax, az = clip[i]
+        bx, bz = clip[(i + 1) % n]
+        ex, ez = bx-ax, bz-az
+        def inside(p):
+            return ex*(p[1]-az) - ez*(p[0]-ax) >= 0.0
+        src, out = out, []
+        if not src:
+            return 0.0
+        prev = src[-1]
+        for cur in src:
+            if inside(cur):
+                if not inside(prev):
+                    out.append(seg_cross(prev, cur, (ax, az), (ex, ez)))
+                out.append(cur)
+            elif inside(prev):
+                out.append(seg_cross(prev, cur, (ax, az), (ex, ez)))
+            prev = cur
+    if len(out) < 3:
+        return 0.0
+    a = 0.0
+    for i in range(len(out)):
+        x0, z0 = out[i]
+        x1, z1 = out[(i + 1) % len(out)]
+        a += x0*z1 - x1*z0
+    return abs(a) / 2.0
+
+def seg_cross(p, q, a, e):
+    dx, dz = q[0]-p[0], q[1]-p[1]
+    den = e[0]*dz - e[1]*dx
+    if abs(den) < 1e-12:
+        return q
+    t = (e[0]*(p[1]-a[1]) - e[1]*(p[0]-a[0])) / -den
+    return (p[0] + dx*t, p[1] + dz*t)
+
+def road_profile(pts, step=1.0, smooth=3):
+    """ОДИН профиль высоты на весь прогон улицы. Каждая плита, опрашивающая
+    землю за себя, садится на своё среднее, и две идеально состыкованные
+    соседки расходятся по высоте на уклон, умноженный на длину плиты —
+    замер wr-forge на первой раскладке: стык 6x6 и 12x6 с зазором 7 см и
+    ступенью 0.87 м. Профиль снимается вдоль осевой и сглаживается, чтобы
+    отдельная кочка под пятном не поднимала всю плиту."""
+    prof = []
+    acc = 0.0
+    for (ax, az), (bx, bz) in zip(pts, pts[1:]):
+        L = math.hypot(bx-ax, bz-az)
+        k = max(1, int(L/step))
+        for i in range(k):
+            f = i/k
+            px, pz = ax + (bx-ax)*f, az + (bz-az)*f
+            g = ground(px, pz)
+            prof.append((acc + L*f, 25.0 if g is None else g))
+        acc += L
+    if pts:
+        g = ground(*pts[-1])
+        prof.append((acc, 25.0 if g is None else g))
+    hs = [h for _, h in prof]
+    sm = [sum(hs[max(0, i-smooth):i+smooth+1]) / len(hs[max(0, i-smooth):i+smooth+1])
+          for i in range(len(hs))]
+    return [(prof[i][0], sm[i]) for i in range(len(prof))]
+
+def profile_at(prof, s):
+    if s <= prof[0][0]:
+        return prof[0][1]
+    for (s0, h0), (s1, h1) in zip(prof, prof[1:]):
+        if s <= s1:
+            return h0 + (h1-h0) * ((s-s0) / (s1-s0 or 1.0))
+    return prof[-1][1]
+
+def pave(pts, note):
+    if os.environ.get("DFN_GEN_NO_COBBLE") == "1":
+        return 0
+    n = 0
+    prof = road_profile(pts)
+    run_s = 0.0        # параметр вдоль всей ломаной
+    prev = None        # (конец предыдущей плиты по s, её отметка)
+    for (ax, az), (bx, bz) in zip(pts, pts[1:]):
+        L = math.hypot(bx-ax, bz-az)
+        ux, uz = (bx-ax)/L, (bz-az)/L
+        yaw = math.degrees(math.atan2(-uz, ux)) % 360.0
+        t = 0.0
+        while L - t > 3.0:
+            pick = None
+            for sl, rec in COBBLE:
+                if sl > L - t + 0.5:
+                    continue
+                cx, cz = ax + ux*(t + sl/2), az + uz*(t + sl/2)
+                lo, hi = slab_ground(cx, cz, sl, PAVE_W, yaw)
+                if lo is None:
+                    continue
+                if hi - lo <= PAVE_FLAT:
+                    pick = (sl, rec, cx, cz, (lo + hi)/2)
+                    break
+                if sl == COBBLE[-1][0] and hi - lo <= PAVE_MAX_DROP:
+                    # короткий кусок терпит перелом до PAVE_MAX_DROP; круче —
+                    # мостовой тут не место, склон остаётся тропой
+                    pick = (sl, rec, cx, cz, (lo + hi)/2)
+            if pick is None:
+                t += 1.0
+                continue
+            sl, rec, cx, cz, _ = pick
+            # ОТМЕТКА — С ОБЩЕГО ПРОФИЛЯ УЛИЦЫ, не со своего пятна. Половина
+            # допуска уходит в грунт, половина торчит; по максимуму пятна
+            # дальний край 24-метрового куска повисал над землёй на треть
+            # метра и было видно его исподнее.
+            s_mid = run_s + t + sl/2
+            lvl = profile_at(prof, s_mid) + 0.03
+            poly = rect_poly(cx, cz, sl, PAVE_W, yaw)
+            clash = any(poly_clip_area(list(poly), rect_poly(*p[:5])) > PAVE_OVERLAP
+                        for p in PAVED)
+            # СТЫК НЕ БЫВАЕТ СТУПЕНЬКОЙ. Плита не гнётся: там, где улица круче
+            # PAVE_STEP/sl, соседки неизбежно разойдутся по высоте, и мостовая
+            # даст посреди улицы ровно ту кромку, ради которой у city-cobble
+            # делалась фаска. Такой участок остаётся тропой — это дело лестниц.
+            step_bad = (prev is not None and run_s + t - prev[0] < 0.6
+                        and abs(lvl - prev[1]) > PAVE_STEP)
+            if clash or step_bad or slab_blocked(cx, cz, sl, PAVE_W, yaw):
+                t += 1.0   # шаг вперёд, а не пропуск куска: на изломе угол
+                continue   # достаётся отрезку, пришедшему первым
+            c = math.cos(math.radians(yaw))
+            s = math.sin(math.radians(yaw))
+            ox = cx - (sl/2)*c - (PAVE_W/2)*s
+            oz = cz + (sl/2)*s - (PAVE_W/2)*c
+            house(rec, ox, lvl, oz, yaw, "мостовая: " + note)
+            PAVED.append((cx, cz, sl, PAVE_W, yaw, lvl))
+            prev = (run_s + t + sl, lvl)
+            n += 1
+            t += sl
+        run_s += L
+    return n
+
+def check_paving():
+    """Раскладка обязана сама говорить, что положила плиту на плиту: пара
+    в одной плоскости мерцает, пара со ступенькой даёт кромку посреди улицы."""
+    import itertools
+    bad = []
+    joints = 0
+    for a, b in itertools.combinations(PAVED, 2):
+        ar = poly_clip_area(rect_poly(*a[:5]), rect_poly(*b[:5]))
+        dy = abs(a[5] - b[5])
+        if ar > PAVE_OVERLAP:
+            bad.append(f"плита на плите: {ar:.1f} м2, ступень {dy:.2f} м "
+                       f"в ({a[0]:.0f},{a[1]:.0f})")
+            continue
+        # СТЫК: кромки ближе 0.6 м. Дальше — землю между плитами мостит
+        # рельеф, и разность отметок там ничего не значит (пара с ступенью
+        # 3.5 м — это терраса, а не дефект).
+        D = math.hypot(a[0]-b[0], a[1]-b[1]) or 1e-6
+        ux, uz = (b[0]-a[0])/D, (b[1]-a[1])/D
+        gap = D - half_proj(a[2], a[3], a[4], ux, uz) - half_proj(b[2], b[3], b[4], ux, uz)
+        if gap < 0.6:
+            joints += 1
+            if dy > PAVE_STEP + 0.02:
+                bad.append(f"стык с обрывом: зазор {gap:.2f} м, ступень {dy:.2f} м "
+                           f"в ({a[0]:.0f},{a[1]:.0f})")
+    print(f"мощение: {len(PAVED)} плит, {joints} стыков (кромки ближе 0.6 м)")
+    if bad:
+        print("ПРОВЕРКА МОЩЕНИЯ:")
+        for b in sorted(set(bad)):
+            print("  -", b)
 
 def check_layout():
     import itertools
@@ -918,6 +1253,21 @@ def main():
     # шельфа проходила там же, где буфер площади.
     MKX, MKZ, MKW, MKD = PLAN["market"]["rect"]
     market_level = grade_rect(PLAN_H, MKX, MKZ, MKW, MKD, 10.0)
+    # ПОЛОТНО КАМЕННЫХ ТРАКТОВ. Мостовая — жёсткая плита, и поперечный уклон
+    # вместе с кочками под пятном не даёт положить её нигде, кроме случайно
+    # ровных мест (первая раскладка: 35% покрытия, разрыв 33 м). Полоса улицы
+    # планируется по СГЛАЖЕННОМУ продольному профилю: поперечный уклон уходит
+    # в ноль, продольный остаётся честным уклоном горы.
+    for rd in PLAN["roads"]:
+        if rd["mat"] != "stone":
+            continue
+        acc, nodes = 0.0, []
+        raw = [hh_at(PLAN_H, x, z) for x, z in rd["pts"]]
+        sm = [sum(raw[max(0, i-1):i+2]) / len(raw[max(0, i-1):i+2])
+              for i in range(len(raw))]
+        for (x, z), h in zip(rd["pts"], sm):
+            nodes.append((x, z, h))
+        grade_corridor(PLAN_H, nodes, max(3.2, rd["w"]/2 + 0.4), 5.0)
     # ПЛОЩАДКИ ПОД КРУПНЫЕ ЗДАНИЯ. Посадка по минимуму пятна честна только
     # там, где пятно помещается на ровное: у замка 26.6х14, Йоррваскра 16х8,
     # храма 12х10 и амбаров 12х9 пятно перелезает кромку террасы, и минимум
@@ -959,10 +1309,15 @@ def main():
     # самая кромка, на которой заклинивало капсулу. city-cobble14x11 ровно
     # по пятну площади, габарит ровно 14х11, по периметру наклонный поясок
     # 0.30 м под 15 градусов: площадь переходится поперёк в любой точке.
-    house("city-cobble14x11.dfh", mx, my, mz, 0, "мостовая рынка")
-    PAVE_TOP = 0.087   # верх мостовой city-cobble над её origin
+    no_cobble = os.environ.get("DFN_GEN_NO_COBBLE") == "1"
+    if not no_cobble:
+        house("city-cobble14x11.dfh", mx, my, mz, 0, "мостовая рынка")
+        # площадь идёт в список уложенного: уличная плита обязана встать
+        # ВСТЫК к ней, а не лечь поверх — соплоскостная пара мерцает
+        PAVED.append((mx + mw/2, mz + md/2, mw, md, 0.0, my + PAVE_TOP))
     wx, wz = PLAN["market"]["well"]
-    house("city-well.dfh", wx, my + PAVE_TOP, wz, 0, "колодец рынка")
+    house("city-well.dfh", wx, my + (0.0 if no_cobble else PAVE_TOP), wz, 0,
+          "колодец рынка")
     # ПРИЛАВКИ С ТОВАРОМ. Лотки садились на отметку плиты рынка, а стоят они
     # НА ЗЕМЛЕ рядом с ней — ножки висели над травой ([10] критика). Каждый
     # садится по своему пятну, поворот свой (гайд §11: «ни одно здание не
@@ -970,7 +1325,8 @@ def main():
     for i, (sx, sz) in enumerate(PLAN["market"]["stalls"]):
         syaw = (180 + (i - 1) * 7) % 360.0
         on_plate = (mx <= sx <= mx + mw) and (mz <= sz <= mz + md)
-        sy = (my + PAVE_TOP) if on_plate else sit(sx, sz, my, half=1.4)
+        sy = (my + (0.0 if no_cobble else PAVE_TOP)) if on_plate \
+            else sit(sx, sz, my, half=1.4)
         sox, soz = sx - 1.2, sz - 0.5
         house("city-stall.dfh", sox, sy, soz, syaw, f"прилавок {i+1}")
         # товар: бочка на столешнице (верх 0.85) и две у ноги, в тень навеса
@@ -1045,7 +1401,12 @@ def main():
     # Гилдергрин и дуб-поляна
     gg = PLAN["gildergreen"]
     ggy = sit(gg[0], gg[1], 30.0, half=3)
-    place("great-forge-oak", gg[0], ggy, gg[1], 0, "Гилдергрин (розовая листва — зона флоры)")
+    # ГИЛДЕРГРИН — СВОЙ РЕЦЕПТ, НЕ ВЕЛИКАН. Здесь стоял great-forge-oak (H 53.4
+    # м): дерево перебивало конёк замка на два с лишним метра, а по гайду §11
+    # высотой обязан доминировать Драконий Предел. gildergreen-forge — H 16.7,
+    # крона 31.3: верхушка 49.3 против 50.5 у замка и 51.5 у донжона. Дуб
+    # поляны на юго-западе остаётся великаном, он вне стен и держит горизонт.
+    place("gildergreen-forge", gg[0], ggy, gg[1], 0, "Гилдергрин (розовая листва — зона флоры)")
     house("city-treering.dfh", gg[0] - 2.6, ggy, gg[1] - 2.6, 0, "кольцо Гилдергрина")
     og = PLAN["oak_glade"]
     oy = sit(og["oak"][0], og["oak"][1], 26.0, half=3)
@@ -1067,6 +1428,13 @@ def main():
 
     # дворы — вторым проходом, когда все тела уже известны
     n_yard = yards()
+    # МОЩЕНИЕ ПРОЦЕССИОННОЙ ОСИ. Кладётся после домов и дворов: плита не
+    # ложится на чужое тело, а проверка знает только то, что уже стоит.
+    n_pave = 0
+    for rd in PLAN["roads"]:
+        if rd["mat"] != "stone":
+            continue
+        n_pave += pave(rd["pts"], "тракт")
 
     # --- terrain: река; высоты плана пишутся в relief дельтами от natural ---
     # ЗАМЕР НАТУРАЛЬНОЙ ЗЕМЛИ ИДЁТ БЕЗ РЕКИ (WHITERUN_BARE=1): иначе в nat уже
@@ -1097,7 +1465,12 @@ def main():
            "world_span_m = 256",
            "relief = whiterun.relief",
            "spawn = 113 0 248",
-           "spawn_yaw = 0", ""]
+           "spawn_yaw = 0", "",
+           # ВОЗДУШНАЯ ПЕРСПЕКТИВА ПОД МАСШТАБ КАРТЫ (претензия [21]; секция
+           # лида 22.08). Город умещается в 256 м, и туман на старых
+           # константах начинался за его пределами — дальний план стоял без
+           # воздуха, а полоса 160..300 м оставалась без теней.
+           "[air]", "fog_start = 110", "fog_end = 380", ""]
     out.append("\n".join(terrain))
     for obj, x, y, z, yaw, note in P:
         out += ["[place]", f"object = {obj}",
@@ -1148,8 +1521,9 @@ def main():
         "мост у Восточных ворот, рынок, Гилдергрин, замок; дуб-поляна на юго-западе.\n"
         "built_commit =\n")
     check_layout()
+    check_paving()
     print(f"whiterun v5: {len(H)} построек, {len(P)} расстановок, "
-          f"{len(LIGHTS)} огней, {n_yard} дворовых предметов, "
+          f"{len(LIGHTS)} огней, {n_yard} дворовых предметов, {n_pave} плит мощения, "
           f"{len(terrain)} terrain-блоков, {len(relief_paths)} троп")
 
 if __name__ == "__main__":
