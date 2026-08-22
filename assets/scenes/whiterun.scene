@@ -2033,8 +2033,8 @@ note = ворота east
 
 [house]
 file = assets/houses/city-bridge.dfh
-pos = 156.131 25.650 128.157
-yaw = -0.244346
+pos = 155.348 25.650 129.714
+yaw = 0.432408
 note = мост через реку
 
 [house]
