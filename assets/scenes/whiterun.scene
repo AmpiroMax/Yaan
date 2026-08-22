@@ -300,13 +300,13 @@ scale = 1
 
 [place]
 object = juniper-forge-a
-pos = 107.000 26.950 162.000
+pos = 107.000 27.140 162.000
 yaw = 4.398230
 scale = 1
 
 [place]
 object = juniper-forge-a
-pos = 131.000 26.990 155.000
+pos = 131.000 27.370 155.000
 yaw = 5.218534
 scale = 1
 
@@ -1116,175 +1116,175 @@ note = убранство: дом
 
 [house]
 file = assets/houses/city-shop.dfh
-pos = 100.915 28.357 148.516
+pos = 100.915 27.702 148.516
 yaw = 1.570796
 note = лавка
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 101.315 28.477 148.066
+pos = 101.315 27.822 148.066
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 105.515 28.477 145.616
+pos = 105.515 27.822 145.616
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 102.115 28.477 142.916
+pos = 102.115 27.822 142.916
 yaw = 0.000000
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 103.715 28.477 142.916
+pos = 103.715 27.822 142.916
 yaw = 0.000000
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 103.515 28.477 148.116
+pos = 103.515 27.822 148.116
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 105.815 28.477 143.916
+pos = 105.815 27.822 143.916
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 105.865 28.477 144.766
+pos = 105.865 27.822 144.766
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-walk2.dfh
-pos = 109.606 28.456 147.303
+pos = 109.606 27.760 147.303
 yaw = 5.819538
 note = дорожка: лавка
 
 [house]
 file = assets/houses/city-shop.dfh
-pos = 106.000 27.117 156.732
+pos = 106.000 27.658 156.732
 yaw = 1.570796
 note = лавка
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 106.400 27.237 156.282
+pos = 106.400 27.778 156.282
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 110.600 27.237 153.832
+pos = 110.600 27.778 153.832
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 107.200 27.237 151.132
+pos = 107.200 27.778 151.132
 yaw = 0.000000
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 108.800 27.237 151.132
+pos = 108.800 27.778 151.132
 yaw = 0.000000
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 108.600 27.237 156.332
+pos = 108.600 27.778 156.332
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.900 27.237 152.132
+pos = 110.900 27.778 152.132
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.950 27.237 152.982
+pos = 110.950 27.778 152.982
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-walk2.dfh
-pos = 109.606 27.406 156.697
+pos = 109.606 27.760 156.697
 yaw = 0.463648
 note = дорожка: лавка
 
 [house]
 file = assets/houses/city-house-l.dfh
-pos = 132.130 26.990 148.471
+pos = 132.130 27.370 148.471
 yaw = 4.712389
 note = таверна
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 131.730 27.635 152.771
+pos = 131.730 28.015 152.771
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 129.130 27.635 152.071
+pos = 129.130 28.015 152.071
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 129.630 27.635 152.171
+pos = 129.630 28.015 152.171
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 127.930 27.635 152.171
+pos = 127.930 28.015 152.171
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 126.580 27.635 148.921
+pos = 126.580 28.015 148.921
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 126.580 27.635 157.021
+pos = 126.580 28.015 157.021
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 128.730 27.635 157.971
+pos = 128.730 28.015 157.971
 yaw = 3.141593
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-column.dfh
-pos = 128.230 27.635 150.571
+pos = 128.230 28.015 150.571
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-column.dfh
-pos = 128.230 27.635 156.371
+pos = 128.230 28.015 156.371
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 131.530 27.635 148.921
+pos = 131.530 28.015 148.921
 yaw = 4.712389
 note = убранство: таверна
 
@@ -1338,7 +1338,7 @@ note = убранство: кузница
 
 [house]
 file = assets/houses/furn-walk2.dfh
-pos = 123.394 27.010 165.197
+pos = 123.394 27.111 165.197
 yaw = 2.677945
 note = дорожка: кузница
 
@@ -1410,49 +1410,49 @@ note = дорожка: дом
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 134.707 27.516 145.883
+pos = 134.707 27.520 145.883
 yaw = 0.519146
 note = дом
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 136.226 27.636 145.418
+pos = 136.226 27.640 145.418
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 136.424 27.636 147.781
+pos = 136.424 27.640 147.781
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 136.263 27.636 147.297
+pos = 136.263 27.640 147.297
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 137.032 27.636 148.643
+pos = 137.032 27.640 148.643
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 139.302 27.636 147.576
+pos = 139.302 27.640 147.576
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 136.059 27.636 147.644
+pos = 136.059 27.640 147.644
 yaw = 2.089942
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 138.775 27.636 145.747
+pos = 138.775 27.640 145.747
 yaw = 0.519146
 note = убранство: дом
 
@@ -1530,67 +1530,67 @@ note = дорожка: дом
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 130.493 26.959 159.518
+pos = 130.493 27.120 159.518
 yaw = 4.803049
 note = дом
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 130.285 27.079 161.093
+pos = 130.285 27.240 161.093
 yaw = 4.803049
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 128.053 27.079 160.292
+pos = 128.053 27.240 160.292
 yaw = 4.803049
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 128.560 27.079 160.346
+pos = 128.560 27.240 160.346
 yaw = 4.803049
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 127.017 27.079 160.486
+pos = 127.017 27.240 160.486
 yaw = 4.803049
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 127.044 27.079 162.994
+pos = 127.044 27.240 162.994
 yaw = 4.803049
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 128.329 27.079 160.016
+pos = 128.329 27.240 160.016
 yaw = 0.090660
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 128.927 27.079 163.275
+pos = 128.927 27.240 163.275
 yaw = 4.803049
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-walk2.dfh
-pos = 124.543 27.028 162.773
+pos = 124.543 27.360 162.773
 yaw = 3.094897
 note = дорожка: дом
 
 [house]
 file = assets/houses/furn-walk2.dfh
-pos = 122.605 27.012 162.682
+pos = 122.605 27.318 162.682
 yaw = 3.094897
 note = дорожка: дом
 
 [house]
 file = assets/houses/furn-walk2.dfh
-pos = 120.668 27.010 162.592
+pos = 120.668 27.325 162.592
 yaw = 3.094897
 note = дорожка: дом
 
@@ -2051,122 +2051,122 @@ yaw = 5.024287
 note = дорожка: постоялый двор
 
 [house]
-file = assets/houses/city-plaza12.dfh
-pos = 110.000 26.980 146.000
+file = assets/houses/city-cobble14x11.dfh
+pos = 109.000 27.810 146.000
 yaw = 0.000000
-note = рыночная площадь
+note = мостовая рынка
 
 [house]
 file = assets/houses/city-well.dfh
-pos = 116.000 27.000 151.500
+pos = 116.000 27.897 151.500
 yaw = 0.000000
 note = колодец рынка
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 110.800 27.918 148.700
+pos = 110.800 27.897 148.700
 yaw = 3.019420
 note = прилавок 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.514 28.768 148.564
+pos = 110.514 28.747 148.564
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 109.524 28.768 148.422
+pos = 109.524 28.747 148.422
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.816 27.918 147.342
+pos = 110.816 27.897 147.342
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 109.438 27.918 147.072
+pos = 109.438 27.897 147.072
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 110.833 27.918 146.790
+pos = 110.833 27.897 146.790
 yaw = 4.590216
 note = стеллаж прилавка 1
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 115.300 27.727 148.700
+pos = 115.300 27.897 148.700
 yaw = 3.141593
 note = прилавок 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 115.000 28.577 148.600
+pos = 115.000 28.747 148.600
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 114.000 28.577 148.580
+pos = 114.000 28.747 148.580
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 115.150 27.727 147.350
+pos = 115.150 27.897 147.350
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 113.750 27.727 147.250
+pos = 113.750 27.897 147.250
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 115.100 27.727 146.800
+pos = 115.100 27.897 146.800
 yaw = 4.712389
 note = стеллаж прилавка 2
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 119.800 27.122 148.700
+pos = 119.800 27.897 148.700
 yaw = 3.263766
 note = прилавок 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 119.490 27.972 148.637
+pos = 119.490 28.747 148.637
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 118.495 27.972 148.739
+pos = 118.495 28.747 148.739
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 119.487 27.122 147.378
+pos = 119.487 27.897 147.378
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 118.085 27.122 147.450
+pos = 118.085 27.897 147.450
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 119.370 27.122 146.839
+pos = 119.370 27.897 146.839
 yaw = 4.834562
 note = стеллаж прилавка 3
 
@@ -2652,13 +2652,13 @@ note = двор: дом
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 99.615 28.660 148.066
+pos = 99.615 28.648 148.066
 yaw = 1.570796
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 99.665 29.635 143.566
+pos = 99.665 29.614 143.566
 yaw = 1.570796
 note = двор: лавка
 
@@ -2682,37 +2682,37 @@ note = двор: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 104.750 28.107 151.782
+pos = 104.750 27.874 151.782
 yaw = 1.570796
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 102.400 28.027 152.732
+pos = 102.400 27.944 152.732
 yaw = 1.570796
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 133.430 27.054 148.921
+pos = 133.430 27.387 148.921
 yaw = 4.712389
 note = двор: таверна
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 133.380 27.006 157.421
+pos = 133.380 27.344 157.421
 yaw = 4.712389
 note = двор: таверна
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 133.430 27.006 156.571
+pos = 133.430 27.340 156.571
 yaw = 4.712389
 note = двор: таверна
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 133.430 27.034 150.671
+pos = 133.430 27.368 150.671
 yaw = 4.712389
 note = двор: таверна
 
@@ -2796,25 +2796,25 @@ note = двор: дом
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 131.829 27.010 159.848
+pos = 131.829 27.390 159.848
 yaw = 4.803049
 note = двор: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 132.051 26.991 162.840
+pos = 132.051 27.262 162.840
 yaw = 4.803049
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 134.079 26.997 159.192
+pos = 134.079 27.246 159.192
 yaw = 4.803049
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 134.282 26.981 161.432
+pos = 134.282 27.083 161.432
 yaw = 4.803049
 note = двор: дом
 
@@ -3046,21 +3046,21 @@ casts_shadow = 0
 note = очаг: дом
 
 [light]
-pos = 102.015 29.027 147.366
+pos = 102.015 28.372 147.366
 color = 1 0.52 0.2
 radius_m = 4.6
 casts_shadow = 0
 note = очаг: лавка
 
 [light]
-pos = 107.100 27.787 155.582
+pos = 107.100 28.328 155.582
 color = 1 0.52 0.2
 radius_m = 4.6
 casts_shadow = 0
 note = очаг: лавка
 
 [light]
-pos = 131.030 28.185 153.471
+pos = 131.030 28.565 153.471
 color = 1 0.52 0.2
 radius_m = 4.6
 casts_shadow = 0
@@ -3081,7 +3081,7 @@ casts_shadow = 0
 note = очаг: дом
 
 [light]
-pos = 137.181 28.186 145.678
+pos = 137.181 28.190 145.678
 color = 1 0.52 0.2
 radius_m = 4.6
 casts_shadow = 0
@@ -3095,7 +3095,7 @@ casts_shadow = 0
 note = очаг: дом
 
 [light]
-pos = 129.651 27.629 161.853
+pos = 129.651 27.790 161.853
 color = 1 0.52 0.2
 radius_m = 4.6
 casts_shadow = 0
