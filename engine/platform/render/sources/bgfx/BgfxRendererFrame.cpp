@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 21:00:00
+Last updated: 22:08:2026 - 21:50:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -187,6 +187,9 @@ UPD:
   упаковка кадра — чистая функция состояния, скомпаундиться негде.
 - 22:08:2026 - 17:10:00: packed[40].z = доза горизонтного свечения неба (DFN_SKY_GLOW).
 - 22:08:2026 - 21:00:00: packed[24+i].w — биты флагов (1 casts_shadow, 2 interior); packed[15].z — доза DFN_LIGHT_INTERIOR (0 = флаг игнорируется бит-в-бит).
+- 22:08:2026 - 21:50:00: дефолт дизера — гладкое смешение (DFN_DITHER8=2): кадры
+  трёх рук показали крап у кромки мостовой на обеих решётках; обоснование
+  дизера (палитра + 640x360) истекло. 0/1 — живые контрольные руки.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -643,7 +646,13 @@ void BgfxRenderer::Impl::apply_environment() const {
     // мелкого дизера 8x8 (u_ditherFine, fs_terrain: решётка 4x4 задумывалась
     // под 640x360 и при FullHD читалась шахматкой на стыках материалов).
     static const float sky_glow = dose_env_override("DFN_SKY_GLOW", 1.0f);
-    static const float dither_fine = dose_env_override("DFN_DITHER8", 1.0f);
+    // Дефолт 2.0 — ГЛАДКОЕ СМЕШЕНИЕ, не дизер (кадры трёх рук 22.08: у кромки
+    // мостовой 4x4 и 8x8 рябят крапом по траве, гладкая рука чистая). Правило
+    // §4 «дизер, не градиент» писалось под 64-цветную палитру и 640x360;
+    // палитра выключена, разрешение FullHD — обоснование истекло. 0 = прежние
+    // 4x4 бит-в-бит, 1 = 8x8: обе руки живы для сравнения и для возврата
+    // палитры, если он случится.
+    static const float dither_fine = dose_env_override("DFN_DITHER8", 2.0f);
     packed[40] = {foliage_edge_band().x, foliage_edge_band().y, sky_glow,
                   dither_fine};
     for (uint32_t i = 0; i < light_count; ++i) {

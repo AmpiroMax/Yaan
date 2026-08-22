@@ -9,6 +9,9 @@ UPD:
   (механизм fs_prop). u_params.w > 0.5 = лист подан; DFN_TERRAIN_NORMALS=0
   снимает подачу — плоская земля прежнего кадра.
 - 22:08:2026 - 21:00:00: дизер 4x4 -> 8x8 (u_ditherFine, DFN_DITHER8; 0 = прежние 4x4 бит-в-бит): 16 порогов при FullHD читались шахматкой на стыках материалов.
+- 22:08:2026 - 21:50:00: третья рука дизера — DFN_DITHER8=2 гладкое смешение без
+  порога (DFN_SEL): палитра выключена и разрешение FullHD, исходное
+  обоснование дизера могло истечь; решает кадр стыка тремя руками.
 */
 $input v_color0, v_normal, v_texcoord0, v_wpos
 
@@ -67,6 +70,14 @@ float bayer2(vec2 p) // [[0,2],[3,1]] as arithmetic: 2x + 3y - 4xy
     return 2.0 * p.x + 3.0 * p.y - 4.0 * p.x * p.y;
 }
 
+// ТРЕТЬЯ РУКА ДИЗЕРА (u_ditherFine >= 2): вовсе без порога — вес смешения
+// напрямую. Дизер существовал ради 64-цветной палитры и правила «дизер, не
+// градиент», написанных под 640x360; палитра выключена, разрешение FullHD —
+// исходное обоснование могло истечь, и решает кадр стыка травы и мостовой,
+// снятый тремя руками из одного бинарника (0 = 4x4, 1 = 8x8, 2 = гладко).
+// Макрос, а не функция: `bayer` — локал main, в .sc его не пронести иначе.
+#define DFN_SEL(w) (u_ditherFine >= 2.0 ? clamp(w, 0.0, 1.0) : step(bayer, w))
+
 void main()
 {
     // LOD cross-fade: the outgoing level dissolves as the incoming one
@@ -115,20 +126,20 @@ void main()
     vec2 f3 = mod(floor(ip * 0.25), 2.0);
     float bayer4 = (bayer2(f1) * 4.0 + bayer2(f2) + 0.5) / 16.0;
     float bayer8 = (bayer2(f1) * 16.0 + bayer2(f2) * 4.0 + bayer2(f3) + 0.5) / 64.0;
-    float bayer = mix(bayer4, bayer8, u_ditherFine); // (0,1)
+    float bayer = mix(bayer4, bayer8, clamp(u_ditherFine, 0.0, 1.0)); // (0,1)
 
     // §4 priority via paint order (later mix wins): grass -> bed -> rock ->
     // sand on top. The blend band is a two-material dither: grass and rock
     // texels only, never a third color (§4 rule 3).
     vec3 albedo = grass;
-    albedo = mix(albedo, dirt * 0.68, step(bayer, bed_w)); // dark wet bed
-    albedo = mix(albedo, rock, step(bayer, rock_w));
-    albedo = mix(albedo, sand, step(bayer, sand_w));
+    albedo = mix(albedo, dirt * 0.68, DFN_SEL(bed_w)); // dark wet bed
+    albedo = mix(albedo, rock, DFN_SEL(rock_w));
+    albedo = mix(albedo, sand, DFN_SEL(sand_w));
 
     // Untextured fallback: flat splat palette (headless / atlas not resident).
     vec3 flat_albedo = vec3(0.33, 0.43, 0.22);
-    flat_albedo = mix(flat_albedo, vec3(0.42, 0.40, 0.38), step(bayer, rock_w));
-    flat_albedo = mix(flat_albedo, vec3(0.72, 0.65, 0.44), step(bayer, sand_w));
+    flat_albedo = mix(flat_albedo, vec3(0.42, 0.40, 0.38), DFN_SEL(rock_w));
+    flat_albedo = mix(flat_albedo, vec3(0.72, 0.65, 0.44), DFN_SEL(sand_w));
     albedo = mix(flat_albedo, albedo, step(0.5, u_params.x));
 
     // THE PATH IS THE GROUND, not a ribbon over it. Vertex alpha carries the
@@ -143,7 +154,7 @@ void main()
     // The trodden surface is the DIRT texel, darkened toward bare earth at the
     // worn centre. Painted last so a path crosses sand and rock as a path —
     // a trail over a shingle bank is still a trail.
-    albedo = mix(albedo, dirt * mix(1.0, 0.62, path_w), step(bayer, path_w));
+    albedo = mix(albedo, dirt * mix(1.0, 0.62, path_w), DFN_SEL(path_w));
 
     // THE GROUND'S RELIEF (22.08, «земля — крашеный ковёр рядом со стеной с
     // рельефом»). The normal is picked by the SAME step()/bayer selections
@@ -154,10 +165,10 @@ void main()
     // the wall standing on it).
     if (u_params.w > 0.5) {
         vec3 tn = nrm_sample(tuv, vec2(0.0, 0.0));
-        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 1.0)), step(bayer, bed_w));
-        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 0.0)), step(bayer, rock_w));
-        tn = mix(tn, nrm_sample(tuv, vec2(0.0, 1.0)), step(bayer, sand_w));
-        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 1.0)), step(bayer, path_w));
+        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 1.0)), DFN_SEL(bed_w));
+        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 0.0)), DFN_SEL(rock_w));
+        tn = mix(tn, nrm_sample(tuv, vec2(0.0, 1.0)), DFN_SEL(sand_w));
+        tn = mix(tn, nrm_sample(tuv, vec2(1.0, 1.0)), DFN_SEL(path_w));
         vec3 dp1 = dFdx(v_wpos);
         vec3 dp2 = dFdy(v_wpos);
         vec2 du1 = dFdx(tuv);
