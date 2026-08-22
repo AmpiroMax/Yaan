@@ -1,5 +1,9 @@
 # Реестр объектов: деревья кузницы
 #
+# W/H в паспортах — РЕЦЕПТУРНОЕ (2*crown_radius/height); измеренное
+# по геометрии выше на свес лап. gildergreen-forge: рецепт 1.30,
+# измерено 1.85 — в полосу §2.5 (1.1-1.3) не лезет ОСОЗНАННО.
+#
 # name | file | content_hash | wood_tris | leaf_tris | leaf_share
 oak-forge-a | oak-forge-a.dfo | bcc6b9a13dc7baa5 | 1876 | 1224 | 0.39
 oak-forge-b | oak-forge-b.dfo | 1b5e9a24ae357bc4 | 2266 | 1760 | 0.44
