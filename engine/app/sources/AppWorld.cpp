@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 01:40:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -44,6 +44,7 @@ UPD:
   желание композитора (спавн на полу дома), вниз запрет (закопать нельзя).
   Прежний «только с земли» ставил внутренний спавн ПОД пол постройки.
 - 23:08:2026 - 00:30:00: паром классов троп рельефа в render_system_.set_path_classes.
+- 23:08:2026 - 01:40:00: паром коробки комнаты из [light].
 */
 
 #include "engine/app/sources/App.h"
@@ -848,8 +849,9 @@ bool App::enter_world(uint32_t stand) {
                 if (L.radius_m <= 0.0f) {
                     continue; // an unlit lamp is a decision, not a defect
                 }
-                lamps.push_back(
-                    {L.position, L.color, L.radius_m, L.casts_shadow, L.interior});
+                lamps.push_back({L.position, L.color, L.radius_m,
+                                 L.casts_shadow, L.interior, L.room_center,
+                                 L.room_half});
                 shadowing += L.casts_shadow ? 1u : 0u;
             }
             // ONE MESH BODY PER TILE. Per placement would be thousands of

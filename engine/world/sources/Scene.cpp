@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 22:08:2026 - 21:00:00
+Last updated: 23:08:2026 - 01:40:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -79,6 +79,7 @@ UPD:
 - 22:08:2026 - 16:20:00: чтение и запись [air] (fog_start / fog_end).
 - 22:08:2026 - 20:10:00: ключ cloud в [air] (необязателен; без него -1 «не задана»).
 - 22:08:2026 - 21:00:00: ключ interior у [light].
+- 23:08:2026 - 01:40:00: ключ room = cx cz hx hz у [light].
 */
 
 #include "engine/world/sources/Scene.h"
@@ -392,6 +393,16 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                 L.casts_shadow = value == "1" || value == "true" || value == "yes";
             } else if (key == "interior") {
                 L.interior = value == "1" || value == "true" || value == "yes";
+            } else if (key == "room") {
+                float cx = 0.0f, cz = 0.0f, hx = 0.0f, hz = 0.0f;
+                if (std::sscanf(value.c_str(), "%f %f %f %f",
+                                &cx, &cz, &hx, &hz) != 4) {
+                    error = "line " + std::to_string(line_no)
+                          + ": room ждёт четыре числа «cx cz hx hz»";
+                    return false;
+                }
+                L.room_center = {cx, cz};
+                L.room_half = {hx, hz};
             } else if (key == "note") {
                 L.note = value;
             }
@@ -546,6 +557,10 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         }
         if (L.interior) {
             out << "interior = 1\n";
+        }
+        if (L.room_half.x > 0.0f || L.room_half.y > 0.0f) {
+            out << "room = " << L.room_center.x << ' ' << L.room_center.y << ' '
+                << L.room_half.x << ' ' << L.room_half.y << "\n";
         }
         if (!L.note.empty()) {
             out << "note = " << L.note << "\n";

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 22:08:2026 - 21:00:00
+Last updated: 23:08:2026 - 01:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -76,6 +76,7 @@ UPD:
 - 20:08:2026 - 18:40:00: demo_swing доезжает до GPU-двери.
 - 22:08:2026 - 18:40:00: set_house_mesh меряет габарит каждого потока на заливке.
 - 22:08:2026 - 21:00:00: interior проносится через add()/publish_point_lights.
+- 23:08:2026 - 01:40:00: коробка проносится add()/publish_point_lights.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -483,6 +484,8 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
         out.radius_m = c.radius;
         out.color = c.color;
         out.interior = c.interior;
+        out.room_center_xz = c.room_center_xz;
+        out.room_half_xz = c.room_half_xz;
         if (arm_fade) {
             // smoothstep: 1 at edge-window (full brightness), 0 at the edge.
             const float d = std::sqrt(c.d2);
@@ -540,13 +543,14 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     const glm::vec3 eye = camera.interpolated_pose(alpha).position;
     const auto add = [&](const glm::vec3& position, float radius,
                          const glm::vec3& color, bool wants_shadow = true,
-                         bool interior = false) {
+                         bool interior = false, glm::vec2 room_c = {},
+                         glm::vec2 room_h = {}) {
         if (radius <= 0.0f) {
             return;
         }
         const glm::vec3 to = position - eye;
-        candidates.push_back(
-            {position, color, radius, glm::dot(to, to), wants_shadow, interior});
+        candidates.push_back({position, color, radius, glm::dot(to, to),
+                              wants_shadow, interior, room_c, room_h});
     };
 
     // THE COMPOSITION'S LAMPS AND THIS FRAME'S SWARM, into the same pool as
@@ -554,10 +558,12 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     // order does not matter: publish_point_lights sorts the whole pool by
     // distance and hands out the eight slots itself.
     for (const ExtraLight& l : scene_lights_) {
-        add(l.position, l.radius_m, l.color, l.casts_shadow, l.interior);
+        add(l.position, l.radius_m, l.color, l.casts_shadow, l.interior,
+            l.room_center_xz, l.room_half_xz);
     }
     for (const ExtraLight& l : transient_lights_) {
-        add(l.position, l.radius_m, l.color, l.casts_shadow, l.interior);
+        add(l.position, l.radius_m, l.color, l.casts_shadow, l.interior,
+            l.room_center_xz, l.room_half_xz);
     }
 
     world.view<components::CarriedLight, components::Transform>().each(

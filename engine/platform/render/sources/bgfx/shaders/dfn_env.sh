@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 01:40:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -222,6 +222,9 @@ UPD:
 - 23:08:2026 - 00:30:00: u_pathTiles/u_pathMatDose (слот 13) и DFN_GATE_RECEIVER — листва
   отвечает гейту интерьерного света единицей (её AO — крона, не комната;
   приёмка: пучок в тени наружной стены светился от очага, maxch 71).
+- 23:08:2026 - 01:40:00: коробка комнаты интерьерного света (u_lightRoom, окно в плане с кромкой
+  0.3 м) ЗАМЕНЯЕТ гейт по AO у источников с коробкой; без коробки — прежний
+  гейт. Массив 41 -> 49 парой с Impl.h.
 */
 
 #ifndef DFN_ENV_SH
@@ -238,7 +241,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[41];
+uniform vec4 u_envParams[49]; // 41..48 — коробки комнат светов (пара с Impl.h)
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -273,6 +276,10 @@ uniform vec4 u_envParams[41];
 #define u_lightCount      (u_envParams[15].y)
 // Доза гейта интерьерного света (DFN_LIGHT_INTERIOR; 0 = флаг игнорируется).
 #define u_lightInteriorGate (u_envParams[15].z)
+// Доза коробки комнаты (DFN_LIGHT_ROOM; 0 = окно игнорируется).
+#define u_lightRoomGate     (u_envParams[15].w)
+// Коробка комнаты источника i: (cx, cz, hx, hz); нулевые h — коробки нет.
+#define u_lightRoom(i)      (u_envParams[41 + (i)])
 // Отскок от земли для нижней полусферы (G3; слот 13 стоял зарезервированным
 // «was the single light»). DFN_AMBIENT_HEMI, 0 = без отскока бит-в-бит.
 #define u_hemiBounce        (u_envParams[13].x)
@@ -1028,6 +1035,23 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
         // и признана в плане; уличные жаровни флаг не ставят.
         float gate = 1.0;
         if (u_lightColor(i).w >= 2.0) {
+            vec4 room = u_lightRoom(i);
+            if (u_lightRoomGate > 0.5 && (room.z > 0.0 || room.w > 0.0)) {
+                // КОРОБКА КОМНАТЫ (23.08): свет принадлежит помещению, а не
+                // радиусу. Гейт по AO оставался течью 6.9% на наружной кладке
+                // (AO не отличает «в доме» от «в тени стены»); окно в плане с
+                // мягкой кромкой 0.3 м режет класс целиком. ЗАМЕНЯЕТ гейт по
+                // sky_vis, а не умножается на него: двойное наказание душило
+                // бы законный свет у дверного проёма.
+                vec2 dxz = abs(wpos.xz - room.xy) - room.zw;
+                float outside = max(dxz.x, dxz.y);
+                gate = mix(1.0, clamp(1.0 - outside / 0.3, 0.0, 1.0),
+                           u_lightInteriorGate);
+                light += u_lightColor(i).rgb
+                       * (atten * atten * (3.0 - 2.0 * atten) * occl * gate
+                          * max(dot(n, to_light / max(dist, 0.0001)), 0.0));
+                continue;
+            }
             // DFN_GATE_RECEIVER: чем фрагмент отвечает гейту. По умолчанию —
             // тем же sky_vis, что кормит ambient. ЛИСТВА переопределяет его
             // единицей (fs_foliage): её v_color0.a — затенение кроны, не

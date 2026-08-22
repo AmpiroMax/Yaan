@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 01:40:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -105,6 +105,7 @@ UPD:
   цена 160 м переписана честно: полоса 160..300 м без теней и без тумана —
   предусловие городского пресета воздушной перспективы.
 - 23:08:2026 - 00:30:00: s_tex_path — сэмплер путевого атласа (стадия 5).
+- 23:08:2026 - 01:40:00: ENV_PARAM_VEC4S 41 -> 49 — слоты 41..48 коробки комнат светов (пара с dfn_env.sh).
 */
 
 #pragma once
@@ -428,7 +429,10 @@ inline constexpr glm::vec3 POINT_SHADOW_FACE_UP[POINT_SHADOW_FACES] = {
 // and cannot change behaviour. The real guard is bgfx::isValid on every handle.
 inline constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 
-inline constexpr uint16_t ENV_PARAM_VEC4S = 41; // layout contract with dfn_env.sh
+// 41 -> 49 (23.08): слоты 41..48 — коробки комнат восьми точечных светов
+// (u_lightRoom(i), cx/cz/hx/hz). Правится ПАРОЙ с dfn_env.sh — история этого
+// файла дважды показала, чем кончается рост массива в один файл.
+inline constexpr uint16_t ENV_PARAM_VEC4S = 49; // layout contract with dfn_env.sh
 
 // SLOT 38 — THE FILL'S DIRECTION (user: "тёмные деревья, словно их нет, как
 // чёрное пятно ... она должна быть темнее переда, но цвет одинаковый").

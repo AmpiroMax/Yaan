@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 01:40:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -194,6 +194,7 @@ UPD:
   отскоком от земли (G3).
 - 23:08:2026 - 00:30:00: packed[13].y = path_tiles_per_m окружения, .z = доза DFN_PATH_MAT
   (0 = прежний 8-битный износ и прежняя грязь бит-в-бит).
+- 23:08:2026 - 01:40:00: packed[41+i] — коробка комнаты света; packed[15].w — доза DFN_LIGHT_ROOM (0 = окно игнорируется, прежний гейт по AO бит-в-бит).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -608,8 +609,11 @@ void BgfxRenderer::Impl::apply_environment() const {
     // светит улице сквозь кладку — свет умножается на (1 - sky_vis)
     // приёмника, см. dfn_env.sh).
     static const float interior_gate = dose_env_override("DFN_LIGHT_INTERIOR", 1.0f);
+    // .w — доза КОРОБКИ комнаты (DFN_LIGHT_ROOM: 0 = окно игнорируется,
+    // interior-свет живёт на прежнем гейте по AO бит-в-бит).
+    static const float room_gate = dose_env_override("DFN_LIGHT_ROOM", 1.0f);
     packed[15] = {e.ambient_darkness, static_cast<float>(light_count),
-                  interior_gate, 0.0f};
+                  interior_gate, room_gate};
     packed[32] = {e.wind_direction, e.wind_strength, e.wind_flutter};
     // Clouds (W4): state tuple + the ONE drift offset both samplers read.
     packed[33] = {e.cloud_cover, e.cloud_cumulus, e.cloud_shadow,
@@ -682,6 +686,10 @@ void BgfxRenderer::Impl::apply_environment() const {
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};
+        // Слот 41+i — КОРОБКА КОМНАТЫ интерьерного света (cx, cz, hx, hz);
+        // нулевые полуразмеры = коробки нет, шейдер падает на гейт по AO.
+        packed[41 + i] = {l.room_center_xz.x, l.room_center_xz.y,
+                          l.room_half_xz.x, l.room_half_xz.y};
         // w — БИТЫ ФЛАГОВ: 1 = casts_shadow (тень решается индексом слота,
         // бит информационный), 2 = interior (шейдер гейтит свет небесной
         // видимостью приёмника — dfn_env.sh, u_lightColor(i).w).

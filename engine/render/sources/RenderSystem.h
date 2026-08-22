@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 01:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -170,6 +170,7 @@ UPD:
 - 22:08:2026 - 21:00:00: interior у ExtraLight/PointLightCandidate — флаг доезжает до PointLight.
 - 23:08:2026 - 00:30:00: set_path_classes — поле классов полотна от композиции; действует на
   чанки, воксельную землю и LOD одной упаковкой.
+- 23:08:2026 - 01:40:00: коробка комнаты у ExtraLight/кандидата.
 */
 
 #pragma once
@@ -579,6 +580,9 @@ public:
         /// SceneLight::interior): без теневого слота он иначе светит улице
         /// сквозь кладку.
         bool interior = false;
+        /// Коробка комнаты (план): см. platform::PointLight.
+        glm::vec2 room_center_xz{0.0f};
+        glm::vec2 room_half_xz{0.0f};
     };
     /// Lamps the map's composition owns. Set once when a map opens; survives
     /// until the next one. A composition of a hundred lamps is legal — only
@@ -714,6 +718,8 @@ private:
         bool wants_shadow = true;
         /// См. ExtraLight::interior — доезжает до PointLight и до шейдера.
         bool interior = false;
+        glm::vec2 room_center_xz{0.0f};
+        glm::vec2 room_half_xz{0.0f};
     };
     void publish_point_lights(std::vector<PointLightCandidate>& candidates);
     void collect_point_lights(ecs::World& world, const FirstPersonCamera& camera,
