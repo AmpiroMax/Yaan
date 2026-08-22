@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 22:08:2026 - 23:48:50
+Last updated: 23:08:2026 - 00:28:33
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -228,6 +228,7 @@ UPD:
 - 23:08:2026 - 04:10:00: ворота отскока прижаты к полу AO ((sky_vis-0.305)/0.08): круг 4 поймал
 - 22:08:2026 - 22:58:55: мягкость точечного света: дробная часть w цвета — softness 0..1 (wrap-диффуз + пологое затухание pow(fall, 1->0.6)); u_lightSoftDose (слот 13.w, DFN_LIGHT_SOFT, 0 = бит-в-бит). Заказ владельца: разнообразные источники по яркости и мягкости.
 - 22:08:2026 - 23:48:50: массив 49 -> 50; u_pathMask (слот 49) — маска троп для fs_terrain.
+- 23:08:2026 - 00:28:33: скотопическая ночь в dfn_aerial (u_nightScotopic, слот 34.w): тёмное десатурируется к люме, яркое держит цвет; гейт u_moonLight, доза 0 — бит-в-бит.
   их мёртвыми на рыночном навесе (|dRGB| 0.003 между дозами) — испод сидит на
   0.30..0.34, порог 0.32 съедал эффект; запечатанный интерьер остаётся нулём.
 */
@@ -293,6 +294,7 @@ uniform vec4 u_envParams[50]; // 41..48 — коробки комнат; 49 — 
 #define u_pathMatDose       (u_envParams[13].z)
 #define u_lightSoftDose     (u_envParams[13].w)
 #define u_pathMask          (u_envParams[49])
+#define u_nightScotopic     (u_envParams[34].w)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
@@ -1262,6 +1264,22 @@ float dfn_aerial_transmittance(vec3 eye, vec3 wpos)
 // THEM.
 vec3 dfn_aerial(vec3 wpos, vec3 lit)
 {
+    // СКОТОПИЧЕСКАЯ НОЧЬ (круг 6, топ-2: «трава держит полную дневную
+    // зелень и остаётся единственным цветным пятном в кадре»). Умножение
+    // альбедо на серо-синий лунный свет сохраняет ОТТЕНОК — газон ночью
+    // зелен, как днём, чего глаз не делает: палочки не различают цвет.
+    // Тёмное десатурируется к люме (до 65% при дозе 1), ЯРКОЕ сохраняет
+    // цвет (мезопика: пламя, стёкла фонарей и пятна у огня остаются
+    // тёплыми — без списка исключений по материалам). Гейт — u_moonLight:
+    // днём ноль операций над цветом, доза DFN_NIGHT_SCOTOPIC 0 — прежний
+    // кадр бит-в-бит.
+    float scot = u_nightScotopic * clamp(u_moonLight, 0.0, 1.0);
+    if (scot > 0.001) {
+        float lum = dot(lit, vec3(0.2126, 0.7152, 0.0722));
+        float keep = smoothstep(0.10, 0.45, lum);
+        lit = mix(vec3_splat(lum), lit,
+                  mix(1.0 - 0.65 * scot, 1.0, keep));
+    }
     vec3 eye = mul(u_invView, vec4(0.0, 0.0, 0.0, 1.0)).xyz;
     vec3 to = wpos - eye;
     float t = dfn_aerial_transmittance(eye, wpos);

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 23:48:50
+Last updated: 23:08:2026 - 00:28:33
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -198,6 +198,7 @@ UPD:
 - 23:08:2026 - 06:30:00: подача u_psNear (DFN_PS_NEAR_EXCLUDE, 0.6 м; 0 = прежнее сравнение
 - 22:08:2026 - 22:58:55: packed[24+i].w — плюс мягкость источника в дробной части (масштаб 0.9); packed[13].w — доза DFN_LIGHT_SOFT (дефолт 1, 0 = мягкость игнорируется бит-в-бит).
 - 22:08:2026 - 23:48:50: packed[49] — маска троп (начало, 1/спан, разрешение); доза DFN_PATH_FRAG (0 = вершинная альфа бит-в-бит).
+- 23:08:2026 - 00:28:33: packed[34].w — доза DFN_NIGHT_SCOTOPIC (скотопическая ночь, дефолт 1).
   бит-в-бит).
 */
 
@@ -524,6 +525,14 @@ static float path_frag_dose() {
     return dose;
 }
 
+// Доза скотопической ночи (DFN_NIGHT_SCOTOPIC, слот 34.w): ночью тёмные
+// поверхности теряют цветность к люме (палочки не видят цвета), яркие
+// (пламя, стёкла) держат. 0 = прежний кадр бит-в-бит.
+static float night_scotopic_dose() {
+    static const float dose = dose_env_override("DFN_NIGHT_SCOTOPIC", 1.0f);
+    return dose;
+}
+
 static float moon_ground_gain() {
     static const float value = dose_env_override("DFN_MOON_GROUND",
                           static_cast<float>(config::MOON_GROUND_GAIN));
@@ -649,7 +658,8 @@ void BgfxRenderer::Impl::apply_environment() const {
     // Clouds (W4): state tuple + the ONE drift offset both samplers read.
     packed[33] = {e.cloud_cover, e.cloud_cumulus, e.cloud_shadow,
                   e.cloud_wavelength_m};
-    packed[34] = {e.cloud_offset_m, e.weather_wind_mult, 0.0f};
+    packed[34] = {e.cloud_offset_m, e.weather_wind_mult,
+                  night_scotopic_dose()};
     // THE SUN'S BODY (W9). Straight from the generated header, never through
     // RenderEnvironment: these are NUMBERS rows with two consumers by
     // construction — design derives them, the shader measures the frame with
