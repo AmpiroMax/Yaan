@@ -10,6 +10,7 @@ spawn_yaw = 0
 [air]
 fog_start = 110
 fog_end = 380
+cloud = 0.25
 
 [river]
 width_m = 7.2
@@ -1936,115 +1937,115 @@ note = мостовая рынка
 
 [house]
 file = assets/houses/city-well.dfh
-pos = 116.000 27.897 151.500
+pos = 110.500 27.897 153.000
 yaw = 0.000000
 note = колодец рынка
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 110.800 27.897 148.700
+pos = 112.337 27.897 149.781
 yaw = 3.019420
 note = прилавок 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.514 28.747 148.564
+pos = 112.051 28.747 149.645
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 109.524 28.747 148.422
+pos = 111.061 28.747 149.503
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.816 27.897 147.342
+pos = 112.299 27.897 149.272
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 109.438 27.897 147.072
+pos = 110.711 27.897 149.077
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 110.833 27.897 146.790
+pos = 112.370 27.897 147.870
 yaw = 4.590216
 note = стеллаж прилавка 1
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 115.300 27.897 148.700
+pos = 119.100 27.897 149.650
 yaw = 3.141593
 note = прилавок 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 115.000 28.747 148.600
+pos = 118.800 28.747 149.550
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 114.000 28.747 148.580
+pos = 117.800 28.747 149.530
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 115.150 27.897 147.350
+pos = 119.000 27.897 149.150
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 113.750 27.897 147.250
+pos = 117.400 27.897 149.150
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 115.100 27.897 146.800
+pos = 118.900 27.897 147.750
 yaw = 4.712389
 note = стеллаж прилавка 2
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 119.800 27.897 148.700
+pos = 122.447 27.897 149.513
 yaw = 3.263766
 note = прилавок 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 119.490 28.747 148.637
+pos = 122.137 28.747 149.450
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 118.495 28.747 148.739
+pos = 121.142 28.747 149.552
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 119.487 27.897 147.378
+pos = 122.286 27.897 149.029
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 118.085 27.897 147.450
+pos = 120.698 27.897 149.223
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 119.370 27.897 146.839
+pos = 122.017 27.897 147.651
 yaw = 4.834562
 note = стеллаж прилавка 3
 
@@ -2943,9 +2944,9 @@ yaw = 1.661456
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble8x6-s04.dfh
-pos = 115.313 27.348 165.507
-yaw = 1.727572
+file = assets/houses/city-cobble6x6-s04.dfh
+pos = 115.307 27.348 165.465
+yaw = 1.714016
 note = мостовая: тракт
 
 [house]
@@ -2973,33 +2974,39 @@ yaw = 1.860615
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble8x6-s04.dfh
-pos = 102.239 32.663 114.171
-yaw = 1.978713
+file = assets/houses/city-cobble6x6-s04.dfh
+pos = 102.216 32.663 114.118
+yaw = 1.960139
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6.dfh
-pos = 99.137 32.983 106.982
+pos = 100.031 32.903 108.771
 yaw = 2.034444
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble8x6-s08.dfh
-pos = 95.380 32.983 99.384
-yaw = 1.873876
+file = assets/houses/city-cobble6x6-s06.dfh
+pos = 96.338 32.903 101.353
+yaw = 1.935178
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6-s08.dfh
-pos = 92.791 33.643 90.813
-yaw = 1.614971
+pos = 94.103 33.263 95.444
+yaw = 1.815335
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6-s08.dfh
-pos = 92.454 34.283 82.434
-yaw = 1.462918
+pos = 92.116 33.922 86.488
+yaw = 1.487655
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble6x6-s10.dfh
+pos = 92.836 34.581 77.997
+yaw = 1.393872
 note = мостовая: тракт
 
 [house]
@@ -3010,25 +3017,25 @@ note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble24x6.dfh
-pos = 232.522 25.030 153.714
-yaw = 2.715768
-note = мостовая: тракт
-
-[house]
-file = assets/houses/city-cobble24x6.dfh
-pos = 210.788 25.030 143.853
-yaw = 2.755042
+pos = 232.295 25.030 153.611
+yaw = 2.715856
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble12x6.dfh
-pos = 188.890 25.030 134.920
-yaw = 2.863229
+pos = 210.458 25.030 143.709
+yaw = 2.723368
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble24x6.dfh
+pos = 199.594 25.030 138.858
+yaw = 2.830748
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6.dfh
-pos = 177.762 25.030 131.711
+pos = 176.772 25.031 131.569
 yaw = 2.999696
 note = мостовая: тракт
 
@@ -3040,186 +3047,210 @@ note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble6x6.dfh
-pos = 90.107 25.585 207.198
+pos = 89.870 25.588 207.119
 yaw = 2.819842
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble24x6.dfh
-pos = 83.899 25.588 205.128
+pos = 83.899 25.589 205.128
 yaw = 2.801992
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble8x6.dfh
-pos = 61.039 25.588 197.040
+file = assets/houses/city-cobble6x6.dfh
+pos = 60.809 25.592 196.936
 yaw = 2.714965
 note = мостовая: тракт
 
 [light]
 pos = 100.000 37.204 61.150
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 13
 casts_shadow = 1
+interior = 1
 note = очаг: ЗАМОК
 
 [light]
 pos = 83.487 34.005 91.954
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 10.751
 casts_shadow = 0
+interior = 1
 note = очаг: усадьба
 
 [light]
 pos = 102.440 34.300 84.132
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 114.128 33.092 93.256
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 84.700 33.405 106.300
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 11.8919
 casts_shadow = 0
+interior = 1
 note = очаг: ХРАМ
 
 [light]
 pos = 93.300 33.405 106.300
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 11.8919
 casts_shadow = 0
+interior = 1
 note = очаг: ХРАМ
 
 [light]
 pos = 130.414 32.280 107.414
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 13
 casts_shadow = 1
+interior = 1
 note = очаг: ЙОРРВАСКР 45°
 
 [light]
 pos = 115.613 33.056 105.301
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 124.106 32.558 117.949
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 99.363 31.937 124.264
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 116.137 31.703 124.236
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 100.398 28.635 146.469
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 7.8793
 casts_shadow = 0
+interior = 1
 note = очаг: лавка
 
 [light]
 pos = 107.563 28.325 155.203
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 7.8793
 casts_shadow = 0
+interior = 1
 note = очаг: лавка
 
 [light]
 pos = 132.224 28.285 153.675
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 10.751
 casts_shadow = 0
+interior = 1
 note = очаг: таверна
 
 [light]
 pos = 124.580 26.925 174.329
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 7.8793
 casts_shadow = 0
+interior = 1
 note = очаг: кузница
 
 [light]
 pos = 130.364 28.241 139.091
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 137.478 27.760 146.421
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 110.058 27.567 168.677
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 133.218 27.580 163.415
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: дом
 
 [light]
 pos = 91.453 27.863 152.443
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: ветхий
 
 [light]
 pos = 85.218 28.236 147.477
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: ветхий
 
 [light]
 pos = 103.732 26.299 197.888
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 6.22448
 casts_shadow = 0
+interior = 1
 note = очаг: ферма
 
 [light]
 pos = 135.541 25.420 181.061
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 10.2955
 casts_shadow = 0
+interior = 1
 note = очаг: МЕЛЬНИЦА
 
 [light]
 pos = 178.764 26.142 116.654
 color = 1 0.52 0.2
-radius_m = 4.6
+radius_m = 10.751
 casts_shadow = 0
+interior = 1
 note = очаг: постоялый двор
