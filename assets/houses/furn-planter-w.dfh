@@ -1,0 +1,38 @@
+# dfh 1
+vertex v1 free 0.0300 0.0000 0.0000
+vertex v2 free 0.0300 0.0000 1.2000
+vertex v3 free 0.0300 0.3500 1.2000
+vertex v4 free 0.0300 0.3500 0.0000
+vertex v5 free 1.1700 0.0000 0.0000
+vertex v6 free 1.1700 0.0000 1.2000
+vertex v7 free 1.1700 0.3500 1.2000
+vertex v8 free 1.1700 0.3500 0.0000
+vertex v9 free 0.0000 0.0000 0.0300
+vertex v10 free 1.2000 0.0000 0.0300
+vertex v11 free 1.2000 0.3500 0.0300
+vertex v12 free 0.0000 0.3500 0.0300
+vertex v13 free 0.0000 0.0000 1.1700
+vertex v14 free 1.2000 0.0000 1.1700
+vertex v15 free 1.2000 0.3500 1.1700
+vertex v16 free 0.0000 0.3500 1.1700
+vertex v17 free 0.0600 0.0000 0.0600
+vertex v18 free 0.0600 0.4300 0.0600
+vertex v19 free 0.0600 0.0000 1.1400
+vertex v20 free 0.0600 0.4300 1.1400
+vertex v21 free 1.1400 0.0000 0.0600
+vertex v22 free 1.1400 0.4300 0.0600
+vertex v23 free 1.1400 0.0000 1.1400
+vertex v24 free 1.1400 0.4300 1.1400
+vertex v25 free 0.0400 0.1900 0.0400
+vertex v26 free 0.0400 0.1900 1.1600
+vertex v27 free 1.1600 0.1900 1.1600
+vertex v28 free 1.1600 0.1900 0.0400
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.060 mat=1 tone=2
+surface e2 v5 v6 v7 v8 style=- closed=1 thickness=0.060 mat=1 tone=2
+surface e3 v9 v10 v11 v12 style=- closed=1 thickness=0.060 mat=1 tone=2
+surface e4 v13 v14 v15 v16 style=- closed=1 thickness=0.060 mat=1 tone=2
+line e5 v17 v18 style=- radius=0.060 form=square mat=0 tone=2
+line e6 v19 v20 style=- radius=0.060 form=square mat=0 tone=2
+line e7 v21 v22 style=- radius=0.060 form=square mat=0 tone=2
+line e8 v23 v24 style=- radius=0.060 form=square mat=0 tone=2
+surface e9 v25 v26 v27 v28 style=- closed=1 thickness=0.200 mat=7 tone=1
