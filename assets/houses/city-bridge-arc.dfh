@@ -1,0 +1,302 @@
+# dfh 1
+vertex v1 free 1.2000 -2.2000 0.4000
+vertex v2 free 1.2000 -2.2000 3.6000
+vertex v3 free 6.8000 -2.2000 0.4000
+vertex v4 free 6.8000 -2.2000 3.6000
+vertex v5 free -8.6007 -0.5500 0.0000
+vertex v6 free -8.6007 -0.5500 4.0000
+vertex v7 free 0.3904 0.7987 4.0000
+vertex v8 free 0.3904 0.7987 0.0000
+vertex v9 free 0.3815 0.7976 0.0000
+vertex v10 free 0.3815 0.7976 4.0000
+vertex v11 free 2.1942 0.9600 4.0000
+vertex v12 free 2.1942 0.9600 0.0000
+vertex v13 free 2.1853 0.9594 0.0000
+vertex v14 free 2.1853 0.9594 4.0000
+vertex v15 free 4.0045 1.0136 4.0000
+vertex v16 free 4.0045 1.0136 0.0000
+vertex v17 free 3.9955 1.0136 0.0000
+vertex v18 free 3.9955 1.0136 4.0000
+vertex v19 free 5.8147 0.9594 4.0000
+vertex v20 free 5.8147 0.9594 0.0000
+vertex v21 free 5.8058 0.9600 0.0000
+vertex v22 free 5.8058 0.9600 4.0000
+vertex v23 free 7.6185 0.7976 4.0000
+vertex v24 free 7.6185 0.7976 0.0000
+vertex v25 free 7.6096 0.7987 0.0000
+vertex v26 free 7.6096 0.7987 4.0000
+vertex v27 free 16.6007 -0.5500 4.0000
+vertex v28 free 16.6007 -0.5500 0.0000
+vertex v29 free 1.5347 0.1350 0.4000
+vertex v30 free 1.5347 0.1350 3.6000
+vertex v31 free 2.0564 0.3559 3.6000
+vertex v32 free 2.0564 0.3559 0.4000
+vertex v33 free 2.5977 0.5236 3.6000
+vertex v34 free 2.5977 0.5236 0.4000
+vertex v35 free 3.1529 0.6363 3.6000
+vertex v36 free 3.1529 0.6363 0.4000
+vertex v37 free 3.7167 0.6929 3.6000
+vertex v38 free 3.7167 0.6929 0.4000
+vertex v39 free 4.2833 0.6929 3.6000
+vertex v40 free 4.2833 0.6929 0.4000
+vertex v41 free 4.8471 0.6363 3.6000
+vertex v42 free 4.8471 0.6363 0.4000
+vertex v43 free 5.4023 0.5236 3.6000
+vertex v44 free 5.4023 0.5236 0.4000
+vertex v45 free 5.9436 0.3559 3.6000
+vertex v46 free 5.9436 0.3559 0.4000
+vertex v47 free 6.4653 0.1350 3.6000
+vertex v48 free 6.4653 0.1350 0.4000
+vertex v49 free 1.5347 0.1350 0.0600
+vertex v50 free 2.0564 0.3559 0.0600
+vertex v51 free 2.5977 0.5236 0.0600
+vertex v52 free 3.1529 0.6363 0.0600
+vertex v53 free 3.7167 0.6929 0.0600
+vertex v54 free 4.2833 0.6929 0.0600
+vertex v55 free 4.8471 0.6363 0.0600
+vertex v56 free 5.4023 0.5236 0.0600
+vertex v57 free 5.9436 0.3559 0.0600
+vertex v58 free 6.4653 0.1350 0.0600
+vertex v59 free 1.5347 0.1350 3.9400
+vertex v60 free 2.0564 0.3559 3.9400
+vertex v61 free 2.5977 0.5236 3.9400
+vertex v62 free 3.1529 0.6363 3.9400
+vertex v63 free 3.7167 0.6929 3.9400
+vertex v64 free 4.2833 0.6929 3.9400
+vertex v65 free 4.8471 0.6363 3.9400
+vertex v66 free 5.4023 0.5236 3.9400
+vertex v67 free 5.9436 0.3559 3.9400
+vertex v68 free 6.4653 0.1350 3.9400
+vertex v69 free -8.6007 -0.6000 0.1500
+vertex v70 free -6.9005 -0.6000 0.1500
+vertex v71 free -6.9005 0.4550 0.1500
+vertex v72 free -8.6007 0.2000 0.1500
+vertex v73 free -5.2004 -0.6000 0.1500
+vertex v74 free -5.2004 0.7100 0.1500
+vertex v75 free -3.5003 -0.6000 0.1500
+vertex v76 free -3.5003 0.9650 0.1500
+vertex v77 free -1.8002 -0.6000 0.1500
+vertex v78 free -1.8002 1.2201 0.1500
+vertex v79 free -0.1001 -0.6000 0.1500
+vertex v80 free -0.1001 1.4722 0.1500
+vertex v81 free 1.6000 -0.6000 0.1500
+vertex v82 free 1.6000 1.6551 0.1500
+vertex v83 free 1.6000 0.3313 0.1500
+vertex v84 free 2.0000 0.4950 0.1500
+vertex v85 free 2.0000 1.6841 0.1500
+vertex v86 free 2.4000 0.6254 0.1500
+vertex v87 free 2.4000 1.7079 0.1500
+vertex v88 free 2.8000 0.7248 0.1500
+vertex v89 free 2.8000 1.7263 0.1500
+vertex v90 free 3.2000 0.7947 0.1500
+vertex v91 free 3.2000 1.7395 0.1500
+vertex v92 free 3.6000 0.8362 0.1500
+vertex v93 free 3.6000 1.7474 0.1500
+vertex v94 free 4.0000 0.8500 0.1500
+vertex v95 free 4.0000 1.7500 0.1500
+vertex v96 free 4.4000 0.8362 0.1500
+vertex v97 free 4.4000 1.7474 0.1500
+vertex v98 free 4.8000 0.7947 0.1500
+vertex v99 free 4.8000 1.7395 0.1500
+vertex v100 free 5.2000 0.7248 0.1500
+vertex v101 free 5.2000 1.7263 0.1500
+vertex v102 free 5.6000 0.6254 0.1500
+vertex v103 free 5.6000 1.7079 0.1500
+vertex v104 free 6.0000 0.4950 0.1500
+vertex v105 free 6.0000 1.6841 0.1500
+vertex v106 free 6.4000 0.3313 0.1500
+vertex v107 free 6.4000 1.6551 0.1500
+vertex v108 free 6.4000 -0.6000 0.1500
+vertex v109 free 8.1001 -0.6000 0.1500
+vertex v110 free 8.1001 1.4722 0.1500
+vertex v111 free 9.8002 -0.6000 0.1500
+vertex v112 free 9.8002 1.2201 0.1500
+vertex v113 free 11.5003 -0.6000 0.1500
+vertex v114 free 11.5003 0.9650 0.1500
+vertex v115 free 13.2004 -0.6000 0.1500
+vertex v116 free 13.2004 0.7100 0.1500
+vertex v117 free 14.9005 -0.6000 0.1500
+vertex v118 free 14.9005 0.4550 0.1500
+vertex v119 free 16.6007 -0.6000 0.1500
+vertex v120 free 16.6007 0.2000 0.1500
+vertex v121 free 0.3860 1.5344 0.1500
+vertex v122 free -8.6007 -0.5400 0.1500
+vertex v123 free 0.3860 0.7944 0.1500
+vertex v124 free 2.1898 1.6961 0.1500
+vertex v125 free 2.1898 0.9561 0.1500
+vertex v126 free 4.0000 1.0100 0.1500
+vertex v127 free 5.8102 1.6961 0.1500
+vertex v128 free 5.8102 0.9561 0.1500
+vertex v129 free 7.6140 1.5344 0.1500
+vertex v130 free 7.6140 0.7944 0.1500
+vertex v131 free 16.6007 -0.5400 0.1500
+vertex v132 free -8.6007 -0.6000 3.8500
+vertex v133 free -6.9005 -0.6000 3.8500
+vertex v134 free -6.9005 0.4550 3.8500
+vertex v135 free -8.6007 0.2000 3.8500
+vertex v136 free -5.2004 -0.6000 3.8500
+vertex v137 free -5.2004 0.7100 3.8500
+vertex v138 free -3.5003 -0.6000 3.8500
+vertex v139 free -3.5003 0.9650 3.8500
+vertex v140 free -1.8002 -0.6000 3.8500
+vertex v141 free -1.8002 1.2201 3.8500
+vertex v142 free -0.1001 -0.6000 3.8500
+vertex v143 free -0.1001 1.4722 3.8500
+vertex v144 free 1.6000 -0.6000 3.8500
+vertex v145 free 1.6000 1.6551 3.8500
+vertex v146 free 1.6000 0.3313 3.8500
+vertex v147 free 2.0000 0.4950 3.8500
+vertex v148 free 2.0000 1.6841 3.8500
+vertex v149 free 2.4000 0.6254 3.8500
+vertex v150 free 2.4000 1.7079 3.8500
+vertex v151 free 2.8000 0.7248 3.8500
+vertex v152 free 2.8000 1.7263 3.8500
+vertex v153 free 3.2000 0.7947 3.8500
+vertex v154 free 3.2000 1.7395 3.8500
+vertex v155 free 3.6000 0.8362 3.8500
+vertex v156 free 3.6000 1.7474 3.8500
+vertex v157 free 4.0000 0.8500 3.8500
+vertex v158 free 4.0000 1.7500 3.8500
+vertex v159 free 4.4000 0.8362 3.8500
+vertex v160 free 4.4000 1.7474 3.8500
+vertex v161 free 4.8000 0.7947 3.8500
+vertex v162 free 4.8000 1.7395 3.8500
+vertex v163 free 5.2000 0.7248 3.8500
+vertex v164 free 5.2000 1.7263 3.8500
+vertex v165 free 5.6000 0.6254 3.8500
+vertex v166 free 5.6000 1.7079 3.8500
+vertex v167 free 6.0000 0.4950 3.8500
+vertex v168 free 6.0000 1.6841 3.8500
+vertex v169 free 6.4000 0.3313 3.8500
+vertex v170 free 6.4000 1.6551 3.8500
+vertex v171 free 6.4000 -0.6000 3.8500
+vertex v172 free 8.1001 -0.6000 3.8500
+vertex v173 free 8.1001 1.4722 3.8500
+vertex v174 free 9.8002 -0.6000 3.8500
+vertex v175 free 9.8002 1.2201 3.8500
+vertex v176 free 11.5003 -0.6000 3.8500
+vertex v177 free 11.5003 0.9650 3.8500
+vertex v178 free 13.2004 -0.6000 3.8500
+vertex v179 free 13.2004 0.7100 3.8500
+vertex v180 free 14.9005 -0.6000 3.8500
+vertex v181 free 14.9005 0.4550 3.8500
+vertex v182 free 16.6007 -0.6000 3.8500
+vertex v183 free 16.6007 0.2000 3.8500
+vertex v184 free 0.3860 1.5344 3.8500
+vertex v185 free -8.6007 -0.5400 3.8500
+vertex v186 free 0.3860 0.7944 3.8500
+vertex v187 free 2.1898 1.6961 3.8500
+vertex v188 free 2.1898 0.9561 3.8500
+vertex v189 free 4.0000 1.0100 3.8500
+vertex v190 free 5.8102 1.6961 3.8500
+vertex v191 free 5.8102 0.9561 3.8500
+vertex v192 free 7.6140 1.5344 3.8500
+vertex v193 free 7.6140 0.7944 3.8500
+vertex v194 free 16.6007 -0.5400 3.8500
+surface e1 v1 v2 style=- height=2.4 thickness=0.8 mat=3 tone=1 fill=3 wear=0.6 unsupported=1
+surface e2 v3 v4 style=- height=2.4 thickness=0.8 mat=3 tone=1 fill=3 wear=0.6 unsupported=1
+surface e3 v5 v6 v7 v8 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.5 unsupported=1
+surface e4 v9 v10 v11 v12 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.5 unsupported=1
+surface e5 v13 v14 v15 v16 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.5 unsupported=1
+surface e6 v17 v18 v19 v20 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.5 unsupported=1
+surface e7 v21 v22 v23 v24 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.5 unsupported=1
+surface e8 v25 v26 v27 v28 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.5 unsupported=1
+surface e9 v29 v30 v31 v32 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+surface e10 v32 v31 v33 v34 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+surface e11 v34 v33 v35 v36 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+surface e12 v36 v35 v37 v38 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+surface e13 v38 v37 v39 v40 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+surface e14 v40 v39 v41 v42 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+surface e15 v42 v41 v43 v44 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+surface e16 v44 v43 v45 v46 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+surface e17 v46 v45 v47 v48 style=- closed=1 thickness=0.30 mat=3 tone=1 wear=0.6 unsupported=1
+line e18 v49 v50 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e19 v50 v51 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e20 v51 v52 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e21 v52 v53 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e22 v53 v54 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e23 v54 v55 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e24 v55 v56 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e25 v56 v57 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e26 v57 v58 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e27 v59 v60 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e28 v60 v61 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e29 v61 v62 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e30 v62 v63 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e31 v63 v64 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e32 v64 v65 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e33 v65 v66 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e34 v66 v67 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+line e35 v67 v68 style=- radius=0.17 form=square mat=3 tone=1 wear=0.5
+surface e36 v72 v71 v70 v69 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e37 v71 v74 v73 v70 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e38 v74 v76 v75 v73 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e39 v76 v78 v77 v75 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e40 v78 v80 v79 v77 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e41 v80 v82 v81 v79 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e42 v82 v85 v84 v83 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e43 v85 v87 v86 v84 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e44 v87 v89 v88 v86 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e45 v89 v91 v90 v88 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e46 v91 v93 v92 v90 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e47 v93 v95 v94 v92 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e48 v95 v97 v96 v94 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e49 v97 v99 v98 v96 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e50 v99 v101 v100 v98 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e51 v101 v103 v102 v100 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e52 v103 v105 v104 v102 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e53 v105 v107 v106 v104 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e54 v107 v110 v109 v108 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e55 v110 v112 v111 v109 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e56 v112 v114 v113 v111 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e57 v114 v116 v115 v113 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e58 v116 v118 v117 v115 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e59 v118 v120 v119 v117 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+line e60 v72 v121 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e61 v122 v123 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e62 v121 v124 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e63 v123 v125 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e64 v124 v95 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e65 v125 v126 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e66 v95 v127 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e67 v126 v128 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e68 v127 v129 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e69 v128 v130 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e70 v129 v120 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e71 v130 v131 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+surface e72 v132 v133 v134 v135 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e73 v133 v136 v137 v134 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e74 v136 v138 v139 v137 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e75 v138 v140 v141 v139 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e76 v140 v142 v143 v141 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e77 v142 v144 v145 v143 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e78 v146 v147 v148 v145 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e79 v147 v149 v150 v148 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e80 v149 v151 v152 v150 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e81 v151 v153 v154 v152 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e82 v153 v155 v156 v154 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e83 v155 v157 v158 v156 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e84 v157 v159 v160 v158 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e85 v159 v161 v162 v160 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e86 v161 v163 v164 v162 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e87 v163 v165 v166 v164 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e88 v165 v167 v168 v166 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e89 v167 v169 v170 v168 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e90 v171 v172 v173 v170 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e91 v172 v174 v175 v173 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e92 v174 v176 v177 v175 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e93 v176 v178 v179 v177 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e94 v178 v180 v181 v179 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e95 v180 v182 v183 v181 style=- closed=1 thickness=0.30 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+line e96 v135 v184 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e97 v185 v186 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e98 v184 v187 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e99 v186 v188 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e100 v187 v158 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e101 v188 v189 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e102 v158 v190 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e103 v189 v191 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e104 v190 v192 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e105 v191 v193 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5
+line e106 v192 v183 style=- radius=0.19 form=plank mat=3 tone=1 wear=0.45
+line e107 v193 v194 style=- radius=0.11 form=plank mat=3 tone=1 wear=0.5

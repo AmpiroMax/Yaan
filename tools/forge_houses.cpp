@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 22:08:2026 - 20:25:00
+Last updated: 22:08:2026 - 21:05:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -312,6 +312,52 @@ UPD:
   city-wall12 — те же 27900 вершин, 9300 треугольников, 19 частей и тот же
   габарит; расходятся ровно четыре строки — циклический сдвиг обхода полки
   боевого хода (тот же четырёхугольник, тот же обход).
+- 22:08:2026 - 21:05:00: АРКА МОСТА city-bridge-arc ([N2], тяжесть 3, четыре
+  круга подряд). Прежний city-bridge не тронут, все 91 прежний .dfh бит-в-бит.
+  «ПАРАПЕТ ОДИН» — ЭТО НЕ ОТСУТСТВУЮЩИЙ ПАРАПЕТ, А ОДИНАКОВЫЙ ПОРЯДОК ВЕРШИН.
+  Замер поперечника прежнего моста на высоте борта (луч поперёк, x = 4,
+  y = 0.65): попадания на z = -0.150 / 0.150 / 0.205 и 3.850 / 4.150 / 4.205.
+  Оба борта на месте, но рельеф кладки fill=3 у ОБОИХ вынесен в +Z: у
+  северного он смотрит на проезжую часть, у южного — за борт, в реку. Обе
+  цепочки построены с одинаковым порядком вершин, а лицо цепочки задаёт
+  именно он. С настила один борт читается кладкой, другой — гладкой плитой;
+  это и есть «парапет один». Здесь борта — КОНТУРЫ в плоскости z, у которых
+  лица два по построению: замер того же поперечника даёт 0.000/0.300 и
+  3.700/4.000, симметрично до миллиметра.
+  СВОДА У ПРЕЖНЕГО МОСТА НЕТ ВОВСЕ: луч снизу вверх по оси (x = 4, z = 2) даёт
+  ровно два попадания — 0.050 и 0.350, то есть плиту 0.30 и ничего больше.
+  У арки тот же луч даёт четыре: 0.543 (интрадос свода), 0.843 (экстрадос),
+  0.863 (исподняя грань настила), 1.164 (верх настила).
+  ГОРБ И УКЛОН НЕ УМЕЩАЛИСЬ В ПРЕЖНЮЮ ДЛИНУ, и это арифметика: от торца
+  аппарели (-0.40) до верха настила (0.35) уже 0.75 м, горб 0.80 сверх настила
+  даёт полный подъём 1.55, а 15 % отдают 6.67 м на метр подъёма — значит скату
+  нужно 10.3 м даже при ОСТРОМ гребне, мосту 20.7 м. В прежних 12.88 м горб
+  больше 0.21 м невозможен. Мост удлинён до 25.20 м — это следствие двух
+  заданных чисел, а не запас.
+  ПРОФИЛЬ ПРЯМАЯ-ДУГА-ПРЯМАЯ И ГЛАДОК ПО ПЕРВОЙ ПРОИЗВОДНОЙ: аппарели лежат на
+  КАСАТЕЛЬНЫХ к дуге гребня (R 30.40, от x -0.510 до 8.510 — ровно прежний
+  настил -0.6..8.6), поэтому в точке касания уклон не прыгает. Замер 102 проб
+  вдоль оси: наибольший уклон грани 15.0 %, разрывов 0.
+  ЗАМЕР ПРОТИВ ПАСПОРТА, и расхождения названы. Верх настила в замке 1.1635
+  при константе 1.150: ось — ОПИСАННАЯ ломаная, и она лежит выше дуги на
+  R*(sec δ − 1) = 0.0135. Верх у торца -0.398 при константе -0.400: толщина
+  плиты откладывается по НОРМАЛИ наклонной плоскости, и по вертикали это
+  0.15/cos(8.53°) = 0.1517, то есть +0.0017. Оба расхождения на порядок ниже
+  порога ступени 0.20 м, но раскладчик обязан знать число, а не узнать его
+  прибором.
+  БЫКИ ПРЕЖНИЕ ЧИСЛО В ЧИСЛО: цепочки на x 1.2 и 6.8, от y -2.2 высотой 2.4,
+  толщина 0.8, поперёк z 0.4..3.6 — замер city-bridge.dfh.
+  СВОД ДЕРЖИТ НАСТИЛ, А НЕ ВИСИТ ПОД НИМ: интрадос — сегментная дуга между
+  ЛИЦАМИ быков (просвет 4.80), пята 0.0, подъём 0.55, R 5.511; кольцо 0.30,
+  значит экстрадос замка 0.85 — исподняя грань настила в замке. Арка СКВОЗНАЯ:
+  луч поперёк моста на y = 0.20 проходит все 4.2 м ширины без единого
+  попадания.
+  ПЯТА НЕ СРЕЗАНА ПО ДИАГОНАЛИ: узлы лицевой стены поставлены НА пяты (x 1.6 и
+  6.4), и перепад низа с -0.60 на экстрадос приходится на кусок нулевой
+  ширины. При равномерной резке граница попадала в середину куска, и низ ехал
+  наискось через всю пяту.
+  ГАБАРИТ (замер меша): x -8.623..16.623 (25.246), y -2.200..1.797 (3.997),
+  z -0.110..4.110 (4.220). Проезжая часть между бортами 3.40 м.
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -324,6 +370,7 @@ UPD:
 #include <cstdlib>
 
 #include <glm/geometric.hpp>
+#include <glm/vec2.hpp>
 #include <deque>
 #include <fstream>
 #include <map>
@@ -1891,6 +1938,287 @@ static void forge_bridge() {
     f.save("assets/houses/city-bridge.dfh");
 }
 
+// ---------------------------------------------------------------------------
+// АРКА МОСТА ([N2], тяжесть 3, четыре круга подряд). Прежний city-bridge —
+// ПЛОСКАЯ ПЛИТА на двух опорах: настил горизонтален от торца до торца, свода
+// под ним нет вовсе, а два парапета построены ЦЕПОЧКАМИ с одинаковым порядком
+// вершин, то есть лицо кладки у них смотрит в одну сторону — наружу у одного и
+// внутрь у другого. Здесь оба борта — ОДНА И ТА ЖЕ деталь-контур, у которой
+// лица два по построению.
+//
+// ЧИСЛА ПРОЛЁТА — ЗАМЕР ПРЕЖНЕГО РЕЦЕПТА, А НЕ ПАСПОРТ. Меш city-bridge.dfh:
+// габарит x -2.441..10.441, y -2.200..0.950, z -0.150..4.244; ходибельная
+// поверхность настила 0.350 на всём протяжении, торцы аппарелей -0.400 (это и
+// есть BRIDGE_TIP генератора), быки — цепочки на x = 1.2 и 6.8, от y = -2.2
+// высотой 2.4 (верх 0.2), толщиной 0.8, поперёк z 0.4..3.6. Быки здесь те же
+// до сантиметра.
+//
+// ГОРБ И УКЛОН НЕ УМЕЩАЮТСЯ В ПРЕЖНЮЮ ДЛИНУ, и это арифметика, а не мнение.
+// От торца аппарели (-0.40) до верха настила (0.35) уже 0.75 м; горб 0.80 м
+// сверх настила даёт полный подъём 1.55 м. Уклон 15 % отдаёт 6.67 м длины на
+// каждый метр подъёма, значит одному скату нужно не меньше 10.3 м, а мосту —
+// не меньше 20.7 м даже при ОСТРОМ гребне. Прежние 12.88 м не дают горба
+// больше 0.21 м. Поэтому мост удлинён до 25.2 м, и это не «на всякий случай»,
+// а ровно то, что следует из двух заданных чисел.
+//
+// ПРОФИЛЬ — ПРЯМАЯ, ДУГА, ПРЯМАЯ, И ОН ГЛАДКИЙ В МАТЕМАТИЧЕСКОМ СМЫСЛЕ:
+// аппарели лежат на КАСАТЕЛЬНЫХ к дуге гребня, поэтому в точке касания уклон
+// не прыгает (непрерывность по первой производной). Уклон равен ровно 15 % на
+// аппарелях и падает до нуля в замке; больше 15 % нет нигде.
+// ---------------------------------------------------------------------------
+
+/// ВЕРХ НАСТИЛА В ЗАМКЕ, локально. Прецедент BRIDGE_DECK/BRIDGE_TIP: числа,
+/// по которым генератор ищет поверхность, живут константами, а не в теле.
+static constexpr float BRIDGE_ARC_CROWN = 1.15f;
+/// ВЕРХ АППАРЕЛИ У ТОРЦА, локально. То же число, что BRIDGE_TIP у прежнего
+/// моста: земля подходов доводится генератором именно к этой отметке, и менять
+/// её значило бы переделывать grade_bridge ради косметики.
+static constexpr float BRIDGE_ARC_TIP = -0.40f;
+/// Замок стоит над серединой пролёта быков (1.2 и 6.8 -> 4.0).
+static constexpr float BRIDGE_ARC_CX = 4.0f;
+/// Наибольший уклон ходибельной поверхности (заказ: не круче 15 %).
+static constexpr float BRIDGE_ARC_GRADE = 0.15f;
+/// Радиус вертикальной кривой гребня. ВЫБРАН ТАК, ЧТОБЫ ДУГА НАКРЫЛА РОВНО
+/// ПРЕЖНИЙ НАСТИЛ: полуширина кривой = R*sin(atan(0.15)) = 4.507, то есть
+/// дуга идёт от x = -0.507 до 8.507 при прежнем настиле -0.6..8.6.
+static constexpr float BRIDGE_ARC_RV = 30.40f;
+/// Ширина настила и толщина плиты — у прежнего рецепта.
+static constexpr float BRIDGE_ARC_W = 4.0f;
+static constexpr float BRIDGE_ARC_TH = 0.30f;
+/// Ось борта: 0.15 от кромки, чтобы тело 0.30 легло В габарит настила.
+/// У прежнего моста борт стоял на самой кромке и свисал наружу на 0.15.
+static constexpr float BRIDGE_ARC_KERB = 0.15f;
+/// Парапет над настилом — высота прежнего борта.
+static constexpr float BRIDGE_ARC_RAIL = 0.60f;
+
+/// ПРОФИЛЬ ХОДИБЕЛЬНОЙ ПОВЕРХНОСТИ. Одна формула на весь рецепт: настил,
+/// парапет, лицевые стены и замер отчёта берут высоту ОТСЮДА.
+struct BridgeArc {
+    float alpha = std::atan(BRIDGE_ARC_GRADE);  ///< угол касания
+    float curve_half = 0.0f;   ///< полуширина дуги гребня по x
+    float y_tangent = 0.0f;    ///< верх настила в точке касания
+    float ramp_run = 0.0f;     ///< длина аппарели по x
+    float half = 0.0f;         ///< полудлина моста по x
+    float x0 = 0.0f, x1 = 0.0f;
+    float cy = 0.0f;           ///< y центра вертикальной кривой
+
+    BridgeArc() {
+        curve_half = BRIDGE_ARC_RV * std::sin(alpha);
+        y_tangent = BRIDGE_ARC_CROWN - BRIDGE_ARC_RV * (1.0f - std::cos(alpha));
+        ramp_run = (y_tangent - BRIDGE_ARC_TIP) / BRIDGE_ARC_GRADE;
+        half = curve_half + ramp_run;
+        x0 = BRIDGE_ARC_CX - half;
+        x1 = BRIDGE_ARC_CX + half;
+        cy = BRIDGE_ARC_CROWN - BRIDGE_ARC_RV;
+    }
+    /// Верх настила над точкой x.
+    [[nodiscard]] float top(float x) const {
+        const float a = std::fabs(x - BRIDGE_ARC_CX);
+        if (a <= curve_half) {
+            return cy + std::sqrt(std::max(0.0f, BRIDGE_ARC_RV * BRIDGE_ARC_RV - a * a));
+        }
+        return y_tangent - BRIDGE_ARC_GRADE * (a - curve_half);
+    }
+};
+
+static void forge_bridge_arc() {
+    Forge f;
+    const BridgeArc B;
+
+    // 1. БЫКИ — ПРЕЖНИЕ, ЧИСЛО В ЧИСЛО (замер city-bridge.dfh).
+    for (const float x : {1.2f, 6.8f}) {
+        (void)f.wall(f.v(x, -2.2f, 0.4f), f.v(x, -2.2f, 3.6f),
+                     {{"height", "2.4"}, {"thickness", "0.8"}, {"mat", "3"},
+                      {"tone", "1"}, {"fill", "3"}, {"wear", "0.6"},
+                      {"unsupported", "1"}});
+    }
+
+    // 2. ОСЬ НАСТИЛА — ЛОМАНАЯ ПО ОПИСАННОЙ, как у гнутой стены: звенья лежат
+    // на касательных к дуге гребня, поэтому крайние звенья ПРОДОЛЖАЮТ аппарели
+    // без излома, а не пристыковываются к ним.
+    std::vector<glm::vec2> spine;  // (x, верх настила)
+    {
+        const float d_len = std::atan(1.0f / BRIDGE_ARC_RV);           // хорда <= 2 м
+        const float d_dev = std::acos(std::min(1.0f, BRIDGE_ARC_RV
+                                                     / (BRIDGE_ARC_RV + 0.02f)));
+        const float d_max = std::min(d_len, d_dev);
+        const int n = std::max(1, static_cast<int>(std::ceil(B.alpha / d_max - 1e-6f)));
+        const float d = B.alpha / static_cast<float>(n);
+        const float r_out = BRIDGE_ARC_RV / std::cos(d);
+        spine.emplace_back(B.x0, BRIDGE_ARC_TIP);
+        for (int k = 1; k <= n; ++k) {
+            const float t = -B.alpha + (2.0f * static_cast<float>(k) - 1.0f) * d;
+            spine.emplace_back(BRIDGE_ARC_CX + r_out * std::sin(t),
+                               B.cy + r_out * std::cos(t));
+        }
+        spine.emplace_back(B.x1, BRIDGE_ARC_TIP);
+    }
+
+    // 3. НАСТИЛ: по плите на звено. Плита СИММЕТРИЧНА срединной плоскости, а
+    // человек называет ВЕРХ, поэтому ось кладётся на th/2 ниже. Внутренние
+    // торцы выпущены на (th/2)*tan(излом/2): выпуклый гребень раскрывал бы на
+    // каждом стыке клин глубиной в полтолщины — та же болезнь, что у стены.
+    const float dth = BRIDGE_ARC_TH * 0.5f;
+    for (std::size_t i = 0; i + 1 < spine.size(); ++i) {
+        glm::vec2 p = spine[i];
+        glm::vec2 q = spine[i + 1];
+        const glm::vec2 dv = glm::normalize(q - p);
+        if (i > 0 || i + 2 < spine.size()) {
+            // Излом между этим звеном и соседним.
+            const auto kink = [&](std::size_t a, std::size_t b, std::size_t c) {
+                const glm::vec2 u = glm::normalize(spine[b] - spine[a]);
+                const glm::vec2 w = glm::normalize(spine[c] - spine[b]);
+                return std::acos(std::clamp(glm::dot(u, w), -1.0f, 1.0f));
+            };
+            if (i > 0) {
+                p -= dv * (dth * std::tan(kink(i - 1, i, i + 1) * 0.5f));
+            }
+            if (i + 2 < spine.size()) {
+                q += dv * (dth * std::tan(kink(i, i + 1, i + 2) * 0.5f));
+            }
+        }
+        (void)f.contour({f.v(p.x, p.y - dth, 0.0f), f.v(p.x, p.y - dth, BRIDGE_ARC_W),
+                         f.v(q.x, q.y - dth, BRIDGE_ARC_W), f.v(q.x, q.y - dth, 0.0f)},
+                        {{"thickness", "0.30"}, {"mat", "3"}, {"tone", "1"},
+                         {"wear", "0.5"}, {"unsupported", "1"}});
+    }
+
+    // 4. СВОД. Интрадос — сегментная дуга между ЛИЦАМИ быков (1.6 и 6.4,
+    // просвет 4.8): пята на 0.0, подъём 0.55, значит замок свода 0.55, а с
+    // кольцом 0.30 экстрадос замка 0.85 — ровно исподняя грань настила в
+    // замке (1.15 - 0.30). Свод ДЕРЖИТ настил, а не висит под ним.
+    const float SPR_X0 = 1.6f;
+    const float SPR_X1 = 6.4f;
+    const float VAULT_RISE = 0.55f;
+    const float VAULT_RING = 0.30f;
+    const float v_half = (SPR_X1 - SPR_X0) * 0.5f;
+    const float v_R = (VAULT_RISE * VAULT_RISE + v_half * v_half) / (2.0f * VAULT_RISE);
+    const float v_cy = VAULT_RISE - v_R;              // центр дуги, y
+    const float v_beta = std::asin(v_half / v_R);     // полуугол
+    const auto vault_y = [&](float x, float dr) {
+        const float a = std::fabs(x - BRIDGE_ARC_CX);
+        const float r = v_R + dr;
+        const float rr = r * r - a * a;
+        return v_cy + (rr > 0.0f ? std::sqrt(rr) : 0.0f);
+    };
+    {
+        const int nv = 9;  // клинья свода
+        for (int k = 0; k < nv; ++k) {
+            const float t0 = -v_beta + 2.0f * v_beta * static_cast<float>(k)
+                           / static_cast<float>(nv);
+            const float t1 = -v_beta + 2.0f * v_beta * static_cast<float>(k + 1)
+                           / static_cast<float>(nv);
+            const float rm = v_R + VAULT_RING * 0.5f;  // срединная поверхность кольца
+            const float ax = BRIDGE_ARC_CX + rm * std::sin(t0);
+            const float ay = v_cy + rm * std::cos(t0);
+            const float bx = BRIDGE_ARC_CX + rm * std::sin(t1);
+            const float by = v_cy + rm * std::cos(t1);
+            (void)f.contour({f.v(ax, ay, 0.4f), f.v(ax, ay, 3.6f),
+                             f.v(bx, by, 3.6f), f.v(bx, by, 0.4f)},
+                            {{"thickness", "0.30"}, {"mat", "3"}, {"tone", "1"},
+                             {"wear", "0.6"}, {"unsupported", "1"}});
+        }
+        // ПОДПРУЖНЫЕ КАМНИ (архивольт) на обоих лицах: без кольца свод читается
+        // выемкой в стене, а не аркой. Брус квадратного сечения по срединной
+        // поверхности, вынесенный на 0.10 за лицо стены.
+        for (const float z : {0.06f, BRIDGE_ARC_W - 0.06f}) {
+            for (int k = 0; k < nv; ++k) {
+                const float t0 = -v_beta + 2.0f * v_beta * static_cast<float>(k)
+                               / static_cast<float>(nv);
+                const float t1 = -v_beta + 2.0f * v_beta * static_cast<float>(k + 1)
+                               / static_cast<float>(nv);
+                const float rm = v_R + VAULT_RING * 0.5f;
+                (void)f.beam(f.v(BRIDGE_ARC_CX + rm * std::sin(t0), v_cy + rm * std::cos(t0), z),
+                             f.v(BRIDGE_ARC_CX + rm * std::sin(t1), v_cy + rm * std::cos(t1), z),
+                             {{"radius", "0.17"}, {"form", "square"}, {"mat", "3"},
+                              {"tone", "1"}, {"wear", "0.5"}});
+            }
+        }
+    }
+
+    // 5. ЛИЦЕВАЯ СТЕНА — ОДНА ДЕТАЛЬ ОТ ПОДОШВЫ ДО ВЕРХА ПАРАПЕТА, и это ответ
+    // на «парапет один»: борт и пазуха собраны одним контуром в плоскости z,
+    // у которого лица два по построению, а не цепочкой, у которой лицо одно и
+    // повёрнуто порядком вершин. Низ идёт по экстрадосу свода в пролёте и по
+    // подошве устоя за ним — пазуха закрыта, арка открыта.
+    // РАЗБИЕНИЕ ЛИЦА ИДЁТ ПО ПЯТАМ СВОДА, А НЕ ПО ЗВЕНЬЯМ НАСТИЛА. Если резать
+    // лицо равномерно, граница «устой / пазуха» попадает в середину куска, и
+    // низ куска едет наискось от -0.60 до экстрадоса — пята свода получается
+    // срезанной по диагонали. Здесь x = 1.6 и 6.4 стоят В СПИСКЕ узлов, и
+    // перепад низа приходится ровно на пяту, шириной в ноль.
+    const float FACE_FOOT = -0.60f;
+    std::vector<std::pair<float, float>> face;  // (x, низ лица)
+    {
+        const auto push = [&](float x, float lo) { face.emplace_back(x, lo); };
+        const int n_ab = 6;   // устой: от торца до пяты
+        const int n_vt = 12;  // пазуха: по экстрадосу свода
+        for (int k = 0; k <= n_ab; ++k) {
+            push(B.x0 + (SPR_X0 - B.x0) * static_cast<float>(k) / n_ab, FACE_FOOT);
+        }
+        for (int k = 0; k <= n_vt; ++k) {
+            const float x = SPR_X0 + (SPR_X1 - SPR_X0) * static_cast<float>(k) / n_vt;
+            push(x, vault_y(x, VAULT_RING));
+        }
+        for (int k = 0; k <= n_ab; ++k) {
+            push(SPR_X1 + (B.x1 - SPR_X1) * static_cast<float>(k) / n_ab, FACE_FOOT);
+        }
+    }
+    for (const float z : {BRIDGE_ARC_KERB, BRIDGE_ARC_W - BRIDGE_ARC_KERB}) {
+        const bool north = z < BRIDGE_ARC_W * 0.5f;
+        for (std::size_t i = 0; i + 1 < face.size(); ++i) {
+            const float xa = face[i].first;
+            const float xb = face[i + 1].first;
+            if (xb - xa < 1e-4f) {
+                continue;  // перепад низа на пяте: ширина ноль, куска нет
+            }
+            const VertexId p1 = f.v(xa, face[i].second, z);
+            const VertexId p2 = f.v(xb, face[i + 1].second, z);
+            const VertexId p3 = f.v(xb, B.top(xb) + BRIDGE_ARC_RAIL, z);
+            const VertexId p4 = f.v(xa, B.top(xa) + BRIDGE_ARC_RAIL, z);
+            const std::vector<VertexId> ring =
+                north ? std::vector<VertexId>{p4, p3, p2, p1}
+                      : std::vector<VertexId>{p1, p2, p3, p4};
+            (void)f.contour(ring,
+                            {{"thickness", "0.30"}, {"mat", "3"}, {"tone", "1"},
+                             {"fill", "3"}, {"wear", "0.55"},
+                             {"unsupported", "1"}});
+        }
+        // КОПИНГ поверх парапета и ПОЯСОК на уровне настила: без напуска борт
+        // читается обрубленным (тот же довод, что у копинга подпорной стенки),
+        // а поясок прячет торец плиты настила и делит парапет и пазуху.
+        for (std::size_t i = 0; i + 1 < spine.size(); ++i) {
+            const float xa = spine[i].x;
+            const float xb = spine[i + 1].x;
+            (void)f.beam(f.v(xa, B.top(xa) + BRIDGE_ARC_RAIL, z),
+                         f.v(xb, B.top(xb) + BRIDGE_ARC_RAIL, z),
+                         {{"radius", "0.19"}, {"form", "plank"}, {"mat", "3"},
+                          {"tone", "1"}, {"wear", "0.45"}});
+            (void)f.beam(f.v(xa, B.top(xa) - 0.14f, z),
+                         f.v(xb, B.top(xb) - 0.14f, z),
+                         {{"radius", "0.11"}, {"form", "plank"}, {"mat", "3"},
+                          {"tone", "1"}, {"wear", "0.5"}});
+        }
+    }
+
+    std::fprintf(stderr,
+                 "forge: арка моста — торцы x %.3f..%.3f (%.3f м), замок %.3f, "
+                 "торец %.3f, горб над прежним настилом %.3f, уклон аппарели "
+                 "%.1f%%, дуга гребня R %.2f от %.3f до %.3f, свод: просвет "
+                 "%.2f, подъём %.2f, R %.3f\n",
+                 static_cast<double>(B.x0), static_cast<double>(B.x1),
+                 static_cast<double>(B.x1 - B.x0),
+                 static_cast<double>(BRIDGE_ARC_CROWN),
+                 static_cast<double>(BRIDGE_ARC_TIP),
+                 static_cast<double>(BRIDGE_ARC_CROWN - 0.35f),
+                 static_cast<double>(BRIDGE_ARC_GRADE * 100.0f),
+                 static_cast<double>(BRIDGE_ARC_RV),
+                 static_cast<double>(BRIDGE_ARC_CX - B.curve_half),
+                 static_cast<double>(BRIDGE_ARC_CX + B.curve_half),
+                 static_cast<double>(SPR_X1 - SPR_X0),
+                 static_cast<double>(VAULT_RISE), static_cast<double>(v_R));
+    f.save("assets/houses/city-bridge-arc.dfh");
+}
+
 /// МАЛЫЙ ДОМ 4.5x6: фахверк под дранкой, полный набор деталей.
 static void forge_small_house(Aging age) {
     Forge f;
@@ -3410,6 +3738,7 @@ int main() {
                     + ".dfh").c_str(), k.second);
     }
     forge_bridge();
+    forge_bridge_arc();
     forge_stall();
     forge_well();
     forge_longhall();
