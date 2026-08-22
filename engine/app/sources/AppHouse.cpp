@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 22:08:2026 - 14:50:00
+Last updated: 22:08:2026 - 17:45:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -51,10 +51,14 @@ UPD:
   (span габарита города ~350 м) и первым делом били 200-метровую стену
   барьера world_edge_ на x=-4 — «сквозь дом упёрся» и «прибор врёт» были
   одним попаданием в барьер. Оба плеча зажаты внутрь world_bounds_xz().
+- 22:08:2026 - 17:45:00: AO построек — печётся по отпечатку меша (кэш: 434 экземпляра из
+  ~20-30 уникальных .dfh), ложится в альфу вершин ПОСЛЕ мха/грязи. Дверь
+  дозы DFN_HOUSE_AO, 0 = прибитые 255 бит-в-бит.
 */
 
 #include "engine/app/sources/App.h"
 
+#include "engine/app/sources/AppDoors.h"
 #include "engine/app/sources/AppInternal.h"
 #include "engine/app/sources/Controls.h"
 #include "engine/editor/sources/EditorToolHouse.h"
@@ -72,6 +76,7 @@ UPD:
 #include <fstream>
 #include <sstream>
 #include <map>
+#include <unordered_map>
 #include <cstdio>
 #include <glm/geometric.hpp>
 
@@ -482,9 +487,39 @@ void App::upload_house_mesh() {
     std::vector<std::uint32_t> collider_indices;
     house_positions_.clear();
 
+    // КЭШ НЕБЕСНОЙ ВИДИМОСТИ ПО ОТПЕЧАТКУ МЕША. 434 постройки города — это
+    // ~20-30 уникальных .dfh: печь AO на каждый ЭКЗЕМПЛЯР значило бы платить
+    // в двадцать раз больше за побайтово тот же ответ (build_house_mesh
+    // детерминирован по построению — см. его заголовок). Отпечаток — счётчики
+    // плюс FNV по первым вершинам; живёт от загрузки до загрузки карты.
+    static std::unordered_map<std::uint64_t, std::vector<std::uint8_t>> ao_cache;
+    ao_cache.clear();
+    const auto ao_of = [](const world::HouseMesh& built)
+        -> const std::vector<std::uint8_t>& {
+        std::uint64_t h = 1469598103934665603ull;
+        const auto mix = [&h](std::uint64_t v) {
+            h = (h ^ v) * 1099511628211ull;
+        };
+        mix(built.vertices.size());
+        mix(built.indices.size());
+        const size_t n = std::min<size_t>(built.vertices.size(), 64);
+        for (size_t i = 0; i < n; ++i) {
+            const auto& p = built.vertices[i].pos;
+            mix(static_cast<std::uint64_t>(std::llround(p.x * 512.0f)));
+            mix(static_cast<std::uint64_t>(std::llround(p.y * 512.0f)));
+            mix(static_cast<std::uint64_t>(std::llround(p.z * 512.0f)));
+        }
+        auto it = ao_cache.find(h);
+        if (it == ao_cache.end()) {
+            it = ao_cache.emplace(h, world::bake_house_sky_visibility(built)).first;
+        }
+        return it->second;
+    };
+
     const auto append_graph = [&](const world::HouseGraph& graph,
                                   const auto& to_world) {
         const world::HouseMesh built = world::build_house_mesh(graph);
+        const std::vector<std::uint8_t>& sky_vis = ao_of(built);
         const glm::vec3 zero = to_world(glm::vec3{0.0f});
         // НИЗ ПОСТРОЙКИ — для мха износа: зелёный налёт живёт в первом метре
         // от самой низкой точки, как сырость от земли.
@@ -497,12 +532,28 @@ void App::upload_house_mesh() {
         std::uint32_t part_color = 0xFFFFFFFFu;
         float part_wear = 0.0f;
         bool part_organic = false;
-        const auto to_world_vertex = [&](const world::HouseVertex& v) {
+        const auto to_world_vertex = [&](const world::HouseVertex& v,
+                                         std::uint8_t vis) {
             platform::Vertex pv{};
             pv.position = to_world(v.pos);
             pv.normal = to_world(v.normal) - zero;
             pv.uv = v.uv;
             pv.color_rgba = part_color;
+            // ЗАПЕЧЁННАЯ НЕБЕСНАЯ ВИДИМОСТЬ — в альфу вершины: канал был
+            // прибит к 255, dfn_surface_light уже умножает на него ambient
+            // (sky_vis). Ни одной правки шейдера (22.08, «постройки плоские»:
+            // откос ворот был той же яркости, что фасад). DFN_HOUSE_AO —
+            // доза: 0 возвращает прибитые 255 бит-в-бит, дробная ослабляет
+            // затемнение пропорционально.
+            static const float ao_dose = [] {
+                const char* e = door_value("DFN_HOUSE_AO");
+                return (e != nullptr && *e != '\0')
+                           ? std::strtof(e, nullptr)
+                           : 1.0f;
+            }();
+            const std::uint32_t a = static_cast<std::uint32_t>(std::lround(
+                255.0f - std::clamp(ao_dose, 0.0f, 1.0f)
+                             * (255.0f - static_cast<float>(vis))));
             // СЛОЙ ГРЯЗИ И МХА (калибровка 21.08: равномерный градиент тонул
             // в свету — три приёмки кадров его не увидели). Три правила из
             // EXTERIOR_CATALOG.md:
@@ -558,6 +609,9 @@ void App::upload_house_mesh() {
                                   | ch(8, 0.52f, 0.47f) | ch(0, 0.30f, 0.40f);
                 }
             }
+            // Альфа — ПОСЛЕ всех перекрасок: и чистый part_color, и слой
+            // мха/грязи несут запечённую видимость, а не свои 0xFF.
+            pv.color_rgba = (pv.color_rgba & 0x00FFFFFFu) | (a << 24);
             return pv;
         };
         const auto paint_of = [&](const world::Element& e) -> std::uint32_t {
@@ -679,7 +733,8 @@ void App::upload_house_mesh() {
                 if (remap_stamp[vi] != part_no) {
                     remap_stamp[vi] = part_no;
                     remap[vi] = static_cast<std::uint32_t>(into->vertices.size());
-                    into->vertices.push_back(to_world_vertex(built.vertices[vi]));
+                    into->vertices.push_back(
+                        to_world_vertex(built.vertices[vi], sky_vis[vi]));
                 }
                 into->indices.push_back(remap[vi]);
             }

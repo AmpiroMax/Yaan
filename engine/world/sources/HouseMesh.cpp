@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 21:08:2026 - 00:40:00
+Last updated: 22:08:2026 - 17:45:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -43,10 +43,13 @@ UPD:
 - 20:08:2026 - 20:30:00: check_roof_support (эвристика гиперграфа: вершина крыши без стены — находка); марши open=1 доски / open=2 каменные блоки с вывалами; ветхий паркет (ширина рядов, щели, обломки, дыры); сколотые углы кладки; потолочные балки; кровля/паркет — швы циклов в хвостах.
 - 20:08:2026 - 22:40:00: param_slots() — одна таблица числовых полей на лексер и слияние (не-число больше не подменяет значение дефолтом); обшивка только для fill 2/3/4; мёртвые ветка и параметр сняты.
 - 21:08:2026 - 00:40:00: Разрезан по файлу на алгоритм (решение пользователя 21.08): здесь осталась СБОРКА (ordered_elements, build_house_mesh, surface_centre/normal); алгоритмы — House{Geom,Params,Bodies,Stairs,Parquet,Roof,Plate,Walls,Rules}.cpp, общие руки — HouseMeshDetail.h.
+- 22:08:2026 - 17:45:00: тело bake_house_sky_visibility().
 */
 
 #include "engine/world/sources/HouseMesh.h"
 
+#include "engine/core/math/sources/Intersect.h"
+#include "engine/core/math/sources/Ray.h"
 #include "engine/world/sources/HouseMeshDetail.h"
 
 #include "engine/world/sources/HouseStyle.h"
@@ -55,6 +58,7 @@ UPD:
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <unordered_map>
 
 #include <glm/geometric.hpp>
 
@@ -219,6 +223,162 @@ bool surface_normal(const HouseGraph& g, ElementId id, glm::vec3& out) {
         out = -out;
     }
     return true;
+}
+
+std::vector<std::uint8_t> bake_house_sky_visibility(const HouseMesh& mesh) {
+    std::vector<std::uint8_t> out(mesh.vertices.size(), 255u);
+    if (mesh.vertices.empty() || mesh.indices.empty()) {
+        return out;
+    }
+    // Заслонители — видимые части (collider_only не темнит видимое).
+    std::vector<std::uint32_t> tris; // по три индекса
+    tris.reserve(mesh.indices.size());
+    for (const MeshPart& p : mesh.parts) {
+        if (p.collider_only) {
+            continue;
+        }
+        for (std::uint32_t i = 0; i + 2 < p.index_count; i += 3) {
+            tris.push_back(mesh.indices[p.index_begin + i]);
+            tris.push_back(mesh.indices[p.index_begin + i + 1]);
+            tris.push_back(mesh.indices[p.index_begin + i + 2]);
+        }
+    }
+    if (tris.empty()) {
+        return out;
+    }
+    // Равномерная сетка ускорения по XZ (лучи идут вверх — колонка XZ
+    // перечисляет всех кандидатов; вертикальная разбивка дала бы мало при
+    // домах высотой в один-два десятка метров).
+    glm::vec3 lo{1e9f};
+    glm::vec3 hi{-1e9f};
+    for (const HouseVertex& v : mesh.vertices) {
+        lo = glm::min(lo, v.pos);
+        hi = glm::max(hi, v.pos);
+    }
+    constexpr float CELL = 1.0f;
+    const int nx = std::max(1, static_cast<int>((hi.x - lo.x) / CELL) + 1);
+    const int nz = std::max(1, static_cast<int>((hi.z - lo.z) / CELL) + 1);
+    std::vector<std::vector<std::uint32_t>> grid(
+        static_cast<size_t>(nx) * static_cast<size_t>(nz));
+    const auto cell_of = [&](float x, float z) {
+        const int cx = std::clamp(static_cast<int>((x - lo.x) / CELL), 0, nx - 1);
+        const int cz = std::clamp(static_cast<int>((z - lo.z) / CELL), 0, nz - 1);
+        return static_cast<size_t>(cz) * static_cast<size_t>(nx)
+             + static_cast<size_t>(cx);
+    };
+    for (std::uint32_t t = 0; t < tris.size(); t += 3) {
+        const glm::vec3& a = mesh.vertices[tris[t]].pos;
+        const glm::vec3& b = mesh.vertices[tris[t + 1]].pos;
+        const glm::vec3& c = mesh.vertices[tris[t + 2]].pos;
+        const float x0 = std::min({a.x, b.x, c.x});
+        const float x1 = std::max({a.x, b.x, c.x});
+        const float z0 = std::min({a.z, b.z, c.z});
+        const float z1 = std::max({a.z, b.z, c.z});
+        // Целочисленный обход колонок: цикл по float с NaN в вырожденной
+        // вершине не завершился бы никогда.
+        if (!(x0 <= x1) || !(z0 <= z1)) {
+            continue;
+        }
+        const int cx0 = std::clamp(static_cast<int>((x0 - lo.x) / CELL), 0, nx - 1);
+        const int cx1 = std::clamp(static_cast<int>((x1 - lo.x) / CELL), 0, nx - 1);
+        const int cz0 = std::clamp(static_cast<int>((z0 - lo.z) / CELL), 0, nz - 1);
+        const int cz1 = std::clamp(static_cast<int>((z1 - lo.z) / CELL), 0, nz - 1);
+        for (int cz = cz0; cz <= cz1; ++cz) {
+            for (int cx = cx0; cx <= cx1; ++cx) {
+                grid[static_cast<size_t>(cz) * static_cast<size_t>(nx)
+                     + static_cast<size_t>(cx)].push_back(t);
+            }
+        }
+    }
+    // 16 лучей в верхнюю полусферу: 8 азимутов x 2 возвышения. Возвышения
+    // 25° и 60° — нижний ярус ловит свесы и соседние стены, верхний — небо
+    // над головой. Набор ФИКСИРОВАН: тот же меш даёт те же байты.
+    constexpr int AZ = 8;
+    constexpr float ELEV[2] = {0.4363f, 1.0472f}; // 25°, 60° в радианах
+    glm::vec3 dirs[AZ * 2];
+    for (int e = 0; e < 2; ++e) {
+        for (int a = 0; a < AZ; ++a) {
+            const float az = (static_cast<float>(a) + 0.5f) * 6.2831853f
+                           / static_cast<float>(AZ);
+            const float ce = std::cos(ELEV[e]);
+            dirs[e * AZ + a] = {ce * std::cos(az), std::sin(ELEV[e]),
+                                ce * std::sin(az)};
+        }
+    }
+    constexpr float REACH_M = 8.0f;   // дальше своя постройка не заслоняет
+    constexpr float PUSH_M = 0.03f;   // отжим от собственной грани
+    constexpr float FLOOR = 0.30f;    // запечатанный интерьер тёмен, не чёрен
+    const auto blocked = [&](glm::vec3 org, const glm::vec3& dir) {
+        // Шаг по колонкам сетки вдоль XZ-проекции луча; при почти
+        // вертикальном луче достаточно своей колонки.
+        const float horiz = std::sqrt(dir.x * dir.x + dir.z * dir.z);
+        const float span = horiz * REACH_M;
+        const int steps = std::max(1, static_cast<int>(span / CELL) + 1);
+        math::Ray ray{org, dir};
+        std::uint32_t last_cell = 0xFFFFFFFFu;
+        for (int s = 0; s <= steps; ++s) {
+            const float d = (static_cast<float>(s) / static_cast<float>(steps)) * span;
+            const float px = org.x + (horiz > 1e-6f ? dir.x / horiz * d : 0.0f);
+            const float pz = org.z + (horiz > 1e-6f ? dir.z / horiz * d : 0.0f);
+            const auto ci = static_cast<std::uint32_t>(cell_of(px, pz));
+            if (ci == last_cell) {
+                continue;
+            }
+            last_cell = ci;
+            for (size_t k = 0; k < grid[ci].size(); ++k) {
+                const std::uint32_t t = grid[ci][k];
+                if (math::ray_vs_triangle(ray, mesh.vertices[tris[t]].pos,
+                                          mesh.vertices[tris[t + 1]].pos,
+                                          mesh.vertices[tris[t + 2]].pos,
+                                          REACH_M)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    };
+    // ОБРАЗЕЦ НА ЯЧЕЙКУ, А НЕ НА ВЕРШИНУ. Дом с паркетом и кровлей несёт
+    // десятки тысяч вершин, но доски одного настила стоят в сантиметрах друг
+    // от друга и видят одно небо: образец кэшируется по квантованной позиции
+    // (0.25 м) и октанту нормали — заслонение меняется на четвертьметрах, а
+    // не на миллиметрах доски. Без кэша печка одного богатого дома стоила
+    // сотни миллионов пересечений и подвесила загрузку карты (замерено
+    // таймаутом приёмки 22.08, а не предположено).
+    std::unordered_map<std::uint64_t, std::uint8_t> sample;
+    sample.reserve(mesh.vertices.size() / 4);
+    for (size_t vi = 0; vi < mesh.vertices.size(); ++vi) {
+        const HouseVertex& v = mesh.vertices[vi];
+        const auto q = [](float x) {
+            return static_cast<std::uint64_t>(
+                       static_cast<std::int64_t>(std::floor(x * 4.0f)) + 0x80000)
+                 & 0xFFFFFu;
+        };
+        const std::uint64_t oct = (v.normal.x > 0.0f ? 1u : 0u)
+                                | (v.normal.y > 0.0f ? 2u : 0u)
+                                | (v.normal.z > 0.0f ? 4u : 0u);
+        const std::uint64_t key =
+            q(v.pos.x) | (q(v.pos.y) << 20) | (q(v.pos.z) << 40) | (oct << 60);
+        if (const auto it = sample.find(key); it != sample.end()) {
+            out[vi] = it->second;
+            continue;
+        }
+        int open = 0;
+        for (const glm::vec3& d : dirs) {
+            // Луч, уходящий под собственную поверхность, неба не видит.
+            if (glm::dot(d, v.normal) <= 0.05f) {
+                continue;
+            }
+            if (!blocked(v.pos + v.normal * PUSH_M + d * PUSH_M, d)) {
+                ++open;
+            }
+        }
+        const float vis = static_cast<float>(open) / static_cast<float>(AZ * 2);
+        const auto byte = static_cast<std::uint8_t>(
+            std::lround(255.0f * (FLOOR + (1.0f - FLOOR) * vis)));
+        sample.emplace(key, byte);
+        out[vi] = byte;
+    }
+    return out;
 }
 
 } // namespace dfn::world

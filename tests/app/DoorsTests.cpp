@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 22:08:2026 - 14:30:00
+Last updated: 22:08:2026 - 17:45:00
 Module: tests/app
 File: tests/app/DoorsTests.cpp
 
@@ -35,6 +35,7 @@ UPD:
   «описанной, но никем не читаемой». Ровно то, ради чего рукав написан.
 - 20:08:2026 - 16:40:00: Безлюдных дверей 14 — прибавилась DFN_PLAYTEST_ARRIVE.
 - 22:08:2026 - 14:30:00: Безлюдных дверей 15 — прибавилась DFN_PLAYTEST_GLANCE.
+- 22:08:2026 - 17:45:00: AppHouse.cpp в списке сканируемых (читает DFN_HOUSE_AO через door_value).
 */
 
 #include <doctest/doctest.h>
@@ -72,6 +73,9 @@ const std::vector<std::string>& app_sources() {
         "engine/app/sources/EditorPlant.cpp", "engine/app/sources/AssetBake.cpp",
         "engine/app/sources/MapCatalog.cpp", "engine/app/sources/Localization.cpp",
         "engine/app/sources/TrajectoryRecord.cpp", "engine/app/sources/Main.cpp",
+        // AppHouse.cpp дописан 22.08: DFN_HOUSE_AO читается там (через
+        // door_value, как и всё), и список обязан это видеть.
+        "engine/app/sources/AppHouse.cpp",
     };
     return v;
 }
