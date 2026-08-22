@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 22:08:2026 - 14:20:00
+# Last updated: 22:08:2026 - 16:05:00
 # Module: tools
 # File: tools/gen_whiterun.py
 #
@@ -118,6 +118,34 @@
 #   origin; пролёт центрируется на осевой (точка [center] чертежа лежала в
 #   0.66 м западнее, восточная аппарель висела метром выше земли), подходы
 #   планируются grade_corridor — новый инструмент планировки поля высот.
+# - 22:08:2026 - 16:05:00: УБРАНСТВО, СВЕТ ОЧАГОВ, ДВОРЫ (претензии критика
+#   [7][10][29]). (1) furnish() возвращён из истории (2c397d3) и переписан
+#   под новую посадку: раскладки на ВСЕ обитаемые рецепты (дом малый и
+#   большой, лавка, кузница, длинный зал, храм, амбар, мельница, зал замка),
+#   локальные точки крутятся матрицей сцены. Верх ПОЛОВОЙ ПЛИТЫ у рецептов
+#   разный, а прежний furnish клал всё на +0.12 — в city-house-l (плита на
+#   0.585) мебель тонула в полу на полметра; теперь таблица FLOOR по замеру.
+#   (2) Очаг зажигает [light] 4.6 м тёплого; тени просят только длинный зал
+#   и замок — слотов ровно два (MAX_SHADOW_POINT_LIGHTS). (3) Дворы вторым
+#   проходом: поленница, бочки, межевой плетень с калиткой за глухой стеной,
+#   с проверкой на тела, полосы дорог, площадь и русло. (4) Прилавки рынка
+#   садились на отметку плиты, а стоят на земле рядом — ножки висели; каждый
+#   сел по своему пятну, со своим поворотом и товаром (бочки на столешнице).
+# - 22:08:2026 - 16:05:00: ГАБАРИТЫ ПО ЗАМЕРУ И РАЗВЕДЕНИЕ ТЕЛ (согласовано с
+#   архитектором). KIND держал габариты «на глаз»: city-house-s 7х7 при факте
+#   4.5х6.0, city-longhall 12х8 при 16х8, city-keep-s 25х9 при 26.6х14 —
+#   расстановка раздвигала дома по фантомному телу (щели: медиана 5.1 м, ни
+#   одной в норме гайда). Числа сняты с .dfh. Следом три вещи, без которых
+#   правда о габаритах ломала расстановку: (а) sit_rect — посадка по минимуму
+#   ПОВЁРНУТОГО пятна вместо квадрата half=max(w,d)/2: замок щупал землю в
+#   18 м от центра, за кромкой плато, и стоял закопанным на 11 м (24.95
+#   вместо 34.67); (б) площадки под здания крупнее 10 м режутся в поле высот
+#   по медиане пятна — такое пятно не помещается на ровное; (в) resolve_frames
+#   разводит тела совместно: одиночный отодвиг от дороги загонял лавку в
+#   лавку и амбар в ферму (минимум щели -5.8 м, четыре наложения). Итог
+#   замера: медиана щели 2.13 м, минимум 0.35, 11 из 26 в норме гайда ≤0.4.
+#   Доминанты (замок, длинный зал, храм, мельница) в разведении неподвижны и
+#   не уступают дороге — улицы этого чертежа упираются в них (гайд §11).
 
 import json
 import math
@@ -129,12 +157,16 @@ PLAN = json.load(open(os.path.join(ROOT, "docs/WHITERUN_PLAN.json"), encoding="u
 
 H = []   # [house]
 P = []   # [place]
+LIGHTS = []   # [light]
 
 def house(file, x, y, z, yaw_deg, note):
     H.append((f"assets/houses/{file}", x, y, z, math.radians(yaw_deg), note))
 
 def place(obj, x, y, z, yaw_deg=0.0, note=None):
     P.append((obj, x, y, z, math.radians(yaw_deg), note))
+
+def light(x, y, z, color, radius, note, shadow=False):
+    LIGHTS.append((x, y, z, color, radius, shadow, note))
 
 # --- сетка высот двухпроходного цикла (gen -> dump_heights -> gen) ----------
 HEIGHTS_PATH = os.environ.get("WHITERUN_HEIGHTS", "/tmp/whiterun_heights.txt")
@@ -160,27 +192,186 @@ def sit(x, z, fallback, half=3.5):
     gs = [g for g in gs if g is not None]
     return fallback if not gs else min(gs) - 0.05
 
-# --- kind -> рецепт и реальные габариты (фронт w вдоль двери, глубина d) ----
+def rect_points(cx, cz, w, d, yaw_deg, n=5):
+    """Сетка n x n по ПОВЁРНУТОМУ пятну здания."""
+    c = math.cos(math.radians(yaw_deg))
+    sn = math.sin(math.radians(yaw_deg))
+    out = []
+    for i in range(n):
+        lx = (-0.5 + i/(n-1)) * w
+        for j in range(n):
+            lz = (-0.5 + j/(n-1)) * d
+            out.append((cx + lx*c + lz*sn, cz - lx*sn + lz*c))
+    return out
+
+def sit_rect(cx, cz, w, d, yaw_deg, fallback):
+    """Посадка по МИНИМУМУ ПЯТНА, и пятно берётся повёрнутым. Прежняя проба
+    «центр плюс четыре угла квадрата half=max(w,d)/2» для замка 26.6х14
+    щупала землю в 18 м от центра — за кромкой замкового плато, и находила
+    там 25 вместо 36: замок стоял закопанным по конёк одиннадцать метров."""
+    gs = [g for g in (ground(px, pz) for px, pz in rect_points(cx, cz, w, d, yaw_deg))
+          if g is not None]
+    return fallback if not gs else min(gs) - 0.05
+
+# --- kind -> рецепт и ЗАМЕРЕННЫЕ габариты (фронт w вдоль двери, глубина d) --
+# Числа сняты с самих .dfh (габарит вершин), а не выписаны на глаз: прежняя
+# таблица давала city-house-s 7х7 при факте 4.5х6.0 и city-longhall 12х8 при
+# факте 16х8 — расстановка считала Йоррваскр на 4 м короче, чем он есть, а
+# дворовый клаттер садился бы в стену. Габарит берётся ПО КОРПУСУ вместе с
+# навесом/портиком: они тоже занимают землю.
 KIND = {
-    "keep":    ("city-keep-s.dfh", 25.0, 9.0),
+    "keep":    ("city-keep-s.dfh", 26.6, 14.0),
     "wing":    (None, 0, 0),  # крылья входят в рецепт keep-s
-    "donjon":  ("city-donjon.dfh", 3.6, 3.6),
+    "donjon":  ("city-donjon.dfh", 5.1, 5.1),
     # city-manor реально 14х15 с крылом — на схемном пятне 9х7 крыло легло
     # на главную улицу (прогон v5-1). Усадьба плана = крупный дом.
-    "manor":   ("city-house-l.dfh", 10.2, 8.2),
-    "temple":  ("city-temple.dfh", 10.0, 8.0),
-    "longhall":("city-longhall.dfh", 12.0, 8.0),
-    "shop":    ("city-shop.dfh", 6.4, 8.6),
-    "tavern":  ("city-house-l.dfh", 10.2, 8.2),
-    "smithy":  ("city-shop-old.dfh", 6.4, 8.6),
-    "old":     ("city-house-s-old.dfh", 7.0, 7.0),
-    "farm":    ("city-house-s.dfh", 7.0, 7.0),
+    "manor":   ("city-house-l.dfh", 10.0, 8.0),
+    "temple":  ("city-temple.dfh", 12.0, 10.2),
+    "longhall":("city-longhall.dfh", 16.0, 8.0),
+    "shop":    ("city-shop.dfh", 6.0, 8.0),
+    "tavern":  ("city-house-l.dfh", 10.0, 8.0),
+    "smithy":  ("city-shop-old.dfh", 6.0, 8.0),
+    "old":     ("city-house-s-old.dfh", 4.5, 6.0),
+    "farm":    ("city-house-s.dfh", 4.5, 6.0),
     "barn":    ("city-barn.dfh", 12.0, 9.0),
     "mill":    ("city-mill.dfh", 7.0, 7.0),
     "stable":  ("city-barn-old.dfh", 12.0, 9.0),
-    "inn":     ("city-house-l.dfh", 10.2, 8.2),
-    "":        ("city-house-s.dfh", 7.0, 7.0),
+    "inn":     ("city-house-l.dfh", 10.0, 8.0),
+    "":        ("city-house-s.dfh", 4.5, 6.0),
 }
+
+# --- ВНУТРЕННЕЕ УБРАНСТВО (возврат системы 21.08 21:45, вырезанной при
+# переписывании 22.08) -------------------------------------------------------
+# Локальные координаты рецепта: начало в УГЛУ, корпус занимает [0..w]x[0..d],
+# ДВЕРЬ на стороне z=d. Отсюда общее правило раскладки: очаг у ГЛУХОЙ стены
+# z=0 (у длинного зала — посреди пола), стол с лавками в середине, кровать у
+# боковой стены в стороне от дверного проёма, стеллаж/бочки по стенам.
+# Коридор от двери к очагу оставлен пустым (гайд §10: «коридор прохода
+# свободен»). Верх ПОЛОВОЙ ПЛИТЫ у рецептов РАЗНЫЙ — прежний furnish клал
+# всё на +0.12 и в city-house-l мебель тонула в полу на полметра.
+FLOOR = {
+    "city-house-s.dfh": 0.12, "city-house-s-old.dfh": 0.12,
+    "city-house-l.dfh": 0.645, "city-house-l-old.dfh": 0.645,
+    "city-shop.dfh": 0.12, "city-shop-old.dfh": 0.12,
+    "city-longhall.dfh": 0.13, "city-temple.dfh": 0.125,
+    "city-barn.dfh": 0.10, "city-barn-old.dfh": 0.10,
+    "city-mill.dfh": 1.32, "city-keep-s.dfh": 1.72,
+}
+FURN = {
+    # малый дом 4.5 x 6.0
+    "city-house-s.dfh": [
+        ("furn-hearth.dfh", 1.55, 0.35, 0), ("furn-table.dfh", 0.55, 2.50, 0),
+        ("furn-bench.dfh", 0.65, 2.00, 0), ("furn-bench.dfh", 0.65, 3.55, 0),
+        ("furn-bed.dfh", 3.15, 3.75, 0), ("furn-shelf.dfh", 0.30, 2.20, 90),
+        ("furn-barrel.dfh", 3.60, 1.90, 0)],
+    "city-house-s-old.dfh": [
+        ("furn-hearth.dfh", 1.55, 0.35, 0), ("furn-table.dfh", 0.55, 2.50, 0),
+        ("furn-bench.dfh", 0.65, 2.00, 0),
+        ("furn-bed.dfh", 3.15, 3.75, 0), ("furn-barrel.dfh", 0.35, 4.90, 0),
+        ("furn-barrel.dfh", 1.20, 4.95, 0)],
+    # большой дом 10 x 8 (пол на 0.645)
+    "city-house-l.dfh": [
+        ("furn-hearth.dfh", 4.30, 0.40, 0), ("furn-table.dfh", 3.60, 3.00, 0),
+        ("furn-bench.dfh", 3.70, 2.50, 0), ("furn-bench.dfh", 3.70, 4.20, 0),
+        ("furn-bed.dfh", 0.45, 5.55, 0), ("furn-bed.dfh", 8.55, 5.55, 0),
+        ("furn-shelf.dfh", 9.50, 3.40, 270), ("furn-column.dfh", 2.10, 3.90, 0),
+        ("furn-column.dfh", 7.90, 3.90, 0), ("furn-barrel.dfh", 0.45, 0.60, 0)],
+    "city-house-l-old.dfh": [
+        ("furn-hearth.dfh", 4.30, 0.40, 0), ("furn-table.dfh", 3.60, 3.00, 0),
+        ("furn-bench.dfh", 3.70, 2.50, 0), ("furn-bed.dfh", 0.45, 5.55, 0),
+        ("furn-barrel.dfh", 8.80, 6.30, 0), ("furn-barrel.dfh", 8.80, 5.40, 0)],
+    # лавка 6 x 6 (навес поверх z=6..8): прилавок к двери, товар по стенам
+    "city-shop.dfh": [
+        ("furn-hearth.dfh", 0.45, 0.40, 0), ("furn-table.dfh", 2.90, 4.60, 0),
+        ("furn-shelf.dfh", 5.60, 1.20, 270), ("furn-shelf.dfh", 5.60, 2.80, 270),
+        ("furn-bed.dfh", 0.40, 2.60, 0), ("furn-barrel.dfh", 4.60, 4.90, 0),
+        ("furn-barrel.dfh", 3.75, 4.95, 0)],
+    # кузница: горн у глухой стены, колода-наковальня, закалочные бочки
+    "city-shop-old.dfh": [
+        ("furn-hearth.dfh", 2.30, 0.40, 0), ("furn-table.dfh", 1.60, 2.60, 0),
+        ("furn-barrel.dfh", 5.10, 0.60, 0), ("furn-barrel.dfh", 5.10, 1.70, 0),
+        ("furn-woodpile.dfh", 4.30, 4.60, 0), ("furn-bench.dfh", 0.35, 4.80, 0),
+        ("furn-shelf.dfh", 0.30, 2.20, 90)],
+    # длинный зал 16 x 8: очаг ПОСРЕДИ пола, два ряда столов вдоль стен
+    "city-longhall.dfh": [
+        ("furn-hearth.dfh", 7.30, 3.30, 0),
+        ("furn-table.dfh", 2.60, 1.00, 0), ("furn-bench.dfh", 2.70, 0.50, 0),
+        ("furn-bench.dfh", 2.70, 2.10, 0),
+        ("furn-table.dfh", 2.60, 5.90, 0), ("furn-bench.dfh", 2.70, 5.40, 0),
+        ("furn-bench.dfh", 2.70, 7.00, 0),
+        ("furn-table.dfh", 11.60, 1.00, 0), ("furn-bench.dfh", 11.70, 0.50, 0),
+        ("furn-bench.dfh", 11.70, 2.10, 0),
+        ("furn-table.dfh", 11.60, 5.90, 0), ("furn-bench.dfh", 11.70, 5.40, 0),
+        ("furn-bench.dfh", 11.70, 7.00, 0),
+        ("furn-column.dfh", 5.60, 3.85, 0), ("furn-column.dfh", 10.40, 3.85, 0),
+        ("furn-shelf.dfh", 0.35, 3.40, 90), ("furn-barrel.dfh", 0.40, 6.60, 0)],
+    # храм 12 x 8: алтарь у дальней стены, лавки рядами, жаровня
+    "city-temple.dfh": [
+        ("furn-table.dfh", 5.10, 0.70, 0), ("furn-hearth.dfh", 1.00, 0.60, 0),
+        ("furn-hearth.dfh", 9.60, 0.60, 0),
+        ("furn-column.dfh", 2.40, 2.40, 0), ("furn-column.dfh", 9.60, 2.40, 0),
+        ("furn-bench.dfh", 3.20, 3.20, 0), ("furn-bench.dfh", 7.20, 3.20, 0),
+        ("furn-bench.dfh", 3.20, 4.40, 0), ("furn-bench.dfh", 7.20, 4.40, 0),
+        ("furn-bench.dfh", 3.20, 5.60, 0), ("furn-bench.dfh", 7.20, 5.60, 0),
+        ("furn-shelf.dfh", 11.55, 3.00, 270)],
+    # амбар/конюшня 12 x 9: БЕЗ огня, бочки и дрова по стенам
+    "city-barn.dfh": [
+        ("furn-barrel.dfh", 0.55, 0.60, 0), ("furn-barrel.dfh", 1.45, 0.60, 0),
+        ("furn-barrel.dfh", 0.55, 1.50, 0),
+        ("furn-woodpile.dfh", 10.20, 0.80, 0), ("furn-woodpile.dfh", 10.20, 2.20, 0),
+        ("furn-woodpile.dfh", 10.20, 3.60, 0),
+        ("furn-table.dfh", 0.60, 4.20, 0), ("furn-bench.dfh", 0.55, 6.00, 0)],
+    "city-barn-old.dfh": [
+        ("furn-barrel.dfh", 0.55, 0.60, 0), ("furn-barrel.dfh", 1.45, 0.60, 0),
+        ("furn-woodpile.dfh", 10.20, 1.20, 0), ("furn-woodpile.dfh", 10.20, 2.60, 0),
+        ("furn-bench.dfh", 0.55, 6.00, 0)],
+    # мельница 7 x 7, пол на 1.32, дверь на x=0: мешки-бочки у восточной стены
+    "city-mill.dfh": [
+        ("furn-table.dfh", 2.40, 2.30, 0), ("furn-barrel.dfh", 5.70, 0.90, 0),
+        ("furn-barrel.dfh", 5.70, 1.80, 0), ("furn-barrel.dfh", 5.70, 2.70, 0),
+        ("furn-shelf.dfh", 6.55, 4.60, 270), ("furn-bench.dfh", 2.20, 5.80, 0),
+        ("furn-hearth.dfh", 0.60, 0.50, 0)],
+    # зал замка 15 x 8 на отметке 1.6: длинный стол, троноподобная скамья
+    "city-keep-s.dfh": [
+        ("furn-hearth.dfh", 6.80, 0.45, 0),
+        ("furn-table.dfh", 4.20, 3.20, 0), ("furn-table.dfh", 6.20, 3.20, 0),
+        ("furn-table.dfh", 8.20, 3.20, 0),
+        ("furn-bench.dfh", 4.30, 2.70, 0), ("furn-bench.dfh", 6.30, 2.70, 0),
+        ("furn-bench.dfh", 8.30, 2.70, 0),
+        ("furn-bench.dfh", 4.30, 4.40, 0), ("furn-bench.dfh", 6.30, 4.40, 0),
+        ("furn-bench.dfh", 8.30, 4.40, 0),
+        ("furn-column.dfh", 2.60, 3.90, 0), ("furn-column.dfh", 12.40, 3.90, 0),
+        ("furn-shelf.dfh", 14.55, 2.40, 270), ("furn-shelf.dfh", 14.55, 5.20, 270),
+        ("furn-barrel.dfh", 0.50, 6.60, 0), ("furn-barrel.dfh", 1.40, 6.60, 0)],
+}
+# Очаг просит тень только в двух местах — слотов теней ровно два
+# (MAX_SHADOW_POINT_LIGHTS), и их надо отдать залам, где очаг — сюжет.
+HEARTH_SHADOW = ("city-longhall.dfh", "city-keep-s.dfh")
+HEARTH_COLOR = (1.0, 0.52, 0.20)
+
+def loc_to_world(ox, oz, yaw_deg, lx, lz):
+    """Локальная точка детали -> мир. Конвенция сцены: +X_лок = (cos, -sin),
+    +Z_лок = (sin, cos), начало детали в углу."""
+    c = math.cos(math.radians(yaw_deg))
+    sn = math.sin(math.radians(yaw_deg))
+    return (ox + lx*c + lz*sn, oz - lx*sn + lz*c)
+
+def furnish(rec, ox, oy, oz, yaw_deg, note):
+    """Мебель дома: локальные позиции раскладки поворачиваются той же
+    матрицей сцены, что и сам дом, и садятся на ВЕРХ ПОЛОВОЙ ПЛИТЫ этого
+    рецепта. Очаг заодно зажигает точечный свет."""
+    items = FURN.get(rec)
+    if not items:
+        return
+    fy = oy + FLOOR.get(rec, 0.12)
+    for ff, lx, lz, lyaw in items:
+        mx, mz = loc_to_world(ox, oz, yaw_deg, lx, lz)
+        house(ff, mx, fy, mz, (yaw_deg + lyaw) % 360.0, "убранство: " + note)
+        if ff == "furn-hearth.dfh":
+            # огонь в чаше очага: центр плиты 1.4х1.4, пламя на 0.55 над полом
+            hx, hz = loc_to_world(ox, oz, yaw_deg, lx + 0.70, lz + 0.70)
+            light(hx, fy + 0.55, hz, HEARTH_COLOR, 4.6,
+                  "очаг: " + note, rec in HEARTH_SHADOW)
 TREE = {"birch": ["birch-forge-a", "birch-forge-b"],
         "spruce": ["spruce-forge-a", "pine-forge-a", "spruce-forge-b"],
         "oak": ["oak-forge-a"], "bush": ["juniper-forge-a"]}
@@ -192,10 +383,13 @@ def door_dir(deg, door):
     return (base[0]*math.cos(r) - base[1]*math.sin(r),
             base[0]*math.sin(r) + base[1]*math.cos(r))
 
-def put_house(hs):
+def house_frame(hs):
+    """Геометрия посадки БЕЗ земли: (рецепт, центр тела, w, d, yaw, дверь).
+    Отделена от put_house, потому что площадку под крупное здание надо
+    спланировать в поле высот ДО того, как здание на неё сядет."""
     rec, w, d = KIND.get(hs["kind"], KIND[""])
     if rec is None:
-        return
+        return None
     dx, dz = door_dir(hs["deg"], hs["door"])
     # у рецептов дверь на локальной стороне z=d: её наружная нормаль в мире
     # равна Z_loc=(sin yaw, cos yaw) -> yaw из направления двери схемы.
@@ -210,36 +404,120 @@ def put_house(hs):
     fz = hs["z"] + dz * door_face
     ccx = fx - dx * (d/2)
     ccz = fz - dz * (d/2)
-    # Отодвиг от дорог: тело пересекает полосу -> шаг по нормали ОТ ближайшей
-    # точки нарушающей дороги (двери может быть недостаточно, дорога бывает
-    # сбоку). Шаг 0.4, не больше 5 м.
-    def nearest_on_roads(px, pz):
-        best, pt = 1e9, (px, pz)
-        for rd in PLAN["roads"]:
-            for (x0,z0),(x1,z1) in zip(rd["pts"], rd["pts"][1:]):
-                vx, vz = x1-x0, z1-z0
-                L2 = vx*vx + vz*vz
-                t = max(0.0, min(1.0, ((px-x0)*vx + (pz-z0)*vz) / L2))
-                qx, qz = x0+vx*t, z0+vz*t
-                dd = math.hypot(px-qx, pz-qz)
-                if dd < best:
-                    best, pt = dd, (qx, qz)
-        return pt
+    return (rec, ccx, ccz, w, d, yaw, (fx, fz))
+
+def nearest_on_roads(px, pz):
+    best, pt = 1e9, (px, pz)
+    for rd in PLAN["roads"]:
+        for (x0,z0),(x1,z1) in zip(rd["pts"], rd["pts"][1:]):
+            vx, vz = x1-x0, z1-z0
+            L2 = vx*vx + vz*vz
+            t = max(0.0, min(1.0, ((px-x0)*vx + (pz-z0)*vz) / L2))
+            qx, qz = x0+vx*t, z0+vz*t
+            dd = math.hypot(px-qx, pz-qz)
+            if dd < best:
+                best, pt = dd, (qx, qz)
+    return pt
+
+def push_off_roads(cx, cz, w, d, yaw, budget=8.0):
+    """Отодвиг от полос дорог: тело пересекает полосу -> шаг по нормали ОТ
+    ближайшей точки нарушающей дороги (двери мало, дорога бывает сбоку)."""
     moved = 0.0
-    yaw_now = math.degrees(math.atan2(dx, dz)) % 360.0
-    while moved < 8.0 and any(rect_road_hit(ccx, ccz, w, d, yaw_now, rd)
-                              for rd in PLAN["roads"]):
-        qx, qz = nearest_on_roads(ccx, ccz)
-        nx, nz = ccx - qx, ccz - qz
+    while moved < budget and any(rect_road_hit(cx, cz, w, d, yaw, rd)
+                                 for rd in PLAN["roads"]):
+        qx, qz = nearest_on_roads(cx, cz)
+        nx, nz = cx - qx, cz - qz
         nl = math.hypot(nx, nz) or 1.0
-        ccx += nx / nl * 0.4
-        ccz += nz / nl * 0.4
+        cx += nx / nl * 0.4
+        cz += nz / nl * 0.4
         moved += 0.4
+    return cx, cz
+
+def half_proj(w, d, yaw_deg, ux, uz):
+    """Половина тела в направлении (ux,uz) — опорная функция прямоугольника."""
+    c = math.cos(math.radians(yaw_deg))
+    sn = math.sin(math.radians(yaw_deg))
+    return abs(c*ux - sn*uz) * w/2 + abs(sn*ux + c*uz) * d/2
+
+# Доминанты задают сетку, рядовая застройка уступает (гайд §11: «Йоррваскр
+# старше города — всё наросло вокруг него»). Их тела в разведении неподвижны.
+FIXED_KINDS = ("keep", "longhall", "temple", "mill")
+GAP_M = 0.35    # норматив щели фасадного ряда (гайд §10: 0.35-0.7)
+MOVE_CAP = 6.0  # дальше схемного пятна тело не уходит — это чужой чертёж
+
+def resolve_frames():
+    """ТЕЛА ГОРОДА, РАЗВЕДЁННЫЕ МЕЖДУ СОБОЙ. Отодвиг от дорог считался
+    каждым домом в одиночку и загонял его в соседа: лавка юга рынка уехала
+    на 4 м в другую лавку, амбар — на 7 м в ферму (замер щелей: минимум
+    -5.8 м, четыре наложения). Здесь тела расталкиваются совместно, до
+    норматива щели, с потолком смещения от схемного пятна; после каждого
+    круга — повторный отодвиг от полос. Один и тот же список используют и
+    планировка площадок, и расстановка: считать раму дважды нельзя, второй
+    счёт видел бы уже занятые места и давал другой ответ."""
+    fr = []
+    for hs in PLAN["houses"]:
+        f = house_frame(hs)
+        if f is None:
+            continue
+        rec, ccx, ccz, w, d, yaw, door = f
+        # ДОМИНАНТА НЕ УСТУПАЕТ ДОРОГЕ. Улицы этого чертежа упираются в неё:
+        # гравийная кончается на крыльце Йоррваскра, главная — у замка. Отодвиг
+        # уносил Йоррваскр на 5 м, освобождая его же подъезд.
+        px, pz = ((ccx, ccz) if hs["kind"] in FIXED_KINDS
+                  else push_off_roads(ccx, ccz, w, d, yaw))
+        fr.append({"hs": hs, "rec": rec, "x": px, "z": pz, "w": w, "d": d,
+                   "yaw": yaw, "door": door, "x0": ccx, "z0": ccz})
+    # Первые круги ещё уводят тела с полос, последние — только разводят тела:
+    # отодвиг от дороги и разведение спорили друг с другом и оставляли лавки
+    # юга рынка врезанными на 0.44 м. Наложение хуже, чем полметра на полосе.
+    for it in range(64):
+        road_pass = it < 40
+        worst = 0.0
+        for i in range(len(fr)):
+            for j in range(i + 1, len(fr)):
+                a, b = fr[i], fr[j]
+                D = math.hypot(b["x"]-a["x"], b["z"]-a["z"]) or 1e-6
+                ux, uz = (b["x"]-a["x"])/D, (b["z"]-a["z"])/D
+                gap = (D - half_proj(a["w"], a["d"], a["yaw"], ux, uz)
+                         - half_proj(b["w"], b["d"], b["yaw"], ux, uz))
+                if gap >= GAP_M:
+                    continue
+                need = GAP_M - gap
+                worst = max(worst, need)
+                ma = a["hs"]["kind"] not in FIXED_KINDS
+                mb = b["hs"]["kind"] not in FIXED_KINDS
+                if not ma and not mb:
+                    continue
+                sa = need if (ma and not mb) else (need/2 if ma else 0.0)
+                sb = need if (mb and not ma) else (need/2 if mb else 0.0)
+                a["x"] -= ux*sa; a["z"] -= uz*sa
+                b["x"] += ux*sb; b["z"] += uz*sb
+        if it % 8 == 7:
+            for f in fr:
+                dx, dz = f["x"]-f["x0"], f["z"]-f["z0"]
+                Lm = math.hypot(dx, dz)
+                if Lm > MOVE_CAP:
+                    f["x"], f["z"] = f["x0"]+dx/Lm*MOVE_CAP, f["z0"]+dz/Lm*MOVE_CAP
+                if road_pass and f["hs"]["kind"] not in FIXED_KINDS:
+                    f["x"], f["z"] = push_off_roads(f["x"], f["z"], f["w"],
+                                                    f["d"], f["yaw"], budget=3.0)
+        if worst < 0.02 and not road_pass:
+            break
+    return fr
+
+def put_house(f):
+    hs, rec = f["hs"], f["rec"]
+    ccx, ccz, w, d, yaw = f["x"], f["z"], f["w"], f["d"], f["yaw"]
+    fx, fz = f["door"]
+    c, s = math.cos(math.radians(yaw)), math.sin(math.radians(yaw))
     ox = ccx - (w/2)*c - (d/2)*s
     oz = ccz + (w/2)*s - (d/2)*c
-    y = sit(ccx, ccz, 25.0, half=max(w, d)/2)
-    house(rec, ox, y, oz, yaw, hs["name"] or hs["kind"] or "дом")
-    PLACED.append((ccx, ccz, w, d, yaw, hs["name"] or hs["kind"] or "дом"))
+    y = sit_rect(ccx, ccz, w, d, yaw, 25.0)
+    name = hs["name"] or hs["kind"] or "дом"
+    house(rec, ox, y, oz, yaw, name)
+    PLACED.append((ccx, ccz, w, d, yaw, name))
+    FRAMES.append((rec, ox, y, oz, yaw, w, d, name))
+    furnish(rec, ox, y, oz, yaw, name)
     # каменная дорожка с бордюрами: цепочка furn-walk2 от двери до улицы
     if hs["walk"]:
         door_x = fx
@@ -259,6 +537,7 @@ def put_house(hs):
                       sz - uz + 0.0, wyaw, "дорожка: " + (hs["name"] or hs["kind"] or "дом"))
 
 PLACED = []  # (cx, cz, w, d, yaw_deg, name) реальных тел для проверок
+FRAMES = []  # (rec, ox, oy, oz, yaw_deg, w, d, name) — рама дома для дворов
 
 MRX, MRZ, MRW, MRD = PLAN["market"]["rect"]
 
@@ -267,16 +546,28 @@ def on_market(px, pz):
     там не считаются — фасады стоят на самой площади, это норма."""
     return (MRX - 2 <= px <= MRX + MRW + 2) and (MRZ - 2 <= pz <= MRZ + MRD + 2)
 
+ROAD_END_M = 6.0  # хвост дороги у её конца — это порог, а не конфликт
+
 def rect_road_hit(cx, cz, w, d, yaw_deg, rd):
-    """Сэмплы осевой дороги в локали дома против [±w/2]x[±d/2]."""
+    """Сэмплы осевой дороги в локали дома против [±w/2]x[±d/2].
+    КОНЦЫ ДОРОГИ НЕ СЧИТАЮТСЯ. Дорога в этом чертеже кончается НА цели —
+    у ворот, у моста, у дуба, у крыльца Йоррваскра; последние метры осевой
+    лежат в теле здания по замыслу («улицы упираются в доминанты», гайд §11).
+    Без исключения отодвиг уносил Йоррваскр — доминанту, задающую сетку, —
+    на 5.4 м от его места, лишь бы освободить свой же подъезд."""
     r = math.radians(yaw_deg)
     c, sn = math.cos(r), math.sin(r)
+    ex0, ez0 = rd["pts"][0]
+    ex1, ez1 = rd["pts"][-1]
     for (x0,z0),(x1,z1) in zip(rd["pts"], rd["pts"][1:]):
         L = math.hypot(x1-x0, z1-z0)
         for i in range(int(L*2) + 1):
             t = i / max(1, int(L*2))
             wx0, wz0 = x0+(x1-x0)*t, z0+(z1-z0)*t
             if on_market(wx0, wz0):
+                continue
+            if (math.hypot(wx0-ex0, wz0-ez0) < ROAD_END_M
+                    or math.hypot(wx0-ex1, wz0-ez1) < ROAD_END_M):
                 continue
             px, pz = wx0 - cx, wz0 - cz
             lx = px*c - pz*sn
@@ -286,6 +577,76 @@ def rect_road_hit(cx, cz, w, d, yaw_deg, rd):
             if math.hypot(ddx, ddz) < rd["w"]/2 - 0.3:
                 return True
     return False
+
+# --- ДВОРЫ (гайд §7/§10: «за каждым — дворик с поленницей/бочкой и межевым
+# плетнём», обязательный набор — поленница, бочка дождевой воды, плетень
+# 1.2-1.8 м) ------------------------------------------------------------------
+# Двор лежит ЗА глухой стеной дома (локальное z<0: дверь на z=d), клаттер
+# жмётся к стене и к линии плетня — «коридор прохода свободен». Ставится
+# ВТОРЫМ проходом, когда все тела уже в PLACED: иначе поленница соседа,
+# поставленная раньше, не видна проверке.
+YARD_KINDS = ("", "old", "farm", "shop", "smithy", "tavern", "inn", "manor",
+              "mill", "barn", "stable")
+
+def dist_to_roads(px, pz):
+    best = 1e9
+    for rd in PLAN["roads"]:
+        for (x0, z0), (x1, z1) in zip(rd["pts"], rd["pts"][1:]):
+            vx, vz = x1-x0, z1-z0
+            L2 = vx*vx + vz*vz
+            t = max(0.0, min(1.0, ((px-x0)*vx + (pz-z0)*vz) / L2))
+            best = min(best, math.hypot(px - (x0+vx*t), pz - (z0+vz*t)) - rd["w"]/2)
+    return best
+
+def spot_free(px, pz, r, skip=None):
+    """Место под клаттер: не в теле дома, не на полосе дороги, не на площади."""
+    if on_market(px, pz) or dist_to_roads(px, pz) < r:
+        return False
+    if not (1.0 <= px <= 255.0 and 1.0 <= pz <= 255.0):
+        return False
+    for (cx, cz, w, d, yaw, n) in PLACED:
+        if n == skip:
+            continue
+        c = math.cos(math.radians(yaw))
+        sn = math.sin(math.radians(yaw))
+        dx, dz = px - cx, pz - cz
+        lx = dx*c - dz*sn
+        lz = dx*sn + dz*c
+        if abs(lx) < w/2 + r and abs(lz) < d/2 + r:
+            return False
+    # река: клаттер не стоит в воде
+    if river_dist(px, pz) < PLAN["river_half_w"] + 1.0:
+        return False
+    return True
+
+def yards():
+    n_items = 0
+    for i, (rec, ox, oy, oz, yaw, w, d, name) in enumerate(FRAMES):
+        if rec in ("city-keep-s.dfh", "city-donjon.dfh", "city-temple.dfh",
+                   "city-longhall.dfh"):
+            continue  # у доминант двор не бытовой
+        # набор двора; локальное z отрицательное = за глухой стеной
+        kit = [("furn-woodpile.dfh", 0.45, -1.30, 0, 0.9),
+               ("furn-barrel.dfh", w - 1.05, -1.25, 0, 0.6)]
+        if w >= 8.0:
+            kit.append(("furn-barrel.dfh", w - 1.90, -1.30, 0, 0.6))
+            kit.append(("furn-woodpile.dfh", 2.20, -1.30, 0, 0.9))
+        # межевой плетень поперёк двора, звенья по 2 м с калиткой посередине
+        fence_z = -3.6 - (i % 3) * 0.35
+        span = max(2, int(round(w / 2.0)))
+        for k in range(span):
+            lx = (w / span) * k
+            kind = "furn-fence-gate.dfh" if k == span // 2 else "furn-fence2.dfh"
+            kit.append((kind, lx, fence_z, 0, 0.5))
+        for ff, lx, lz, lyaw, rad in kit:
+            mx, mz = loc_to_world(ox, oz, yaw, lx, lz)
+            if not spot_free(mx, mz, rad, skip=name):
+                continue
+            gy = ground(mx, mz)
+            house(ff, mx, (oy if gy is None else gy) - 0.03, mz,
+                  (yaw + lyaw) % 360.0, "двор: " + name)
+            n_items += 1
+    return n_items
 
 def check_layout():
     import itertools
@@ -507,17 +868,55 @@ def main():
         px, pz = mx + ux*t, mz + uz*t
         nodes.append((px, pz, hh_at(PLAN_H, px, pz) if h is None else h))
     grade_corridor(PLAN_H, nodes, 3.0, 3.0)
+    # ПЛОЩАДКИ ПОД КРУПНЫЕ ЗДАНИЯ. Посадка по минимуму пятна честна только
+    # там, где пятно помещается на ровное: у замка 26.6х14, Йоррваскра 16х8,
+    # храма 12х10 и амбаров 12х9 пятно перелезает кромку террасы, и минимум
+    # утягивал здание на нижнюю ступень. Дом такого размера в жизни встаёт на
+    # СПЛАНИРОВАННУЮ площадку — её и режем в поле высот по медиане пятна.
+    FR = resolve_frames()
+    for f in FR:
+        ccx, ccz, w, d, yaw = f["x"], f["z"], f["w"], f["d"], f["yaw"]
+        if max(w, d) < 10.0:
+            continue
+        pts = rect_points(ccx, ccz, w, d, yaw, n=7)
+        hs_lvl = sorted(hh_at(PLAN_H, px, pz) for px, pz in pts)[len(pts)//2]
+        c = math.cos(math.radians(yaw))
+        sn = math.sin(math.radians(yaw))
+        # коридор по длинной оси пятна, halfw = половина короткой стороны
+        ax, az = (c, -sn) if w >= d else (sn, c)
+        half_long = max(w, d)/2
+        halfw = min(w, d)/2
+        grade_corridor(PLAN_H,
+                       [(ccx - ax*half_long, ccz - az*half_long, hs_lvl),
+                        (ccx + ax*half_long, ccz + az*half_long, hs_lvl)],
+                       halfw + 0.8, 3.0)
     # --- постройки плана ---
-    for hs in PLAN["houses"]:
-        put_house(hs)
+    for f in FR:
+        put_house(f)
     # рынок: плита, колодец, прилавки
     mx, mz, mw, md = PLAN["market"]["rect"]
     my = sit(mx + mw/2, mz + md/2, 27.0, half=max(mw, md)/2)
     house("city-plaza12.dfh", mx + 1, my, mz, 0, "рыночная площадь")
     wx, wz = PLAN["market"]["well"]
     house("city-well.dfh", wx, my + 0.02, wz, 0, "колодец рынка")
+    # ПРИЛАВКИ С ТОВАРОМ. Лотки садились на отметку плиты рынка, а стоят они
+    # НА ЗЕМЛЕ рядом с ней — ножки висели над травой ([10] критика). Каждый
+    # садится по своему пятну, поворот свой (гайд §11: «ни одно здание не
+    # параллельно соседнему»), товар — бочки: на прилавке и у ноги.
     for i, (sx, sz) in enumerate(PLAN["market"]["stalls"]):
-        house("city-stall.dfh", sx - 1.2, my + 0.02, sz - 0.5, 180, f"прилавок {i+1}")
+        syaw = (180 + (i - 1) * 7) % 360.0
+        sy = sit(sx, sz, my, half=1.4)
+        sox, soz = sx - 1.2, sz - 0.5
+        house("city-stall.dfh", sox, sy, soz, syaw, f"прилавок {i+1}")
+        # товар: бочка на столешнице (верх 0.85) и две у ноги, в тень навеса
+        for lx, lz, dy in ((0.30, 0.10, 0.85), (1.30, 0.12, 0.85),
+                           (0.15, 1.35, 0.0), (1.55, 1.45, 0.0)):
+            gx, gz = loc_to_world(sox, soz, syaw, lx, lz)
+            house("furn-barrel.dfh", gx, sy + dy, gz, (syaw + i*37) % 360.0,
+                  f"товар прилавка {i+1}")
+        bx2, bz2 = loc_to_world(sox, soz, syaw, 0.2, 1.9)
+        house("furn-shelf.dfh", bx2, sy, bz2, (syaw + 90) % 360.0,
+              f"стеллаж прилавка {i+1}")
     # стена и башни
     wall = PLAN["wall"]
     for (ax, az), (bx, bz) in zip(wall, wall[1:] + [wall[0]]):
@@ -601,6 +1000,9 @@ def main():
         ty = sit(t["x"], t["z"], 25.0, half=1.0)
         place(opts[i % len(opts)], t["x"], ty, t["z"], (i * 47) % 360)
 
+    # дворы — вторым проходом, когда все тела уже известны
+    n_yard = yards()
+
     # --- terrain: река; высоты плана пишутся в relief дельтами от natural ---
     # ЗАМЕР НАТУРАЛЬНОЙ ЗЕМЛИ ИДЁТ БЕЗ РЕКИ (WHITERUN_BARE=1): иначе в nat уже
     # сидит вырез старого русла, и дельта у берега считается от дна, а не от
@@ -642,6 +1044,13 @@ def main():
         out += ["[house]", f"file = {file}",
                 f"pos = {x:.3f} {y:.3f} {z:.3f}", f"yaw = {yaw:.6f}",
                 f"note = {note}", ""]
+    # СВЕТ ОЧАГОВ. Рендер зажигает восемь ближайших ([light] — не объект),
+    # тени просит только тот, кому они по сюжету (слотов два).
+    for x, y, z, col, rad, shadow, note in LIGHTS:
+        out += ["[light]", f"pos = {x:.3f} {y:.3f} {z:.3f}",
+                f"color = {col[0]:g} {col[1]:g} {col[2]:g}",
+                f"radius_m = {rad:g}",
+                f"casts_shadow = {1 if shadow else 0}", f"note = {note}", ""]
     open(os.path.join(ROOT, "assets/scenes/whiterun.scene"), "w",
          encoding="utf-8").write("\n".join(out))
 
@@ -675,6 +1084,7 @@ def main():
         "built_commit =\n")
     check_layout()
     print(f"whiterun v5: {len(H)} построек, {len(P)} расстановок, "
+          f"{len(LIGHTS)} огней, {n_yard} дворовых предметов, "
           f"{len(terrain)} terrain-блоков, {len(relief_paths)} троп")
 
 if __name__ == "__main__":
