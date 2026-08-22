@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 22:08:2026 - 19:30:00
-# Last updated: 22:08:2026 - 21:20:00
+# Last updated: 22:08:2026 - 21:50:00
 # File: tools/check_paving.py
 #
 # Responsibility:
@@ -55,6 +55,13 @@
 #   назван при шаге 0.25 (разрыв <= 1.0 м), и прибор обязан мерить в тех же
 #   единицах, в каких сформулирован критерий, иначе полуметровый разрыв
 #   округляется в ноль.
+# - 22:08:2026 - 21:50:00: НАЛОЖЕНИЯ — ТРИ КОРЗИНЫ, порог площади СНЯТ. Прежний
+#   отчёт давал МАКСИМУМ dy по наложениям, а для z-fighting важен МИНИМУМ:
+#   «dy <= 0.056» включало ровный ноль и прятало два соплоскостных наложения.
+#   Запретов на наложение два, и пороги у них противоположные: мерцание живёт
+#   при dy ~ 0, ступень — при dy > 0.20, между ними полоса безвредного выступа.
+#   Порог по ПЛОЩАДИ убран намеренно: 0.6 м2 соплоскостного мерцания под ногами
+#   хуже, чем 15 м2 с честным сантиметром разницы. Указал архитектор.
 #
 from __future__ import annotations
 
@@ -72,7 +79,8 @@ RECIPE = {
 }
 STEP_M = 0.25       # шаг пробы вдоль тракта (критерий архитектора)
 CONTACT_M = 0.6     # зазор, ниже которого пара считается СТЫКОМ
-STEP_LIMIT_M = 0.20 # порог ступени на стыке
+STEP_LIMIT_M = 0.20 # порог ступени под ногами
+ZFIGHT_M = 0.01     # ниже этого наложение СОПЛОСКОСТНО и будет мерцать
 
 
 def recipe_size(stem: str):
@@ -258,29 +266,42 @@ def check(scene: str, plan: str) -> int:
               f"   длиннейший разрыв {best*STEP_M:5.1f} м")
 
     # --- (2) ТРИ КОРЗИНЫ -------------------------------------------------
-    over, butt = [], []
+    # ТРИ КОРЗИНЫ. Порога по площади нет: соплоскостное наложение в полметра
+    # хуже пятнадцати метров с честным сантиметром разницы.
+    zfight, benign, over_step, butt = [], [], [], []
     for i in range(len(slabs)):
         for j in range(i + 1, len(slabs)):
             a = area(clip(polys[i], polys[j]))
             g = gap(polys[i], polys[j])
-            if a <= 0.5 and g >= CONTACT_M:
+            if a <= 0.0 and g >= CONTACT_M:
                 continue
             cp = contact_point(polys[i], polys[j])
             dy = abs(top_at(slabs[i], cp) - top_at(slabs[j], cp))
-            if a > 0.5:
-                over.append((slabs[i], slabs[j], a, dy))
+            if a > 0.0:
+                rec = (slabs[i], slabs[j], a, dy)
+                (zfight if dy < ZFIGHT_M
+                 else (benign if dy <= STEP_LIMIT_M else over_step)).append(rec)
             else:
                 butt.append((slabs[i], slabs[j], dy))
     bad_steps = [b for b in butt if b[2] > STEP_LIMIT_M]
+    over = zfight + over_step
 
     print(f"\nпокрытие каменных трактов: {100*hit/max(tot,1):.1f}%,"
           f" длиннейший разрыв {worst_gap:.0f} м")
-    print(f"наложений (>0.5 м2): {len(over)}"
-          f"   стыков: {len(butt)}, из них со ступенью >{STEP_LIMIT_M} м:"
-          f" {len(bad_steps)}")
-    for a, b, ar, dy in over:
-        print(f"  НАЛОЖЕНИЕ {a[0]}@({a[1]:.0f},{a[3]:.0f}) x"
-              f" {b[0]}@({b[1]:.0f},{b[3]:.0f}): {ar:.1f} м2, dy {dy:.3f}")
+    print(f"наложений: z-fighting (dy<{ZFIGHT_M}) {len(zfight)},"
+          f" безвредных {len(benign)}, со ступенью {len(over_step)}"
+          f"   |   стыков {len(butt)}, из них со ступенью"
+          f" >{STEP_LIMIT_M} м: {len(bad_steps)}")
+    for a, b, ar, dy in zfight:
+        print(f"  Z-FIGHTING {a[0]}@({a[1]:.0f},{a[3]:.0f}) x"
+              f" {b[0]}@({b[1]:.0f},{b[3]:.0f}): {ar:.2f} м2, dy {dy:.4f}")
+    for a, b, ar, dy in over_step:
+        print(f"  НАЛОЖЕНИЕ СО СТУПЕНЬЮ {a[0]}@({a[1]:.0f},{a[3]:.0f}) x"
+              f" {b[0]}@({b[1]:.0f},{b[3]:.0f}): {ar:.2f} м2, dy {dy:.3f}")
+    if benign:
+        dys = [r[3] for r in benign]
+        print(f"  (безвредные наложения: dy {min(dys):.3f}..{max(dys):.3f}"
+              f" — выступ на сантиметр-другой, справкой)")
     for a, b, dy in bad_steps:
         print(f"  СТУПЕНЬ {a[0]}@({a[1]:.0f},{a[3]:.0f}) x"
               f" {b[0]}@({b[1]:.0f},{b[3]:.0f}): dy {dy:.2f} м")
