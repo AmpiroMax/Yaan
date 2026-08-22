@@ -1,0 +1,6 @@
+# dfh 1
+vertex v1 free 0.0000 0.0000 0.0000
+vertex v2 free 0.0000 0.0000 1.6000
+vertex v3 free 0.9000 0.5000 1.6000
+vertex v4 free 0.9000 0.5000 0.0000
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.15 fill=6 open=2 mat=3 tone=1 wear=0.45

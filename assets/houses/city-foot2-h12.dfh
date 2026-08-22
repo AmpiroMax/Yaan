@@ -1,0 +1,4 @@
+# dfh 1
+vertex v1 free 0.0000 0.0000 0.3000
+vertex v2 free 2.0000 0.0000 0.3000
+surface e1 v1 v2 style=- height=1.2 thickness=0.6 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
