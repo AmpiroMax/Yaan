@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 00:25:12
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -46,6 +46,7 @@ UPD:
 - 17:08:2026 - 11:53:47: то же для heightfield-пути.
 - 17:08:2026 - 11:54:29: то же для heightfield-пути.
 - 23:08:2026 - 00:30:00: class_at (последний накрывший мазок выигрывает) и упаковка класса
+- 23:08:2026 - 00:25:12: тело PathClassField::covered — та же геометрия, что class_at, но с усадкой внутрь.
   при заданном поле; без поля — прежние 8 бит бит-в-бит.
 */
 
@@ -88,6 +89,30 @@ uint8_t PathClassField::class_at(glm::vec2 xz, uint8_t fallback) const {
     }
     (void)hit;
     return cls;
+}
+
+bool PathClassField::covered(glm::vec2 xz, float shrink_m) const {
+    for (const PathClassStroke& st : strokes) {
+        const float reach = st.half_width_m - shrink_m;
+        if (reach <= 0.0f) {
+            continue;
+        }
+        const float r2 = reach * reach;
+        for (size_t i = 0; i + 1 < st.points.size(); ++i) {
+            const glm::vec2 a = st.points[i];
+            const glm::vec2 b = st.points[i + 1];
+            const glm::vec2 ab = b - a;
+            const float len2 = glm::dot(ab, ab);
+            const float t = len2 > 1e-8f
+                ? std::clamp(glm::dot(xz - a, ab) / len2, 0.0f, 1.0f)
+                : 0.0f;
+            const glm::vec2 d = xz - (a + ab * t);
+            if (glm::dot(d, d) <= r2) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 

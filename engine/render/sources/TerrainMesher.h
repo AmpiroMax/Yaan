@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 00:25:12
 Module: engine/render
 File: engine/render/sources/TerrainMesher.h
 
@@ -50,6 +50,7 @@ UPD:
   wholly inside the chunk-streamed rectangle are not emitted and skirts hang
   along the cut boundary. Empty clip keeps the emission path bit-identical.
 - 23:08:2026 - 00:30:00: PathClassField/pack_path_alpha — материал полотна в альфе вершины
+- 23:08:2026 - 00:25:12: PathClassField::covered — точка на полотне (для фильтра сева травы, круг 6 н.16).
   (2 бита класса + 6 бит износа), «нет тропы» остаётся 255. Одна упаковка
   на все мешеры кадра — контракт с разбором в fs_terrain.
 */
@@ -98,6 +99,10 @@ struct PathClassField {
     /// нарисованный выигрывает — поздний мазок ложится поверх); мимо всех —
     /// fallback (сеть ядра — укатанный грунт).
     [[nodiscard]] uint8_t class_at(glm::vec2 xz, uint8_t fallback = 1) const;
+    /// Точка лежит на ПОЛОТНЕ какого-либо мазка (с усадкой shrink_m от
+    /// кромки внутрь). Для сева травы: пучки на мостовой гуще газона —
+    /// перевёрнутый мир (круг 6, находка 16); кромке усадка оставляет жизнь.
+    [[nodiscard]] bool covered(glm::vec2 xz, float shrink_m) const;
 };
 
 /// АЛЬФА ТРОПЫ С МАТЕРИАЛОМ: 2 бита класса + 6 бит обратного износа.

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 22:08:2026 - 23:49:20
+Last updated: 23:08:2026 - 00:25:12
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -178,6 +178,7 @@ UPD:
 - 23:08:2026 - 07:20:00: выращивание травы получает пятна построек.
 - 22:08:2026 - 23:14:42: tuft_params: пышность травы (DFN_GRASS_LUSH через set_grass_lushness) — плотность к середине полосы реестра, формы пучков гуще; 0 = прежний пол бит-в-бит.
 - 22:08:2026 - 23:49:20: ленивая заливка маски троп + привязка aux3 чанкам и LOD-кольцу.
+- 23:08:2026 - 00:25:12: сев пучков фильтруется полотном троп (PathClassField::covered, усадка 0.35 м) — трава не растёт сквозь мостовую.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1428,6 +1429,15 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
     // still disagree by). Cheap and once per chunk.
     if (!tufts_off_) {
         std::vector<TuftSpot> spots = harvest_tuft_spots(mesh, tuft_params());
+        // ТРАВА НЕ РАСТЁТ СКВОЗЬ МОСТОВУЮ (круг 6, находка 16: пучки стояли
+        // на камне ровной сеткой гуще газона — сев не знал про полотно).
+        // Усадка 0.35 м оставляет жизнь на растушёванной кромке.
+        if (path_classes_set_) {
+            std::erase_if(spots, [this](const TuftSpot& sp) {
+                return path_classes_.covered({sp.position.x, sp.position.z},
+                                             0.35f);
+            });
+        }
         if (spots.empty()) {
             tuft_spots_.erase(mesh.chunk_coord);
         } else {
