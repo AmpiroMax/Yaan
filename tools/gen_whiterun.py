@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 22:08:2026 - 20:30:00
+# Last updated: 22:08:2026 - 21:05:00
 # Module: tools
 # File: tools/gen_whiterun.py
 #
@@ -193,6 +193,14 @@
 #   (char-трасса: (119.97, 29.11, 147.57), 5 с без смещения). Теперь внутри
 #   своего прямоугольника рынок говорит последним: уклон 1.1 гр., плита на
 #   земле. Прогон DFN_CHAR_TRACE=1 мимо Гилдергрина: 199 м, 0 происшествий.
+# - 22:08:2026 - 21:05:00: Полотно трактов кладётся ДВАЖДЫ — до площадок и
+#   после рынка, второй раз минуя его прямоугольник (grade_corridor умеет
+#   skip_rect). Кайма площади ложилась на улицу и снова делала её волнистой:
+#   покрытие подхода к рынку падало с 46 до 28%. Теперь внутри рынка — рынок,
+#   снаружи — улица, обе плоские. Покрытие каменных трактов 56.1% (1138 м2,
+#   18 плит); подход к рынку 69.2%, восточный тракт 85.9%. Подъём к замку
+#   остаётся 29% — 8% уклона плоской плитой не мостятся, нужен наклонный
+#   кусок или террасы с маршами. Прогон бота: 180 м, 0 происшествий.
 
 import json
 import math
@@ -1145,6 +1153,17 @@ def river_taper(x, z):
     t = (d - half) / RIVER_BANK_M
     return t * t * (3.0 - 2.0 * t)
 
+def grade_roads(Hh, skip_rect=None):
+    """Полотно каменных трактов по СГЛАЖЕННОМУ продольному профилю."""
+    for rd in PLAN["roads"]:
+        if rd["mat"] != "stone":
+            continue
+        raw = [hh_at(Hh, x, z) for x, z in rd["pts"]]
+        sm = [sum(raw[max(0, i-1):i+2]) / len(raw[max(0, i-1):i+2])
+              for i in range(len(raw))]
+        nodes = [(x, z, h) for (x, z), h in zip(rd["pts"], sm)]
+        grade_corridor(Hh, nodes, max(3.2, rd["w"]/2 + 0.4), 5.0, skip_rect)
+
 def grade_rect(Hh, x0, z0, w, d, feather, level=None):
     """Планировка ПРЯМОУГОЛЬНОЙ площадки: поле высот прижимается к отметке
     (по умолчанию — медиана самого пятна) с затуханием smoothstep на кайме
@@ -1168,7 +1187,7 @@ def grade_rect(Hh, x0, z0, w, d, feather, level=None):
             Hh[gz][gx] = Hh[gz][gx] * (1.0 - wgt) + level * wgt
     return level
 
-def grade_corridor(Hh, nodes, halfw, feather):
+def grade_corridor(Hh, nodes, halfw, feather, skip_rect=None):
     """ПЛАНИРОВКА КОРИДОРА в поле высот чертежа: вдоль ломаной [(x,z,h)…] поле
     прижимается к заданной отметке (интерполяция по длине), с полной силой в
     полосе halfw и затуханием smoothstep до нуля на halfw+feather. Поле
@@ -1194,6 +1213,10 @@ def grade_corridor(Hh, nodes, halfw, feather):
                     best, lvl = d, ah + (bh-ah)*t
             if best >= R:
                 continue
+            if skip_rect is not None:
+                rx, rz, rw, rd = skip_rect
+                if rx <= gx <= rx + rw and rz <= gz <= rz + rd:
+                    continue   # чужая площадка говорит там последней
             if best <= halfw:
                 w = 1.0
             else:
@@ -1264,16 +1287,7 @@ def main():
     # ровных мест (первая раскладка: 35% покрытия, разрыв 33 м). Полоса улицы
     # планируется по СГЛАЖЕННОМУ продольному профилю: поперечный уклон уходит
     # в ноль, продольный остаётся честным уклоном горы.
-    for rd in PLAN["roads"]:
-        if rd["mat"] != "stone":
-            continue
-        acc, nodes = 0.0, []
-        raw = [hh_at(PLAN_H, x, z) for x, z in rd["pts"]]
-        sm = [sum(raw[max(0, i-1):i+2]) / len(raw[max(0, i-1):i+2])
-              for i in range(len(raw))]
-        for (x, z), h in zip(rd["pts"], sm):
-            nodes.append((x, z, h))
-        grade_corridor(PLAN_H, nodes, max(3.2, rd["w"]/2 + 0.4), 5.0)
+    grade_roads(PLAN_H)
     # ПЛОЩАДКИ ПОД КРУПНЫЕ ЗДАНИЯ. Посадка по минимуму пятна честна только
     # там, где пятно помещается на ровное: у замка 26.6х14, Йоррваскра 16х8,
     # храма 12х10 и амбаров 12х9 пятно перелезает кромку террасы, и минимум
@@ -1304,6 +1318,11 @@ def main():
     # внутри торговых рядов. Внутри своего прямоугольника рынок последний.
     MKX, MKZ, MKW, MKD = PLAN["market"]["rect"]
     market_level = grade_rect(PLAN_H, MKX, MKZ, MKW, MKD, 10.0)
+    # ...и полотно трактов кладётся ПОВЕРХ её каймы, минуя сам прямоугольник:
+    # кайма площади ложилась на улицу и снова делала её волнистой (покрытие
+    # подхода к рынку падало с 46 до 28%). Внутри рынка — рынок, снаружи —
+    # улица; обе плоские, стык на кромке площади.
+    grade_roads(PLAN_H, skip_rect=(MKX, MKZ, MKW, MKD))
     # --- постройки плана ---
     for f in FR:
         put_house(f)
