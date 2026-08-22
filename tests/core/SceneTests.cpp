@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 22:08:2026 - 16:20:00
+Last updated: 22:08:2026 - 20:10:00
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -45,6 +45,7 @@ UPD:
   правило не должно зависеть от того, кого поставили первым.
 - 20:08:2026 - 15:30:00: [house] в круговороте; кривое pos — отказ со строкой.
 - 22:08:2026 - 16:20:00: раунд-трип [air] + контроль «без записи air.set == false».
+- 22:08:2026 - 20:10:00: cloud в раунд-трипе [air] + контроль «без ключа — не задана».
 */
 
 #include "engine/world/sources/Scene.h"
@@ -510,6 +511,7 @@ TEST_CASE("scene: [air] survives the round trip and its absence means absence") 
     doc.air.set = true;
     doc.air.fog_start_m = 110.0f;
     doc.air.fog_end_m = 380.0f;
+    doc.air.cloud_cover = 0.25f;
     REQUIRE(write_scene(doc, path));
 
     SceneDoc back;
@@ -518,6 +520,16 @@ TEST_CASE("scene: [air] survives the round trip and its absence means absence") 
     REQUIRE(back.air.set);
     CHECK(back.air.fog_start_m == doctest::Approx(110.0f));
     CHECK(back.air.fog_end_m == doctest::Approx(380.0f));
+    CHECK(back.air.cloud_cover == doctest::Approx(0.25f));
+
+    // Облачность необязательна и внутри [air]: без ключа `cloud` возвращается
+    // «не задана» (-1), а не нулевое чистое небо.
+    doc.air.cloud_cover = -1.0f;
+    REQUIRE(write_scene(doc, path));
+    SceneDoc no_cloud;
+    REQUIRE(read_scene(path, no_cloud, error));
+    REQUIRE(no_cloud.air.set);
+    CHECK(no_cloud.air.cloud_cover < 0.0f);
 
     // Контрольная рука: сцена БЕЗ [air] обязана вернуться с air.set == false —
     // карта без записи живёт на глобальных константах, а не на воздухе

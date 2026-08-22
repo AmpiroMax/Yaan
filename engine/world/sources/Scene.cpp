@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 22:08:2026 - 16:20:00
+Last updated: 22:08:2026 - 20:10:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -77,6 +77,7 @@ UPD:
   до последнего бита.
 - 20:08:2026 - 15:30:00: Чтение и запись [house].
 - 22:08:2026 - 16:20:00: чтение и запись [air] (fog_start / fog_end).
+- 22:08:2026 - 20:10:00: ключ cloud в [air] (необязателен; без него -1 «не задана»).
 */
 
 #include "engine/world/sources/Scene.h"
@@ -256,6 +257,10 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                 }
             } else if (key == "fog_end") {
                 if (!number(A.fog_end_m)) {
+                    return false;
+                }
+            } else if (key == "cloud") {
+                if (!number(A.cloud_cover)) {
                     return false;
                 }
             }
@@ -544,6 +549,9 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
         out << "\n[air]\n"
             << "fog_start = " << doc.air.fog_start_m << "\n"
             << "fog_end = " << doc.air.fog_end_m << "\n";
+        if (doc.air.cloud_cover >= 0.0f) {
+            out << "cloud = " << doc.air.cloud_cover << "\n";
+        }
     }
     const std::string text = out.str();
     // Atomic: a half-written scene is a map that opens to nothing.

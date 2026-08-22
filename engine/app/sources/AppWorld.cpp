@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 22:08:2026 - 16:20:00
+Last updated: 22:08:2026 - 20:10:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -38,6 +38,7 @@ UPD:
   качания взгляда бота (0 = ровный взгляд операторской ленты). Разбор строгий.
 - 22:08:2026 - 16:20:00: паром [air] из сцены в render_system_ (clear на каждой загрузке —
   воздух прошлой карты не наследуется).
+- 22:08:2026 - 20:10:00: паром облачности [air] и её печать в строке [scene] air.
 */
 
 #include "engine/app/sources/App.h"
@@ -251,10 +252,12 @@ bool App::enter_world(uint32_t stand) {
         }
         if (scene_doc_.air.set) {
             render_system_.set_air_override(scene_doc_.air.fog_start_m,
-                                            scene_doc_.air.fog_end_m);
-            std::fprintf(stderr, "[scene] air: fog %.0f..%.0f m\n",
+                                            scene_doc_.air.fog_end_m,
+                                            scene_doc_.air.cloud_cover);
+            std::fprintf(stderr, "[scene] air: fog %.0f..%.0f m, cloud %.2f\n",
                          static_cast<double>(scene_doc_.air.fog_start_m),
-                         static_cast<double>(scene_doc_.air.fog_end_m));
+                         static_cast<double>(scene_doc_.air.fog_end_m),
+                         static_cast<double>(scene_doc_.air.cloud_cover));
         }
         for (const world::ScenePad& P : scene_doc_.pads) {
             world::BuildingPad pad;

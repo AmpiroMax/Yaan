@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 22:08:2026 - 18:40:00
+Last updated: 22:08:2026 - 20:10:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -165,6 +165,8 @@ UPD:
 - 22:08:2026 - 18:40:00: HouseStreamGpu.bounds — мировой габарит потока построек для
   отсечения (профиль 22.08: 1.91 млн треугольников в кадре независимо от
   взгляда — пятно меша было размером с карту).
+- 22:08:2026 - 20:10:00: set_air_override принимает стартовую облачность карты — пишется
+  один раз (расписание погоды и DFN_CLOUD выигрывают).
 */
 
 #pragma once
@@ -468,10 +470,18 @@ public:
     /// DFN_TIME frozen-hour re-assert both stomp fog_start/end from the
     /// look-dev constants) — a load-time write would survive exactly one
     /// frame. Absolute overwrite, not a scale: idempotent by construction.
-    void set_air_override(float fog_start_m, float fog_end_m) {
+    /// `cloud_cover` — стартовая облачность карты (0..1; < 0 = не задана).
+    /// Пишется ОДИН РАЗ здесь, а не покадрово: в отличие от тумана, облачность
+    /// никто не переписывает каждый кадр, а будущее расписание погоды и
+    /// DFN_CLOUD обязаны выигрывать у стартового значения карты.
+    void set_air_override(float fog_start_m, float fog_end_m,
+                          float cloud_cover = -1.0f) {
         air_override_set_ = true;
         air_fog_start_m_ = fog_start_m;
         air_fog_end_m_ = fog_end_m;
+        if (cloud_cover >= 0.0f) {
+            environment_.cloud_cover = std::min(cloud_cover, 1.0f);
+        }
     }
     /// Back to the global constants (a map without [air] must not inherit the
     /// previous map's air).

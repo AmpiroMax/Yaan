@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 21:08:2026 - 14:35:00
+Last updated: 22:08:2026 - 20:10:00
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -79,6 +79,8 @@ UPD:
   скорость) и разовая перепись всех тел с габаритами. Ею найден невидимый
   куб кроны Гилдергрина, о который бился бот Вайтрана: расхождение живого
   конвейера с голой репродукцией можно было поймать только цифрами изнутри.
+- 22:08:2026 - 20:10:00: [char] ground печатает имя состояния (on/steep/unsupported/air):
+  сырой EGroundState с OnGround == 0 приёмка прочла как непрерывный срыв.
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -307,13 +309,28 @@ public:
                     const JPH::RVec3 p = character.virtual_character->GetPosition();
                     const JPH::Vec3 n = character.virtual_character->GetGroundNormal();
                     const JPH::Vec3 v = character.virtual_character->GetLinearVelocity();
+                    // СОСТОЯНИЕ ОПОРЫ — СЛОВОМ, НЕ ЧИСЛОМ. `ground=%d` печатал
+                    // сырой Jolt EGroundState, где OnGround == 0: приёмка
+                    // 22.08 прочла «ground=0 все 160 раз» как непрерывный срыв
+                    // и завела претензию на землю, которая всё время держала.
+                    // Два прибора одного прогона (эта трасса и rec.log с
+                    // булевым ground=) печатали одно имя с противоположной
+                    // конвенцией — таких имён больше нет.
+                    const auto gs = character.virtual_character->GetGroundState();
+                    const char* gs_name =
+                        gs == JPH::CharacterBase::EGroundState::OnGround ? "on"
+                        : gs == JPH::CharacterBase::EGroundState::OnSteepGround
+                            ? "steep"
+                        : gs == JPH::CharacterBase::EGroundState::NotSupported
+                            ? "unsupported"
+                            : "air";
                     std::fprintf(stderr,
-                                 "[char] pos=(%.2f %.2f %.2f) ground=%d "
+                                 "[char] pos=(%.2f %.2f %.2f) ground=%s "
                                  "n=(%.2f %.2f %.2f) pend=(%.3f %.3f %.3f) "
                                  "v=(%.2f %.2f %.2f)\n",
                                  static_cast<double>(p.GetX()), static_cast<double>(p.GetY()),
                                  static_cast<double>(p.GetZ()),
-                                 static_cast<int>(character.virtual_character->GetGroundState()),
+                                 gs_name,
                                  static_cast<double>(n.GetX()), static_cast<double>(n.GetY()),
                                  static_cast<double>(n.GetZ()),
                                  static_cast<double>(pending.x), static_cast<double>(pending.y),
