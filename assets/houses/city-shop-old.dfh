@@ -77,8 +77,8 @@ line e15 v15 v16 style=- radius=0.11 mat=0 tone=2
 line e16 v17 v18 style=- radius=0.11 mat=0 tone=2
 line e17 v19 v20 style=- radius=0.09 mat=0 tone=2
 surface e18 v21 v22 v23 v24 style=- closed=1 thickness=0.12 mat=1 tone=2 fill=7 wear=0.68 roof=1 unsupported=1
-surface e19 v25 v26 v27 v28 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.68
-surface e20 v26 v25 v29 v30 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.68
+surface e19 v25 v26 v27 v28 style=- closed=1 thickness=0.15 mat=1 tone=0 fill=7 wear=0.65
+surface e20 v26 v25 v29 v30 style=- closed=1 thickness=0.15 mat=1 tone=0 fill=7 wear=0.65
 line e21 v31 v32 style=- radius=0.12 form=plank mat=1 tone=1
 line e22 v33 v34 style=- radius=0.09 mat=0 tone=2
 line e23 v35 v36 style=- radius=0.12 form=plank mat=1 tone=1

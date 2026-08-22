@@ -462,8 +462,8 @@ line e72 v119 v120 style=- radius=0.09 mat=0 tone=2
 line e73 v121 v122 style=- radius=0.09 mat=0 tone=2
 line e74 v123 v124 style=- radius=0.09 mat=0 tone=2
 line e75 v125 v126 style=- radius=0.09 mat=0 tone=2
-surface e76 v127 v128 v129 v130 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.4
-surface e77 v128 v127 v131 v132 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.4
+surface e76 v127 v128 v129 v130 style=- closed=1 thickness=0.15 mat=1 tone=0 fill=7 wear=0.35
+surface e77 v128 v127 v131 v132 style=- closed=1 thickness=0.15 mat=1 tone=0 fill=7 wear=0.35
 line e78 v133 v134 style=- radius=0.12 form=plank mat=1 tone=1
 line e79 v135 v136 style=- radius=0.09 mat=0 tone=2
 line e80 v137 v138 style=- radius=0.12 form=plank mat=1 tone=1
@@ -575,8 +575,8 @@ surface e185 v302 v301 style=- height=4.60 thickness=0.45 mat=3 tone=1 wear=0.45
 surface e186 v303 v302 style=- height=4.60 thickness=0.45 mat=3 tone=1 wear=0.45 fill=3 plinth=1 windows=1
 surface e187 v301 v304 style=- height=4.60 thickness=0.45 mat=3 tone=1 wear=0.45 fill=3 plinth=1 windows=1
 surface e188 v304 v303 style=- height=4.60 thickness=0.45 mat=3 tone=1 wear=0.45 fill=3 plinth=1 windows=2
-surface e189 v305 v306 v307 v308 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.45
-surface e190 v306 v305 v309 v310 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.45
+surface e189 v305 v306 v307 v308 style=- closed=1 thickness=0.15 mat=1 tone=0 fill=7 wear=0.45
+surface e190 v306 v305 v309 v310 style=- closed=1 thickness=0.15 mat=1 tone=0 fill=7 wear=0.45
 line e191 v311 v312 style=- radius=0.12 form=plank mat=1 tone=1
 line e192 v313 v314 style=- radius=0.09 mat=0 tone=2
 line e193 v315 v316 style=- radius=0.12 form=plank mat=1 tone=1
@@ -600,8 +600,8 @@ surface e210 v346 v345 style=- height=4.60 thickness=0.45 mat=3 tone=1 wear=0.45
 surface e211 v347 v346 style=- height=4.60 thickness=0.45 mat=3 tone=1 wear=0.45 fill=3 plinth=1 windows=1
 surface e212 v345 v348 style=- height=4.60 thickness=0.45 mat=3 tone=1 wear=0.45 fill=3 plinth=1 windows=1
 surface e213 v348 v347 style=- height=4.60 thickness=0.45 mat=3 tone=1 wear=0.45 fill=3 plinth=1 windows=2
-surface e214 v349 v350 v351 v352 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.45
-surface e215 v350 v349 v353 v354 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.45
+surface e214 v349 v350 v351 v352 style=- closed=1 thickness=0.15 mat=1 tone=0 fill=7 wear=0.45
+surface e215 v350 v349 v353 v354 style=- closed=1 thickness=0.15 mat=1 tone=0 fill=7 wear=0.45
 line e216 v355 v356 style=- radius=0.12 form=plank mat=1 tone=1
 line e217 v357 v358 style=- radius=0.09 mat=0 tone=2
 line e218 v359 v360 style=- radius=0.12 form=plank mat=1 tone=1
