@@ -1,0 +1,198 @@
+# dfh 1
+vertex v1 free 0.3000 0.0050 0.3000
+vertex v2 free 0.3000 0.0050 5.7000
+vertex v3 free 23.7000 0.0050 5.7000
+vertex v4 free 23.7000 0.0050 0.3000
+vertex v5 free 0.3250 0.0470 0.3250
+vertex v6 free 0.3250 0.0470 2.0750
+vertex v7 free 2.2250 0.0470 2.0750
+vertex v8 free 2.2250 0.0470 0.3250
+vertex v9 free 0.3250 0.0532 2.1250
+vertex v10 free 0.3250 0.0532 3.8750
+vertex v11 free 2.2250 0.0532 3.8750
+vertex v12 free 2.2250 0.0532 2.1250
+vertex v13 free 0.3250 0.0594 3.9250
+vertex v14 free 0.3250 0.0594 5.6750
+vertex v15 free 2.2250 0.0594 5.6750
+vertex v16 free 2.2250 0.0594 3.9250
+vertex v17 free 2.2750 0.0580 0.3250
+vertex v18 free 2.2750 0.0580 2.0750
+vertex v19 free 4.1750 0.0580 2.0750
+vertex v20 free 4.1750 0.0580 0.3250
+vertex v21 free 2.2750 0.0608 2.1250
+vertex v22 free 2.2750 0.0608 3.8750
+vertex v23 free 4.1750 0.0608 3.8750
+vertex v24 free 4.1750 0.0608 2.1250
+vertex v25 free 2.2750 0.0583 3.9250
+vertex v26 free 2.2750 0.0583 5.6750
+vertex v27 free 4.1750 0.0583 5.6750
+vertex v28 free 4.1750 0.0583 3.9250
+vertex v29 free 4.2250 0.0482 0.3250
+vertex v30 free 4.2250 0.0482 2.0750
+vertex v31 free 6.1250 0.0482 2.0750
+vertex v32 free 6.1250 0.0482 0.3250
+vertex v33 free 4.2250 0.0479 2.1250
+vertex v34 free 4.2250 0.0479 3.8750
+vertex v35 free 6.1250 0.0479 3.8750
+vertex v36 free 6.1250 0.0479 2.1250
+vertex v37 free 4.2250 0.0529 3.9250
+vertex v38 free 4.2250 0.0529 5.6750
+vertex v39 free 6.1250 0.0529 5.6750
+vertex v40 free 6.1250 0.0529 3.9250
+vertex v41 free 6.1750 0.0537 0.3250
+vertex v42 free 6.1750 0.0537 2.0750
+vertex v43 free 8.0750 0.0537 2.0750
+vertex v44 free 8.0750 0.0537 0.3250
+vertex v45 free 6.1750 0.0533 2.1250
+vertex v46 free 6.1750 0.0533 3.8750
+vertex v47 free 8.0750 0.0533 3.8750
+vertex v48 free 8.0750 0.0533 2.1250
+vertex v49 free 6.1750 0.0572 3.9250
+vertex v50 free 6.1750 0.0572 5.6750
+vertex v51 free 8.0750 0.0572 5.6750
+vertex v52 free 8.0750 0.0572 3.9250
+vertex v53 free 8.1250 0.0494 0.3250
+vertex v54 free 8.1250 0.0494 2.0750
+vertex v55 free 10.0250 0.0494 2.0750
+vertex v56 free 10.0250 0.0494 0.3250
+vertex v57 free 8.1250 0.0481 2.1250
+vertex v58 free 8.1250 0.0481 3.8750
+vertex v59 free 10.0250 0.0481 3.8750
+vertex v60 free 10.0250 0.0481 2.1250
+vertex v61 free 8.1250 0.0487 3.9250
+vertex v62 free 8.1250 0.0487 5.6750
+vertex v63 free 10.0250 0.0487 5.6750
+vertex v64 free 10.0250 0.0487 3.9250
+vertex v65 free 10.0750 0.0516 0.3250
+vertex v66 free 10.0750 0.0516 2.0750
+vertex v67 free 11.9750 0.0516 2.0750
+vertex v68 free 11.9750 0.0516 0.3250
+vertex v69 free 10.0750 0.0576 2.1250
+vertex v70 free 10.0750 0.0576 3.8750
+vertex v71 free 11.9750 0.0576 3.8750
+vertex v72 free 11.9750 0.0576 2.1250
+vertex v73 free 10.0750 0.0595 3.9250
+vertex v74 free 10.0750 0.0595 5.6750
+vertex v75 free 11.9750 0.0595 5.6750
+vertex v76 free 11.9750 0.0595 3.9250
+vertex v77 free 12.0250 0.0535 0.3250
+vertex v78 free 12.0250 0.0535 2.0750
+vertex v79 free 13.9250 0.0535 2.0750
+vertex v80 free 13.9250 0.0535 0.3250
+vertex v81 free 12.0250 0.0479 2.1250
+vertex v82 free 12.0250 0.0479 3.8750
+vertex v83 free 13.9250 0.0479 3.8750
+vertex v84 free 13.9250 0.0479 2.1250
+vertex v85 free 12.0250 0.0536 3.9250
+vertex v86 free 12.0250 0.0536 5.6750
+vertex v87 free 13.9250 0.0536 5.6750
+vertex v88 free 13.9250 0.0536 3.9250
+vertex v89 free 13.9750 0.0495 0.3250
+vertex v90 free 13.9750 0.0495 2.0750
+vertex v91 free 15.8750 0.0495 2.0750
+vertex v92 free 15.8750 0.0495 0.3250
+vertex v93 free 13.9750 0.0583 2.1250
+vertex v94 free 13.9750 0.0583 3.8750
+vertex v95 free 15.8750 0.0583 3.8750
+vertex v96 free 15.8750 0.0583 2.1250
+vertex v97 free 13.9750 0.0576 3.9250
+vertex v98 free 13.9750 0.0576 5.6750
+vertex v99 free 15.8750 0.0576 5.6750
+vertex v100 free 15.8750 0.0576 3.9250
+vertex v101 free 15.9250 0.0556 0.3250
+vertex v102 free 15.9250 0.0556 2.0750
+vertex v103 free 17.8250 0.0556 2.0750
+vertex v104 free 17.8250 0.0556 0.3250
+vertex v105 free 15.9250 0.0543 2.1250
+vertex v106 free 15.9250 0.0543 3.8750
+vertex v107 free 17.8250 0.0543 3.8750
+vertex v108 free 17.8250 0.0543 2.1250
+vertex v109 free 15.9250 0.0577 3.9250
+vertex v110 free 15.9250 0.0577 5.6750
+vertex v111 free 17.8250 0.0577 5.6750
+vertex v112 free 17.8250 0.0577 3.9250
+vertex v113 free 17.8750 0.0623 0.3250
+vertex v114 free 17.8750 0.0623 2.0750
+vertex v115 free 19.7750 0.0623 2.0750
+vertex v116 free 19.7750 0.0623 0.3250
+vertex v117 free 17.8750 0.0502 2.1250
+vertex v118 free 17.8750 0.0502 3.8750
+vertex v119 free 19.7750 0.0502 3.8750
+vertex v120 free 19.7750 0.0502 2.1250
+vertex v121 free 17.8750 0.0594 3.9250
+vertex v122 free 17.8750 0.0594 5.6750
+vertex v123 free 19.7750 0.0594 5.6750
+vertex v124 free 19.7750 0.0594 3.9250
+vertex v125 free 19.8250 0.0562 0.3250
+vertex v126 free 19.8250 0.0562 2.0750
+vertex v127 free 21.7250 0.0562 2.0750
+vertex v128 free 21.7250 0.0562 0.3250
+vertex v129 free 19.8250 0.0512 2.1250
+vertex v130 free 19.8250 0.0512 3.8750
+vertex v131 free 21.7250 0.0512 3.8750
+vertex v132 free 21.7250 0.0512 2.1250
+vertex v133 free 19.8250 0.0523 3.9250
+vertex v134 free 19.8250 0.0523 5.6750
+vertex v135 free 21.7250 0.0523 5.6750
+vertex v136 free 21.7250 0.0523 3.9250
+vertex v137 free 21.7750 0.0624 0.3250
+vertex v138 free 21.7750 0.0624 2.0750
+vertex v139 free 23.6750 0.0624 2.0750
+vertex v140 free 23.6750 0.0624 0.3250
+vertex v141 free 21.7750 0.0560 2.1250
+vertex v142 free 21.7750 0.0560 3.8750
+vertex v143 free 23.6750 0.0560 3.8750
+vertex v144 free 23.6750 0.0560 2.1250
+vertex v145 free 21.7750 0.0512 3.9250
+vertex v146 free 21.7750 0.0512 5.6750
+vertex v147 free 23.6750 0.0512 5.6750
+vertex v148 free 23.6750 0.0512 3.9250
+vertex v149 free 0.0000 -0.0290 0.0000
+vertex v150 free 0.3000 0.0510 0.3000
+vertex v151 free 23.7000 0.0510 0.3000
+vertex v152 free 24.0000 -0.0290 0.0000
+vertex v153 free 0.0000 -0.0290 6.0000
+vertex v154 free 24.0000 -0.0290 6.0000
+vertex v155 free 23.7000 0.0510 5.7000
+vertex v156 free 0.3000 0.0510 5.7000
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.09 mat=3 tone=1 wear=0.5
+surface e2 v5 v6 v7 v8 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=30 wear=0.35
+surface e3 v9 v10 v11 v12 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.48778
+surface e4 v13 v14 v15 v16 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=0 wear=0.365277
+surface e5 v17 v18 v19 v20 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=30 wear=0.427531
+surface e6 v21 v22 v23 v24 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=0 wear=0.52192
+surface e7 v25 v26 v27 v28 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.360678
+surface e8 v29 v30 v31 v32 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=75 wear=0.505062
+surface e9 v33 v34 v35 v36 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.491802
+surface e10 v37 v38 v39 v40 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.423451
+surface e11 v41 v42 v43 v44 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=0 wear=0.512075
+surface e12 v45 v46 v47 v48 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=30 wear=0.439342
+surface e13 v49 v50 v51 v52 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=0 wear=0.37385
+surface e14 v53 v54 v55 v56 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=75 wear=0.460121
+surface e15 v57 v58 v59 v60 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=45 wear=0.448689
+surface e16 v61 v62 v63 v64 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=15 wear=0.533752
+surface e17 v65 v66 v67 v68 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.413792
+surface e18 v69 v70 v71 v72 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.476033
+surface e19 v73 v74 v75 v76 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=0 wear=0.442985
+surface e20 v77 v78 v79 v80 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=30 wear=0.47415
+surface e21 v81 v82 v83 v84 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=45 wear=0.39228
+surface e22 v85 v86 v87 v88 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=75 wear=0.443745
+surface e23 v89 v90 v91 v92 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.484542
+surface e24 v93 v94 v95 v96 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=15 wear=0.547745
+surface e25 v97 v98 v99 v100 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.415614
+surface e26 v101 v102 v103 v104 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=75 wear=0.37024
+surface e27 v105 v106 v107 v108 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=0 wear=0.38765
+surface e28 v109 v110 v111 v112 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=0 wear=0.424934
+surface e29 v113 v114 v115 v116 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=30 wear=0.416337
+surface e30 v117 v118 v119 v120 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=30 wear=0.43802
+surface e31 v121 v122 v123 v124 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=30 wear=0.415605
+surface e32 v125 v126 v127 v128 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.477587
+surface e33 v129 v130 v131 v132 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=75 wear=0.380347
+surface e34 v133 v134 v135 v136 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=0 wear=0.459316
+surface e35 v137 v138 v139 v140 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=30 wear=0.485988
+surface e36 v141 v142 v143 v144 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=60 wear=0.418354
+surface e37 v145 v146 v147 v148 style=- closed=1 thickness=0.05 mat=3 tone=1 tex_deg=45 wear=0.495489
+surface e38 v149 v150 v151 v152 style=- closed=1 thickness=0.06 mat=3 tone=1 wear=0.55
+surface e39 v153 v154 v155 v156 style=- closed=1 thickness=0.06 mat=3 tone=1 wear=0.55
+surface e40 v149 v153 v156 v150 style=- closed=1 thickness=0.06 mat=3 tone=1 wear=0.55
+surface e41 v154 v152 v151 v155 style=- closed=1 thickness=0.06 mat=3 tone=1 wear=0.55
