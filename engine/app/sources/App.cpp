@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 18:40:00
+Last updated: 22:08:2026 - 16:50:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -574,6 +574,10 @@ UPD:
   (aim_this_frame) вместо четырёх маршей по 160 шагов. shutdown() зовёт unload_world().
 - 20:08:2026 - 15:30:00: Дверь DFN_RECORD_EVERY=<кадров> — лента прохода с состоянием для субтитров.
 - 20:08:2026 - 18:40:00: Перезаливка тела и по смене выбора: качание петли включает выбор, а выбор версию не растит.
+- 22:08:2026 - 16:50:00: DFN_VSYNC=0 (dt_ms мерил монитор: медианы города и пустой карты
+  совпадали до 0.0001 мс — обе 1/120 с) и три колонки prev_draws/prev_tris/
+  prev_backend_draws в DFN_FRAME_LOG — счётчики ПОСЛЕДНЕГО ЗАВЕРШЁННОГО
+  кадра, названы prev_* чтобы тихий сплайс со сдвигом был невозможен.
 */
 
 #include "engine/app/sources/App.h"
@@ -915,6 +919,17 @@ bool App::init(const AppConfig& config) {
     rp.internal_width = config.internal_width;
     rp.internal_height = config.internal_height;
     rp.palette_post = config.palette_post;
+    // ДВЕРЬ VSYNC (DFN_VSYNC=0). Заведена, когда профиль кадра города упёрся
+    // в монитор: медиана dt_ms по Вайтрану (434 постройки) и по пустой
+    // demo-карте совпала до 0.0001 мс — обе равны 1/120 с, и любой замер
+    // «до/после» по dt_ms возвращал ноль, что бы кадр ни стоил на самом
+    // деле. С открытой дверью dt_ms снова мерит рендер. Игровой путь без
+    // переменной — прежний vsync, до последнего бита.
+    if (const char* vs = door_value("DFN_VSYNC"); vs != nullptr && *vs == '0') {
+        rp.vsync = false;
+        std::fprintf(stderr, "[render] DFN_VSYNC=0 — vsync выключен, dt_ms "
+                             "меряет кадр, а не монитор\n");
+    }
     if (!renderer_ || !renderer_->init(rp)) {
         return false;
     }
@@ -1206,7 +1221,13 @@ bool App::init(const AppConfig& config) {
                          "# No readback, no settle, no cooldown: this instrument cannot\n"
                          "# quiet the thing it is pointed at. Between-frames motion is\n"
                          "# arithmetic on adjacent lines.\n"
-                         "# frame dt_ms game_s speed fov_y eye_x eye_y eye_z yaw pitch\n");
+                         "# frame dt_ms game_s speed fov_y eye_x eye_y eye_z yaw pitch"
+                         " prev_draws prev_tris prev_backend_draws\n"
+                         "# prev_* are the renderer's counters for the LAST COMPLETED\n"
+                         "# frame (frame_stats contract) -- one line behind the pose\n"
+                         "# columns by construction, and NAMED so: a route profile\n"
+                         "# reads medians, where the shift is nothing; a per-frame\n"
+                         "# splice must shift them itself and now cannot do it silently.\n");
         }
     }
 
@@ -3971,8 +3992,16 @@ int App::run() {
             if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
                 spd = ps->stride_speed;
             }
+            // Счётчики рендера — ПОСЛЕДНЕГО ЗАВЕРШЁННОГО кадра (контракт
+            // frame_stats): честно на строку позади колонок позы, и заголовок
+            // лога говорит это вслух. Профиль LOD читает медианы вызовов и
+            // треугольников по маршруту — сдвиг на кадр там ничто, а тихий
+            // сплайс «счётчики N-1 против dt N» без предупреждения уже был
+            // назван капканом (замер кузнеца 22.08).
+            const platform::RenderFrameStats& fst = renderer_->frame_stats();
             std::fprintf(frame_log_,
-                         "%llu %.4f %.6f %.6f %.8f %.6f %.6f %.6f %.6f %.6f\n",
+                         "%llu %.4f %.6f %.6f %.8f %.6f %.6f %.6f %.6f %.6f"
+                         " %u %u %u\n",
                          static_cast<unsigned long long>(frame_log_index_++),
                          frame_dt * 1000.0, game_seconds_,
                          static_cast<double>(spd),
@@ -3981,7 +4010,9 @@ int App::run() {
                          static_cast<double>(eye.position.y),
                          static_cast<double>(eye.position.z),
                          static_cast<double>(eye.yaw),
-                         static_cast<double>(eye.pitch));
+                         static_cast<double>(eye.pitch),
+                         fst.scene_draws, fst.scene_triangles,
+                         fst.backend_draws);
         }
 
         // Audio follows the eye; the wind bed follows the ONE wind model the

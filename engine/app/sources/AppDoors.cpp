@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 22:08:2026 - 14:30:00
+Last updated: 22:08:2026 - 16:50:00
 Module: engine/app
 File: engine/app/sources/AppDoors.cpp
 
@@ -21,6 +21,7 @@ UPD:
 - 20:08:2026 - 15:30:00: Дверь DFN_RECORD_EVERY — лента прохода.
 - 20:08:2026 - 17:30:00: DFN_PLAYTEST_ARRIVE в таблице (безлюдная).
 - 22:08:2026 - 14:30:00: DFN_PLAYTEST_GLANCE в таблице (безлюдная), 63 -> 64.
+- 22:08:2026 - 16:50:00: DFN_VSYNC в таблице (64 -> 65, не безлюдная).
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -37,7 +38,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 64> TABLE{{
+constexpr std::array<Door, 65> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -176,6 +177,11 @@ constexpr std::array<Door, 64> TABLE{{
     {"DFN_CAM_TRACE",
      "печатать на каждом кадре редактора пару «пришло смещение мыши / стал рыск». Заведена потому, что «мышь не дошла» и «камера проигнорировала» выглядели одинаково три захода подряд.",
      DoorRead::Once},
+    {"DFN_VSYNC",
+     "0 — выключить vsync: dt_ms меряет рендер, а не монитор (медиана города "
+     "и пустой карты совпадала до 0.0001 мс — обе были 1/120 с). Сама по себе "
+     "НЕ значит «без человека».",
+     DoorRead::Once, false},
     {"DFN_FRAME_LOG",
      "строка на каждый ПРЕДЪЯВЛЕННЫЙ кадр: dt, игровые секунды, скорость, fov, поза глаза. Без обратного чтения и без заморозки тика — тем и ловит дефекты МЕЖДУ кадрами.",
      DoorRead::Once},
