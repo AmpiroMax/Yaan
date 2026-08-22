@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 01:40:00
+Last updated: 23:08:2026 - 06:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -106,6 +106,7 @@ UPD:
   предусловие городского пресета воздушной перспективы.
 - 23:08:2026 - 00:30:00: s_tex_path — сэмплер путевого атласа (стадия 5).
 - 23:08:2026 - 01:40:00: ENV_PARAM_VEC4S 41 -> 49 — слоты 41..48 коробки комнат светов (пара с dfn_env.sh).
+- 23:08:2026 - 06:30:00: u_ps_near — ближний exclude кубовой тени.
 */
 
 #pragma once
@@ -568,6 +569,7 @@ struct BgfxRenderer::Impl {
     bgfx::UniformHandle s_point_shadow = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_point_shadow_rows = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_point_shadow_params = BGFX_INVALID_HANDLE;
+    bgfx::UniformHandle u_ps_near = BGFX_INVALID_HANDLE; // ближний exclude кубовой тени
     bgfx::UniformHandle u_point_caster = BGFX_INVALID_HANDLE;
     // Lights REORDERED so shadow casters come first — the shader then uses the
     // light slot as the cube index and no second lookup table can drift.

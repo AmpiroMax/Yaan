@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 23:08:2026 - 06:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -117,6 +117,7 @@ UPD:
   dfn_shadow.sh, решение владельца, отменяет в1). Создаётся и уничтожается
   рядом с остальным теневым состоянием.
 - 23:08:2026 - 00:30:00: s_texPath создаётся/уничтожается с остальными.
+- 23:08:2026 - 06:30:00: u_psNear создаётся/уничтожается с остальным теневым состоянием.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -507,6 +508,8 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
             MAX_SHADOW_POINT_LIGHTS * POINT_SHADOW_FACES * 4);
         im.u_point_shadow_params =
             bgfx::createUniform("u_pointShadowParams", bgfx::UniformType::Vec4);
+        im.u_ps_near =
+            bgfx::createUniform("u_psNear", bgfx::UniformType::Vec4);
         im.u_point_caster =
             bgfx::createUniform("u_pointCaster", bgfx::UniformType::Vec4);
     }
@@ -571,6 +574,7 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.s_point_shadow)) bgfx::destroy(im.s_point_shadow);
     if (bgfx::isValid(im.u_point_shadow_rows)) bgfx::destroy(im.u_point_shadow_rows);
     if (bgfx::isValid(im.u_point_shadow_params)) bgfx::destroy(im.u_point_shadow_params);
+    if (bgfx::isValid(im.u_ps_near)) bgfx::destroy(im.u_ps_near);
     if (bgfx::isValid(im.u_point_caster)) bgfx::destroy(im.u_point_caster);
     if (bgfx::isValid(im.s_shadow_map)) bgfx::destroy(im.s_shadow_map);
     if (bgfx::isValid(im.u_light_mtx)) bgfx::destroy(im.u_light_mtx);

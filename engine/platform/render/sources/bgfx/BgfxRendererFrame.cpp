@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 01:40:00
+Last updated: 23:08:2026 - 06:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -195,6 +195,8 @@ UPD:
 - 23:08:2026 - 00:30:00: packed[13].y = path_tiles_per_m окружения, .z = доза DFN_PATH_MAT
   (0 = прежний 8-битный износ и прежняя грязь бит-в-бит).
 - 23:08:2026 - 01:40:00: packed[41+i] — коробка комнаты света; packed[15].w — доза DFN_LIGHT_ROOM (0 = окно игнорируется, прежний гейт по AO бит-в-бит).
+- 23:08:2026 - 06:30:00: подача u_psNear (DFN_PS_NEAR_EXCLUDE, 0.6 м; 0 = прежнее сравнение
+  бит-в-бит).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -406,6 +408,14 @@ void BgfxRenderer::Impl::update_point_shadows() {
                              POINT_SHADOW_NORMAL_OFFSET_M,
                              POINT_SHADOW_BIAS_FRAC, point_shadow_debug()};
     bgfx::setUniform(u_point_shadow_params, params);
+    {
+        // Ближний exclude кубовой тени (DFN_PS_NEAR_EXCLUDE, метры; 0 =
+        // прежнее сравнение бит-в-бит): глубина ближе него — собственная
+        // оснастка источника (борт лотка, дрова), не тень. Читается один раз.
+        static const float ps_near = dose_env_override("DFN_PS_NEAR_EXCLUDE", 0.6f);
+        const float psn[4] = {ps_near, 0.0f, 0.0f, 0.0f};
+        bgfx::setUniform(u_ps_near, psn);
+    }
 }
 
 // A COUNTERFACTUAL ARM AS A NUMBER: one non-negative float, from the

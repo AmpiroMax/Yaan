@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:28:29
-Last updated: 13:08:2026 - 21:31:37
+Last updated: 23:08:2026 - 06:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_pointshadow.sh
 
@@ -39,6 +39,11 @@ UPD:
   as 0.0 -- every branch dead, zero-dose arm is the shipping shader bit for
   bit. Opened to split the "factor 0 with clear air" dungeon defect into
   writer / sampler / compare without a GPU debugger.
+- 23:08:2026 - 06:30:00: u_psNear.x — глубина ближе него читается как СОБСТВЕННАЯ ОСНАСТКА
+  источника и не заслоняет (круг 4 [N4]: очаг душил себя кубовой тенью
+  своего лотка, арма casts_shadow=0 давала +34%; та же семья, что «пол под
+  ногами чёрный» у факела). Свой юниформ, не компонента u_envParams: массив
+  окружения объявляется ПОЗЖЕ этого включения (поймано выпечкой шейдеров).
 */
 
 #ifndef DFN_POINTSHADOW_SH
@@ -55,6 +60,11 @@ uniform vec4 u_pointShadowRows[48];
 // array), y: receiver normal offset in metres, z: comparison bias as a
 // fraction of the light radius, w: unused.
 uniform vec4 u_pointShadowParams;
+// x — ближний exclude, метры: глубина ближе него читается как СОБСТВЕННАЯ
+// ОСНАСТКА источника (борт лотка, дрова) и не заслоняет. Свой юниформ, а не
+// компонента u_envParams: массив окружения объявляется ПОЗЖЕ этого включения,
+// и ссылка на него отсюда не компилируется (поймано выпечкой шейдеров).
+uniform vec4 u_psNear;
 
 // 1.0 = the light reaches this fragment, 0.0 = occluded.
 //   index:  light slot (must be < u_pointShadowParams.x)
@@ -120,6 +130,17 @@ float dfn_point_shadow_factor(int index, vec3 wpos, vec3 n, vec3 lpos, float rad
     }
     // Nothing was rendered into this texel -> cleared to 1.0 -> lit.
     float bias = u_pointShadowParams.z;
+    // БЛИЖНИЙ ОККЛЮДЕР — СОБСТВЕННАЯ ОСНАСТКА ИСТОЧНИКА (23.08, круг 4 [N4]:
+    // зал замка в полдень 19.3/255 при очаге радиусом 13; арма casts_shadow=0
+    // дала +34% — свет душила кубовая тень СВОЕГО лотка, чьи борта пишут
+    // глубину в сантиметрах от пламени; та же семья, что давний «пол под
+    // ногами абсолютно чёрный» у факела). Глубина ближе u_psNearExclude
+    // метров читается как своя оснастка и не заслоняет: борт лотка и дрова
+    // не тень, а сам очаг. Мебель в метре и дальше тенит как раньше.
+    // DFN_PS_NEAR_EXCLUDE, 0 = прежнее сравнение бит-в-бит.
+    if (stored * radius < u_psNear.x) {
+        return 1.0;
+    }
     return (dist / radius) - bias <= stored ? 1.0 : 0.0;
 }
 
