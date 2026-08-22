@@ -44,7 +44,7 @@ vertex v42 free 4.5000 4.0000 3.0000
 vertex v43 free 4.5000 2.4600 -0.5700
 vertex v44 free 4.5000 2.4600 6.5700
 vertex v45 free 2.2500 2.4000 1.0500
-vertex v46 free 2.2500 3.7187 1.0500
+vertex v46 free 2.2500 3.8428 1.0500
 surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1 wear=0.78
 line e2 v5 v6 style=- radius=0.12 mat=0 tone=2
 line e3 v7 v8 style=- radius=0.12 mat=0 tone=2
