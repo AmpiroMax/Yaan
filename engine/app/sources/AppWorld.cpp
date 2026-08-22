@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 22:08:2026 - 22:52:34
+Last updated: 22:08:2026 - 23:15:13
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -46,6 +46,7 @@ UPD:
 - 23:08:2026 - 00:30:00: паром классов троп рельефа в render_system_.set_path_classes.
 - 23:08:2026 - 01:40:00: паром коробки комнаты из [light].
 - 22:08:2026 - 22:52:34: паром SceneLight.softness в ExtraLight — ключ softness у [light] доезжает до шейдера.
+- 22:08:2026 - 23:15:13: доза DFN_GRASS_LUSH (дефолт 1) — пышность травы в render_system_.set_grass_lushness.
 */
 
 #include "engine/app/sources/App.h"
@@ -328,6 +329,18 @@ bool App::enter_world(uint32_t stand) {
             }
             render_system_.set_path_classes(std::move(pcf));
         }
+    }
+    {
+        // ПЫШНОСТЬ ТРАВЫ (владелец 23.08: «трава плохо выглядит — две
+        // травинки»). Дверь-доза DFN_GRASS_LUSH: 0 — пол полосы реестра и
+        // прежние формы пучков бит-в-бит, 1 (дефолт) — середина полосы и
+        // пучки 5/7/9/12.
+        static const float grass_lush = [] {
+            const char* e = door_value("DFN_GRASS_LUSH");
+            return (e != nullptr && *e != '\0') ? std::strtof(e, nullptr)
+                                                 : 1.0f;
+        }();
+        render_system_.set_grass_lushness(grass_lush);
     }
     // THE MAP IS CONTENT AND IT IS LOADED, NOT COMPILED IN (Rule 5). Core moved
     // 441 lines of ONE GAME'S survey -- Vaelmere, Ravenscar, Harrowward -- out

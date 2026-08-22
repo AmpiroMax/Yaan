@@ -1,6 +1,6 @@
 /*
 Created: 12:08:2026 - 00:44:12
-Last updated: 23:08:2026 - 07:20:00
+Last updated: 22:08:2026 - 23:12:51
 Module: engine/render
 File: engine/render/sources/GroundTufts.h
 
@@ -51,6 +51,7 @@ UPD:
   быть не много, но она должна быть везде и прикрывать плоскость, особенно в
   зоне равнин». Read carefully, that is not a lawn: SPARSE, VARIED, EVERYWHERE.
 - 23:08:2026 - 07:20:00: build_ground_tufts принимает пятна построек (cx,cz,hx,hz) — внутри
+- 22:08:2026 - 23:12:51: GroundTuftParams.lushness — пышность пучка (0 = прежние формы бит-в-бит).
   них пучки не растут («былинки сквозь пол», владелец 23.08). Фильтр на
   выращивании, а не на сборе: порядок загрузки чанков и домов не важен.
 */
@@ -85,6 +86,10 @@ struct GroundTuftParams {
     float height_max_m = 0.4f;
     /// Steepest ground that still carries grass, radians (SLOPE_GRASS_MAX).
     float slope_max_rad = 0.52f;
+    /// ПЫШНОСТЬ (владелец 23.08: «трава плохо выглядит — две травинки»).
+    /// 0 — прежние формы 3/4/5/7 травинок бит-в-бит; 1 — формы 5/7/9/12.
+    /// Плотность решает вызывающий (density_per_m2), это ТОЛЬКО про пучок.
+    float lushness = 0.0f;
     uint32_t seed = 0x9E37u;
 };
 

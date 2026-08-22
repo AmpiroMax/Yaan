@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 22:08:2026 - 17:45:00
+Last updated: 22:08:2026 - 23:15:13
 Module: engine/app
 File: engine/app/sources/AppDoors.cpp
 
@@ -23,6 +23,7 @@ UPD:
 - 22:08:2026 - 14:30:00: DFN_PLAYTEST_GLANCE в таблице (безлюдная), 63 -> 64.
 - 22:08:2026 - 16:50:00: DFN_VSYNC в таблице (64 -> 65, не безлюдная).
 - 22:08:2026 - 17:45:00: DFN_HOUSE_AO в таблице (65 -> 66, не безлюдная).
+- 22:08:2026 - 23:15:13: DFN_GRASS_LUSH в таблице (66 -> 67, читает AppWorld).
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -39,7 +40,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 66> TABLE{{
+constexpr std::array<Door, 67> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -178,6 +179,11 @@ constexpr std::array<Door, 66> TABLE{{
     {"DFN_CAM_TRACE",
      "печатать на каждом кадре редактора пару «пришло смещение мыши / стал рыск». Заведена потому, что «мышь не дошла» и «камера проигнорировала» выглядели одинаково три захода подряд.",
      DoorRead::Once},
+    {"DFN_GRASS_LUSH",
+     "доза пышности травы: 0 — пол полосы GRASS_DENSITY и формы пучков "
+     "3/4/5/7 бит-в-бит; 1 (дефолт) — середина полосы и формы 5/7/9/12 "
+     "(владелец 23.08: «трава плохо выглядит — две травинки»).",
+     DoorRead::Once, false},
     {"DFN_HOUSE_AO",
      "доза запечённого AO построек (небесная видимость в альфе вершин); "
      "0 — прежние прибитые 255 бит-в-бит.",

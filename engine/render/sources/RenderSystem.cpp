@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 07:20:00
+Last updated: 22:08:2026 - 23:14:42
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -176,6 +176,7 @@ UPD:
 - 23:08:2026 - 00:30:00: поле классов уходит в оба мешера; путевой атлас едет в террейн-дро
   вторым доп. листом (aux2, стадия 5).
 - 23:08:2026 - 07:20:00: выращивание травы получает пятна построек.
+- 22:08:2026 - 23:14:42: tuft_params: пышность травы (DFN_GRASS_LUSH через set_grass_lushness) — плотность к середине полосы реестра, формы пучков гуще; 0 = прежний пол бит-в-бит.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1428,9 +1429,12 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
 // THE TUFT SETTINGS, AND EVERY ONE OF THEM IS DERIVED FROM A ROW THAT ALREADY
 // EXISTS (Rule 14). Nothing here is a taste value:
 //
-//  * density = GRASS_DENSITY_MIN. The approved range is 0.5-1.5 /m² and the
-//    user asked for «не много», so the layer sits on the FLOOR of the range
-//    rather than inventing a number under it.
+//  * density = GRASS_DENSITY_MIN, поднятая ПЫШНОСТЬЮ к середине одобренной
+//    полосы 0.5-1.5 /м². Пол полосы стоял на «не много» палитровой эпохи;
+//    23.08 владелец перевесил: «мало кустиков по городу и трава плохо
+//    выглядит — две травинки». Дверь DFN_GRASS_LUSH (читает AppWorld):
+//    0 — прежний пол и формы 3/4/5/7 бит-в-бит, 1 — середина полосы и
+//    формы 5/7/9/12. Ни одно число не выдумано: оба конца — строки реестра.
 //  * height  = GRASS_HEIGHT_MAX, the §2.3 cap that keeps grass from hiding an
 //    interactable.
 //  * slope   = SLOPE_GRASS_MAX, the same threshold the splat uses, so a tuft
@@ -1443,9 +1447,14 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
 //    ABSENT, and drawing it there buys nothing while manufacturing the running
 //    shimmer this project has already fought twice. Tufts cannot fix the
 //    middle distance; their band is the near metres, where the ground is bare.
-GroundTuftParams RenderSystem::tuft_params() {
+GroundTuftParams RenderSystem::tuft_params() const {
     GroundTuftParams p;
-    p.density_per_m2 = static_cast<float>(config::GRASS_DENSITY_MIN);
+    const float lush = std::clamp(grass_lushness_, 0.0f, 1.0f);
+    p.density_per_m2 = static_cast<float>(config::GRASS_DENSITY_MIN)
+                     + lush * 0.5f
+                           * (static_cast<float>(config::GRASS_DENSITY_MAX)
+                              - static_cast<float>(config::GRASS_DENSITY_MIN));
+    p.lushness = lush;
     p.height_max_m = static_cast<float>(config::GRASS_HEIGHT_MAX);
     p.slope_max_rad = static_cast<float>(config::SLOPE_GRASS_MAX);
     const float focal_px = 0.5f * static_cast<float>(config::INTERNAL_RES_H)

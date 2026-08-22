@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 22:08:2026 - 22:52:34
+Last updated: 22:08:2026 - 23:14:42
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -173,6 +173,7 @@ UPD:
 - 23:08:2026 - 01:40:00: коробка комнаты у ExtraLight/кандидата.
 - 23:08:2026 - 07:20:00: set_ground_exclusions — пятна построек для травы; сброс tuft_built_
 - 22:08:2026 - 22:52:34: softness у ExtraLight/PointLightCandidate — мягкость источника доезжает от сцены до PointLight.
+- 22:08:2026 - 23:14:42: set_grass_lushness/grass_lushness_ — пышность травы за дверью DFN_GRASS_LUSH (0 = прежняя бит-в-бит).
   пересевает уже выращенное.
 */
 
@@ -504,6 +505,17 @@ public:
         tuft_built_ = false;
     }
 
+    /// ПЫШНОСТЬ ТРАВЫ (владелец 23.08: «трава плохо выглядит — две
+    /// травинки»). 0 — пол полосы реестра и прежние формы пучков бит-в-бит;
+    /// 1 — середина полосы и формы 5/7/9/12. Пишет App по двери
+    /// DFN_GRASS_LUSH.
+    void set_grass_lushness(float lush) {
+        if (grass_lushness_ != lush) {
+            grass_lushness_ = lush;
+            tuft_built_ = false; // пересев: плотность и формы изменились
+        }
+    }
+
     /// ПОЛЕ КЛАССОВ ПОЛОТНА (22.08, владелец: «тропинки опять плитами
     /// кладутся, а не тропинкой каменной»): материал троп композиции — в
     /// самой земле. Пишется приложением после чтения .relief; действует на
@@ -812,7 +824,8 @@ private:
     // chunk would spend tens of megabytes to draw a hundredth of them.
     /// The tuft settings, DERIVED from approved rows rather than typed
     /// (Rule 14). Defined in the .cpp beside the Rule 33 arithmetic.
-    [[nodiscard]] static GroundTuftParams tuft_params();
+    // НЕ static с 23.08: пышность травы — состояние системы (grass_lushness_).
+    [[nodiscard]] GroundTuftParams tuft_params() const;
     /// Regrows the eye-local tuft mesh if the eye has moved far enough.
     void refresh_ground_tufts(platform::IRenderer& renderer, glm::vec3 eye);
 
@@ -852,6 +865,7 @@ private:
     uint32_t tuft_mesh_id_ = 0;
     glm::vec3 tuft_built_at_{0.0f};
     bool tuft_built_ = false;
+    float grass_lushness_ = 0.0f;
     bool tufts_off_ = false; // DFN_NO_TUFTS=1 — the counterfactual arm
     std::unordered_map<uint32_t, uint32_t> mesh_cache_;    // mesh_asset id -> MeshHandle.id
     std::unordered_map<uint32_t, uint32_t> texture_cache_; // texture_asset id -> TextureHandle.id

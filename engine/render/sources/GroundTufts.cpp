@@ -1,6 +1,6 @@
 /*
 Created: 12:08:2026 - 00:47:30
-Last updated: 23:08:2026 - 07:20:00
+Last updated: 22:08:2026 - 23:12:51
 Module: engine/render
 File: engine/render/sources/GroundTufts.cpp
 
@@ -33,6 +33,7 @@ AI Agents Notice (must follow):
 UPD:
 - 12:08:2026 - 00:47:30: Created with the layer.
 - 23:08:2026 - 07:20:00: фильтр пятен построек в цикле выращивания.
+- 22:08:2026 - 23:12:51: пышные формы пучка 5/7/9/12 за params.lushness (0 = прежние 3/4/5/7 бит-в-бит).
 */
 
 #include "engine/render/sources/GroundTufts.h"
@@ -150,8 +151,14 @@ void clump(MeshData& m, const TuftSpot& spot, const GroundTuftParams& params) {
     // spread matters more than any single silhouette — a screen of identical
     // tufts is a stamp, which is the defect one layer down.
     constexpr int BLADES[4] = {3, 4, 5, 7};
+    // ПЫШНЫЕ ФОРМЫ (владелец 23.08: «трава плохо выглядит — две травинки»):
+    // тот же спектр силуэтов, но каждый пучок гуще. Выбор таблицы, а не
+    // множитель: целые счётчики держат две сборки одной руки побайтово
+    // равными, а lushness = 0 не трогает ни одной ветки старого пути.
+    constexpr int BLADES_LUSH[4] = {5, 7, 9, 12};
     const int shape = static_cast<int>(h0 & 3u);
-    const int count = BLADES[shape];
+    const int count = params.lushness > 0.5f ? BLADES_LUSH[shape]
+                                             : BLADES[shape];
 
     // Height spread is wide on purpose (0.35..1.0 of the ceiling): a clump of
     // equal-length blades reads as a brush, and the tallest tuft must still sit
