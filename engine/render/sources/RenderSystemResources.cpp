@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 22:08:2026 - 22:52:34
+Last updated: 23:08:2026 - 01:17:49
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -78,6 +78,7 @@ UPD:
 - 22:08:2026 - 21:00:00: interior проносится через add()/publish_point_lights.
 - 23:08:2026 - 01:40:00: коробка проносится add()/publish_point_lights.
 - 22:08:2026 - 22:52:34: softness едет через кандидатов в PointLight (мягкость источника из сцены).
+- 23:08:2026 - 01:17:49: мерцание огня: модуляция цвета кандидата от времени сцены и фазы позиции (flicker из [light]).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -546,14 +547,31 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     const auto add = [&](const glm::vec3& position, float radius,
                          const glm::vec3& color, bool wants_shadow = true,
                          bool interior = false, glm::vec2 room_c = {},
-                         glm::vec2 room_h = {}, float softness = 0.0f) {
+                         glm::vec2 room_h = {}, float softness = 0.0f,
+                         float flicker = 0.0f) {
         if (radius <= 0.0f) {
             return;
         }
         const glm::vec3 to = position - eye;
-        candidates.push_back({position, color, radius, glm::dot(to, to),
+        glm::vec3 lit_color = color;
+        // МЕРЦАНИЕ ЖИВОГО ОГНЯ (круг 6: «ни фазы мерцания» — 13 жаровен
+        // горели ровно, как лампы накаливания). Две несоизмеримые частоты,
+        // фаза из позиции: соседние огни дышат вразнобой, две сборки одного
+        // кадра (заморозка часа) побитово равны. Модуляция на CPU — восемь
+        // умножений на кадр, ни строки в шейдере.
+        if (flicker > 0.0f) {
+            const float t = environment_.time_seconds;
+            const float phase = glm::fract(
+                std::fabs(position.x * 12.9898f + position.z * 78.233f))
+                * 6.2831853f;
+            const float m = 1.0f
+                + flicker * (0.10f * std::sin(t * 11.3f + phase)
+                             + 0.06f * std::sin(t * 27.1f + phase * 1.7f));
+            lit_color *= std::max(m, 0.0f);
+        }
+        candidates.push_back({position, lit_color, radius, glm::dot(to, to),
                               wants_shadow, interior, room_c, room_h,
-                              softness});
+                              softness, flicker});
     };
 
     // THE COMPOSITION'S LAMPS AND THIS FRAME'S SWARM, into the same pool as
@@ -562,11 +580,11 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     // distance and hands out the eight slots itself.
     for (const ExtraLight& l : scene_lights_) {
         add(l.position, l.radius_m, l.color, l.casts_shadow, l.interior,
-            l.room_center_xz, l.room_half_xz, l.softness);
+            l.room_center_xz, l.room_half_xz, l.softness, l.flicker);
     }
     for (const ExtraLight& l : transient_lights_) {
         add(l.position, l.radius_m, l.color, l.casts_shadow, l.interior,
-            l.room_center_xz, l.room_half_xz, l.softness);
+            l.room_center_xz, l.room_half_xz, l.softness, l.flicker);
     }
 
     world.view<components::CarriedLight, components::Transform>().each(

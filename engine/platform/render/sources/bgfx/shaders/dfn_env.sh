@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 23:08:2026 - 00:28:33
+Last updated: 23:08:2026 - 01:16:53
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -229,6 +229,7 @@ UPD:
 - 22:08:2026 - 22:58:55: мягкость точечного света: дробная часть w цвета — softness 0..1 (wrap-диффуз + пологое затухание pow(fall, 1->0.6)); u_lightSoftDose (слот 13.w, DFN_LIGHT_SOFT, 0 = бит-в-бит). Заказ владельца: разнообразные источники по яркости и мягкости.
 - 22:08:2026 - 23:48:50: массив 49 -> 50; u_pathMask (слот 49) — маска троп для fs_terrain.
 - 23:08:2026 - 00:28:33: скотопическая ночь в dfn_aerial (u_nightScotopic, слот 34.w): тёмное десатурируется к люме, яркое держит цвет; гейт u_moonLight, доза 0 — бит-в-бит.
+- 23:08:2026 - 01:16:53: изотропная составляющая точечного света (u_lightIsoDose, слот 36.w, DFN_LIGHT_ISO): вплотную к огню поверхность горит со всех сторон — стекло, столб, чаша; 0 — бит-в-бит.
   их мёртвыми на рыночном навесе (|dRGB| 0.003 между дозами) — испод сидит на
   0.30..0.34, порог 0.32 съедал эффект; запечатанный интерьер остаётся нулём.
 */
@@ -295,6 +296,7 @@ uniform vec4 u_envParams[50]; // 41..48 — коробки комнат; 49 — 
 #define u_lightSoftDose     (u_envParams[13].w)
 #define u_pathMask          (u_envParams[49])
 #define u_nightScotopic     (u_envParams[34].w)
+#define u_lightIsoDose      (u_envParams[36].w)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
@@ -1062,6 +1064,18 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
             ndl = max((dot(n, to_light / max(dist, 0.0001)) + wrapv)
                           / (1.0 + wrapv), 0.0);
             fall = pow(fall, mix(1.0, 0.6, soft));
+        }
+        // ИЗОТРОПНАЯ СОСТАВЛЯЮЩАЯ (круг 6: «фонарь не светит ни себе, ни
+        // столбу», «жаровня — чёрный столб при горящей чаше», «сбоку короб
+        // гаснет»). Чистый NdL — модель ДАЛЬНЕГО света; вплотную к пламени
+        // поверхность ловит свет со всех сторон переотражением и рассеянием,
+        // а её нормаль почти перпендикулярна лучу — dot душил в ноль ровно
+        // то, что глаз ждёт горящим. Ненаправленная доля растёт с мягкостью
+        // (стекло фонаря — само рассеяние) и есть даже у резкого огня.
+        // Гейты (interior/коробка) умножают её же — сквозь кладку не течёт
+        // больше прежнего. Доза DFN_LIGHT_ISO, 0 — прежний кадр бит-в-бит.
+        if (u_lightIsoDose > 0.01) {
+            ndl = ndl + (0.10 + 0.25 * soft) * u_lightIsoDose * (1.0 - ndl);
         }
         float gate = 1.0;
         if (u_lightColor(i).w >= 2.0) {

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 22:08:2026 - 23:50:11
+Last updated: 23:08:2026 - 01:17:49
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -48,6 +48,7 @@ UPD:
 - 22:08:2026 - 22:52:34: паром SceneLight.softness в ExtraLight — ключ softness у [light] доезжает до шейдера.
 - 22:08:2026 - 23:15:13: доза DFN_GRASS_LUSH (дефолт 1) — пышность травы в render_system_.set_grass_lushness.
 - 22:08:2026 - 23:50:11: растеризация маски троп (1/4 м, поперечник relief_path_wear) в render_system_.set_path_mask — кромка полотна из фрагмента, лечение «шевронов» круга 5.
+- 23:08:2026 - 01:17:49: паром SceneLight.flicker с дозой DFN_LIGHT_FLICKER (0 = ровный свет бит-в-бит).
 */
 
 #include "engine/app/sources/App.h"
@@ -939,9 +940,18 @@ bool App::enter_world(uint32_t stand) {
                 if (L.radius_m <= 0.0f) {
                     continue; // an unlit lamp is a decision, not a defect
                 }
+                // Доза мерцания (DFN_LIGHT_FLICKER, дефолт 1): 0 гасит
+                // модуляцию целиком — ровный свет бит-в-бит.
+                static const float flicker_dose = [] {
+                    const char* e = door_value("DFN_LIGHT_FLICKER");
+                    return (e != nullptr && *e != '\0')
+                               ? std::strtof(e, nullptr)
+                               : 1.0f;
+                }();
                 lamps.push_back({L.position, L.color, L.radius_m,
                                  L.casts_shadow, L.interior, L.room_center,
-                                 L.room_half, L.softness});
+                                 L.room_half, L.softness,
+                                 L.flicker * flicker_dose});
                 shadowing += L.casts_shadow ? 1u : 0u;
             }
             // ONE MESH BODY PER TILE. Per placement would be thousands of

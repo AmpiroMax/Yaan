@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 22:08:2026 - 23:49:20
+Last updated: 23:08:2026 - 01:17:49
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -175,6 +175,7 @@ UPD:
 - 22:08:2026 - 22:52:34: softness у ExtraLight/PointLightCandidate — мягкость источника доезжает от сцены до PointLight.
 - 22:08:2026 - 23:14:42: set_grass_lushness/grass_lushness_ — пышность травы за дверью DFN_GRASS_LUSH (0 = прежняя бит-в-бит).
 - 22:08:2026 - 23:49:20: set_path_mask — маска троп мира (износ+класс во фрагмент, круг 5 «шевроны»); ленивая заливка текстуры на кадре.
+- 23:08:2026 - 01:17:49: flicker у ExtraLight/PointLightCandidate — мерцание доезжает до модуляции цвета.
   пересевает уже выращенное.
 */
 
@@ -631,6 +632,9 @@ public:
         glm::vec2 room_half_xz{0.0f};
         /// Мягкость источника 0..1 — см. platform::PointLight::softness.
         float softness = 0.0f;
+        /// Мерцание живого огня 0..1: модуляция яркости на CPU от времени
+        /// сцены и позиции (детерминированная — заморозка часа замирает и её).
+        float flicker = 0.0f;
     };
     /// Lamps the map's composition owns. Set once when a map opens; survives
     /// until the next one. A composition of a hundred lamps is legal — only
@@ -769,6 +773,7 @@ private:
         glm::vec2 room_center_xz{0.0f};
         glm::vec2 room_half_xz{0.0f};
         float softness = 0.0f;
+        float flicker = 0.0f;
     };
     void publish_point_lights(std::vector<PointLightCandidate>& candidates);
     void collect_point_lights(ecs::World& world, const FirstPersonCamera& camera,

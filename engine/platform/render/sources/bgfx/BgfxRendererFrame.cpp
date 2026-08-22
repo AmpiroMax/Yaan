@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 00:28:33
+Last updated: 23:08:2026 - 01:16:53
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -199,6 +199,7 @@ UPD:
 - 22:08:2026 - 22:58:55: packed[24+i].w — плюс мягкость источника в дробной части (масштаб 0.9); packed[13].w — доза DFN_LIGHT_SOFT (дефолт 1, 0 = мягкость игнорируется бит-в-бит).
 - 22:08:2026 - 23:48:50: packed[49] — маска троп (начало, 1/спан, разрешение); доза DFN_PATH_FRAG (0 = вершинная альфа бит-в-бит).
 - 23:08:2026 - 00:28:33: packed[34].w — доза DFN_NIGHT_SCOTOPIC (скотопическая ночь, дефолт 1).
+- 23:08:2026 - 01:16:53: packed[36].w — доза DFN_LIGHT_ISO (изотропная доля точечного света, дефолт 1).
   бит-в-бит).
 */
 
@@ -533,6 +534,14 @@ static float night_scotopic_dose() {
     return dose;
 }
 
+// Доза изотропной составляющей точечного света (DFN_LIGHT_ISO, слот 36.w):
+// ненаправленная доля 0.10 + 0.25*softness — стекло фонаря, столб и чаша
+// жаровни горят от собственного огня. 0 = чистый NdL бит-в-бит.
+static float light_iso_dose() {
+    static const float dose = dose_env_override("DFN_LIGHT_ISO", 1.0f);
+    return dose;
+}
+
 static float moon_ground_gain() {
     static const float value = dose_env_override("DFN_MOON_GROUND",
                           static_cast<float>(config::MOON_GROUND_GAIN));
@@ -682,7 +691,7 @@ void BgfxRenderer::Impl::apply_environment() const {
     // argument (Rule 27). It is a diagnostic knob like DFN_MSAA, not a second
     // home for the number: unset, the generated row is what ships.
     const HazeParams& haze = haze_params();
-    packed[36] = {haze.scale_m, haze.height_m, haze.base_m, 0.0f};
+    packed[36] = {haze.scale_m, haze.height_m, haze.base_m, light_iso_dose()};
     packed[37] = {haze.mist_height_m, haze.mist_thickness_m, haze.mist_density,
                   0.0f};
     // THE FILL'S DIRECTION (slot 38). Derivation and the before-number with the
