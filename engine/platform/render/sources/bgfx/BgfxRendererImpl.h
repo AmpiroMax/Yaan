@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 13:45:06
+Last updated: 22:08:2026 - 15:05:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -100,6 +100,10 @@ UPD:
   ПРЕДУСЛОВИЕ, а не соседняя правка — ядро расширяет низкочастотный срез
   карты, и на 0.156 м/тексель оно вернуло бы баг 09.08 «у берёзы тень только
   от кроны»; вдвое мельче тексель ровно компенсирует расход ядра.
+- 22:08:2026 - 15:05:00: AMBIENT_OVERCAST_GAIN — пасмурность возвращает куполу
+  забранное у ключа (вывод из сохранения энергии в комментарии константы);
+  цена 160 м переписана честно: полоса 160..300 м без теней и без тумана —
+  предусловие городского пресета воздушной перспективы.
 */
 
 #pragma once
@@ -158,9 +162,13 @@ inline constexpr bgfx::ViewId VIEW_IMGUI_CAPTURE = VIEW_SCENE + 5; // -> capture
 // and the 2 m standing stones (§6.2 entrance markers) at ~26.
 // The rule for anything added later (fences, castle detail, railings):
 //   shadow needs width >= ~2 x SHADOW_TEXEL_M, i.e. >= ~0.16 m today.
-// The price is range: the volume covers 160 m around the eye, and fog
-// (LOOKDEV_FOG_START_FRAC x CAMERA_FAR = 300 m) starts hiding the difference
-// well before the old 320 m edge did anything the fog had not already done.
+// The price is range, and it is a REAL price now (architect's catch, 22.08):
+// past 160 m there are no sun shadows, and fog only starts at 300 m — a
+// 140 m band of unshadowed, unfogged ground that the old 320 m extent did
+// not have (it left 20 m, already past the fog start). The city is 256 m
+// across, so wide shots show their far half shadowless until the fog start
+// is pulled in to the city scale (the aerial-perspective city preset,
+// promoted into wave 1 for exactly this reason).
 //
 // 320 -> 160 (22.08.2026) IS THE PRECONDITION FOR THE SOFT EDGE, not a
 // separate tweak: the PCF kernel below widens the map's low-pass by
@@ -194,6 +202,19 @@ inline constexpr float SHADOW_DEPTH_BIAS_M = 0.25f;   // compare bias, world met
 // restores the single hard tap bit-for-bit (Rule 47/48 — both arms from one
 // binary; в1's edge stays one env var away, not one rebuild away).
 inline constexpr float SHADOW_SOFT_SPREAD_TEXELS = 1.5f;
+
+// ПАСМУРНОСТЬ ПОДНИМАЕТ AMBIENT (22.08). Выведено из сохранения энергии, не
+// подобрано: при дефолтной палубе города cloud_sun_vis ~0.39 ключевой член
+// земли теряет 0.170 люма-долей при ambient-члене 0.358 — вернуть его куполу
+// значит умножить ambient на ~1.475 при overcast = cover 0.45 x shadow 0.65 =
+// 0.293, откуда gain = 0.475 / 0.293 ~= 1.6. Проверка на константах травы:
+// пасмурная освещённая земля 56 люма против ясных 64 — пасмурно ЧУТЬ темнее
+// прямого солнца, тень дома 43; падает КОНТРАСТ (2.22x -> 1.32x), а не
+// яркость. Это и есть определение пасмурного дня. Применяется в
+// apply_environment (упаковка кадра — единственное место без риска
+// скомпаундиться), гейт по высоте солнца там же. Look-dev значение — кандидат
+// в NUMBERS.md (Rule 14).
+inline constexpr float AMBIENT_OVERCAST_GAIN = 1.6f;
 
 // THE LIGHT DIRECTION'S ANGULAR GRID (user: "тени пока двигается солнце, себя
 // очень тяжело ведут, дергаются, колеблются, мерцают по краям").

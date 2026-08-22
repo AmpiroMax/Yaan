@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 13:45:06
+Last updated: 22:08:2026 - 15:05:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -181,6 +181,10 @@ UPD:
 - 22:08:2026 - 13:45:06: update_shadow подаёт u_shadowSoft — разнос тапов PCF в
   текселях + uv-на-тексель обеих карт. Дверь дозы DFN_SHADOW_SOFT, 0 = прежний
   одиночный тап бит-в-бит (контрольная рука в1 из того же бинарника).
+- 22:08:2026 - 15:05:00: apply_environment усиливает ambient пасмурностью
+  (AMBIENT_OVERCAST_GAIN x cover x shadow, гейт по высоте солнца). Дверь дозы
+  DFN_AMBIENT_OVERCAST, 0 = прежний кадр бит-в-бит. Здесь, а не в CloudModel:
+  упаковка кадра — чистая функция состояния, скомпаундиться негде.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -529,10 +533,30 @@ static const HazeParams& haze_params() {
 // values persist across submits within the frame.
 void BgfxRenderer::Impl::apply_environment() const {
     const RenderEnvironment& e = environment;
+    // ПАСМУРНОСТЬ ВОЗВРАЩАЕТ КУПОЛУ ТО, ЧТО ЗАБРАЛА У КЛЮЧА (22.08). До этого
+    // облачная палуба резала солнце (dfn_cloud_sun_vis) и не отдавала НИЧЕГО:
+    // мы моделировали облако, которое свет поглощает, а не рассеивает, и
+    // пасмурный день выходил плоским И тёмным (-33 % яркости земли — половина
+    // замера «земля втрое темнее эталона»). Реальная сплошная облачность —
+    // это БОЛЕЕ яркий ambient: энергия ключа размазывается по куполу.
+    // Калибровка AMBIENT_OVERCAST_GAIN — из сохранения энергии, вывод у
+    // константы. Считается ЗДЕСЬ, в упаковке кадра, а не в CloudModel/
+    // apply_sky_time: тут это чистая функция состояния кадра — никакой
+    // возможности скомпаундиться на пути, который в этом кадре ambient не
+    // перезаписал. Гейт по высоте солнца: пасмурная НОЧЬ темнее ясной (луна
+    // закрыта), усиливать ночной пол было бы физически задом наперёд.
+    // DFN_AMBIENT_OVERCAST — доза; 0 = прежний кадр бит-в-бит.
+    static const float overcast_gain =
+        dose_env_override("DFN_AMBIENT_OVERCAST", AMBIENT_OVERCAST_GAIN);
+    const float overcast = std::clamp(e.cloud_cover, 0.0f, 1.0f)
+                         * std::clamp(e.cloud_shadow, 0.0f, 1.0f)
+                         * std::clamp(e.sun_direction.y / 0.10f, 0.0f, 1.0f);
+    const glm::vec3 ambient_lit =
+        e.ambient_color * (1.0f + overcast_gain * overcast);
     glm::vec4 packed[ENV_PARAM_VEC4S] = {  // trailing slots zero-init
         {e.sun_direction, 0.0f},
         {e.sun_color, 0.0f},
-        {e.ambient_color, 0.0f},
+        {ambient_lit, 0.0f},
         {e.fog_color, 0.0f},
         {e.fog_start_m, e.fog_end_m, e.time_seconds, 0.0f},
         {e.sky_zenith_color, 0.0f},
