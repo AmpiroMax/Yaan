@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 22:08:2026 - 19:30:00
-# Last updated: 22:08:2026 - 21:50:00
+# Last updated: 22:08:2026 - 22:15:00
 # File: tools/check_paving.py
 #
 # Responsibility:
@@ -62,6 +62,15 @@
 #   при dy ~ 0, ступень — при dy > 0.20, между ними полоса безвредного выступа.
 #   Порог по ПЛОЩАДИ убран намеренно: 0.6 м2 соплоскостного мерцания под ногами
 #   хуже, чем 15 м2 с честным сантиметром разницы. Указал архитектор.
+# - 22:08:2026 - 22:15:00: КРИТЕРИЙ — ТВЁРДАЯ ПОВЕРХНОСТЬ, а не плита мощения
+#   (поправка архитектора). Прибор считал только city-cobble и потому показывал
+#   на МОСТУ 1.3 % — то есть звал замостить булыжником авторский настил. Список
+#   покрытий заведён явно (мост, furn-walk2, плазы, марши), умолчание «не
+#   считается». Пятна сняты прибором с самих .dfh и хранятся ПРЯМОУГОЛЬНИКОМ от
+#   origin: у моста origin не в углу, настил идёт от -2.44 до 10.44 по X.
+#   Стыки и наложения разбираются только между плитами мостовой (JOINT_KINDS):
+#   у марша и моста своя геометрия верха, и мерить их формулой мостовой значит
+#   врать. Тракт 1: 1.3 % -> 44.3 %, разрыв 20 -> 5.8 м; всего 88.6 -> 91.3 %.
 #
 from __future__ import annotations
 
@@ -69,23 +78,49 @@ import json
 import math
 import sys
 
-# Габариты рецептов мостовой (w вдоль локального +X, d поперёк), метры.
-# Наклонные варианты -sNN наследуют пятно родителя.
+# ЧТО СЧИТАЕТСЯ ТВЁРДОЙ ПОВЕРХНОСТЬЮ ПОД НОГАМИ (список архитектора, 22.08).
+#
+# Критерий приёмки — «ось проходится из конца в конец, не сходя с ТВЁРДОЙ
+# ПОВЕРХНОСТИ», а не «по плите мощения». Авторский настил считается покрытием
+# наравне с булыжником: мост несёт свой настил, и замостить его сверху было бы
+# прямой ошибкой. Прибор, считавший только city-cobble, показывал на мосту
+# 1.3 % и звал мостить мост.
+#
+# УМОЛЧАНИЕ — «НЕ СЧИТАЕТСЯ». Новый рецепт невидим прибору, пока его сюда не
+# внесли сознательно. Обратное умолчание однажды засчитает покрытием крышу.
+#
+# Прямоугольник задан ОТНОСИТЕЛЬНО origin рецепта (x0, z0, x1, z1) и снят
+# прибором с самого .dfh, а не выписан из имени: у моста origin вовсе не в
+# углу — настил с аппарелями идёт от -2.44 до 10.44 по локальному X.
 RECIPE = {
-    "city-cobble24x6": (24.0, 6.0), "city-cobble12x6": (12.0, 6.0),
-    "city-cobble8x6": (8.0, 6.0),   "city-cobble6x6": (6.0, 6.0),
-    "city-cobble24x4": (24.0, 4.0), "city-cobble16": (16.0, 16.0),
-    "city-cobble14x11": (14.0, 11.0),
+    # мостовая: origin в углу, пятно ровно w x d
+    "city-cobble24x6": (0, 0, 24.0, 6.0), "city-cobble12x6": (0, 0, 12.0, 6.0),
+    "city-cobble8x6": (0, 0, 8.0, 6.0),   "city-cobble6x6": (0, 0, 6.0, 6.0),
+    "city-cobble24x4": (0, 0, 24.0, 4.0), "city-cobble16": (0, 0, 16.0, 16.0),
+    "city-cobble14x11": (0, 0, 14.0, 11.0),
+    # авторские настилы
+    "city-bridge": (-2.44, -0.15, 10.44, 4.24),   # настил моста с аппарелями
+    "furn-walk2": (0.0, 0.0, 2.00, 1.20),         # каменная дорожная плита
+    "city-plaza12": (-0.12, -0.12, 12.12, 12.12),
+    "city-plaza20": (-0.12, -0.12, 20.12, 20.12),
+    "city-stairs": (-0.05, -0.02, 4.05, 6.37),    # марш: ступени тоже опора
+    "city-stairs6": (-0.05, -0.02, 4.05, 12.37),
 }
+# Стыки/наложения разбираются ТОЛЬКО между плитами мостовой: у марша и моста
+# своя геометрия верха, и мерить их «ступень» формулой мостовой значит врать.
+JOINT_KINDS = ("city-cobble",)
+
 STEP_M = 0.25       # шаг пробы вдоль тракта (критерий архитектора)
 CONTACT_M = 0.6     # зазор, ниже которого пара считается СТЫКОМ
 STEP_LIMIT_M = 0.20 # порог ступени под ногами
 ZFIGHT_M = 0.01     # ниже этого наложение СОПЛОСКОСТНО и будет мерцать
 
 
-def recipe_size(stem: str):
-    """Пятно рецепта. Наклонный -sNN — родительское: меняется только y."""
-    base = stem.split("-s")[0] if "-s" in stem else stem
+def recipe_rect(stem: str):
+    """Пятно рецепта (x0,z0,x1,z1) от origin. Наклонный -sNN — родительское."""
+    base = stem
+    if "-s" in stem and stem.rsplit("-s", 1)[1].isdigit():
+        base = stem.rsplit("-s", 1)[0]
     return RECIPE.get(base)
 
 
@@ -95,13 +130,12 @@ def read_slabs(path: str):
     blocks = re.split(r"\n(?=\[)", open(path, encoding="utf-8").read())
     out = []
     for b in blocks:
-        m = re.search(r"(city-cobble[0-9x]+(?:-s\d+)?)\.dfh", b)
+        m = re.search(r"([a-z0-9-]+?)\.dfh", b)
         if not m:
             continue
-        size = recipe_size(m.group(1))
-        if size is None:
-            print(f"  ВНИМАНИЕ: нет габарита для {m.group(1)} — пропущена")
-            continue
+        rect = recipe_rect(m.group(1))
+        if rect is None:
+            continue  # умолчание: не покрытие
         p = re.search(r"\bpos\s*=\s*([-\d.]+)[ ,]+([-\d.]+)[ ,]+([-\d.]+)", b)
         y_ = re.search(r"\byaw\s*=\s*([-\d.]+)", b)
         if not p:
@@ -109,12 +143,12 @@ def read_slabs(path: str):
         x, y, z = (float(v) for v in p.groups())
         # yaw в сцене — радианы; локальный +X = (cos, -sin), начало в углу.
         yaw = math.degrees(float(y_.group(1))) if y_ else 0.0
-        out.append((m.group(1), x, y, z, yaw, size[0], size[1]))
+        out.append((m.group(1), x, y, z, yaw, rect))
     return out
 
 
 def poly(s):
-    _, x, _y, z, a, w, d = s
+    _, x, _y, z, a, (rx0, rz0, rx1, rz1) = s
     r = math.radians(a)
     c, si = math.cos(r), math.sin(r)
     # КОНВЕНЦИЯ ВЗЯТА ИЗ ДВИЖКА, а не из памяти. AppHouse.cpp:790, посадка
@@ -126,7 +160,7 @@ def poly(s):
     # показывал 3.6% покрытия там, где замощено сплошь, а соседние по улице
     # куски читались наложениями. Нашёл wr-paver внешним замером.
     return [(x + lx * c + lz * si, z - lx * si + lz * c)
-            for lx, lz in ((0, 0), (w, 0), (w, d), (0, d))]
+            for lx, lz in ((rx0, rz0), (rx1, rz0), (rx1, rz1), (rx0, rz1))]
 
 
 def inside(pt, P) -> bool:
@@ -188,7 +222,7 @@ def top_at(s, pt) -> float:
     ровно 0.64 — это собственный подъём куска, а не ступень. Мерить надо верх
     в ТОЧКЕ СТЫКА. Ошибку нашёл wr-paver (22.08).
     """
-    stem, x, y, z, a, _w, _d = s
+    stem, x, y, z, a, _rect = s
     r = math.radians(a)
     # Проекция на локальный +X, который в мире идёт в (cos, -sin).
     lx = (pt[0] - x) * math.cos(r) - (pt[1] - z) * math.sin(r)
@@ -239,7 +273,11 @@ def check(scene: str, plan: str) -> int:
     polys = [poly(s) for s in slabs]
     roads = [r for r in json.load(open(plan, encoding="utf-8"))["roads"]
              if r["mat"] == "stone"]
-    print(f"плит мощения: {len(slabs)}; каменных трактов: {len(roads)}\n")
+    from collections import Counter
+    kinds = Counter(s[0].split("-s")[0] for s in slabs)
+    print("покрытие в сцене: " + ", ".join(f"{k} x{v}" for k, v in
+                                           sorted(kinds.items())))
+    print(f"всего тел покрытия: {len(slabs)}; каменных трактов: {len(roads)}\n")
 
     # --- (1) СВЯЗНОСТЬ: пройти ось из конца в конец, не сходя с мощения ----
     worst_gap = 0.0
@@ -270,7 +308,11 @@ def check(scene: str, plan: str) -> int:
     # хуже пятнадцати метров с честным сантиметром разницы.
     zfight, benign, over_step, butt = [], [], [], []
     for i in range(len(slabs)):
+        if not slabs[i][0].startswith(JOINT_KINDS):
+            continue
         for j in range(i + 1, len(slabs)):
+            if not slabs[j][0].startswith(JOINT_KINDS):
+                continue
             a = area(clip(polys[i], polys[j]))
             g = gap(polys[i], polys[j])
             if a <= 0.0 and g >= CONTACT_M:
