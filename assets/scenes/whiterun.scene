@@ -3070,20 +3070,20 @@ yaw = 2.714965
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-steps6-h12.dfh
+file = assets/houses/city-steps6-h12r2.dfh
 pos = 111.000 27.750 146.000
 yaw = 1.570796
 note = марш террасы рынка
 
 [house]
 file = assets/houses/city-kerb2-h12.dfh
-pos = 111.000 27.851 146.000
+pos = 111.000 27.860 146.000
 yaw = 3.141593
 note = подпорная кромка рынка
 
 [house]
 file = assets/houses/city-kerb2-h10.dfh
-pos = 119.000 27.725 146.000
+pos = 119.000 27.734 146.000
 yaw = 3.141593
 note = подпорная кромка рынка
 
