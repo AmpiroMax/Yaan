@@ -1,19 +1,19 @@
 /*
 Created: 09:08:2026 - 14:11:37
-Last updated: 13:08:2026 - 16:10:00
+Last updated: 22:08:2026 - 13:45:06
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_shadow.sh
 
 Responsibility:
 - Shared shader include: sun shadow-map sampling for lit fragment shaders
-  (terrain, prop). One hard-compared tap (user decision в1: hard pixel edges
-  fit the art style; PCF off), normal-offset receiver + depth bias against
-  acne at the coarse texel size.
+  (terrain, prop). 3x3 PCF soft edge (owner decision 22.08.2026, overturning
+  в1's hard single tap; DFN_SHADOW_SOFT=0 restores в1 bit-for-bit),
+  normal-offset receiver + depth bias against acne.
 
 Key items:
 - s_shadowMap (stage 1, compare sampler), u_lightMtx, u_shadowParams,
   s_shadowMapNear (stage 3) + u_lightMtxNear (the near cascade),
-  dfn_shadow_factor().
+  u_shadowSoft (PCF spread + uv-per-texel), dfn_shadow_factor().
 
 Dependencies:
 - Uses: nothing (included after bgfx_shader.sh).
@@ -44,6 +44,18 @@ UPD:
   size (+0.034 at 8 px, +0.402 at 40 px) while reference 03's dapple FALLS.
   The near map is 0.0195 m and is consulted FIRST, never blended with the far
   one: blending would put the 0.31 m low-pass straight back on top of it.
+- 22:08:2026 - 13:45:06: THE SOFT EDGE — 3x3 PCF around the winning tap,
+  spacing u_shadowSoft.x texels (owner decision, overturning в1: "тени резкие
+  меня давно бесят, надо сделать нормальные тени"). Each tap was already
+  hardware-bilinear-compared, so nine taps make a smooth ~(2 x spread + 1)
+  texel ramp, not nine staircases. The spread is denominated in texels OF THE
+  MAP BEING SAMPLED (far: u_shadowSoft.y uv/texel, near: u_shadowSoft.z), so
+  the near cascade keeps its 8x finer grain — a world-constant penumbra would
+  blur the near map back to the far map's cutoff, undoing R6b. Paired with
+  SHADOW_HALF_EXTENT_M 320 -> 160 (see BgfxRendererImpl.h): the kernel widens
+  the map's low-pass, the finer texel pays for it, thin casters keep their
+  contract. At u_shadowSoft.x = 0 the single-tap path runs unchanged —
+  DFN_SHADOW_SOFT=0 is the в1 control arm out of the same binary.
 */
 
 #ifndef DFN_SHADOW_SH
@@ -54,8 +66,9 @@ SAMPLER2DSHADOW(s_shadowMap, 1);
 // World -> shadow-map uv/depth (crop * ortho-proj * light-view, CPU-side).
 uniform mat4 u_lightMtx;
 // x: DOSE (0 = no sun shadow at all, 1 = shipped), y: normal-offset in meters
-// (~1.5 shadow texels), z: comparison depth bias (normalized depth units),
-// w: unused.
+// (far map), z: comparison depth bias (normalized depth units), w:
+// normal-offset in meters for the NEAR cascade (its own number — a far-texel
+// push-off would erode eight near texels of every hole).
 //
 // x IS A DOSE AND NOT A FLAG, and the reason is Rule 48. Every claim about the
 // shadow — how much dapple the canopy lays down, whether the user's black
@@ -71,6 +84,29 @@ uniform vec4 u_shadowParams;
 // depth bracket, 8x the texel density over a 40 m box around the eye.
 SAMPLER2DSHADOW(s_shadowMapNear, 3);
 uniform mat4 u_lightMtxNear;
+
+// THE SOFT EDGE (owner decision 22.08.2026). x: PCF tap spacing in TEXELS of
+// the map being sampled — 0 disables the kernel and the single-tap path below
+// runs bit-identically (the в1 control arm, DFN_SHADOW_SOFT=0). y: uv per
+// texel of the far map (1/SHADOW_MAP_SIZE), z: uv per texel of the near map
+// (1/SHADOW_NEAR_MAP_SIZE), w: unused. Spread rides with its own uv factors so
+// the near cascade is softened in ITS texels and keeps the grain R6b bought.
+uniform vec4 u_shadowSoft;
+
+// Nine hardware-compared taps in a (2 x spread) texel box. Each tap is
+// bilinear-compare already, so the sum is a smooth ramp; the loop bounds are
+// compile-time constants and unroll.
+#define DFN_SHADOW_PCF9(map, uv, depth, step_uv, out_sum)                     \
+    {                                                                         \
+        out_sum = 0.0;                                                        \
+        for (int _dy = -1; _dy <= 1; ++_dy) {                                 \
+            for (int _dx = -1; _dx <= 1; ++_dx) {                             \
+                out_sum += shadow2D(map,                                      \
+                    vec3(uv + vec2(float(_dx), float(_dy)) * step_uv, depth));\
+            }                                                                 \
+        }                                                                     \
+        out_sum *= (1.0 / 9.0);                                               \
+    }
 
 // 1.0 = fully sunlit, 0.0 = in shadow. `n` is the unit surface normal.
 float dfn_shadow_factor(vec3 wpos, vec3 n)
@@ -95,7 +131,15 @@ float dfn_shadow_factor(vec3 wpos, vec3 n)
     vec2 bordern = max(abs(uvn - vec2(0.5, 0.5)) - vec2(0.498, 0.498),
                        vec2(0.0, 0.0));
     if (max(bordern.x, bordern.y) <= 0.0) {
-        float sn = shadow2D(s_shadowMapNear, vec3(uvn, scn.z - u_shadowParams.z));
+        float sn;
+        if (u_shadowSoft.x > 0.0) {
+            // Taps reach at most spread x z uv past the rim; the 0.002 uv
+            // margin above is ~8 near texels, so no tap leaves the map.
+            DFN_SHADOW_PCF9(s_shadowMapNear, uvn, scn.z - u_shadowParams.z,
+                            u_shadowSoft.x * u_shadowSoft.z, sn);
+        } else {
+            sn = shadow2D(s_shadowMapNear, vec3(uvn, scn.z - u_shadowParams.z));
+        }
         return mix(1.0, sn, min(u_shadowParams.x, 1.0));
     }
     vec4 sc = mul(u_lightMtx, vec4(wpos + n * u_shadowParams.y, 1.0));
@@ -107,9 +151,15 @@ float dfn_shadow_factor(vec3 wpos, vec3 n)
     if (max(border.x, border.y) > 0.0) {
         return 1.0;
     }
-    // At dose 1 this is exactly shadow2D(...) — mix(1.0, s, 1.0) == s — so the
-    // shipped frame is bit-identical to the flag version this replaced.
-    float s = shadow2D(s_shadowMap, vec3(uv, sc.z - u_shadowParams.z));
+    // At dose 1 and spread 0 this is exactly shadow2D(...) — the frame the two
+    // knobs' zero arms restore is the shipped pre-soft, pre-dose frame.
+    float s;
+    if (u_shadowSoft.x > 0.0) {
+        DFN_SHADOW_PCF9(s_shadowMap, uv, sc.z - u_shadowParams.z,
+                        u_shadowSoft.x * u_shadowSoft.y, s);
+    } else {
+        s = shadow2D(s_shadowMap, vec3(uv, sc.z - u_shadowParams.z));
+    }
     return mix(1.0, s, min(u_shadowParams.x, 1.0));
 }
 

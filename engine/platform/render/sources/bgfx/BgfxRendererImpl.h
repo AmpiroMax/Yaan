@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 18:08:2026 - 12:51:47
+Last updated: 22:08:2026 - 13:45:06
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -93,6 +93,13 @@ UPD:
 - 18:08:2026 - 12:51:47: present_x/y/w/h — отведённый под мир прямоугольник, долями кадрового
   буфера. Умолчание — весь экран; редактор ужимает его под свою полосу, чтобы
   мир физически не заходил под интерфейс.
+- 22:08:2026 - 13:45:06: МЯГКИЕ ТЕНИ (решение владельца, отменяет в1 «жёсткие
+  пиксельные края идут стилю»): SHADOW_SOFT_SPREAD_TEXELS + u_shadow_soft —
+  3x3 PCF в dfn_shadow.sh, дверь дозы DFN_SHADOW_SOFT (0 = прежний одиночный
+  тап бит-в-бит). Парой к нему SHADOW_HALF_EXTENT_M 320 -> 160: это
+  ПРЕДУСЛОВИЕ, а не соседняя правка — ядро расширяет низкочастотный срез
+  карты, и на 0.156 м/тексель оно вернуло бы баг 09.08 «у берёзы тень только
+  от кроны»; вдвое мельче тексель ровно компенсирует расход ядра.
 */
 
 #pragma once
@@ -147,16 +154,24 @@ inline constexpr bgfx::ViewId VIEW_IMGUI_CAPTURE = VIEW_SCENE + 5; // -> capture
 // 0.625 m per texel) could not represent ANY trunk: oak 1.1 m = 1.8 texels
 // (dashed), pine 0.6 m = 0.96, birch 0.28-0.44 m = 0.45-0.7 — while the 8 m
 // oak crown covered 13 texels and shadowed solidly. Hence "canopy only".
-// 4096 over 320 m = 0.156 m per texel puts the THINNEST trunk at ~1.8 texels
-// and the 2 m standing stones (§6.2 entrance markers) at ~13.
+// 4096 over 160 m = 0.078 m per texel puts the THINNEST trunk at ~3.6 texels
+// and the 2 m standing stones (§6.2 entrance markers) at ~26.
 // The rule for anything added later (fences, castle detail, railings):
-//   shadow needs width >= ~2 x SHADOW_TEXEL_M, i.e. >= ~0.31 m today.
-// The price is range: the volume shrinks from the loaded chunk ring to 320 m,
-// which is where fog (LOOKDEV_FOG_START_FRAC x CAMERA_FAR = 300 m) starts
-// hiding the difference anyway. Covering both near detail and the full ring
-// needs a second cascade — a feature, not a constant (flagged in the spec).
+//   shadow needs width >= ~2 x SHADOW_TEXEL_M, i.e. >= ~0.16 m today.
+// The price is range: the volume covers 160 m around the eye, and fog
+// (LOOKDEV_FOG_START_FRAC x CAMERA_FAR = 300 m) starts hiding the difference
+// well before the old 320 m edge did anything the fog had not already done.
+//
+// 320 -> 160 (22.08.2026) IS THE PRECONDITION FOR THE SOFT EDGE, not a
+// separate tweak: the PCF kernel below widens the map's low-pass by
+// 2 x SHADOW_SOFT_SPREAD_TEXELS, which at 0.156 m/texel would have pushed the
+// thin-caster floor past a birch trunk and re-opened the 09.08 "canopy only"
+// bug. Halving the texel first doubles the thin-caster budget, so the kernel
+// spends exactly the headroom this halving buys and the floor stays where the
+// contract above promised. The city (256 m across, eye-centred box) is always
+// fully inside the volume.
 inline constexpr uint16_t SHADOW_MAP_SIZE = 4096;
-inline constexpr float SHADOW_HALF_EXTENT_M = 320.0f;
+inline constexpr float SHADOW_HALF_EXTENT_M = 160.0f;
 inline constexpr float SHADOW_DEPTH_HALF_M = 700.0f;  // along-light half range
 inline constexpr float SHADOW_MIN_SUN_ELEVATION = 0.05f; // sun_dir.y below -> off
 inline constexpr float SHADOW_TEXEL_M =
@@ -166,6 +181,19 @@ inline constexpr float SHADOW_TEXEL_M =
 // birch trunk's whole shadow — and is now 0.156 m).
 inline constexpr float SHADOW_NORMAL_OFFSET_M = 1.0f * SHADOW_TEXEL_M; // anti-acne
 inline constexpr float SHADOW_DEPTH_BIAS_M = 0.25f;   // compare bias, world meters
+
+// THE SOFT EDGE (owner decision 22.08.2026, overturning в1's "hard pixel edges
+// fit the art style" — "тени резкие меня давно бесят, надо сделать нормальные
+// тени"). 3x3 PCF in dfn_shadow.sh, tap spacing this many texels; each tap is
+// already hardware-bilinear-compared, so the penumbra is a smooth ramp of
+// roughly (2 x spread + 1) texels — at 1.5 and the 0.078 m texel above that is
+// ~0.31 m of soft edge, a shutter-width shadow rather than a staircase.
+// Denominated in TEXELS of whichever map answers (far or near cascade), so the
+// near map keeps its 8x finer grain instead of being blurred back to the far
+// map's cutoff. DFN_SHADOW_SOFT is the dose: it OVERRIDES this spread, and 0
+// restores the single hard tap bit-for-bit (Rule 47/48 — both arms from one
+// binary; в1's edge stays one env var away, not one rebuild away).
+inline constexpr float SHADOW_SOFT_SPREAD_TEXELS = 1.5f;
 
 // THE LIGHT DIRECTION'S ANGULAR GRID (user: "тени пока двигается солнце, себя
 // очень тяжело ведут, дергаются, колеблются, мерцают по краям").
@@ -481,6 +509,11 @@ struct BgfxRenderer::Impl {
     bgfx::UniformHandle s_shadow_map = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_light_mtx = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_shadow_params = BGFX_INVALID_HANDLE;
+    // The soft-edge kernel (SHADOW_SOFT_SPREAD_TEXELS / DFN_SHADOW_SOFT). Its
+    // own vec4 rather than a spare component: u_shadowParams has no free lane
+    // (w carries the near cascade's push-off) and the spread travels with the
+    // two uv-per-texel factors the shader needs to apply it.
+    bgfx::UniformHandle u_shadow_soft = BGFX_INVALID_HANDLE;
     bool shadow_active = false;   // this frame: sun above threshold + resources ok
     // The sun shadow map's LIGHT-SPACE view matrix for this frame. Valid only
     // while shadow_active; `submit` uses it to reject casters that cannot

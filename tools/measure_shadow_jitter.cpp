@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 18:50:00
-Last updated: 13:08:2026 - 18:50:00
+Last updated: 22:08:2026 - 13:45:06
 Module: tools
 File: tools/measure_shadow_jitter.cpp
 
@@ -49,6 +49,8 @@ UPD:
   second, against the sun's own 0.36 mm of shadow motion per frame; at the
   shipped 0.00182 rad quantum, 0.0037 texels, median exactly zero, 0.1 events
   per second.
+- 22:08:2026 - 13:45:06: зеркало SHADOW_HALF_EXTENT_M 320 -> 160 вслед за
+  движком (мягкие тени, BgfxRendererImpl.h).
 */
 
 #include <glm/glm.hpp>
@@ -60,7 +62,7 @@ UPD:
 #include <vector>
 
 // Mirrored from BgfxRendererImpl.h and SkyModel.cpp / NUMBERS.md.
-constexpr float SHADOW_HALF_EXTENT_M = 320.0f;
+constexpr float SHADOW_HALF_EXTENT_M = 160.0f;
 constexpr int   SHADOW_MAP_SIZE = 4096;
 constexpr float SHADOW_TEXEL_M = 2.0f * SHADOW_HALF_EXTENT_M / SHADOW_MAP_SIZE;
 constexpr float DAY_LENGTH_SECONDS = 2880.0f;

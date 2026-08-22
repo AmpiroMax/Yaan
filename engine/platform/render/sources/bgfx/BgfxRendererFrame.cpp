@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 18:08:2026 - 12:51:26
+Last updated: 22:08:2026 - 13:45:06
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -178,6 +178,9 @@ UPD:
 - 18:08:2026 - 12:51:26: dest_rect вписывает картинку в ОТВЕДЁННЫЙ прямоугольник, а не в весь
   кадровый буфер — обе ветки, и ретро-сетка, и посадка по стороне. Интерфейс
   редактора стал рамой вокруг мира вместо слоя поверх него.
+- 22:08:2026 - 13:45:06: update_shadow подаёт u_shadowSoft — разнос тапов PCF в
+  текселях + uv-на-тексель обеих карт. Дверь дозы DFN_SHADOW_SOFT, 0 = прежний
+  одиночный тап бит-в-бит (контрольная рука в1 из того же бинарника).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -761,6 +764,17 @@ void BgfxRenderer::Impl::update_shadow() {
                              SHADOW_DEPTH_BIAS_M / (2.0f * SHADOW_DEPTH_HALF_M),
                              SHADOW_NEAR_NORMAL_OFFSET_M};
     bgfx::setUniform(u_shadow_params, params);
+    // THE SOFT EDGE'S DOSE (owner decision 22.08.2026 overturning в1;
+    // DFN_SHADOW_SOFT=0 is the в1 arm out of this same binary). x is the PCF
+    // tap spacing in texels of whichever map answers; y/z are that map's
+    // uv-per-texel. Read once, like the other doses.
+    static const float soft_spread =
+        dose_env_override("DFN_SHADOW_SOFT", SHADOW_SOFT_SPREAD_TEXELS);
+    const float soft[4] = {soft_spread,
+                           1.0f / static_cast<float>(SHADOW_MAP_SIZE),
+                           1.0f / static_cast<float>(SHADOW_NEAR_MAP_SIZE),
+                           0.0f};
+    bgfx::setUniform(u_shadow_soft, soft);
     bgfx::setUniform(u_light_mtx, glm::value_ptr(light_mtx));
     bgfx::setUniform(u_light_mtx_near, glm::value_ptr(light_mtx_near));
 }

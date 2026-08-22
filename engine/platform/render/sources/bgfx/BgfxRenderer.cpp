@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 10:14:36
+Last updated: 22:08:2026 - 13:45:06
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -113,6 +113,9 @@ UPD:
 - 15:08:2026 - 15:23:22: s_texAux (стадия 4) + нейтральная нормаль 1×1 — второй материальный
   лист дро; «листа нет» становится значением, а не ветвью в каждой программе.
 - 17:08:2026 - 10:14:36: capture_fb уничтожается вместе с остальными целями.
+- 22:08:2026 - 13:45:06: u_shadowSoft — юниформ мягкой тени (3x3 PCF в
+  dfn_shadow.sh, решение владельца, отменяет в1). Создаётся и уничтожается
+  рядом с остальным теневым состоянием.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -410,10 +413,11 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
     im.debug_program = im.make_program("debug");
     im.sky_program = im.make_program("sky");
 
-    // Sun shadow map (в1): depth-only target with a hardware compare sampler
-    // (one hard tap — the pixelated edge fits the art style). D16 preferred,
-    // D32F fallback; if neither works, shadows stay off (shadow_active false)
-    // and rendering is stage-3b lighting — never a crash (Rule 3 spirit).
+    // Sun shadow map: depth-only target with a hardware compare sampler
+    // (3x3 PCF soft edge since 22.08.2026 — owner decision overturning в1's
+    // hard tap; DFN_SHADOW_SOFT=0 restores it). D16 preferred, D32F fallback;
+    // if neither works, shadows stay off (shadow_active false) and rendering
+    // is stage-3b lighting — never a crash (Rule 3 spirit).
     {
         constexpr uint64_t depth_flags = BGFX_TEXTURE_RT
                                        | BGFX_SAMPLER_COMPARE_LEQUAL
@@ -459,6 +463,8 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
             bgfx::createUniform("s_shadowMapNear", bgfx::UniformType::Sampler);
         im.u_light_mtx_near =
             bgfx::createUniform("u_lightMtxNear", bgfx::UniformType::Mat4);
+        im.u_shadow_soft =
+            bgfx::createUniform("u_shadowSoft", bgfx::UniformType::Vec4);
     }
 
     // Carried-light cube shadows: one colour atlas (linear distance / radius)
@@ -568,6 +574,7 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.u_shadow_params)) bgfx::destroy(im.u_shadow_params);
     if (bgfx::isValid(im.s_shadow_map_near)) bgfx::destroy(im.s_shadow_map_near);
     if (bgfx::isValid(im.u_light_mtx_near)) bgfx::destroy(im.u_light_mtx_near);
+    if (bgfx::isValid(im.u_shadow_soft)) bgfx::destroy(im.u_shadow_soft);
     if (bgfx::isValid(im.quad_ib)) bgfx::destroy(im.quad_ib);
     if (bgfx::isValid(im.quad_vb)) bgfx::destroy(im.quad_vb);
     if (bgfx::isValid(im.u_params)) bgfx::destroy(im.u_params);

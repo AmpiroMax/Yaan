@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 22:36:47
+Last updated: 22:08:2026 - 13:45:06
 Module: tests
 File: tests/render/ProcMeshTests.cpp
 
@@ -26,6 +26,9 @@ UPD:
   with a real gate opening, determinism, and the thin-caster merlon width.
 - 09:08:2026 - 22:36:47: the blessed-id range and build_site_mesh's switch
   can no longer drift apart silently.
+- 22:08:2026 - 13:45:06: тонкий-кастер пересчитан под SHADOW_HALF_EXTENT_M
+  320 -> 160 (мягкие тени): тексель 0.078, контроль 0.25 м СРАБОТАЛ как и
+  задумывался и перевыведен в 0.12 м.
 */
 
 #include "engine/render/sources/ProcMesh.h"
@@ -273,16 +276,19 @@ TEST_CASE("castle meshes are deterministic and every merlon can cast a shadow") 
         }
     }
     // THE THIN-CASTER RULE, as a test rather than as a comment someone will
-    // stop reading: the sun shadow map is 4096 over a 320 m half extent =
-    // 0.156 m per texel, and a caster narrower than about two texels only
-    // darkens one when it happens to cover the texel centre — so it drops out
-    // entirely and the crown reads as a smooth band. Merlons are 1.2 m.
-    constexpr float SHADOW_TEXEL_M = 2.0f * 320.0f / 4096.0f;
+    // stop reading: the sun shadow map is 4096 over a 160 m half extent =
+    // 0.078 m per texel (halved 22.08.2026 as the precondition for the soft
+    // PCF edge — see BgfxRendererImpl.h), and a caster narrower than about two
+    // texels only darkens one when it happens to cover the texel centre — so
+    // it drops out entirely and the crown reads as a smooth band. Merlons are
+    // 1.2 m.
+    constexpr float SHADOW_TEXEL_M = 2.0f * 160.0f / 4096.0f;
     CHECK(1.2f >= 2.0f * SHADOW_TEXEL_M);
-    // CONTROL: the 0.4 m merlon that would look right in a reference photo is
-    // exactly the width that would cast nothing. If this ever stops failing,
-    // the shadow map changed and the rule needs re-deriving, not ignoring.
-    CHECK_FALSE(0.25f >= 2.0f * SHADOW_TEXEL_M);
+    // CONTROL: a 0.12 m picket is the width that would cast nothing today. The
+    // previous control (0.25 m) FIRED when the half extent halved, exactly as
+    // designed, and was re-derived — if this one ever stops failing, the
+    // shadow map changed again and the rule needs re-deriving, not ignoring.
+    CHECK_FALSE(0.12f >= 2.0f * SHADOW_TEXEL_M);
 }
 
 TEST_CASE("every blessed site id has geometry — the range cannot outrun the switch") {
