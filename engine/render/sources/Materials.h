@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 22:08:2026 - 15:40:00
+Last updated: 22:08:2026 - 18:40:00
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -67,6 +67,9 @@ UPD:
   open (Rule 41) and is render's.
 - 22:08:2026 - 15:40:00: LOOKDEV_ATLAS_CELL_PX 128 -> 512 — земля была 6.25 см/тексель против
   3.9 мм у стен; узор не меняется (поля нормированы), цена 4 МБ на атлас.
+- 22:08:2026 - 18:40:00: LOOKDEV_SHADOW_CASTER_KEEP_M 320 -> 160 — зеркало
+  теневого полуохвата поехало вместе с ним (мягкие тени, BgfxRendererImpl.h);
+  на 320 отсечение потоков построек не отвергало ничего на карте 256 м.
 */
 
 #pragma once
@@ -265,7 +268,11 @@ struct SplatWeights {
 // not cover the caster anyway, so dropping it is free. THESE TWO NUMBERS MUST
 // MATCH — both are on the NUMBERS.md migration list, which is where the
 // duplication goes away.
-inline constexpr float LOOKDEV_SHADOW_CASTER_KEEP_M = 320.0f;
+// 320 -> 160 (22.08): зеркало обязано было поехать вместе с SHADOW_HALF_EXTENT_M
+// (мягкие тени), и неделю спустя его бы уже никто не связал. Пока 320 держало
+// радиус, отсечение потоков построек не отвергало НИЧЕГО на карте 256 м —
+// весь город жил внутри «возможный кастер, держим».
+inline constexpr float LOOKDEV_SHADOW_CASTER_KEEP_M = 160.0f;
 
 inline constexpr float LOOKDEV_SAND_BLEND_M = 1.5f;
 inline constexpr float LOOKDEV_TERRAIN_TILES_PER_CHUNK = 32.0f; // 8 m per repeat

@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 22:08:2026 - 17:45:00
+Last updated: 22:08:2026 - 18:40:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -54,6 +54,9 @@ UPD:
 - 22:08:2026 - 17:45:00: AO построек — печётся по отпечатку меша (кэш: 434 экземпляра из
   ~20-30 уникальных .dfh), ложится в альфу вершин ПОСЛЕ мха/грязи. Дверь
   дозы DFN_HOUSE_AO, 0 = прибитые 255 бит-в-бит.
+- 22:08:2026 - 18:40:00: пространственная часть ключа потока (ячейка 32 м по первой вершине
+  части): «материал|тон» сливал город в ~15 мешей размером с карту, и
+  отсечение не могло отвергнуть ничего по построению.
 */
 
 #include "engine/app/sources/App.h"
@@ -723,7 +726,29 @@ void App::upload_house_mesh() {
                     to_world(graph.resolved_local(e->refs[(hinge + 1) % n]));
                 into = &doors.back().mesh;
             } else {
-                auto& st = streams[(static_cast<std::uint64_t>(surface) << 8) | tone];
+                // ПРОСТРАНСТВЕННАЯ ЧАСТЬ КЛЮЧА (22.08). Ключ «материал|тон»
+                // сливал все 462 постройки города в ~15 мешей размером с
+                // карту, и отсечение по пирамиде не могло отвергнуть ничего
+                // по построению: профиль 59905 кадров показал 1.91 млн
+                // треугольников в кадре с разбросом 1% независимо от
+                // направления взгляда. Ячейка 32 м — компромисс: мельче —
+                // растут вызовы (каждая ячейка ещё и кастер теней), крупнее
+                // — отсечению снова нечего делать. Ячейка берётся по ПЕРВОЙ
+                // вершине части: часть моста между ячейками уйдёт в одну из
+                // них целиком, габарит потока это честно учтёт.
+                const glm::vec3 anchor =
+                    to_world(built.vertices[built.indices[part.index_begin]].pos);
+                constexpr float STREAM_CELL_M = 32.0f;
+                const auto cell = [](float v) {
+                    return static_cast<std::uint64_t>(std::clamp(
+                        static_cast<int>(std::floor(v / STREAM_CELL_M)) + 8, 0,
+                        63));
+                };
+                const std::uint64_t cell_key =
+                    (cell(anchor.x) << 6) | cell(anchor.z);
+                auto& st = streams[(cell_key << 16)
+                                   | (static_cast<std::uint64_t>(surface) << 8)
+                                   | tone];
                 st.surface = surface;
                 st.tone = tone;
                 into = &st.mesh;

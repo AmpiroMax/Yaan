@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 20:08:2026 - 18:40:00
+Last updated: 22:08:2026 - 18:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -74,6 +74,7 @@ UPD:
   у него есть прибор. Ранний выход ветки DFN_TORCH=2 убран: прибор DFN_LIGHT_PROBE
   молчал при жаровне. DFN_LIGHT_PROBE читается один раз.
 - 20:08:2026 - 18:40:00: demo_swing доезжает до GPU-двери.
+- 22:08:2026 - 18:40:00: set_house_mesh меряет габарит каждого потока на заливке.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -414,9 +415,16 @@ void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
         }
         const platform::MeshHandle h = renderer.create_mesh(st.mesh.vertices, st.mesh.indices);
         if (h.valid()) {
+            // Габарит меряется на заливке, как у чанков террейна: отсечение
+            // без габарита слепо и обязано пропускать (see visible_or_casting).
+            math::Aabb box{};
+            for (const platform::Vertex& v : st.mesh.vertices) {
+                box.expand(v.position);
+            }
             house_streams_.push_back(
                 {h.id, house_tile_asset(renderer, st.surface, st.tone),
-                 house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true)});
+                 house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true),
+                 box});
         }
     }
     for (HouseDoor& d : doors) {

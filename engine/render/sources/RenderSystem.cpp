@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 22:08:2026 - 16:20:00
+Last updated: 22:08:2026 - 18:40:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -171,6 +171,8 @@ UPD:
 - 22:08:2026 - 16:20:00: воздух композиции применяется после apply_sky_time и заморозки часа
   (оба переписывают fog_start/end покадрово — запись на загрузке жила бы
   один кадр).
+- 22:08:2026 - 18:40:00: потоки построек идут через visible_or_casting — с пространственной
+  нарезкой ключа (AppHouse) отсечению снова есть что отвергать.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1107,6 +1109,15 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             return t;
         };
         for (const HouseStreamGpu& st : house_streams_) {
+            // ОТСЕЧЕНИЕ ПОТОКОВ ПОСТРОЕК (22.08). Профиль 59905 кадров: при
+            // потоках «материал на весь город» кадр слал 1.91 млн
+            // треугольников с разбросом 1% независимо от направления взгляда.
+            // Пространственная нарезка (AppHouse) дала потокам габарит,
+            // который отсечению есть смысл проверять; правило то же, что у
+            // чанков — невидимый, но кастующий в солнце поток живёт.
+            if (!visible_or_casting(frustum, st.bounds, cull_eye)) {
+                continue;
+            }
             // aux-лист несёт РЕЛЬЕФ: борозды бруса и зерно штукатурки читаются
             // per-pixel, и никакой цвет вершины их не заменит (см. fs_prop).
             platform::DrawParams dp;
