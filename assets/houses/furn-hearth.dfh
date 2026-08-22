@@ -11,9 +11,9 @@ vertex v9 free 0.2000 0.1700 0.2000
 vertex v10 free 0.2000 0.1700 1.2000
 vertex v11 free 1.2000 0.1700 1.2000
 vertex v12 free 1.2000 0.1700 0.2000
-surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.140 mat=3 tone=1 wear=0.45
-surface e2 v5 v6 style=- height=0.24 thickness=0.20 mat=3 tone=1 fill=3 wear=0.55
-surface e3 v6 v7 style=- height=0.24 thickness=0.20 mat=3 tone=1 fill=3 wear=0.55
-surface e4 v7 v8 style=- height=0.24 thickness=0.20 mat=3 tone=1 fill=3 wear=0.55
-surface e5 v8 v5 style=- height=0.24 thickness=0.20 mat=3 tone=1 fill=3 wear=0.55
-surface e6 v9 v10 v11 v12 style=- closed=1 thickness=0.060 mat=3 tone=2 wear=0.85
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.140 mat=3 tone=1 wear=0
+surface e2 v5 v6 style=- height=0.24 thickness=0.20 mat=3 tone=1 fill=3 wear=0
+surface e3 v6 v7 style=- height=0.24 thickness=0.20 mat=3 tone=1 fill=3 wear=0
+surface e4 v7 v8 style=- height=0.24 thickness=0.20 mat=3 tone=1 fill=3 wear=0
+surface e5 v8 v5 style=- height=0.24 thickness=0.20 mat=3 tone=1 fill=3 wear=0
+surface e6 v9 v10 v11 v12 style=- closed=1 thickness=0.060 mat=3 tone=2 wear=0 paint=6
