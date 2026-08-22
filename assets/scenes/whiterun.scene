@@ -2932,9 +2932,15 @@ yaw = 3.645383
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble12x6.dfh
-pos = 136.421 27.646 145.021
-yaw = 3.485080
+file = assets/houses/city-cobble6x6.dfh
+pos = 136.355 27.646 145.044
+yaw = 3.463343
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble6x6.dfh
+pos = 130.561 27.650 146.972
+yaw = 3.510302
 note = мостовая: тракт
 
 [house]
@@ -2944,9 +2950,9 @@ yaw = 1.661456
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble6x6-s04.dfh
-pos = 115.307 27.348 165.465
-yaw = 1.714016
+file = assets/houses/city-cobble6x6-s06.dfh
+pos = 115.286 27.353 165.229
+yaw = 1.718468
 note = мостовая: тракт
 
 [house]
@@ -2981,32 +2987,32 @@ note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6.dfh
-pos = 100.031 32.903 108.771
+pos = 99.920 32.910 108.547
 yaw = 2.034444
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble6x6-s06.dfh
-pos = 96.338 32.903 101.353
-yaw = 1.935178
+file = assets/houses/city-cobble6x6-s08.dfh
+pos = 96.099 32.915 100.865
+yaw = 1.920799
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6-s08.dfh
-pos = 94.103 33.263 95.444
-yaw = 1.815335
+pos = 93.945 33.395 94.909
+yaw = 1.792036
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6-s08.dfh
-pos = 92.116 33.922 86.488
+pos = 92.157 34.054 85.989
 yaw = 1.487655
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble6x6-s10.dfh
-pos = 92.836 34.581 77.997
-yaw = 1.393872
+file = assets/houses/city-cobble6x6-s08.dfh
+pos = 92.860 34.694 77.727
+yaw = 1.387116
 note = мостовая: тракт
 
 [house]
@@ -3062,6 +3068,30 @@ file = assets/houses/city-cobble6x6.dfh
 pos = 60.809 25.592 196.936
 yaw = 2.714965
 note = мостовая: тракт
+
+[house]
+file = assets/houses/city-steps6-h12.dfh
+pos = 111.000 27.750 146.000
+yaw = 1.570796
+note = марш террасы рынка
+
+[house]
+file = assets/houses/city-kerb2-h12.dfh
+pos = 111.000 27.851 146.000
+yaw = 3.141593
+note = подпорная кромка рынка
+
+[house]
+file = assets/houses/city-kerb2-h10.dfh
+pos = 119.000 27.725 146.000
+yaw = 3.141593
+note = подпорная кромка рынка
+
+[house]
+file = assets/houses/city-kerb2-h04.dfh
+pos = 121.000 27.710 146.000
+yaw = 3.141593
+note = подпорная кромка рынка
 
 [light]
 pos = 100.000 37.204 61.150
