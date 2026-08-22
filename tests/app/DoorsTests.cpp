@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 20:08:2026 - 16:40:00
+Last updated: 22:08:2026 - 14:30:00
 Module: tests/app
 File: tests/app/DoorsTests.cpp
 
@@ -34,6 +34,7 @@ UPD:
   DFN_TOUR_DIR читается в enter_world, и как только она уехала, дверь стала
   «описанной, но никем не читаемой». Ровно то, ради чего рукав написан.
 - 20:08:2026 - 16:40:00: Безлюдных дверей 14 — прибавилась DFN_PLAYTEST_ARRIVE.
+- 22:08:2026 - 14:30:00: Безлюдных дверей 15 — прибавилась DFN_PLAYTEST_GLANCE.
 */
 
 #include <doctest/doctest.h>
@@ -234,8 +235,9 @@ TEST_CASE("whether a run is unattended is the table's column, door by door") {
     // because a table that lost the flag entirely would otherwise pass every
     // assertion above.
     // 14 с 20.08: DFN_PLAYTEST_ARRIVE — спутница DFN_PLAYTEST_ROUTE, руками
-    // её не выставляют.
-    CHECK(unattended_doors == 14);
+    // её не выставляют. 15 с 22.08: DFN_PLAYTEST_GLANCE — тоже спутница
+    // маршрута (ровный взгляд операторской ленты).
+    CHECK(unattended_doors == 15);
 
     // PRESENCE, NOT TRUTH. `DFN_TOUR=0` still means a tour is being run by a
     // script -- every door here is opened by being set at all, and a door that

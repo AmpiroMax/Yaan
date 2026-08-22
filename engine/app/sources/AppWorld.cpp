@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 21:08:2026 - 14:35:00
+Last updated: 22:08:2026 - 14:30:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -34,6 +34,8 @@ UPD:
   найден переписью тел Jolt (id=5, x94..147 y30..83 z66..123.7). Сценические
   деревья (есть листва-карты) получают ствол-бокс в поясе 0.4..2.2 с крышкой
   12 м — как деревья галерейного грида; прочие объекты — прежний бокс.
+- 22:08:2026 - 14:30:00: Дверь DFN_PLAYTEST_GLANCE=<0..1> — масштаб обзорного
+  качания взгляда бота (0 = ровный взгляд операторской ленты). Разбор строгий.
 */
 
 #include "engine/app/sources/App.h"
@@ -1505,6 +1507,20 @@ bool App::enter_world(uint32_t stand) {
             if (ptc.arrive_m <= 0.0f) {
                 std::fprintf(stderr, "[playtest] DFN_PLAYTEST_ARRIVE=\"%s\" is not a "
                                      "positive distance -- REFUSING to run\n", am);
+                return false;
+            }
+        }
+        // Обзорная развёртка бота (DFN_PLAYTEST_GLANCE=<0..1>): 0 — ровный
+        // взгляд для операторской ленты (кадры вида города), 1 — штатное
+        // качание вниз, которым бот находит предметы ниже глаз. Разбор
+        // строгий: опечатка, тихо ставшая нулём, отключила бы у соака три
+        // глагола из четырёх и «доказала» бы, что Take/Use не работают.
+        if (const char* gl = door_value("DFN_PLAYTEST_GLANCE"); gl != nullptr && *gl != '\0') {
+            char* end = nullptr;
+            ptc.glance_scale = std::strtof(gl, &end);
+            if (end == gl || *end != '\0' || ptc.glance_scale < 0.0f) {
+                std::fprintf(stderr, "[playtest] DFN_PLAYTEST_GLANCE=\"%s\" is not a "
+                                     "scale >= 0 -- REFUSING to run\n", gl);
                 return false;
             }
         }

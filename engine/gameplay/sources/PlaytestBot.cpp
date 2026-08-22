@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 02:23:05
-Last updated: 20:08:2026 - 17:30:00
+Last updated: 22:08:2026 - 14:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -98,6 +98,10 @@ UPD:
                          harness that can only exercise one of three verbs
                          reports on one of three verbs.
 - 20:08:2026 - 17:30:00: Радиус прибытия берётся из конфига, когда задан.
+- 22:08:2026 - 14:30:00: Амплитуда обзорной развёртки умножается на
+  config.glance_scale (0 = ровный взгляд, сервоввод сам выводит pitch к
+  горизонту). Заведено после того, как качание бота в операторской ленте
+  приняли за качание камеры игрока (претензия [9] приёмки 22.08).
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"
@@ -453,10 +457,13 @@ void playtest_drive(PlaytestState& pt, ecs::World& world) {
         } else {
             pt.glance_seconds += DT;
             const float phase = std::fmod(pt.glance_seconds, 2.0f * GLANCE_PERIOD_SECONDS);
+            // config.glance_scale: 1 = штатная развёртка, 0 = ровный взгляд
+            // операторского прогона (want 0, и тот же сервоввод ниже сам
+            // выводит pitch к горизонту — отдельной ветви не нужно).
+            const float amp = GLANCE_MAX_RADIANS * pt.config.glance_scale;
             const float want = (phase < GLANCE_PERIOD_SECONDS)
-                                   ? -GLANCE_MAX_RADIANS * (phase / GLANCE_PERIOD_SECONDS)
-                                   : -GLANCE_MAX_RADIANS
-                                         * (2.0f - phase / GLANCE_PERIOD_SECONDS);
+                                   ? -amp * (phase / GLANCE_PERIOD_SECONDS)
+                                   : -amp * (2.0f - phase / GLANCE_PERIOD_SECONDS);
             // Mouse +y is DOWN-pitch (see accumulate_input), so a lower target
             // pitch is a positive y.
             state.pending_look.y = (state.pitch - want) / SENSITIVITY;
