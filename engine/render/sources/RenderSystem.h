@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 22:08:2026 - 23:14:42
+Last updated: 22:08:2026 - 23:49:20
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -174,6 +174,7 @@ UPD:
 - 23:08:2026 - 07:20:00: set_ground_exclusions — пятна построек для травы; сброс tuft_built_
 - 22:08:2026 - 22:52:34: softness у ExtraLight/PointLightCandidate — мягкость источника доезжает от сцены до PointLight.
 - 22:08:2026 - 23:14:42: set_grass_lushness/grass_lushness_ — пышность травы за дверью DFN_GRASS_LUSH (0 = прежняя бит-в-бит).
+- 22:08:2026 - 23:49:20: set_path_mask — маска троп мира (износ+класс во фрагмент, круг 5 «шевроны»); ленивая заливка текстуры на кадре.
   пересевает уже выращенное.
 */
 
@@ -521,6 +522,26 @@ public:
     /// самой земле. Пишется приложением после чтения .relief; действует на
     /// чанки, воксельную землю и LOD-кольцо ОДНОЙ упаковкой альфы (см.
     /// TerrainMesher.h). Пустой вызов возвращает прежнюю упаковку.
+    /// МАСКА ТРОП МИРА (круг 5: «шевроны»): растеризованные износ (R) и
+    /// класс (G, 0/85/170/255) полотна, RGBA8 res x res, покрывает квадрат
+    /// [origin, origin + span]. Пустой вектор или span <= 0 — маски нет,
+    /// кромка полотна из вершинной альфы. Текстура заводится лениво на
+    /// кадре (создание требует renderer).
+    void set_path_mask(std::vector<uint8_t> rgba, uint32_t res,
+                       glm::vec2 origin_xz, float span_m) {
+        path_mask_pixels_ = std::move(rgba);
+        path_mask_res_ = res;
+        path_mask_pending_ = !path_mask_pixels_.empty() && span_m > 0.0f;
+        path_mask_asset_ = path_mask_pending_ ? path_mask_asset_ : 0;
+        environment_.path_mask_origin_xz = origin_xz;
+        environment_.path_mask_span_m = path_mask_pending_ ? span_m : 0.0f;
+        environment_.path_mask_res_px =
+            path_mask_pending_ ? static_cast<float>(res) : 0.0f;
+        if (!path_mask_pending_) {
+            path_mask_asset_ = 0;
+        }
+    }
+
     void set_path_classes(PathClassField field) {
         path_classes_ = std::move(field);
         path_classes_set_ = !path_classes_.strokes.empty();
@@ -866,6 +887,11 @@ private:
     glm::vec3 tuft_built_at_{0.0f};
     bool tuft_built_ = false;
     float grass_lushness_ = 0.0f;
+    // Маска троп: пиксели до ленивой заливки в текстуру + её ассет.
+    std::vector<uint8_t> path_mask_pixels_;
+    uint32_t path_mask_res_ = 0;
+    bool path_mask_pending_ = false;
+    uint32_t path_mask_asset_ = 0;
     bool tufts_off_ = false; // DFN_NO_TUFTS=1 — the counterfactual arm
     std::unordered_map<uint32_t, uint32_t> mesh_cache_;    // mesh_asset id -> MeshHandle.id
     std::unordered_map<uint32_t, uint32_t> texture_cache_; // texture_asset id -> TextureHandle.id

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 22:08:2026 - 23:49:20
 Module: engine/render
 File: engine/render/sources/LodTerrain.h
 
@@ -68,6 +68,7 @@ UPD:
   как чанковая земля, иначе шов LOD мигает плоскостью; заметка о марже
   тени обновлена под полуохват 160 (маржа выросла до 3.2x).
 - 23:08:2026 - 00:30:00: set_path_classes — кольцо пакует альфу тем же правилом, что чанки:
+- 22:08:2026 - 23:49:20: draw(...aux3) — маска троп кольцу, тем же листом, что чанкам.
   разные упаковки при одном дозовом разборе читались бы мусорными классами.
 */
 
@@ -171,7 +172,8 @@ public:
     size_t draw(platform::IRenderer& renderer, const math::Frustum& frustum,
                 platform::ProgramHandle program, platform::TextureHandle atlas,
                 platform::TextureHandle aux = {},
-                platform::TextureHandle aux2 = {}) const;
+                platform::TextureHandle aux2 = {},
+                platform::TextureHandle aux3 = {}) const;
 
     /// Поле классов полотна (TerrainMesher.h). Кольцо обязано паковать альфу
     /// ТЕМ ЖЕ правилом, что чанковая земля: шейдер разбирает её одним дозовым

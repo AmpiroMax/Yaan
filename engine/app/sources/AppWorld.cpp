@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 22:08:2026 - 23:15:13
+Last updated: 22:08:2026 - 23:50:11
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -47,6 +47,7 @@ UPD:
 - 23:08:2026 - 01:40:00: паром коробки комнаты из [light].
 - 22:08:2026 - 22:52:34: паром SceneLight.softness в ExtraLight — ключ softness у [light] доезжает до шейдера.
 - 22:08:2026 - 23:15:13: доза DFN_GRASS_LUSH (дефолт 1) — пышность травы в render_system_.set_grass_lushness.
+- 22:08:2026 - 23:50:11: растеризация маски троп (1/4 м, поперечник relief_path_wear) в render_system_.set_path_mask — кромка полотна из фрагмента, лечение «шевронов» круга 5.
 */
 
 #include "engine/app/sources/App.h"
@@ -328,6 +329,81 @@ bool App::enter_world(uint32_t stand) {
                 pcf.strokes.push_back(std::move(st));
             }
             render_system_.set_path_classes(std::move(pcf));
+        }
+        // МАСКА ТРОП — ТРОПА ИЗ ФРАГМЕНТА (23.08, круг 5: «шевроны»).
+        // 1.8-метровое полотно на 2-метровой решётке вершин земли не
+        // разрешается по построению: вершинная альфа рассыпает его зигзагом
+        // прямоугольников. Маска растеризует износ и класс по НАСТОЯЩЕМУ
+        // поперечнику (relief_path_wear — тот же math::path_wear_profile) с
+        // шагом 1/4 м, и fs_terrain берёт кромку из неё. Прежний вершинный
+        // путь остаётся: за прямоугольником композиции и дозой
+        // DFN_PATH_FRAG=0.
+        render_system_.set_path_mask({}, 0, {0.0f, 0.0f}, 0.0f);
+        if (!relief_.paths().empty()) {
+            const float span = static_cast<float>(config::CHUNK_SIZE)
+                             * static_cast<float>(std::max(1, gallery_size_chunks_));
+            const float px_per_m = 4.0f;
+            const uint32_t res = static_cast<uint32_t>(std::min(
+                4096.0f, std::ceil(span * px_per_m)));
+            const float m_per_px = span / static_cast<float>(res);
+            std::vector<uint8_t> mask(static_cast<size_t>(res) * res * 4, 0);
+            for (const world::ReliefPath& rp : relief_.paths()) {
+                glm::vec2 lo, hi;
+                if (!world::relief_path_bounds(rp, lo, hi)) {
+                    continue;
+                }
+                const std::vector<glm::vec2> poly =
+                    world::relief_path_polyline(rp);
+                if (poly.size() < 2) {
+                    continue;
+                }
+                const int x0 = std::max(0, static_cast<int>(lo.x / m_per_px));
+                const int z0 = std::max(0, static_cast<int>(lo.y / m_per_px));
+                const int x1 = std::min(static_cast<int>(res) - 1,
+                                        static_cast<int>(hi.x / m_per_px) + 1);
+                const int z1 = std::min(static_cast<int>(res) - 1,
+                                        static_cast<int>(hi.y / m_per_px) + 1);
+                const uint8_t cls_byte = static_cast<uint8_t>(
+                    std::clamp(rp.path_class, 0, 3) * 85);
+                for (int tz = z0; tz <= z1; ++tz) {
+                    for (int tx = x0; tx <= x1; ++tx) {
+                        const glm::vec2 pnt{(static_cast<float>(tx) + 0.5f)
+                                                * m_per_px,
+                                            (static_cast<float>(tz) + 0.5f)
+                                                * m_per_px};
+                        float d2_best = std::numeric_limits<float>::max();
+                        for (size_t i = 0; i + 1 < poly.size(); ++i) {
+                            const glm::vec2 a = poly[i];
+                            const glm::vec2 ab = poly[i + 1] - a;
+                            const float len2 = glm::dot(ab, ab);
+                            const float t = len2 > 0.0f
+                                ? std::clamp(glm::dot(pnt - a, ab) / len2,
+                                             0.0f, 1.0f)
+                                : 0.0f;
+                            const glm::vec2 q = a + ab * t;
+                            d2_best = std::min(d2_best,
+                                               glm::dot(pnt - q, pnt - q));
+                        }
+                        const float wear = world::relief_path_wear(
+                            rp, std::sqrt(d2_best));
+                        if (wear <= 0.0f) {
+                            continue;
+                        }
+                        uint8_t* px = &mask[(static_cast<size_t>(tz) * res
+                                             + static_cast<size_t>(tx)) * 4];
+                        // Поздний мазок выигрывает класс там, где у него есть
+                        // полотно (та же семантика, что class_at); износ —
+                        // максимум, чтобы перекрёсток не гасил сам себя.
+                        const uint8_t w8 = static_cast<uint8_t>(
+                            std::lround(wear * 255.0f));
+                        px[0] = std::max(px[0], w8);
+                        px[1] = cls_byte;
+                        px[3] = 255;
+                    }
+                }
+            }
+            render_system_.set_path_mask(std::move(mask), res, {0.0f, 0.0f},
+                                         span);
         }
     }
     {

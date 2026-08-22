@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 22:08:2026 - 23:49:20
 Module: engine/render
 File: engine/render/sources/LodTerrain.cpp
 
@@ -33,6 +33,7 @@ UPD:
   corridor's air, and a torch's cube map filled with it lights nothing.
 - 22:08:2026 - 15:40:00: params.aux_texture = aux — рельеф кольца тот же, что у чанков.
 - 23:08:2026 - 00:30:00: options.path_classes из хранимого указателя.
+- 22:08:2026 - 23:49:20: aux3 — маска троп в дро кольца.
 */
 
 #include "engine/render/sources/LodTerrain.h"
@@ -203,7 +204,8 @@ size_t LodTerrain::draw(platform::IRenderer& renderer, const math::Frustum& frus
                         platform::ProgramHandle program,
                         platform::TextureHandle atlas,
                         platform::TextureHandle aux,
-                        platform::TextureHandle aux2) const {
+                        platform::TextureHandle aux2,
+                        platform::TextureHandle aux3) const {
     last_draw_count_ = 0;
     if (program.id == 0) {
         return 0;
@@ -223,6 +225,7 @@ size_t LodTerrain::draw(platform::IRenderer& renderer, const math::Frustum& frus
         // must not go flat at the cross-fade seam (see the header).
         params.aux_texture = aux;
         params.aux2_texture = aux2; // путевой атлас — тот же, что у чанков
+        params.aux3_texture = aux3; // и маска троп — кромка одна на весь кадр
         // A COARSE STAND-IN NEVER CASTS INTO A CARRIED LIGHT'S CUBE. These
         // nodes are built from the heightfield WITHOUT the carves, so inside
         // a tunnel their geometry is solid rock through the corridor's own

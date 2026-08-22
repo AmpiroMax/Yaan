@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 22:08:2026 - 23:14:42
+Last updated: 22:08:2026 - 23:49:20
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -177,6 +177,7 @@ UPD:
   вторым доп. листом (aux2, стадия 5).
 - 23:08:2026 - 07:20:00: выращивание травы получает пятна построек.
 - 22:08:2026 - 23:14:42: tuft_params: пышность травы (DFN_GRASS_LUSH через set_grass_lushness) — плотность к середине полосы реестра, формы пучков гуще; 0 = прежний пол бит-в-бит.
+- 22:08:2026 - 23:49:20: ленивая заливка маски троп + привязка aux3 чанкам и LOD-кольцу.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -971,6 +972,26 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         it != texture_cache_.end()) {
         terrain_params.aux2_texture.id = it->second;
     }
+    // МАСКА ТРОП (стадия 6): заводится лениво здесь — set_path_mask зовётся
+    // приложением без renderer. Прямоугольник, спан и разрешение уже лежат
+    // в environment_ (слот 49); без маски w = 0 и шейдер её не читает.
+    if (path_mask_pending_) {
+        const platform::TextureHandle h = renderer.create_texture(
+            path_mask_res_, path_mask_res_, platform::TextureFormat::RGBA8,
+            {path_mask_pixels_.data(), path_mask_pixels_.size()});
+        if (h.valid()) {
+            const uint32_t asset = next_texture_asset_++;
+            texture_cache_.emplace(asset, h.id);
+            path_mask_asset_ = asset;
+        }
+        path_mask_pixels_.clear();
+        path_mask_pixels_.shrink_to_fit();
+        path_mask_pending_ = false;
+    }
+    if (const auto it = texture_cache_.find(path_mask_asset_);
+        it != texture_cache_.end()) {
+        terrain_params.aux3_texture.id = it->second;
+    }
     for (const auto& [coord, res] : terrain_meshes_) {
         if (!visible_or_casting(frustum, res.bounds, cull_eye)) {
             continue;
@@ -985,7 +1006,7 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // overlap (a streamed rectangle not aligned to the 128 m node grid) the
     // near, finer surface has already written depth.
     lod_.draw(renderer, frustum, terrain, atlas, terrain_params.aux_texture,
-              terrain_params.aux2_texture);
+              terrain_params.aux2_texture, terrain_params.aux3_texture);
 
     // The §8.1 PATH SURFACE, drawn after the ground it lies on. Depth alone
     // would resolve the order (the tread sits PATH_GROOVE_DEPTH proud of the

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 00:30:00
+Last updated: 22:08:2026 - 23:48:18
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -64,6 +64,7 @@ UPD:
 - 15:08:2026 - 15:23:22: привязка DrawParams::aux_texture к стадии 4 с нейтральной подменой;
   u_params.w — признак «лист есть» (был «зарезервировано»).
 - 23:08:2026 - 00:30:00: aux2_texture привязывается на стадию 5 с нейтральной подстановкой.
+- 22:08:2026 - 23:48:18: aux3_texture привязывается на стадию 6 (маска троп): износ линейно, CLAMP, нейтральная подстановка.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -348,6 +349,24 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
             bgfx::setTexture(5, im.s_tex_path, aux2,
                              BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
                                  | BGFX_SAMPLER_MIP_POINT);
+        }
+    }
+    // МАСКА ТРОП (DrawParams::aux3_texture, стадия 6): износ линейной
+    // фильтрацией (гладкая кромка полотна — весь смысл маски), класс шейдер
+    // снимает вторым чтением по центру текселя. CLAMP — за прямоугольником
+    // композиции маска не повторяется. Подстановка та же нейтральная: шейдер
+    // решает читать или нет по u_pathMask.w.
+    {
+        bgfx::TextureHandle aux3 = im.neutral_normal;
+        if (params_in.aux3_texture.valid()) {
+            const auto it3 = im.textures.find(params_in.aux3_texture.id);
+            if (it3 != im.textures.end()) {
+                aux3 = it3->second;
+            }
+        }
+        if (bgfx::isValid(aux3) && bgfx::isValid(im.s_tex_path_mask)) {
+            bgfx::setTexture(6, im.s_tex_path_mask, aux3,
+                             BGFX_SAMPLER_U_CLAMP | BGFX_SAMPLER_V_CLAMP);
         }
     }
     bgfx::setUniform(im.u_params, params);

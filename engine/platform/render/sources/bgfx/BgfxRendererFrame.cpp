@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 22:58:55
+Last updated: 22:08:2026 - 23:48:50
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -197,6 +197,7 @@ UPD:
 - 23:08:2026 - 01:40:00: packed[41+i] — коробка комнаты света; packed[15].w — доза DFN_LIGHT_ROOM (0 = окно игнорируется, прежний гейт по AO бит-в-бит).
 - 23:08:2026 - 06:30:00: подача u_psNear (DFN_PS_NEAR_EXCLUDE, 0.6 м; 0 = прежнее сравнение
 - 22:08:2026 - 22:58:55: packed[24+i].w — плюс мягкость источника в дробной части (масштаб 0.9); packed[13].w — доза DFN_LIGHT_SOFT (дефолт 1, 0 = мягкость игнорируется бит-в-бит).
+- 22:08:2026 - 23:48:50: packed[49] — маска троп (начало, 1/спан, разрешение); доза DFN_PATH_FRAG (0 = вершинная альфа бит-в-бит).
   бит-в-бит).
 */
 
@@ -515,6 +516,14 @@ static float light_soft_dose() {
     return dose;
 }
 
+// Доза тропы из фрагмента (DFN_PATH_FRAG, слот 49.w несёт разрешение маски):
+// 0 = маска игнорируется, кромка полотна из вершинной альфы бит-в-бит
+// (круг 5: «шевроны» — тропа уже решётки вершин земли).
+static float path_frag_dose() {
+    static const float dose = dose_env_override("DFN_PATH_FRAG", 1.0f);
+    return dose;
+}
+
 static float moon_ground_gain() {
     static const float value = dose_env_override("DFN_MOON_GROUND",
                           static_cast<float>(config::MOON_GROUND_GAIN));
@@ -705,6 +714,12 @@ void BgfxRenderer::Impl::apply_environment() const {
     static const float dither_fine = dose_env_override("DFN_DITHER8", 2.0f);
     packed[40] = {foliage_edge_band().x, foliage_edge_band().y, sky_glow,
                   dither_fine};
+    // Слот 49 — МАСКА ТРОП: начало композиции, 1/спан, разрешение маски в
+    // текселях (w = 0 — маски нет ИЛИ доза DFN_PATH_FRAG = 0: одна проверка
+    // в шейдере на оба случая).
+    packed[49] = {e.path_mask_origin_xz.x, e.path_mask_origin_xz.y,
+                  e.path_mask_span_m > 0.0f ? 1.0f / e.path_mask_span_m : 0.0f,
+                  path_frag_dose() > 0.5f ? e.path_mask_res_px : 0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};

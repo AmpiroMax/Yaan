@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 22:08:2026 - 22:58:55
+Last updated: 22:08:2026 - 23:48:50
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -227,6 +227,7 @@ UPD:
   гейт. Массив 41 -> 49 парой с Impl.h.
 - 23:08:2026 - 04:10:00: ворота отскока прижаты к полу AO ((sky_vis-0.305)/0.08): круг 4 поймал
 - 22:08:2026 - 22:58:55: мягкость точечного света: дробная часть w цвета — softness 0..1 (wrap-диффуз + пологое затухание pow(fall, 1->0.6)); u_lightSoftDose (слот 13.w, DFN_LIGHT_SOFT, 0 = бит-в-бит). Заказ владельца: разнообразные источники по яркости и мягкости.
+- 22:08:2026 - 23:48:50: массив 49 -> 50; u_pathMask (слот 49) — маска троп для fs_terrain.
   их мёртвыми на рыночном навесе (|dRGB| 0.003 между дозами) — испод сидит на
   0.30..0.34, порог 0.32 съедал эффект; запечатанный интерьер остаётся нулём.
 */
@@ -245,7 +246,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[49]; // 41..48 — коробки комнат светов (пара с Impl.h)
+uniform vec4 u_envParams[50]; // 41..48 — коробки комнат; 49 — маска троп (пара с Impl.h)
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -291,6 +292,7 @@ uniform vec4 u_envParams[49]; // 41..48 — коробки комнат свет
 #define u_pathTiles         (u_envParams[13].y)
 #define u_pathMatDose       (u_envParams[13].z)
 #define u_lightSoftDose     (u_envParams[13].w)
+#define u_pathMask          (u_envParams[49])
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
