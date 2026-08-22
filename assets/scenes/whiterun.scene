@@ -2919,104 +2919,140 @@ yaw = 6.141288
 note = двор: постоялый двор
 
 [house]
-file = assets/houses/city-cobble6x6.dfh
-pos = 149.605 27.105 132.488
+file = assets/houses/city-cobble8x6-s04.dfh
+pos = 149.605 26.977 132.488
 yaw = 4.193243
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble6x6.dfh
-pos = 144.488 27.399 140.605
-yaw = 3.660739
+file = assets/houses/city-cobble8x6-s04.dfh
+pos = 143.856 27.326 140.966
+yaw = 3.645383
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble12x6.dfh
+pos = 136.421 27.646 145.021
+yaw = 3.485080
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6.dfh
-pos = 136.949 27.695 144.846
-yaw = 3.463343
-note = мостовая: тракт
-
-[house]
-file = assets/houses/city-cobble6x6.dfh
-pos = 115.560 27.407 168.292
+pos = 116.012 27.348 173.272
 yaw = 1.661456
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble6x6.dfh
-pos = 103.472 32.612 117.257
-yaw = 1.951303
+file = assets/houses/city-cobble8x6-s04.dfh
+pos = 115.313 27.348 165.507
+yaw = 1.727572
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble8x6-s14.dfh
+pos = 110.385 28.983 144.641
+yaw = 1.892547
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble8x6-s12.dfh
+pos = 107.855 30.103 137.052
+yaw = 1.892547
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble8x6-s12.dfh
+pos = 105.192 31.063 128.863
+yaw = 1.685401
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble8x6-s08.dfh
+pos = 104.393 32.023 121.469
+yaw = 1.860615
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble8x6-s04.dfh
+pos = 102.239 32.663 114.171
+yaw = 1.978713
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6.dfh
-pos = 100.317 32.966 109.342
+pos = 99.137 32.983 106.982
 yaw = 2.034444
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble12x6.dfh
-pos = 254.886 25.030 162.785
-yaw = 2.761086
+file = assets/houses/city-cobble8x6-s08.dfh
+pos = 95.380 32.983 99.384
+yaw = 1.873876
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble8x6.dfh
-pos = 243.744 25.030 158.329
-yaw = 2.761086
+file = assets/houses/city-cobble8x6-s08.dfh
+pos = 92.791 33.643 90.813
+yaw = 1.614971
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble8x6-s08.dfh
+pos = 92.454 34.283 82.434
+yaw = 1.462918
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble24x6.dfh
-pos = 234.759 25.030 154.731
-yaw = 2.714965
+pos = 254.874 25.030 162.781
+yaw = 2.756361
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble24x6.dfh
+pos = 232.522 25.030 153.714
+yaw = 2.715768
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble24x6.dfh
+pos = 210.788 25.030 143.853
+yaw = 2.755042
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble12x6.dfh
-pos = 212.782 25.030 144.741
-yaw = 2.723368
+pos = 188.890 25.030 134.920
+yaw = 2.863229
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble8x6.dfh
-pos = 201.816 25.029 139.868
-yaw = 2.723368
-note = мостовая: тракт
-
-[house]
-file = assets/houses/city-cobble12x6.dfh
-pos = 194.151 25.054 136.565
-yaw = 2.838708
-note = мостовая: тракт
-
-[house]
-file = assets/houses/city-cobble6x6.dfh
-pos = 172.646 25.105 130.980
+pos = 177.762 25.030 131.711
 yaw = 2.999696
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble12x6.dfh
-pos = 111.723 25.591 216.714
-yaw = 2.701750
+file = assets/houses/city-cobble24x6.dfh
+pos = 111.806 25.585 216.752
+yaw = 2.727368
 note = мостовая: тракт
 
 [house]
 file = assets/houses/city-cobble6x6.dfh
-pos = 100.865 25.572 211.605
-yaw = 2.701750
-note = мостовая: тракт
-
-[house]
-file = assets/houses/city-cobble12x6.dfh
-pos = 77.051 25.703 202.846
+pos = 90.107 25.585 207.198
 yaw = 2.819842
 note = мостовая: тракт
 
 [house]
-file = assets/houses/city-cobble12x6.dfh
-pos = 64.759 25.778 198.731
+file = assets/houses/city-cobble24x6.dfh
+pos = 83.899 25.588 205.128
+yaw = 2.801992
+note = мостовая: тракт
+
+[house]
+file = assets/houses/city-cobble8x6.dfh
+pos = 61.039 25.588 197.040
 yaw = 2.714965
 note = мостовая: тракт
 

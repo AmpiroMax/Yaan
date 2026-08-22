@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 21:08:2026 - 04:10:00
-# Last updated: 22:08:2026 - 21:05:00
+# Last updated: 22:08:2026 - 23:40:00
 # Module: tools
 # File: tools/gen_whiterun.py
 #
@@ -201,10 +201,55 @@
 #   18 плит); подход к рынку 69.2%, восточный тракт 85.9%. Подъём к замку
 #   остаётся 29% — 8% уклона плоской плитой не мостятся, нужен наклонный
 #   кусок или террасы с маршами. Прогон бота: 180 м, 0 происшествий.
+# - 22:08:2026 - 23:40:00: ПОДЪЁМ К ЗАМКУ ЗАМОЩЁН НАКЛОННЫМИ КУСКАМИ (заказ:
+#   тракт рынок→замок, покрытие 29.3%). Кузница (wr-forge) испекла семейство
+#   city-cobble{6x6,8x6}-sNN — плоский кусок, сдвинутый по y на slope*x: origin
+#   НИЖНЯЯ кромка, дальняя поднята ровно на slope*длину. Отсюда цепь отметок:
+#   origin соседа = origin текущего + slope*L, и стык нулевой ПО ПОСТРОЕНИЮ.
+#   Четыре вещи, без которых наклонный кусок сам по себе почти ничего не дал
+#   (первая проба: 29.3% -> 38.0%):
+#   (1) ПЛИТА КЛАДЁТСЯ ХОРДОЙ ВДОЛЬ ВСЕЙ ЛОМАНОЙ, а не по отрезку. pave()
+#   мостил каждый отрезок отдельно, и хвост короче шести метров у КАЖДОЙ
+#   вершины оставался голым; у процессионной оси одиннадцать вершин через
+#   10-13 м — одного этого хватало, чтобы покрытие не поднималось ничем,
+#   кроме удлинения отрезков. Разворот плиты берётся у хорды [s, s+L].
+#   (2) ЗАПРЕТЫ ПРОВЕРЯЮТСЯ ВНУТРИ ПЕРЕБОРА ДЛИН. 24-метровый кусок ложится
+#   ровнее всех и выбирается первым, но чаще всех упирается в чужое тело — а
+#   отвергнутый ПОСЛЕ перебора он уносил и шанс шестиметрового встать там же
+#   (южный тракт: 89.6% против 48.2%).
+#   (3) ТЕЛО ДОМА МЕРЯЕТСЯ ПЯТНОМ, А НЕ ПРОЕКЦИЕЙ НА ЛИНИЮ ЦЕНТРОВ. Старая
+#   проба — оценка снизу, и у вытянутого тела врёт тем сильнее, чем оно
+#   длиннее: до южной стены замка (26.6х14 поперёк оси) от плиты полтора
+#   метра, а проба насчитывала заход на шесть, и девять последних метров
+#   подъёма не мостились вовсе. Теперь честная площадь пересечения с телом,
+#   усаженным на PAVE_TOL (свес кровли мостовой не помеха, стена — помеха).
+#   (4) ШАГ ОТСТУПА 0.25 ВМЕСТО МЕТРА: на изломе два жёстких прямоугольника
+#   под углом дают клин наложения 2y*tg(угол/2) — 1.7 м2 при 21 гр.; соседка,
+#   отодвинутая на полметра, ужимает клин вчетверо, а осевую рвёт на те же
+#   полметра — меньше шага человека. Метровый шаг это окно проскакивал.
+#   Замер (пробы 0.25 м вдоль PLAN[roads] mat=stone, прибор в check_axis):
+#   ось ворота→рынок→замок 28.9% -> 90.9%, подъём рынок→замок 23.4% -> 89.0%
+#   (до южной стены замка 25.0% -> 94.9%), каменные тракты 55.8% -> 88.7%,
+#   наложений 0, наибольшая ступень 0.035 м (порог 0.20). Наклонных кусков в
+#   раскладке 10 из 23: s04, s08, s12, s14.
+#   ЧТО МОСТОВОЙ НЕ ЛЕЧИТСЯ и осталось разрывом на оси. (а) Кромка рынка,
+#   2.5 м: там не 21% уклона, а ОБРЫВ — строка сетки z=146 (южная грань
+#   прямоугольника рынка) стоит на 27.75, строка z=145 на 28.79, метр с
+#   лишним на клетку. grade_rect прижимает рынок к медиане, grade_roads со
+#   skip_rect планирует улицу снаружи по прямой между узлами, и на границе
+#   они расходятся. Под жёсткой плитой там не плоскость, а ступень; это
+#   земляной дефект, отдан архитектору. (б) Последние 7 м оси: узел (98,68)
+#   лежит ВНУТРИ пятна замка (86.7..113.3 x 59.2..73.2) — мостовая доходит до
+#   южной стены, дальше дороги нет, там здание. Дефект чертежа, check_layout
+#   его и называет («на дороге (stone): ЗАМОК»).
+#   check_axis() — критерий приёмки архитектора, поселённый в конвейере:
+#   разрыв <= 1.0 м при шаге проб 0.25, ступень <= 0.20, наложений 0.
+#   Внешний прибор по сцене — tools/check_paving.py кузницы.
 
 import json
 import math
 import os
+import re
 import shutil
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -796,7 +841,31 @@ COBBLE = [(24.0, "city-cobble24x6.dfh"), (12.0, "city-cobble12x6.dfh"),
           (8.0, "city-cobble8x6.dfh"), (6.0, "city-cobble6x6.dfh")]
 PAVE_W = 6.0        # ширина плиты поперёк улицы
 PAVE_FLAT = 0.22    # допуск неровности пятна под жёсткой плитой, м
-PAVE_TOP = 0.087    # верх мостовой city-cobble над её origin
+PAVE_TOP = 0.087    # верх мостовой city-cobble над её origin (у НИЖНЕЙ кромки)
+
+# НАКЛОННЫЕ КУСКИ. Плоской плитой склон не мостится в принципе: на 8% восемь
+# метров дают 0.64 м перепада под жёстким пятном, и подъём к замку оставался
+# 29% покрытия при 56% по городу. Кузница (wr-forge) испекла семейство
+# city-cobble{6x6,8x6}-sNN — тот же кусок, сдвинутый по y на slope*x:
+# origin — НИЖНЯЯ кромка, дальний край поднят РОВНО на slope*длину (замер
+# кузницы: 6x6-s08 = 0.482 при ожидании 0.480, лишние 2 мм — половина
+# толщины пояска), пятно в плане родительское, поясок тот же 0.30 м.
+# Отсюда правило посадки: origin соседа = origin текущего + slope*L, и стык
+# сходится ПО ПОСТРОЕНИЮ, а не по удаче замера.
+# Таблица не выписывается руками: кузница печёт уклоны волнами, и любая
+# записанная сюда цифра назавтра ложь — набор читается из assets/houses.
+def _slope_kit():
+    kit = {}
+    for f in os.listdir(os.path.join(ROOT, "assets/houses")):
+        m = re.match(r"city-cobble(\d+)x6-s(\d\d)\.dfh$", f)
+        if m:
+            kit.setdefault(float(m.group(1)), {})[int(m.group(2)) / 100.0] = f
+    return kit
+
+COBBLE_S = _slope_kit()
+PAVE_SLOPE_MIN = 0.02   # ниже — наклонный кусок не нужен, это просто кочка
+PAVE_SLOPE_SLACK = 0.012  # круче печёного на столько — уже дело лестниц
+PAVE_NUDGE = 0.25       # на столько плита сдвигается вперёд, если не села
 
 def slab_ground(cx, cz, w, d, yaw):
     gs = [g for g in (ground(px, pz)
@@ -824,18 +893,45 @@ def slab_blocked(cx, cz, w, d, yaw):
     # мерцают, и это в самом людном месте города.
     if (MRX <= cx <= MRX + MRW) and (MRZ <= cz <= MRZ + MRD):
         return True
+    # ТЕЛО МЕРЯЕТСЯ ПЯТНОМ, А НЕ ПРОЕКЦИЕЙ НА ЛИНИЮ ЦЕНТРОВ. Прежняя проба
+    # (D минус две половины габарита вдоль линии центров) — оценка снизу, и у
+    # ВЫТЯНУТОГО тела она врёт тем сильнее, чем оно длиннее: замок 26.6х14
+    # стоит поперёк оси, до его южной стены от плиты полтора метра, а проба
+    # насчитывала заход на шесть — последние девять метров подъёма к воротам
+    # замка не мостились вовсе. Считаем честную площадь пересечения, а допуск
+    # «плита заезжает под свес» вносится усадкой тела на PAVE_TOL с каждой
+    # стороны: свес кровли 0.4-0.6 м мостовой не помеха, стена — помеха.
+    poly = rect_poly(cx, cz, w, d, yaw)
     for (bx, bz, bw, bd, byaw, n) in PLACED:
-        D = math.hypot(bx-cx, bz-cz) or 1e-6
-        ux, uz = (bx-cx)/D, (bz-cz)/D
-        if (D - half_proj(w, d, yaw, ux, uz)
-                - half_proj(bw, bd, byaw, ux, uz)) < -PAVE_TOL:
+        if math.hypot(bx-cx, bz-cz) > (max(w, d) + max(bw, bd))/2 + 1.0:
+            continue
+        core = rect_poly(bx, bz, max(0.5, bw - 2*PAVE_TOL),
+                         max(0.5, bd - 2*PAVE_TOL), byaw)
+        if poly_clip_area(list(poly), core) > 0.5:
             return True
     return False
 
-PAVED = []          # (cx, cz, w, d, yaw) уже уложенных плит
+# (cx, cz, w, d, yaw, top_c, k): top_c — ХОДИБЕЛЬНАЯ отметка в центре пятна,
+# k — уклон вдоль ЛОКАЛЬНОГО +X куска. Прежде хранилась отметка origin, и
+# сравнивать её у наклонных соседок бессмысленно: у одной origin внизу, у
+# другой вверху, а игрок идёт по камню. Отметка камня и хранится.
+PAVED = []
 PAVE_OVERLAP = 1.0  # м2: больше — считается наложением плиты на плиту
 PAVE_MAX_DROP = 0.35  # круче — мостовую не кладём вовсе, это дело лестниц
 PAVE_STEP = 0.20      # предельная ступень между СОСЕДНИМИ плитами одной улицы
+
+def slab_top(p, px, pz):
+    """Ходибельная отметка плиты в мировой точке: наклонный кусок ЕДЕТ."""
+    c = math.cos(math.radians(p[4]))
+    sn = math.sin(math.radians(p[4]))
+    return p[5] + p[6] * ((px - p[0]) * c - (pz - p[1]) * sn)
+
+def slab_covers(p, px, pz):
+    c = math.cos(math.radians(p[4]))
+    sn = math.sin(math.radians(p[4]))
+    lx = (px - p[0]) * c - (pz - p[1]) * sn
+    lz = (px - p[0]) * sn + (pz - p[1]) * c
+    return abs(lx) <= p[2] / 2 and abs(lz) <= p[3] / 2
 
 def rect_poly(cx, cz, w, d, yaw_deg):
     c = math.cos(math.radians(yaw_deg))
@@ -921,66 +1017,153 @@ def profile_at(prof, s):
             return h0 + (h1-h0) * ((s-s0) / (s1-s0 or 1.0))
     return prof[-1][1]
 
+def quant_slope(want):
+    """Ближайший ИСПЕЧЁННЫЙ уклон со знаком (промах <= половины шага печати:
+    при шаге 2% это 6 см на шестиметровом куске и 8 см на восьмиметровом —
+    втрое ниже порога ступени). Ноль — если склона по сути нет; None — если
+    круче всего испечённого: там мостовой не место, это дело лестниц."""
+    have = sorted({k for kit in COBBLE_S.values() for k in kit})
+    a = abs(want)
+    if not have or a < PAVE_SLOPE_MIN:
+        return 0.0
+    if a > have[-1] + PAVE_SLOPE_SLACK:
+        return None
+    return math.copysign(min(have, key=lambda s: abs(s - a)), want)
+
+def slope_fits(sl, cx, cz, yaw, ux, uz, k, h0):
+    """Ложится ли НАКЛОННАЯ плита на землю: невязка меряется от её плоскости
+    h0 + k*x, а не от горизонта. Проверяются обе вещи сразу — разброс невязки
+    (пятно не плоскость) и её среднее (плита целиком висит или закопана)."""
+    x0, z0 = cx - ux*sl/2, cz - uz*sl/2
+    res = []
+    for px, pz in rect_points(cx, cz, sl, PAVE_W, yaw, n=5):
+        g = ground(px, pz)
+        if g is None:
+            return False
+        res.append(g + 0.03 - (h0 + k*((px-x0)*ux + (pz-z0)*uz)))
+    return (max(res) - min(res) <= PAVE_FLAT
+            and abs(sum(res)/len(res)) <= PAVE_FLAT)
+
+def poly_at(cum, pts, s):
+    """Точка ломаной по длине пути. Нужна затем, что ПЛИТА КЛАДЁТСЯ ХОРДОЙ, а
+    не по отрезку: прежде pave() мостил каждый отрезок отдельно, и хвост
+    короче шести метров у КАЖДОЙ вершины оставался голым. У процессионной оси
+    одиннадцать вершин через каждые 10-13 м — этого одного хватало, чтобы
+    покрытие не поднималось выше 29% ничем, кроме удлинения отрезков."""
+    s = min(max(s, 0.0), cum[-1])
+    for i in range(len(cum) - 1):
+        if s <= cum[i+1] or i == len(cum) - 2:
+            f = (s - cum[i]) / ((cum[i+1] - cum[i]) or 1.0)
+            return (pts[i][0] + (pts[i+1][0]-pts[i][0])*f,
+                    pts[i][1] + (pts[i+1][1]-pts[i][1])*f)
+    return pts[-1]
+
 def pave(pts, note):
     if os.environ.get("DFN_GEN_NO_COBBLE") == "1":
         return 0
     n = 0
     prof = road_profile(pts)
-    run_s = 0.0        # параметр вдоль всей ломаной
-    prev = None        # (конец предыдущей плиты по s, её отметка)
+    cum = [0.0]
     for (ax, az), (bx, bz) in zip(pts, pts[1:]):
-        L = math.hypot(bx-ax, bz-az)
-        ux, uz = (bx-ax)/L, (bz-az)/L
-        yaw = math.degrees(math.atan2(-uz, ux)) % 360.0
-        t = 0.0
-        while L - t > 3.0:
-            pick = None
-            for sl, rec in COBBLE:
-                if sl > L - t + 0.5:
-                    continue
-                cx, cz = ax + ux*(t + sl/2), az + uz*(t + sl/2)
-                lo, hi = slab_ground(cx, cz, sl, PAVE_W, yaw)
-                if lo is None:
-                    continue
-                if hi - lo <= PAVE_FLAT:
-                    pick = (sl, rec, cx, cz, (lo + hi)/2)
-                    break
-                if sl == COBBLE[-1][0] and hi - lo <= PAVE_MAX_DROP:
+        cum.append(cum[-1] + math.hypot(bx-ax, bz-az))
+    total = cum[-1]
+    s0 = 0.0
+    prev = None        # (конец предыдущей плиты по s, отметка её дальней кромки)
+    while total - s0 > 3.0:
+        pick = None
+        # ЦЕПЬ ОТМЕТОК. Севшая встык соседка начинается ровно там, где
+        # кончилась предыдущая — тогда стык нулевой по построению, а не по
+        # совпадению двух независимых замеров земли. На изломе улицы встык
+        # сесть нельзя (два жёстких прямоугольника под углом дают клин
+        # наложения), там соседку отодвигают на полметра — цепь это переживает:
+        # отметка переносится вперёд ПО ПРОФИЛЮ, а при нулевом зазоре добавка
+        # ровно нулевая, и «по построению» остаётся по построению.
+        chained = prev is not None and s0 - prev[0] < 1.5
+        h_ref = (prev[1] + profile_at(prof, s0) - profile_at(prof, prev[0])
+                 if chained else None)
+        for sl, rec in COBBLE:
+            if sl > total - s0 + 0.5:
+                continue
+            ax, az = poly_at(cum, pts, s0)
+            bx, bz = poly_at(cum, pts, s0 + sl)
+            Lc = math.hypot(bx-ax, bz-az) or 1e-6
+            ux, uz = (bx-ax)/Lc, (bz-az)/Lc
+            yaw = math.degrees(math.atan2(-uz, ux)) % 360.0
+            cx, cz = (ax+bx)/2, (az+bz)/2
+            lo, hi = slab_ground(cx, cz, sl, PAVE_W, yaw)
+            if lo is None:
+                continue
+            # ОТМЕТКА — С ОБЩЕГО ПРОФИЛЯ УЛИЦЫ, не со своего пятна.
+            # Половина допуска уходит в грунт, половина торчит; по
+            # максимуму пятна дальний край 24-метрового куска повисал над
+            # землёй на треть метра и было видно его исподнее.
+            flat_h = h_ref if chained else profile_at(prof, s0 + sl/2) + 0.03
+            cand = None
+            if hi - lo <= PAVE_FLAT:      # плоский кусок, как и прежде
+                cand = (rec, 0.0, flat_h)
+            else:
+                # ...а если плоский не лёг — пробуем НАКЛОННЫЙ той же длины.
+                want = ((profile_at(prof, s0 + sl) + 0.03 - h_ref) / sl if chained
+                        else (profile_at(prof, s0 + sl) - profile_at(prof, s0)) / sl)
+                k = quant_slope(want)
+                if k and abs(k) in COBBLE_S.get(sl, ()):
+                    # плита сажается СЕРЕДИНОЙ на профиль (наименьший увод),
+                    # а севшая встык — концом предыдущей
+                    h0 = (h_ref if chained
+                          else profile_at(prof, s0 + sl/2) + 0.03 - k*sl/2)
+                    if slope_fits(sl, cx, cz, yaw, ux, uz, k, h0):
+                        cand = (COBBLE_S[sl][abs(k)], k, h0)
+                if cand is None and sl == COBBLE[-1][0] and hi - lo <= PAVE_MAX_DROP:
                     # короткий кусок терпит перелом до PAVE_MAX_DROP; круче —
                     # мостовой тут не место, склон остаётся тропой
-                    pick = (sl, rec, cx, cz, (lo + hi)/2)
-            if pick is None:
-                t += 1.0
+                    cand = (rec, 0.0, flat_h)
+            if cand is None:
                 continue
-            sl, rec, cx, cz, _ = pick
-            # ОТМЕТКА — С ОБЩЕГО ПРОФИЛЯ УЛИЦЫ, не со своего пятна. Половина
-            # допуска уходит в грунт, половина торчит; по максимуму пятна
-            # дальний край 24-метрового куска повисал над землёй на треть
-            # метра и было видно его исподнее.
-            s_mid = run_s + t + sl/2
-            lvl = profile_at(prof, s_mid) + 0.03
+            rec_u, k, h0 = cand
+            # ЗАПРЕТЫ ПРОВЕРЯЮТСЯ ЗДЕСЬ ЖЕ, ВНУТРИ ПЕРЕБОРА ДЛИН, а не после
+            # него: 24-метровый кусок ложится ровнее всех и выбирается первым,
+            # но чаще всех же и упирается в чужое тело — а отвергнутый после
+            # перебора он уносил с собой и шанс шестиметрового встать на том
+            # же месте. Южный тракт от этого терял треть покрытия.
             poly = rect_poly(cx, cz, sl, PAVE_W, yaw)
             clash = any(poly_clip_area(list(poly), rect_poly(*p[:5])) > PAVE_OVERLAP
                         for p in PAVED)
-            # СТЫК НЕ БЫВАЕТ СТУПЕНЬКОЙ. Плита не гнётся: там, где улица круче
-            # PAVE_STEP/sl, соседки неизбежно разойдутся по высоте, и мостовая
-            # даст посреди улицы ровно ту кромку, ради которой у city-cobble
-            # делалась фаска. Такой участок остаётся тропой — это дело лестниц.
-            step_bad = (prev is not None and run_s + t - prev[0] < 0.6
-                        and abs(lvl - prev[1]) > PAVE_STEP)
-            if clash or step_bad or slab_blocked(cx, cz, sl, PAVE_W, yaw):
-                t += 1.0   # шаг вперёд, а не пропуск куска: на изломе угол
-                continue   # достаётся отрезку, пришедшему первым
-            c = math.cos(math.radians(yaw))
-            s = math.sin(math.radians(yaw))
-            ox = cx - (sl/2)*c - (PAVE_W/2)*s
-            oz = cz + (sl/2)*s - (PAVE_W/2)*c
-            house(rec, ox, lvl, oz, yaw, "мостовая: " + note)
-            PAVED.append((cx, cz, sl, PAVE_W, yaw, lvl))
-            prev = (run_s + t + sl, lvl)
-            n += 1
-            t += sl
-        run_s += L
+            # СТЫК НЕ БЫВАЕТ СТУПЕНЬКОЙ. Наклонный кусок снимает эту заботу
+            # там, где склон ему по силам, но у плоского она остаётся: где
+            # улица круче PAVE_STEP/sl, соседки разойдутся по высоте и дадут
+            # посреди улицы ровно ту кромку, ради которой делалась фаска.
+            if clash or (chained and abs(h0 - h_ref) > PAVE_STEP) \
+                    or slab_blocked(cx, cz, sl, PAVE_W, yaw):
+                continue
+            pick = (sl, rec_u, cx, cz, k, h0, yaw)
+            break
+        if pick is None:
+            # ШАГ ВПЕРЁД НА 0.25, А НЕ НА МЕТР. Так разрешается излом: два
+            # жёстких прямоугольника под углом друг к другу дают клин
+            # наложения глубиной 2y*tg(угол/2) — на 21 градусе это 1.7 м2 при
+            # ширине 6 м. Отодвинутая на полметра соседка ужимает клин до
+            # полуметра2, а осевую линию рвёт ровно на эти полметра — меньше
+            # шага человека, то есть шов, а не земля (критерий архитектора
+            # даёт на разрыв 1.0 м). Метровый шаг проскакивал это окно.
+            s0 += PAVE_NUDGE
+            continue
+        sl, rec, cx, cz, k, h0, yaw = pick
+        h1 = h0 + k*sl               # отметка дальней кромки
+        # У НАКЛОННОГО КУСКА ORIGIN — НИЖНЯЯ КРОМКА (замер wr-forge), а
+        # уклон идёт по локальному +X. Спуск по ходу улицы кладётся тем же
+        # куском, развёрнутым на 180: пятно то же, низ уходит вперёд.
+        yaw_u = yaw if k >= 0 else (yaw + 180.0) % 360.0
+        oy = h0 if k >= 0 else h1
+        c = math.cos(math.radians(yaw_u))
+        sn = math.sin(math.radians(yaw_u))
+        ox = cx - (sl/2)*c - (PAVE_W/2)*sn
+        oz = cz + (sl/2)*sn - (PAVE_W/2)*c
+        house(rec, ox, oy, oz, yaw_u, "мостовая: " + note)
+        PAVED.append((cx, cz, sl, PAVE_W, yaw_u,
+                      (h0 + h1)/2 + PAVE_TOP, abs(k)))
+        prev = (s0 + sl, h1)
+        n += 1
+        s0 += sl
     return n
 
 def check_paving():
@@ -991,7 +1174,12 @@ def check_paving():
     joints = 0
     for a, b in itertools.combinations(PAVED, 2):
         ar = poly_clip_area(rect_poly(*a[:5]), rect_poly(*b[:5]))
-        dy = abs(a[5] - b[5])
+        # СТУПЕНЬ МЕРЯЕТСЯ В ТОЧКЕ СТЫКА, А НЕ ПО ЦЕНТРАМ. У наклонных соседок
+        # центры разнесены по высоте на весь уклон куска, а игрок переступает
+        # там, где кромки сходятся: разность центров назвала бы дефектом
+        # именно ту пару, которая сошлась по построению.
+        mx, mz = (a[0] + b[0])/2, (a[1] + b[1])/2
+        dy = abs(slab_top(a, mx, mz) - slab_top(b, mx, mz))
         if ar > PAVE_OVERLAP:
             bad.append(f"плита на плите: {ar:.1f} м2, ступень {dy:.2f} м "
                        f"в ({a[0]:.0f},{a[1]:.0f})")
@@ -1012,6 +1200,53 @@ def check_paving():
         print("ПРОВЕРКА МОЩЕНИЯ:")
         for b in sorted(set(bad)):
             print("  -", b)
+
+AXIS_GAP = 1.0      # длиннейший разрыв на процессионной оси, м (критерий)
+AXIS_STEP = 0.25    # шаг проб: обязан быть заметно мельче порога разрыва
+
+def check_axis():
+    """КРИТЕРИЙ ПРИЁМКИ АРХИТЕКТОРА, живущий в конвейере, а не в переписке:
+    «ось ворота->рынок->замок проходится из конца в конец, не сходя с
+    мощения». В числах: длиннейший разрыв <= 1.0 м при шаге проб 0.25,
+    ступень на стыке <= 0.20, наложений 0. Проценты покрытия — справка:
+    разрыв короче шага человека читается швом между плитами, а три метра
+    голой земли — потерей нити, ради которой мощение и делается (гайд §10).
+    Линия замера — сами ломаные PLAN[roads] mat=stone, то есть ровно то, что
+    получает pave(): так снимается возражение «померил не ту линию».
+    Прибор и три корзины пар — от wr-forge, критерий — от wr-architect."""
+    if not PAVED:
+        return
+    print("СВЯЗНОСТЬ МОЩЕНИЯ (шаг проб %.2f м):" % AXIS_STEP)
+    for i, rd in enumerate(PLAN["roads"]):
+        if rd["mat"] != "stone":
+            continue
+        pts, sm = rd["pts"], []
+        acc = 0.0
+        for (ax, az), (bx, bz) in zip(pts, pts[1:]):
+            L = math.hypot(bx-ax, bz-az)
+            for j in range(max(1, int(round(L/AXIS_STEP)))):
+                f = j / max(1, int(round(L/AXIS_STEP)))
+                sm.append((acc + L*f, ax + (bx-ax)*f, az + (bz-az)*f))
+            acc += L
+        sm.append((acc, pts[-1][0], pts[-1][1]))
+        lev = [max((slab_top(p, px, pz) for p in PAVED if slab_covers(p, px, pz)),
+                   default=None) for _, px, pz in sm]
+        gap = run = 0.0
+        for h in lev:
+            run = 0.0 if h is not None else run + AXIS_STEP
+            gap = max(gap, run)
+        worst, wat = 0.0, None
+        for j in range(1, len(sm)):
+            if lev[j] is None or lev[j-1] is None:
+                continue
+            if abs(lev[j] - lev[j-1]) > worst:
+                worst, wat = abs(lev[j] - lev[j-1]), sm[j]
+        pct = 100.0 * sum(h is not None for h in lev) / len(lev)
+        line = (f"  тракт #{i}: {acc:5.1f} м, покрытие {pct:5.1f}%, "
+                f"разрыв {gap:5.2f} м, ступень {worst:.3f} м")
+        if wat and worst > PAVE_STEP:
+            line += f" В ({wat[1]:.0f},{wat[2]:.0f}) — ВЫШЕ ПОРОГА"
+        print(line)
 
 def check_layout():
     import itertools
@@ -1347,7 +1582,7 @@ def main():
         house("city-cobble14x11.dfh", mx, my, mz, 0, "мостовая рынка")
         # площадь идёт в список уложенного: уличная плита обязана встать
         # ВСТЫК к ней, а не лечь поверх — соплоскостная пара мерцает
-        PAVED.append((mx + mw/2, mz + md/2, mw, md, 0.0, my + PAVE_TOP))
+        PAVED.append((mx + mw/2, mz + md/2, mw, md, 0.0, my + PAVE_TOP, 0.0))
     wx, wz = PLAN["market"]["well"]
     house("city-well.dfh", wx, my + (0.0 if no_cobble else PAVE_TOP), wz, 0,
           "колодец рынка")
@@ -1555,6 +1790,7 @@ def main():
         "built_commit =\n")
     check_layout()
     check_paving()
+    check_axis()
     print(f"whiterun v5: {len(H)} построек, {len(P)} расстановок, "
           f"{len(LIGHTS)} огней, {n_yard} дворовых предметов, {n_pave} плит мощения, "
           f"{len(terrain)} terrain-блоков, {len(relief_paths)} троп")
