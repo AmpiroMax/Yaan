@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 23:08:2026 - 02:07:35
+Last updated: 23:08:2026 - 02:15:40
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -232,6 +232,8 @@ UPD:
 - 23:08:2026 - 01:16:53: изотропная составляющая точечного света (u_lightIsoDose, слот 36.w, DFN_LIGHT_ISO): вплотную к огню поверхность горит со всех сторон — стекло, столб, чаша; 0 — бит-в-бит.
 - 23:08:2026 - 02:05:00: u_cloudLitDose (слот 14.x, DFN_CLOUD_LIT) — освещённое двухтоновое облако (Э5).
 - 23:08:2026 - 02:07:35: Э4 — DFN_CLOUD_CELLS_PX_ANISO (малая ось следа, доза DFN_CLOUD_ANISO, слот 14.y): рябь рабочей зоны от преждевременного площадного среднего по радиали.
+- 23:08:2026 - 02:13:26: Э3 — пятиоктавное листовое поле (сверх-октавы 0.25/0.50, mean/sd ЗАМЕРЕНЫ на 409600 образцах: 0.498204/0.104267); куб кумулюсов намеренно на прежней тройке; доза DFN_CLOUD_MACRO (слот 14.z), 0 = бит-в-бит.
+- 23:08:2026 - 02:15:40: u_cloudPathResDose (слот 38.w, DFN_CLOUD_PATHRES) — Э6.
   их мёртвыми на рыночном навесе (|dRGB| 0.003 между дозами) — испод сидит на
   0.30..0.34, порог 0.32 съедал эффект; запечатанный интерьер остаётся нулём.
 */
@@ -301,6 +303,8 @@ uniform vec4 u_envParams[50]; // 41..48 — коробки комнат; 49 — 
 #define u_lightIsoDose      (u_envParams[36].w)
 #define u_cloudLitDose      (u_envParams[14].x)
 #define u_cloudAnisoDose    (u_envParams[14].y)
+#define u_cloudMacroDose    (u_envParams[14].z)
+#define u_cloudPathResDose  (u_envParams[38].w)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
@@ -508,8 +512,35 @@ float dfn_cloud_octave_lod(float cells_px, float freq)
 // to 0.035 at EVERY rate and the surviving structure keeps its full contrast.
 // Rule 31: the uncorrelated-equal-variance premise the residual rests on was
 // MEASURED, not assumed (CloudModel.cpp / CloudModelTests.cpp).
+// Э3 (волна 23.08): ДВЕ СВЕРХ-ОКТАВЫ 0.25/0.50 (2.4 км и 1.2 км при
+// wavelength 600 м). Три октавы одной декады давали в зените клетку 11.7°
+// дуги («мраморная лента» на пол-неба), а у горизонта все три уходили под
+// пиксель ОДНОВРЕМЕННО — 170 строк кадра байт-в-байт константой. Макро-
+// октавы переживают в 4x/2x больший cells_px и лечат оба конца одной
+// правкой. Веса: прежняя тройка, сжатая в 0.6 (структура рабочей зоны
+// сохраняет большинство амплитуды), макро-пара делит остаток 0.40 тем же
+// соотношением ~1.96 на октаву (0.135/0.265). Mean/SD НЕ тождество, а
+// ЗАМЕР: 409600 образцов CPU-зеркала (шаг 0.731, несоизмерим с решёткой)
+// дали mean 0.498204, sd 0.104267 при ||w|| 0.485776; sd/||w|| = 0.21464
+// против 0.21370 у тройки — некоррелированность подтверждена с точностью
+// 0.44%. Куб кумулюсов (field3, кольцо на фиксированных 20 км) от болезни
+// проекции не страдает и НАМЕРЕННО остаётся на прежней тройке — его
+// mean/sd не перемеряются. Доза DFN_CLOUD_MACRO, 0 — прежнее поле
+// бит-в-бит.
+#define DFN_CLOUD_MACRO_MEAN 0.498204
+#define DFN_CLOUD_MACRO_SD 0.104267
+#define DFN_CLOUD_MACRO_W_NORM 0.485776
 float dfn_cloud_lod_residual(float cells_px)
 {
+    if (u_cloudMacroDose > 0.5) {
+        float wa = 0.135 * dfn_cloud_octave_lod(cells_px, 0.25);
+        float wb = 0.265 * dfn_cloud_octave_lod(cells_px, 0.50);
+        float w0 = 0.330 * dfn_cloud_octave_lod(cells_px, 1.00);
+        float w1 = 0.168 * dfn_cloud_octave_lod(cells_px, 2.03);
+        float w2 = 0.102 * dfn_cloud_octave_lod(cells_px, 4.07);
+        return sqrt(wa * wa + wb * wb + w0 * w0 + w1 * w1 + w2 * w2)
+             / DFN_CLOUD_MACRO_W_NORM;
+    }
     float w0 = 0.55 * dfn_cloud_octave_lod(cells_px, 1.00);
     float w1 = 0.28 * dfn_cloud_octave_lod(cells_px, 2.03);
     float w2 = 0.17 * dfn_cloud_octave_lod(cells_px, 4.07);
@@ -519,6 +550,28 @@ float dfn_cloud_lod_residual(float cells_px)
 float dfn_cloud_field(vec2 p, float cells_px)
 {
     vec2 q = p / max(u_cloudWavelength, 1.0);
+    // Пятиоктавная рука Э3 — см. блок над dfn_cloud_lod_residual.
+    if (u_cloudMacroDose > 0.5) {
+        float wa = 0.135 * dfn_cloud_octave_lod(cells_px, 0.25);
+        float wb = 0.265 * dfn_cloud_octave_lod(cells_px, 0.50);
+        float v0 = 0.330 * dfn_cloud_octave_lod(cells_px, 1.00);
+        float v1 = 0.168 * dfn_cloud_octave_lod(cells_px, 2.03);
+        float v2 = 0.102 * dfn_cloud_octave_lod(cells_px, 4.07);
+        float raw = 0.5
+                  + (dfn_cloud_vnoise(q * 0.25 + vec2(5.0, 71.0)) - 0.5) * wa
+                  + (dfn_cloud_vnoise(q * 0.50 + vec2(29.0, 113.0)) - 0.5) * wb
+                  + (dfn_cloud_vnoise(q) - 0.5) * v0
+                  + (dfn_cloud_vnoise(q * 2.03 + vec2(17.0, 31.0)) - 0.5) * v1
+                  + (dfn_cloud_vnoise(q * 4.07 + vec2(47.0, 89.0)) - 0.5) * v2;
+        float sd_lod = DFN_CLOUD_MACRO_SD
+                     * (sqrt(wa * wa + wb * wb + v0 * v0 + v1 * v1 + v2 * v2)
+                        / DFN_CLOUD_MACRO_W_NORM);
+        float mean_lod = 0.5 + (DFN_CLOUD_MACRO_MEAN - 0.5)
+                                   * (wa + wb + v0 + v1 + v2);
+        float z = (raw - mean_lod)
+                / max(sd_lod, DFN_CLOUD_MACRO_SD * 1e-4);
+        return 1.0 / (1.0 + exp(-1.702 * z));
+    }
     float w0 = 0.55 * dfn_cloud_octave_lod(cells_px, 1.00);
     float w1 = 0.28 * dfn_cloud_octave_lod(cells_px, 2.03);
     float w2 = 0.17 * dfn_cloud_octave_lod(cells_px, 4.07);

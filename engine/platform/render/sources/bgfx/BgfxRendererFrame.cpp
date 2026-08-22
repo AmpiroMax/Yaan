@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 02:07:35
+Last updated: 23:08:2026 - 02:15:40
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -202,6 +202,8 @@ UPD:
 - 23:08:2026 - 01:16:53: packed[36].w — доза DFN_LIGHT_ISO (изотропная доля точечного света, дефолт 1).
 - 23:08:2026 - 02:05:56: packed[14].x — доза DFN_CLOUD_LIT (освещённое облако, дефолт 1).
 - 23:08:2026 - 02:07:35: packed[14].y — доза DFN_CLOUD_ANISO (анизотропный фильтр поля облаков, дефолт 1).
+- 23:08:2026 - 02:13:26: packed[14].z — доза DFN_CLOUD_MACRO (сверх-октавы поля, дефолт 1).
+- 23:08:2026 - 02:15:40: packed[38].w — доза DFN_CLOUD_PATHRES (дефолт 1).
   бит-в-бит).
 */
 
@@ -559,6 +561,22 @@ static float cloud_aniso_dose() {
     return dose;
 }
 
+// Доза макро-октав облачного поля (DFN_CLOUD_MACRO, слот 14.z): сверх-октавы
+// 2.4/1.2 км против «мраморной ленты» в зените и мёртвой константы у
+// горизонта. 0 = прежняя тройка октав бит-в-бит.
+static float cloud_macro_dose() {
+    static const float dose = dose_env_override("DFN_CLOUD_MACRO", 1.0f);
+    return dose;
+}
+
+// Доза потолка пути по остаточному разбросу (DFN_CLOUD_PATHRES, слот 39.z):
+// у горизонта, где поле вернуло среднее, непрозрачность не копится.
+// 0 = жёсткий DECK_PATH_MAX бит-в-бит.
+static float cloud_pathres_dose() {
+    static const float dose = dose_env_override("DFN_CLOUD_PATHRES", 1.0f);
+    return dose;
+}
+
 static float moon_ground_gain() {
     static const float value = dose_env_override("DFN_MOON_GROUND",
                           static_cast<float>(config::MOON_GROUND_GAIN));
@@ -665,7 +683,8 @@ void BgfxRenderer::Impl::apply_environment() const {
         // fs_terrain — переключаются одной дверью).
         {hemi_bounce_dose(), e.path_tiles_per_m, path_mat_dose(),
          light_soft_dose()},
-        {cloud_lit_dose(), cloud_aniso_dose(), 0.0f, e.star_intensity},
+        {cloud_lit_dose(), cloud_aniso_dose(), cloud_macro_dose(),
+         e.star_intensity},
     };
     // Lights come from the ORDERED array (order_lights), not straight from
     // the environment: shadow casters must occupy the first slots because
@@ -723,7 +742,8 @@ void BgfxRenderer::Impl::apply_environment() const {
     // .z = THE MIDDLE DECK'S THICKNESS in metres, half a coverage cell (see
     // dfn_env.sh, u_deckThick). DFN_DECK_THICK is the dose and 0 restores the
     // flat sheet exactly.
-    packed[38] = {fill_up, fill_sun, deck_thickness_m(), 0.0f};
+    packed[38] = {fill_up, fill_sun, deck_thickness_m(),
+                  cloud_pathres_dose()};
     // THE CLOUD DECK ALTITUDES (slot 39), low / mid / high, meters. They were
     // shader #defines; the ceiling's HEIGHT is now a field of weather and place
     // (R3.4), so it arrives per frame. It travels as ONE slot because its two

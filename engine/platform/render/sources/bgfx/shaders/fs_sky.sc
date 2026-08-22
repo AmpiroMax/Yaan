@@ -156,6 +156,10 @@ $input v_dir
 // усреднение уже дают DECK_SLICES вдоль луча, а max() валил поле в среднее
 // преждевременно — горизонтальная рябь рабочей зоны неба.
 
+// UPD 23:08:2026 - 02:15:40: Э6 — потолок пути через ярус привязан к остаточному
+// разбросу поля (mix(1, DECK_PATH_MAX, residual)): непрозрачность не копится
+// там, где структура уже вернула площадное среднее. Доза DFN_CLOUD_PATHRES.
+
 #include <bgfx_shader.sh>
 #include "dfn_env.sh"
 
@@ -542,9 +546,17 @@ void main()
         // (1-a)^n. It is 1 at the zenith by arithmetic (300 m of travel against
         // a 600 m cell) and 1 at zero thickness by construction, so both the old
         // frame and the control fall out of the same expression.
+        // Э6 (волна 23.08): потолок пути — ПО ОСТАТОЧНОМУ РАЗБРОСУ. Жёсткий
+        // DECK_PATH_MAX = 12 копил непрозрачность у горизонта там, где поле
+        // уже вернуло площадное среднее — структуры нет, а крышка есть; на
+        // разрешимом небе потолок остаётся прежним. Доза DFN_CLOUD_PATHRES
+        // (слот 38.w), 0 — прежний жёсткий потолок бит-в-бит.
+        float pmax1 = u_cloudPathResDose > 0.5
+            ? mix(1.0, DECK_PATH_MAX, dfn_cloud_lod_residual(cpx1))
+            : DECK_PATH_MAX;
         float path1 = clamp((u_deckThick / max(dir.y, 0.001))
                             / max(u_cloudWavelength, 1.0),
-                            1.0, DECK_PATH_MAX);
+                            1.0, pmax1);
         float a1_mean = 0.0;
         float f1 = 0.0;
         for (int si = 0; si < DECK_SLICES; ++si) {
@@ -594,8 +606,11 @@ void main()
         vec2 p0 = eye.xz + dir.xz * dist0;
         float cpx0 = DFN_CLOUD_CELLS_PX_ANISO(p0);
         float thick0 = u_deckThick * DECK_LOW_THICK_FRAC;
+        float pmax0 = u_cloudPathResDose > 0.5
+            ? mix(1.0, DECK_PATH_MAX, dfn_cloud_lod_residual(cpx0))
+            : DECK_PATH_MAX;
         float path0 = clamp((thick0 / max(dir.y, 0.001))
-                            / max(u_cloudWavelength, 1.0), 1.0, DECK_PATH_MAX);
+                            / max(u_cloudWavelength, 1.0), 1.0, pmax0);
         float a0_mean = 0.0;
         for (int sj = 0; sj < DECK_SLICES; ++sj) {
             float sf0 = (float(sj) + 0.5) / float(DECK_SLICES);
