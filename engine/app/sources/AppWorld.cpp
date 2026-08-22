@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 22:08:2026 - 21:00:00
+Last updated: 22:08:2026 - 21:30:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -40,6 +40,9 @@ UPD:
   воздух прошлой карты не наследуется).
 - 22:08:2026 - 20:10:00: паром облачности [air] и её печать в строке [scene] air.
 - 22:08:2026 - 21:00:00: паром SceneLight.interior в ExtraLight.
+- 22:08:2026 - 21:30:00: спавн композиции: y = max(земля+0.2, y файла) — вверх
+  желание композитора (спавн на полу дома), вниз запрет (закопать нельзя).
+  Прежний «только с земли» ставил внутренний спавн ПОД пол постройки.
 */
 
 #include "engine/app/sources/App.h"
@@ -892,10 +895,18 @@ bool App::enter_world(uint32_t stand) {
             // scene: a shortcut that returns early does not announce which
             // twenty things it stopped doing.
             if (doc.has_spawn) {
+                // ВВЕРХ — ЖЕЛАНИЕ КОМПОЗИТОРА, ВНИЗ — ЗАПРЕТ (22.08). Прежняя
+                // строка брала y ТОЛЬКО с земли, и спавн «на полу таверны»
+                // вставал под пол дома (пол — коллайдер постройки, не
+                // террейн; цоколь 0.5 м, игрок застревал под ним — замер
+                // кузнеца). max() уважает файл, когда он просит ВЫШЕ земли
+                // (капсула сама осядет на пол), и по-прежнему не даёт
+                // закопать: y ниже земли читается как раньше — с земли.
+                const float ground_y =
+                    chunks_.height_at({doc.spawn.x, doc.spawn.z}).value_or(ground)
+                    + 0.2f;
                 scene_spawn_ = glm::vec3{
-                    doc.spawn.x,
-                    chunks_.height_at({doc.spawn.x, doc.spawn.z}).value_or(ground) + 0.2f,
-                    doc.spawn.z};
+                    doc.spawn.x, std::max(ground_y, doc.spawn.y), doc.spawn.z};
                 scene_spawn_yaw_ = doc.spawn_yaw;
                 std::fprintf(stderr, "[scene] spawn from the composition: "
                                      "(%.1f, %.1f, %.1f) yaw %.2f\n",
