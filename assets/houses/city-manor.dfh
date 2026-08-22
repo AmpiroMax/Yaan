@@ -105,44 +105,47 @@ vertex v103 free 12.4444 5.4600 7.5700
 vertex v104 free 14.0000 8.2000 3.5000
 vertex v105 free 14.0000 5.4600 -0.5700
 vertex v106 free 14.0000 5.4600 7.5700
-vertex v107 free 3.5000 8.5000 15.3500
-vertex v108 free 3.5000 8.5000 3.5000
-vertex v109 free -0.3500 5.7000 3.5000
-vertex v110 free -0.3500 5.7000 15.3500
-vertex v111 free 7.3500 5.7000 15.3500
-vertex v112 free 7.3500 5.7000 3.5000
-vertex v113 free -0.3500 5.6400 7.2000
-vertex v114 free -0.3500 5.6400 15.3500
-vertex v115 free -0.3500 5.5400 7.2000
-vertex v116 free -0.3500 5.5400 15.3500
-vertex v117 free 7.3500 5.6400 7.2000
-vertex v118 free 7.3500 5.6400 15.3500
-vertex v119 free 7.3500 5.5400 7.2000
-vertex v120 free 7.3500 5.5400 15.3500
-vertex v121 free 0.0000 5.8000 3.8500
-vertex v122 free 7.0000 5.8000 3.8500
-vertex v123 free 3.5000 8.5000 3.8500
-vertex v124 free 3.5000 8.5000 15.0000
-vertex v125 free 3.5000 8.5200 3.4500
-vertex v126 free 3.5000 8.5200 15.4000
-vertex v127 free 3.5000 8.2000 7.2000
-vertex v128 free -0.5700 5.4600 7.2000
-vertex v129 free 7.5700 5.4600 7.2000
-vertex v130 free 3.5000 8.2000 8.7600
-vertex v131 free -0.5700 5.4600 8.7600
-vertex v132 free 7.5700 5.4600 8.7600
-vertex v133 free 3.5000 8.2000 10.3200
-vertex v134 free -0.5700 5.4600 10.3200
-vertex v135 free 7.5700 5.4600 10.3200
-vertex v136 free 3.5000 8.2000 11.8800
-vertex v137 free -0.5700 5.4600 11.8800
-vertex v138 free 7.5700 5.4600 11.8800
-vertex v139 free 3.5000 8.2000 13.4400
-vertex v140 free -0.5700 5.4600 13.4400
-vertex v141 free 7.5700 5.4600 13.4400
-vertex v142 free 3.5000 8.2000 15.0000
-vertex v143 free -0.5700 5.4600 15.0000
-vertex v144 free 7.5700 5.4600 15.0000
+vertex v107 free 11.0000 5.4000 1.1000
+vertex v108 free 11.0000 9.2500 1.1000
+vertex v109 free 11.0000 9.4300 1.1000
+vertex v110 free 3.5000 8.5000 15.3500
+vertex v111 free 3.5000 8.5000 3.5000
+vertex v112 free -0.3500 5.7000 3.5000
+vertex v113 free -0.3500 5.7000 15.3500
+vertex v114 free 7.3500 5.7000 15.3500
+vertex v115 free 7.3500 5.7000 3.5000
+vertex v116 free -0.3500 5.6400 7.2000
+vertex v117 free -0.3500 5.6400 15.3500
+vertex v118 free -0.3500 5.5400 7.2000
+vertex v119 free -0.3500 5.5400 15.3500
+vertex v120 free 7.3500 5.6400 7.2000
+vertex v121 free 7.3500 5.6400 15.3500
+vertex v122 free 7.3500 5.5400 7.2000
+vertex v123 free 7.3500 5.5400 15.3500
+vertex v124 free 0.0000 5.8000 3.8500
+vertex v125 free 7.0000 5.8000 3.8500
+vertex v126 free 3.5000 8.5000 3.8500
+vertex v127 free 3.5000 8.5000 15.0000
+vertex v128 free 3.5000 8.5200 3.4500
+vertex v129 free 3.5000 8.5200 15.4000
+vertex v130 free 3.5000 8.2000 7.2000
+vertex v131 free -0.5700 5.4600 7.2000
+vertex v132 free 7.5700 5.4600 7.2000
+vertex v133 free 3.5000 8.2000 8.7600
+vertex v134 free -0.5700 5.4600 8.7600
+vertex v135 free 7.5700 5.4600 8.7600
+vertex v136 free 3.5000 8.2000 10.3200
+vertex v137 free -0.5700 5.4600 10.3200
+vertex v138 free 7.5700 5.4600 10.3200
+vertex v139 free 3.5000 8.2000 11.8800
+vertex v140 free -0.5700 5.4600 11.8800
+vertex v141 free 7.5700 5.4600 11.8800
+vertex v142 free 3.5000 8.2000 13.4400
+vertex v143 free -0.5700 5.4600 13.4400
+vertex v144 free 7.5700 5.4600 13.4400
+vertex v145 free 3.5000 8.2000 15.0000
+vertex v146 free -0.5700 5.4600 15.0000
+vertex v147 free 7.5700 5.4600 15.0000
 surface e1 v1 v2 v3 v4 v5 v6 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1 wear=0.3
 line e2 v7 v8 style=- radius=0.12 mat=3 tone=2
 line e3 v9 v10 style=- radius=0.12 mat=3 tone=2
@@ -221,17 +224,17 @@ line e75 v101 v102 style=- radius=0.08 mat=0 tone=2
 line e76 v101 v103 style=- radius=0.08 mat=0 tone=2
 line e77 v104 v105 style=- radius=0.08 mat=0 tone=2
 line e78 v104 v106 style=- radius=0.08 mat=0 tone=2
-surface e79 v107 v108 v109 v110 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.35
-surface e80 v108 v107 v111 v112 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.35
-line e81 v113 v114 style=- radius=0.12 form=plank mat=1 tone=1
-line e82 v115 v116 style=- radius=0.09 mat=0 tone=2
-line e83 v117 v118 style=- radius=0.12 form=plank mat=1 tone=1
-line e84 v119 v120 style=- radius=0.09 mat=0 tone=2
-surface e85 v121 v122 v123 style=- closed=1 thickness=0.12 mat=0 tone=1
-surface e86 v16 v20 v124 style=- closed=1 thickness=0.12 mat=0 tone=1
-line e87 v125 v126 style=- radius=0.14 mat=0 tone=2
-line e88 v127 v128 style=- radius=0.08 mat=0 tone=2
-line e89 v127 v129 style=- radius=0.08 mat=0 tone=2
+line e79 v107 v108 style=- radius=0.36 form=square mat=3 tone=1 wear=0.45
+line e80 v108 v109 style=- radius=0.48 form=square mat=3 tone=1 wear=0.45
+surface e81 v110 v111 v112 v113 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.35
+surface e82 v111 v110 v114 v115 style=- closed=1 thickness=0.15 mat=1 tone=1 fill=7 wear=0.35
+line e83 v116 v117 style=- radius=0.12 form=plank mat=1 tone=1
+line e84 v118 v119 style=- radius=0.09 mat=0 tone=2
+line e85 v120 v121 style=- radius=0.12 form=plank mat=1 tone=1
+line e86 v122 v123 style=- radius=0.09 mat=0 tone=2
+surface e87 v124 v125 v126 style=- closed=1 thickness=0.12 mat=0 tone=1
+surface e88 v16 v20 v127 style=- closed=1 thickness=0.12 mat=0 tone=1
+line e89 v128 v129 style=- radius=0.14 mat=0 tone=2
 line e90 v130 v131 style=- radius=0.08 mat=0 tone=2
 line e91 v130 v132 style=- radius=0.08 mat=0 tone=2
 line e92 v133 v134 style=- radius=0.08 mat=0 tone=2
@@ -242,3 +245,5 @@ line e96 v139 v140 style=- radius=0.08 mat=0 tone=2
 line e97 v139 v141 style=- radius=0.08 mat=0 tone=2
 line e98 v142 v143 style=- radius=0.08 mat=0 tone=2
 line e99 v142 v144 style=- radius=0.08 mat=0 tone=2
+line e100 v145 v146 style=- radius=0.08 mat=0 tone=2
+line e101 v145 v147 style=- radius=0.08 mat=0 tone=2

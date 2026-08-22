@@ -56,6 +56,9 @@ vertex v54 free 4.5000 2.5600 6.5700
 vertex v55 free 6.0000 4.3000 3.0000
 vertex v56 free 6.0000 2.5600 -0.5700
 vertex v57 free 6.0000 2.5600 6.5700
+vertex v58 free 3.0000 2.5000 1.1000
+vertex v59 free 3.0000 5.2000 1.1000
+vertex v60 free 3.0000 5.3800 1.1000
 surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1 wear=0.65
 line e2 v5 v6 style=- radius=0.12 mat=0 tone=2
 line e3 v7 v8 style=- radius=0.12 mat=0 tone=2
@@ -93,3 +96,5 @@ line e34 v52 v53 style=- radius=0.08 mat=0 tone=2
 line e35 v52 v54 style=- radius=0.08 mat=0 tone=2
 line e36 v55 v56 style=- radius=0.08 mat=0 tone=2
 line e37 v55 v57 style=- radius=0.08 mat=0 tone=2
+line e38 v58 v59 style=- radius=0.32 form=square mat=3 tone=1 wear=0.78
+line e39 v59 v60 style=- radius=0.44 form=square mat=3 tone=1 wear=0.78

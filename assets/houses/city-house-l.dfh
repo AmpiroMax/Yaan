@@ -92,6 +92,9 @@ vertex v90 free 8.3333 5.6850 8.5700
 vertex v91 free 10.0000 8.7250 4.0000
 vertex v92 free 10.0000 5.6850 -0.5700
 vertex v93 free 10.0000 5.6850 8.5700
+vertex v94 free 5.0000 5.6250 1.1000
+vertex v95 free 5.0000 9.7250 1.1000
+vertex v96 free 5.0000 9.9050 1.1000
 surface e1 v1 v2 style=- height=0.525 thickness=0.4 mat=3 tone=1 fill=3 wear=0.6
 surface e2 v3 v1 style=- height=0.525 thickness=0.4 mat=3 tone=1 fill=3 wear=0.6
 surface e3 v2 v4 style=- height=0.525 thickness=0.4 mat=3 tone=1 fill=3 wear=0.6
@@ -150,3 +153,5 @@ line e55 v88 v89 style=- radius=0.08 mat=0 tone=2
 line e56 v88 v90 style=- radius=0.08 mat=0 tone=2
 line e57 v91 v92 style=- radius=0.08 mat=0 tone=2
 line e58 v91 v93 style=- radius=0.08 mat=0 tone=2
+line e59 v94 v95 style=- radius=0.34 form=square mat=3 tone=1 wear=0.5
+line e60 v95 v96 style=- radius=0.46 form=square mat=3 tone=1 wear=0.5
