@@ -1,0 +1,126 @@
+<!--
+Created: 23:08:2026 - 02:05:00
+Last updated: 23:08:2026 - 02:05:00
+Module: docs/reports
+File: docs/reports/whiterun-wave-23-08.html
+
+Responsibility:
+- Отчёт владельцу по волне 23.08: крит «дома в земле» (фундаменты + крыльца),
+  световая волна (изотропия, мерцание, джиттер, скотопик), вердикты круга 6.
+  Картинки — в whiterun-wave-23-08/img (пары «до/после» одной позой).
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- Это СНИМОК на дату: числа и вердикты не обновляются сами; новая волна —
+  новый отчёт или правка этого с UPD-записью.
+-->
+<!--
+UPD:
+- 23:08:2026 - 02:05:00: Создан по запросу владельца («давай новый отчет хтмл»)
+  после фундаментной и световой волн и круга 6.
+-->
+<meta charset="utf-8">
+<title>Вайтран — волна 23.08</title>
+<style>
+  body{font-family:-apple-system,'Segoe UI',sans-serif;background:#14161a;color:#dcd7cd;
+       max-width:1360px;margin:0 auto;padding:24px 20px 80px;line-height:1.55}
+  h1{font-size:26px;margin:8px 0 2px} h2{font-size:20px;margin:38px 0 10px;color:#e8c87a}
+  h3{font-size:15px;margin:18px 0 6px;color:#b9c3cf}
+  .sub{color:#8b93a0;font-size:13px;margin-bottom:22px}
+  .sbs{display:flex;gap:10px;margin:10px 0 4px;flex-wrap:wrap}
+  .sbs figure{flex:1 1 420px;margin:0}
+  figure img{width:100%;border-radius:6px;display:block;border:1px solid #2a2e35}
+  figcaption{font-size:12.5px;color:#9aa3ae;padding:5px 2px 0}
+  .tag{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.4px;
+       padding:1px 8px;border-radius:4px;margin-right:6px;vertical-align:1px}
+  .before .tag{background:#5b2b2b;color:#f0b9b9}.after .tag{background:#2b4a2e;color:#b9e8bd}
+  .note{font-size:13px;color:#a7afba;margin:2px 0 16px}
+  table{border-collapse:collapse;font-size:13.5px;margin:8px 0 18px;width:100%}
+  td,th{border:1px solid #2b2f36;padding:6px 10px;text-align:left;vertical-align:top}
+  th{background:#1b1e24;color:#c8cdd6}
+  .ok{color:#8fd695}.mid{color:#e2c56f}.bad{color:#e08a8a}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:12px;margin:12px 0}
+  ul{margin:6px 0 14px 20px;padding:0} li{margin:4px 0}
+  .small{font-size:12px;color:#7d8590}
+  code{background:#20242b;padding:1px 5px;border-radius:4px;font-size:12.5px}
+</style>
+
+<h1>Вайтран — волна 23.08</h1>
+<div class="sub">крит «дома в земле» · свет до ума · вердикты круга 6 · всё в main и запушено, бинарь свежий · прошлый отчёт: <code>whiterun-progress.html</code></div>
+
+<h2>Крит: дома сидели в земле — закрыто фундаментами</h2>
+<p class="note">Твой диагноз подтверждён прибором по земле <b>движка</b> (не по полю генератора): утоплены были <b>26 домов из 26</b>, худшие — замок +1.63 м, мельница +1.23 м, таверна +0.56 м. После волны: <b>0 из 26</b> (зазор пола +0.08 м), фундаментная лента нигде не висит (0 из 26, вкоп до −0.29 м). Итог в боевой: <b>502 отрезка ленты + 15 крылец</b> (подступёнок 15–20 см, проступь ровно 30 см), дорожки целятся в подножие лестницы. Бот прошёл осевую с заходом на крыльцо: 340 проб, ноль кадров вне земли.</p>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-wave-23-08/img/slope-BEFORE.jpg"><figcaption><span class="tag">ДО</span>дом на склоне: кровля садится в траву, стены не видно</figcaption></figure>
+  <figure class="after"><img src="whiterun-wave-23-08/img/slope-AFTER.jpg"><figcaption><span class="tag">ПОСЛЕ</span>та же поза: дом стоит на каменном цоколе, стены целиком над землёй</figcaption></figure>
+</div>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-wave-23-08/img/stairs-BEFORE.jpg"><figcaption><span class="tag">ДО</span>дверь: порог в склоне, захода нет</figcaption></figure>
+  <figure class="after"><img src="whiterun-wave-23-08/img/stairs-AFTER.jpg"><figcaption><span class="tag">ПОСЛЕ</span>крыльцо-ступени к двери, по ним ходится (бот проверил)</figcaption></figure>
+</div>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-wave-23-08/img/wall-BEFORE.jpg"><figcaption><span class="tag">ДО</span>стена: нижний венец под землёй</figcaption></figure>
+  <figure class="after"><img src="whiterun-wave-23-08/img/wall-AFTER.jpg"><figcaption><span class="tag">ПОСЛЕ</span>лента цоколя с выносом 15 см — стык дома с землёй читается</figcaption></figure>
+</div>
+<p class="note">Попутно вскрыта вторая гниль: все дельты рельефа считались от снимка натуральной земли, который никто не обновлял — дрейф доходил до 0.48 м молча. Теперь свежий замер земли — первый пункт перегенерации, а старое правило «дом врезается до полуметра» вычеркнуто из docs/HOUSES.md твоими словами.</p>
+<div class="grid">
+  <figure><img src="whiterun-wave-23-08/img/slope-battle.jpg"><figcaption>Контроль на боевой сцене после переключения: цоколь на месте</figcaption></figure>
+  <figure><img src="whiterun-wave-23-08/img/donjon-AFTER.jpg"><figcaption>Донжон: стоит на венцах, читается башней на скальном быке. Открытый вопрос: перепад под пятном 9.3 м — по-хорошему туда просится подпорная стенка террасы, а не лента</figcaption></figure>
+</div>
+
+<h2>Свет до ума</h2>
+<p class="note">Четыре механизма, все за дозовыми дверями (откат бит-в-бит), 92/92 зелёные.</p>
+<table>
+<tr><th>Что болело (круг 6)</th><th>Механизм</th></tr>
+<tr><td>«Фонарь не светит ни себе, ни столбу», «сбоку короб гаснет», «жаровня — чёрный столб при горящей чаше»</td><td><b>Изотропная составляющая</b>: чистый NdL — модель дальнего света; вплотную к пламени поверхность ловит свет со всех сторон, ненаправленная доля растёт с мягкостью. Столбы, стволы и чаши у огня перестали быть чёрными.</td></tr>
+<tr><td>«19 фонарей все бит-в-бит: ни джиттера радиуса, ни разброса температуры»</td><td><b>Лицо экземпляра</b>: яркость ±15%, радиус ±10%, теплота сдвигом каналов — хэшем позиции (не рандомом: две сборки одной руки побайтово равны). Шесть типов держат характер.</td></tr>
+<tr><td>«Ни фазы мерцания» — 13 жаровен горели как лампы накаливания</td><td><b>Мерцание</b> (ключ flicker): жаровни 0.70, горн 0.60, очаги 0.50 дышат двумя несоизмеримыми частотами с фазой из позиции — соседние вразнобой; стёкла фонарей почти ровные. Заморозка часа замирает и мерцание — приёмки детерминированы.</td></tr>
+<tr><td>«0 из 50 наружных источников с тенью»</td><td>Тень теперь <b>просят открытые огни</b> (жаровни, горн, огни площадей), а не стёкла — тень собственного короба мигала бы. Два слота кадра уходят ближайшим просящим.</td></tr>
+<tr><td>«Газон ночью держит полную дневную зелень — единственное цветное пятно» (топ-2)</td><td><b>Скотопическая ночь</b>: тёмное десатурируется к серому (палочки глаза не видят цвета), яркое — пламя, стёкла, пятна у огня — держит цвет. Без списка исключений по материалам.</td></tr>
+</table>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-wave-23-08/img/iso-before.jpg"><figcaption><span class="tag">ДО</span>ночь у сквера, чистый NdL: столб фонаря и низ ствола глохнут в чёрный</figcaption></figure>
+  <figure class="after"><img src="whiterun-wave-23-08/img/iso-after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>та же поза, изотропия: ствол и скамья горят от фонаря целиком (50% пикселей, сдвиг деликатный — max 38/255)</figcaption></figure>
+</div>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-wave-23-08/img/scot-before.jpg"><figcaption><span class="tag">ДО</span>ночь без скотопика: дальний газон и крона в полной дневной зелени</figcaption></figure>
+  <figure class="after"><img src="whiterun-wave-23-08/img/scot-after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>та же поза: тёмное посерело, освещённый фонарём круг остался тёплым</figcaption></figure>
+</div>
+<div class="grid">
+  <figure><img src="whiterun-wave-23-08/img/lamp-close.jpg"><figcaption>Фонарь рынка вблизи: стена ловит тёплый свет, надверный фонарик на фасаде</figcaption></figure>
+</div>
+<p class="note"><b>Осталось по свету, честно:</b> светящиеся ночью окна и двусторонняя эмиссия стекла фонаря — обоим нужен механизм эмиссивных материалов построек (у вершин альфа занята запечённым AO); это следующий движковый заход. И облачная «крышка» с видимым полюсом над головой — отдельная небесная волна.</p>
+
+<h2>Шевроны убиты (топ-1 круга 5)</h2>
+<p class="note">Корень: 1.8-метровая тропа на 2-метровой решётке вершин земли не разрешается по построению. Тропа теперь рисуется <b>из фрагмента</b> — растеризованная маска мира с шагом 25 см. Плюс городской нашёл баг единиц (третье число тропы писалось метрами, движок читал долей полуширины): ни у одной тропы не было плоской каменной вершины — мостовая растворялась дизером от осевой. Это и был «просвет зелени». Критик, та же поза и час: «решительная победа».</p>
+<div class="sbs">
+  <figure class="before"><img src="whiterun-wave-23-08/img/chevron-before.jpg"><figcaption><span class="tag">ДО</span>круг 5: зигзаги серых прямоугольников на газоне, бордюр висит</figcaption></figure>
+  <figure class="after"><img src="whiterun-wave-23-08/img/chevron-after.jpg"><figcaption><span class="tag">ПОСЛЕ</span>круг 6, та же поза: органичная вороная брусчатка</figcaption></figure>
+</div>
+<div class="grid">
+  <figure><img src="whiterun-wave-23-08/img/street-clean.jpg"><figcaption>Заодно: трава больше не растёт сквозь мостовую — сев пучков теперь знает про полотно (пучки стояли на камне гуще газона)</figcaption></figure>
+</div>
+
+<h2>Круг 6 — счёт и что дальше</h2>
+<p class="note">Счёт: <span class="ok">5 починено</span> · <span class="mid">7 лучше</span> · <span class="bad">14 без изменений · 4 регрессии</span>. Закрыто из видимого: шевроны, чёрные клинья AO, просвет зелени, пластины рынка, растворение мостовой. Из девяти твоих замечаний 22.08 полностью закрыты 2/3/7, крепко сдвинуты 1/6/8; по 4/5/9 критик прав — сквер утоплен в газоне, точки притяжения из одной палитры, кустов мало.</p>
+<h3>Его топ-5 → наш план</h3>
+<table>
+<tr><th>Боль</th><th>План</th></tr>
+<tr><td>Город — это газон: 14 домов врозь на лугу, городской ткани нет</td><td>Эпоха уплотнения: дворы, заборы по делу, хозпостройки, замощение ядра — большая городская волна, спланирую с архитектором</td></tr>
+<tr><td>Ночь не наступает (мостовая −57% — в цели, но булыжники читаются в 20 м от огня)</td><td>Скотопик уже смягчил; дальнейшее затемнение — после твоего взгляда на свежую ночь</td></tr>
+<tr><td>Одна «обоина из петель» на штукатурке, обшивке, скале и грунте</td><td>Следующий движковый заход: развести мотивы проц-текстур по материалам</td></tr>
+<tr><td>Сквер утоплен в траве, скамья невидима, цветы-«тарелки», Гилдергрин зелёный вместо розового</td><td>Городскому: поднять мощёный круг, расчистить траву; цветы — масштаб; розовая листва — ждёт твоего решения (перепекает атлас всех деревьев)</td></tr>
+<tr><td>Фонарь-квад: горит одной гранью</td><td>Эмиссивные материалы построек (тот же заход, что светящиеся окна)</td></tr>
+</table>
+<div class="grid">
+  <figure><img src="whiterun-wave-23-08/img/city-air.jpg"><figcaption>Глазами критика с воздуха: «луг с кольцевой оградой» — главный долг следующей эпохи</figcaption></figure>
+</div>
+
+<h2>Мелочи волны</h2>
+<ul>
+<li>Меню карт почищено: из вайтранов остался только боевой <code>whiterun</code>; девять проб агентов снесены, рабочим вписано правило убирать за собой.</li>
+<li>Трава гуще: пучки 5–12 травинок, плотность к середине полосы реестра.</li>
+<li>Доски обшивки стен — фаза, клоны ушли (критик подтвердил; следующий шаг — фаза камню).</li>
+</ul>
+
+<p class="small">Коммиты волны: 00e67ce…3c7fbdd (запушены). Приёмка фундаментов с позами пар: docs/acceptance/whiterun-footings-23-08/. Кадры кругов: scratchpad критиков 5–6. Прошлый отчёт: whiterun-progress.html.</p>
