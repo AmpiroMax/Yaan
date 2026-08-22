@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 22:08:2026 - 01:10:00
-# Last updated: 22:08:2026 - 02:00:00
+# Last updated: 22:08:2026 - 17:35:00
 # Module: tools
 # File: tools/gen_whiterun_plan.py
 #
@@ -254,7 +254,32 @@ house(112, 191, 8, 5, along(SOUTH,119,191)+90, "#a98f60", "конюшни", "E",
 EAST_RD = [(166,127),(180,129),(196,134)]
 house(178, 122, 9, 7, along(EAST_RD,178,128), "#b8894f", "постоялый двор", "S", walk=(178,127), kind="inn")
 
+GARDENS = [(92,74),(100,76),(120,72),(127,78),(112,68)]
+GARDEN_R = 8.0   # куст ближе этого к грядке — культура огорода, а не самосев
+
+def in_walls(x, z):
+    inside = False
+    n = len(wall); j = n - 1
+    for i in range(n):
+        xi, zi = wall[i]; xj, zj = wall[j]
+        if (zi > z) != (zj > z) and x < (xj - xi) * (z - zi) / (zj - zi) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+FELLED = []
+
 def tree(x, z, r, color, stroke, kind="bush"):
+    # ВЫРУБКА ВНУТРИ СТЕН (решение владельца): в городе остаётся ОДНО дерево —
+    # Гилдергрин. Берёзы внутри кольца снимаются все; кусты остаются только на
+    # грядках огородов — это культура, а не самосев. Ели и дубы стоят снаружи
+    # и не трогаются. Правится ЗДЕСЬ: чертёж — единственный источник состава.
+    if in_walls(x, z) and kind != "oak":
+        if kind == "bush" and min(math.hypot(x-gx, z-gz) for gx, gz in GARDENS) <= GARDEN_R:
+            pass
+        else:
+            FELLED.append((kind, x, z))
+            return
     TREES_X.append({"kind": kind, "x": x, "z": z})
     svg.append(f'<circle cx="{x*SC:.0f}" cy="{z*SC:.0f}" r="{r*SC:.1f}" fill="{color}" stroke="{stroke}" stroke-width="1.2" opacity="0.9"/>')
 for x, z in [(97,133),(100,131),(95,130), (137,116),(140,113), (85,97),(83,101), (119,132),(122,134)]:
@@ -285,6 +310,11 @@ if problems:
     print("ПРОБЛЕМЫ:"); [print(" -", p) for p in problems]
 else:
     print("проверки чисты: река и пересечения")
+_inside = [t for t in TREES_X if in_walls(t["x"], t["z"])]
+print(f"вырубка внутри стен: снято {len(FELLED)} "
+      f"({sum(1 for k,_,_ in FELLED if k=='birch')} берёз, "
+      f"{sum(1 for k,_,_ in FELLED if k=='bush')} кустов); "
+      f"осталось внутри {len(_inside)} — {[t['kind'] for t in _inside]}")
 
 grid = ['<g stroke="#00000018" stroke-width="1">']
 for i in range(0, 257, 32):
@@ -300,7 +330,7 @@ svg_body = "\n".join(['<svg viewBox="0 0 768 768" xmlns="http://www.w3.org/2000/
 html = """<!doctype html>
 <!--
 Created: 21:08:2026 - 23:30:00
-Last updated: 22:08:2026 - 02:00:00
+Last updated: 22:08:2026 - 17:35:00
 Module: docs
 File: docs/WHITERUN_PLAN.html
 Responsibility: чертёж Вайтрана (генерируется tools/gen_whiterun_plan.py;
@@ -312,6 +342,8 @@ UPD:
   дорожки с бордюрами, дуб-поляна, 8 башен, постоялый двор, автопроверки.
 - 22:08:2026 - 02:00:00: сведение с игрой: кромки зон сняты с рынка, дорога
   Восточных ворот севернее таверны, лавки раздвинуты, тропа к дубу 2 м.
+- 22:08:2026 - 17:35:00: вырубка внутри стен — 9 берёз и 12 кустов сняты,
+  в городе остаётся одно дерево (Гилдергрин) и кусты грядок в огородах.
 -->
 <meta charset="utf-8"><title>Схема Вайтрана v4.6</title>
 <body style="max-width:960px;margin:1.5em auto;font:15px/1.55 -apple-system,sans-serif;color:#222;background:#faf8f4;padding:0 1em">

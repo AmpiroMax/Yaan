@@ -83,285 +83,159 @@ yaw = 0.104720
 scale = 1
 
 [place]
-object = birch-forge-a
-pos = 97.000 31.410 133.000
-yaw = 0.000000
-scale = 1
-
-[place]
-object = birch-forge-b
-pos = 100.000 31.600 131.000
-yaw = 0.820305
-scale = 1
-
-[place]
-object = birch-forge-a
-pos = 95.000 31.160 130.000
-yaw = 1.640609
-scale = 1
-
-[place]
-object = birch-forge-b
-pos = 137.000 30.290 116.000
-yaw = 2.460914
-scale = 1
-
-[place]
-object = birch-forge-a
-pos = 140.000 30.070 113.000
-yaw = 3.281219
-scale = 1
-
-[place]
-object = birch-forge-b
-pos = 85.000 32.650 97.000
-yaw = 4.101524
-scale = 1
-
-[place]
-object = birch-forge-a
-pos = 83.000 31.990 101.000
-yaw = 4.921828
-scale = 1
-
-[place]
-object = birch-forge-b
-pos = 119.000 30.530 132.000
-yaw = 5.742133
-scale = 1
-
-[place]
-object = birch-forge-a
-pos = 122.000 29.870 134.000
-yaw = 0.279253
-scale = 1
-
-[place]
 object = spruce-forge-a
 pos = 36.000 27.920 50.000
-yaw = 1.099557
+yaw = 0.000000
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 41.000 27.950 46.000
-yaw = 1.919862
+yaw = 0.820305
 scale = 1
 
 [place]
 object = spruce-forge-b
 pos = 33.000 27.710 42.000
-yaw = 2.740167
+yaw = 1.640609
 scale = 1
 
 [place]
 object = spruce-forge-a
 pos = 46.000 27.950 53.000
-yaw = 3.560472
+yaw = 2.460914
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 40.000 27.710 58.000
-yaw = 4.380776
+yaw = 3.281219
 scale = 1
 
 [place]
 object = spruce-forge-b
 pos = 56.000 27.700 30.000
-yaw = 5.201081
+yaw = 4.101524
 scale = 1
 
 [place]
 object = spruce-forge-a
 pos = 61.000 27.710 34.000
-yaw = 6.021386
+yaw = 4.921828
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 52.000 27.020 26.000
-yaw = 0.558505
+yaw = 5.742133
 scale = 1
 
 [place]
 object = spruce-forge-b
 pos = 238.000 26.170 74.000
-yaw = 1.378810
+yaw = 0.279253
 scale = 1
 
 [place]
 object = spruce-forge-a
 pos = 244.000 24.950 80.000
-yaw = 2.199115
+yaw = 1.099557
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 234.000 24.950 84.000
-yaw = 3.019420
+yaw = 1.919862
 scale = 1
 
 [place]
 object = spruce-forge-b
 pos = 196.000 24.980 176.000
-yaw = 3.839724
+yaw = 2.740167
 scale = 1
 
 [place]
 object = spruce-forge-a
 pos = 202.000 26.600 182.000
-yaw = 4.660029
+yaw = 3.560472
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 208.000 25.130 174.000
-yaw = 5.480334
+yaw = 4.380776
 scale = 1
 
 [place]
 object = spruce-forge-b
 pos = 28.000 24.950 118.000
-yaw = 0.017453
+yaw = 5.201081
 scale = 1
 
 [place]
 object = spruce-forge-a
 pos = 24.000 24.950 126.000
-yaw = 0.837758
+yaw = 6.021386
 scale = 1
 
 [place]
 object = pine-forge-a
 pos = 32.000 24.950 128.000
-yaw = 1.658063
+yaw = 0.558505
 scale = 1
 
 [place]
 object = spruce-forge-b
 pos = 204.000 24.950 94.000
-yaw = 2.478368
+yaw = 1.378810
 scale = 1
 
 [place]
 object = spruce-forge-a
 pos = 210.000 24.950 100.000
-yaw = 3.298672
+yaw = 2.199115
 scale = 1
 
 [place]
 object = oak-forge-a
 pos = 84.000 25.950 222.000
-yaw = 4.118977
+yaw = 3.019420
 scale = 1
 
 [place]
 object = oak-forge-a
 pos = 89.000 25.940 226.000
-yaw = 4.939282
+yaw = 3.839724
 scale = 1
 
 [place]
 object = oak-forge-a
 pos = 152.000 24.950 226.000
-yaw = 5.759587
+yaw = 4.660029
 scale = 1
 
 [place]
 object = oak-forge-a
 pos = 150.000 25.770 60.000
-yaw = 0.296706
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 94.000 32.880 104.000
-yaw = 1.117011
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 110.000 33.400 88.000
-yaw = 1.937315
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 121.000 32.120 90.000
-yaw = 2.757620
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 98.000 29.760 142.000
-yaw = 3.577925
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 107.000 27.140 162.000
-yaw = 4.398230
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 131.000 27.370 155.000
-yaw = 5.218534
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 84.000 31.040 120.000
-yaw = 6.038839
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 93.000 31.530 122.000
-yaw = 0.575959
+yaw = 5.480334
 scale = 1
 
 [place]
 object = juniper-forge-a
 pos = 144.000 27.160 150.000
-yaw = 1.396263
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 78.000 26.830 160.000
-yaw = 2.216568
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 73.000 27.070 146.000
-yaw = 3.036873
+yaw = 0.017453
 scale = 1
 
 [place]
 object = juniper-forge-a
 pos = 86.000 34.510 72.000
-yaw = 3.857178
+yaw = 0.837758
 scale = 1
 
 [place]
 object = juniper-forge-a
 pos = 106.000 35.980 74.000
-yaw = 4.677482
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 134.000 30.470 92.000
-yaw = 5.497787
-scale = 1
-
-[place]
-object = juniper-forge-a
-pos = 143.000 29.200 116.000
-yaw = 0.034907
+yaw = 1.658063
 scale = 1
 
 [house]
