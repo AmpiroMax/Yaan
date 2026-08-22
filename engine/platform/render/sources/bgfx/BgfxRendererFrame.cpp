@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 15:05:00
+Last updated: 22:08:2026 - 17:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -185,6 +185,7 @@ UPD:
   (AMBIENT_OVERCAST_GAIN x cover x shadow, гейт по высоте солнца). Дверь дозы
   DFN_AMBIENT_OVERCAST, 0 = прежний кадр бит-в-бит. Здесь, а не в CloudModel:
   упаковка кадра — чистая функция состояния, скомпаундиться негде.
+- 22:08:2026 - 17:10:00: packed[40].z = доза горизонтного свечения неба (DFN_SKY_GLOW).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -631,8 +632,10 @@ void BgfxRenderer::Impl::apply_environment() const {
     // and resizing it has stopped this project's build twice in one day, so a
     // free component is worth more than a tidy grouping.
     packed[39] = {e.cloud_deck_m, moon_ground_gain()};
-    // Slot 40: the foliage edge-fade band (see foliage_edge_band).
-    packed[40] = {foliage_edge_band().x, foliage_edge_band().y, 0.0f, 0.0f};
+    // Slot 40: the foliage edge-fade band (see foliage_edge_band); .z — доза
+    // горизонтного свечения неба (u_skyGlowDose, dfn_sky_gradient).
+    static const float sky_glow = dose_env_override("DFN_SKY_GLOW", 1.0f);
+    packed[40] = {foliage_edge_band().x, foliage_edge_band().y, sky_glow, 0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};

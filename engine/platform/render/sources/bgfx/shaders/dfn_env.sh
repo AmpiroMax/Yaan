@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 16:08:2026 - 22:11:47
+Last updated: 22:08:2026 - 17:10:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -207,6 +207,10 @@ UPD:
 - 13:08:2026 - 23:18:00: Правка ЗАПИСИ, не кода: предыдущая запись была датирована завтрашним числом (14:08 02:12 при стенных 22:44) и вклинена МЕЖДУ первой и второй строками записи про толщину яруса — один документ читался как два, и ни один не читался верно. Блок UPD есть собственная хронология файла: запись, датированная позже тех, что за ней последовали, или вложенная внутрь чужой, делает порядок событий нечитаемым, а за порядком в него и приходят.
 - 16:08:2026 - 22:11:47: слот 40 — ПОЛОСА ФЕЙДА ЛИСТВЫ ПО РАКУРСУ (lo/hi в |dot(N,V)|), двери
   DFN_FOLIAGE_EDGE_LO / DFN_FOLIAGE_EDGE_HI.
+- 22:08:2026 - 17:10:00: третий стоп неба — горизонтное свечение в dfn_sky_gradient
+  (нижние ~6°, тёплый подъём того же цвета горизонта; лента 175.8..175.4
+  люма на 48 строк была насыщением двухстопного mix). Доза DFN_SKY_GLOW
+  через u_envParams[40].z, 0 = прежний градиент бит-в-бит.
 */
 
 #ifndef DFN_ENV_SH
@@ -846,6 +850,10 @@ void dfn_screen_door(float fade, vec2 pixel)
 // entirely, which is the control arm out of the same binary (Rule 47).
 #define u_foliageEdgeLo (u_envParams[40].x)
 #define u_foliageEdgeHi (u_envParams[40].y)
+// Доза горизонтного свечения неба (DFN_SKY_GLOW, 0 = прежний двухстопный
+// градиент бит-в-бит). Свободная компонента слота 40 — заведена ПАРОЙ с
+// упаковкой в BgfxRendererFrame.cpp, как того требует контракт слоя.
+#define u_skyGlowDose   (u_envParams[40].z)
 
 // Surface lighting shared by terrain and props, so night, moonlight and the
 // carried torch can never disagree between them.
@@ -975,7 +983,19 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
 vec3 dfn_sky_gradient(vec3 dir)
 {
     float up = clamp(dir.y, 0.0, 1.0);
-    return mix(u_skyZenith, u_skyHorizon, pow(1.0 - up, 3.0));
+    // ТРЕТИЙ СТОП — ГОРИЗОНТНОЕ СВЕЧЕНИЕ (22.08, приёмка [11]: нижние 5°
+    // неба держали 175.8..175.4 люма на 48 строк кадра — двухстопный mix у
+    // горизонта насыщается по построению, pow(1-up,3) там всюду ~1 и лента
+    // мертва; это же записано в docs/specs/render.md DEFERRED п.3). Узкий
+    // тёплый подъём в нижние ~6°: 1-up*9 зануляется выше 0.11 по y, квадрат
+    // делает край мягким. Тёплая доля лежит В ЦВЕТЕ, а не в отдельной
+    // палитре: свечение — то же небо у земли, гуще и теплее, и dfn_aerial
+    // рисует дальнюю гряду ровно этим же цветом — шов невозможен по
+    // построению. DFN_SKY_GLOW — доза, 0 = прежний градиент бит-в-бит.
+    vec3 base = mix(u_skyZenith, u_skyHorizon, pow(1.0 - up, 3.0));
+    float glow = pow(clamp(1.0 - up * 9.0, 0.0, 1.0), 2.0);
+    vec3 glow_col = u_skyHorizon * vec3(1.10, 1.04, 0.95);
+    return mix(base, glow_col, glow * u_skyGlowDose);
 }
 
 // AERIAL PERSPECTIVE (REFERENCE_FRAMES.md R1) — HOW MUCH OF A SURFACE SURVIVES
