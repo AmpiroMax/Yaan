@@ -310,6 +310,18 @@ yaw = 0.000000
 note = убранство: ЗАМОК
 
 [house]
+file = assets/houses/furn-column-h281.dfh
+pos = 95.100 37.586 63.900
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-column-h281.dfh
+pos = 104.900 37.586 63.900
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
 file = assets/houses/furn-shelf.dfh
 pos = 107.050 37.586 62.400
 yaw = 4.712389
@@ -385,6 +397,18 @@ note = убранство: усадьба
 file = assets/houses/furn-shelf.dfh
 pos = 84.397 33.461 86.983
 yaw = 0.291457
+note = убранство: усадьба
+
+[house]
+file = assets/houses/furn-column-h272.dfh
+pos = 87.002 33.461 93.927
+yaw = 1.862253
+note = убранство: усадьба
+
+[house]
+file = assets/houses/furn-column-h272.dfh
+pos = 85.335 33.461 88.372
+yaw = 1.862253
 note = убранство: усадьба
 
 [house]
@@ -648,6 +672,18 @@ note = убранство: ЙОРРВАСКР 45°
 [house]
 file = assets/houses/furn-bench.dfh
 pos = 129.919 31.732 102.677
+yaw = 2.356194
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-column-h341.dfh
+pos = 132.005 31.732 109.217
+yaw = 2.356194
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-column-h341.dfh
+pos = 128.611 31.732 105.823
 yaw = 2.356194
 note = убранство: ЙОРРВАСКР 45°
 
@@ -997,6 +1033,18 @@ note = убранство: таверна
 file = assets/houses/furn-shelf.dfh
 pos = 129.924 28.139 158.175
 yaw = 3.141593
+note = убранство: таверна
+
+[house]
+file = assets/houses/furn-column-h272.dfh
+pos = 129.424 28.139 150.775
+yaw = 4.712389
+note = убранство: таверна
+
+[house]
+file = assets/houses/furn-column-h272.dfh
+pos = 129.424 28.139 156.575
+yaw = 4.712389
 note = убранство: таверна
 
 [house]
@@ -1561,6 +1609,18 @@ note = убранство: постоялый двор
 file = assets/houses/furn-shelf.dfh
 pos = 182.893 25.801 119.568
 yaw = 4.570492
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-column-h272.dfh
+pos = 175.497 25.801 119.016
+yaw = 6.141288
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-column-h272.dfh
+pos = 181.239 25.801 119.836
+yaw = 6.141288
 note = убранство: постоялый двор
 
 [house]
