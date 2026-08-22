@@ -1,0 +1,73 @@
+# dfh 1
+vertex v1 free 0.0000 0.0000 0.0000
+vertex v2 free 0.8868 0.0000 0.2252
+vertex v3 free 0.8544 0.0000 0.2179
+vertex v4 free 2.6502 0.0000 0.5697
+vertex v5 free 2.6175 0.0000 0.5642
+vertex v6 free 4.4299 0.0000 0.8163
+vertex v7 free 4.3969 0.0000 0.8126
+vertex v8 free 6.2205 0.0000 0.9641
+vertex v9 free 6.1874 0.0000 0.9623
+vertex v10 free 8.0166 0.0000 1.0129
+vertex v11 free 7.9834 0.0000 1.0129
+vertex v12 free 9.8126 0.0000 0.9623
+vertex v13 free 9.7795 0.0000 0.9641
+vertex v14 free 11.6031 0.0000 0.8126
+vertex v15 free 11.5701 0.0000 0.8163
+vertex v16 free 13.3825 0.0000 0.5642
+vertex v17 free 13.3498 0.0000 0.5697
+vertex v18 free 15.1456 0.0000 0.2179
+vertex v19 free 15.1132 0.0000 0.2252
+vertex v20 free 16.0000 0.0000 0.0000
+vertex v21 free 0.5538 4.3000 -2.1808
+vertex v22 free 2.1848 4.3000 -1.8142
+vertex v23 free 3.8336 4.3000 -1.5383
+vertex v24 free 5.4950 4.3000 -1.3539
+vertex v25 free 7.1642 4.3000 -1.2616
+vertex v26 free 8.8358 4.3000 -1.2616
+vertex v27 free 10.5050 4.3000 -1.3539
+vertex v28 free 12.1664 4.3000 -1.5383
+vertex v29 free 13.8152 4.3000 -1.8142
+vertex v30 free 15.4462 4.3000 -2.1808
+vertex v31 free 15.7169 4.3000 -1.1146
+vertex v32 free 14.0266 4.3000 -0.7347
+vertex v33 free 12.3179 4.3000 -0.4488
+vertex v34 free 10.5960 4.3000 -0.2577
+vertex v35 free 8.8662 4.3000 -0.1620
+vertex v36 free 7.1338 4.3000 -0.1620
+vertex v37 free 5.4040 4.3000 -0.2577
+vertex v38 free 3.6821 4.3000 -0.4488
+vertex v39 free 1.9734 4.3000 -0.7347
+vertex v40 free 0.2831 4.3000 -1.1146
+vertex v41 free 0.4485 6.0000 0.1105
+vertex v42 free 1.3266 6.0000 0.3075
+vertex v43 free 2.7119 6.0000 0.5669
+vertex v44 free 3.6018 6.0000 0.7010
+vertex v45 free 5.0020 6.0000 0.8614
+vertex v46 free 5.8992 6.0000 0.9320
+vertex v47 free 7.3072 6.0000 0.9926
+vertex v48 free 8.2072 6.0000 0.9993
+vertex v49 free 9.6159 6.0000 0.9598
+vertex v50 free 10.5141 6.0000 0.9026
+vertex v51 free 11.9165 6.0000 0.7632
+vertex v52 free 12.8083 6.0000 0.6423
+vertex v53 free 14.1973 6.0000 0.4037
+vertex v54 free 15.0783 6.0000 0.2198
+surface e1 v1 v2 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e2 v3 v4 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e3 v5 v6 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e4 v7 v8 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e5 v9 v10 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e6 v11 v12 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e7 v13 v14 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e8 v15 v16 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e9 v17 v18 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e10 v19 v20 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e11 v21 v22 v23 v24 v25 v26 v27 v28 v29 v30 v31 v32 v33 v34 v35 v36 v37 v38 v39 v40 style=- closed=1 thickness=0.2 mat=1 tone=2 unsupported=1
+surface e12 v41 v42 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e13 v43 v44 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e14 v45 v46 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e15 v47 v48 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e16 v49 v50 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e17 v51 v52 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e18 v53 v54 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
