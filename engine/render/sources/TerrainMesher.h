@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 10:08:2026 - 01:47:53
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/TerrainMesher.h
 
@@ -49,6 +49,9 @@ UPD:
   of the straddle-ring fix (see TerrainLod.cpp UPD of the same date): cells
   wholly inside the chunk-streamed rectangle are not emitted and skirts hang
   along the cut boundary. Empty clip keeps the emission path bit-identical.
+- 23:08:2026 - 00:30:00: PathClassField/pack_path_alpha — материал полотна в альфе вершины
+  (2 бита класса + 6 бит износа), «нет тропы» остаётся 255. Одна упаковка
+  на все мешеры кадра — контракт с разбором в fs_terrain.
 */
 
 #pragma once
@@ -79,6 +82,37 @@ struct TerrainMeshData {
 /// Stage-2 compatible form: slope-only splat weights (no surface data).
 [[nodiscard]] TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field);
 
+/// МАТЕРИАЛ ПОЛОТНА ПО МЕСТУ (22.08, владелец: «тропинки опять плитами
+/// кладутся, а не тропинкой каменной»). Композиция знает, ГДЕ идёт мостовая,
+/// а где стёжка; ядро несёт только износ. Поле — полилинии с полушириной и
+/// классом путевого атласа (0 мостовая / 1 укатанный грунт / 2 стёжка /
+/// 3 тёсаные плиты); мешер спрашивает класс ТОЛЬКО там, где износ ненулевой.
+struct PathClassStroke {
+    std::vector<glm::vec2> points; ///< уже растянутая полилиния (дуга снаружи)
+    float half_width_m = 1.5f;
+    uint8_t path_class = 1;
+};
+struct PathClassField {
+    std::vector<PathClassStroke> strokes;
+    /// Класс ближайшего мазка, чьё полотно накрывает точку (последний
+    /// нарисованный выигрывает — поздний мазок ложится поверх); мимо всех —
+    /// fallback (сеть ядра — укатанный грунт).
+    [[nodiscard]] uint8_t class_at(glm::vec2 xz, uint8_t fallback = 1) const;
+};
+
+/// АЛЬФА ТРОПЫ С МАТЕРИАЛОМ: 2 бита класса + 6 бит обратного износа.
+/// «Нет тропы» остаётся 255 (класс 3, износ 0 — шейдер рисует ноль), поэтому
+/// меш без сети байт-в-байт прежний. Обе решётки — эта упаковка и разбор в
+/// fs_terrain — обязаны меняться вместе (контракт).
+[[nodiscard]] inline uint8_t pack_path_alpha(float wear, uint8_t cls) {
+    if (wear <= 0.0f) {
+        return 255;
+    }
+    const int wi = std::clamp(
+        static_cast<int>(std::lround((1.0f - wear) * 63.0f)), 0, 62);
+    return static_cast<uint8_t>((static_cast<int>(cls & 3u) << 6) | wi);
+}
+
 /// Extra meshing choices. Everything here defaults to the chunk behaviour, so
 /// the two calls above are exactly `build_terrain_mesh(field, surface, {})`.
 struct TerrainMeshOptions {
@@ -104,6 +138,12 @@ struct TerrainMeshOptions {
     /// against differently-latticed chunk meshes and cracks the same way.
     glm::vec2 clip_min{0.0f};
     glm::vec2 clip_max{0.0f};
+
+    /// Поле классов полотна; nullptr = прежняя 8-битная упаковка износа.
+    /// НЕ nullptr — новая упаковка pack_path_alpha, и она обязана быть ОДНОЙ
+    /// на всех мешерах кадра (LOD-кольцо включительно): шейдер разбирает
+    /// альфу одним правилом на весь кадр.
+    const PathClassField* path_classes = nullptr;
 };
 
 /// Full form. Skirt vertices are appended AFTER the resolution^2 grid vertices,

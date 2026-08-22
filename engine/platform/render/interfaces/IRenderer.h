@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 22:08:2026 - 21:00:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -102,6 +102,8 @@ UPD:
   пока не появится тот, кто о ней не знает; в этом проекте он появлялся трижды.
   Если мир физически не заходит под полосу, накладываться нечему.
 - 22:08:2026 - 21:00:00: PointLight.interior (только добавление, правило 26): гейт интерьерного света небесной видимостью приёмника — 6 из 8 источников без теневого слота светили сквозь стены (occl = 1.0), волна убранства (24 очага) оживила спящий дефект.
+- 23:08:2026 - 00:30:00: DrawParams.aux2_texture (стадия 5, путевой атлас террейна) и
+  RenderEnvironment.path_tiles_per_m — оба ТОЛЬКО ДОБАВЛЕНИЯ (правило 26).
 */
 
 #pragma once
@@ -227,6 +229,11 @@ struct DrawParams {
     // every mesh producer bytes for one material's benefit. The backend's
     // shaders build the basis from screen-space derivatives instead.
     TextureHandle aux_texture{};
+    // ВТОРОЙ ДОПОЛНИТЕЛЬНЫЙ ЛИСТ (стадия 5) — путевой атлас для террейна:
+    // клетки материалов полотна троп (COBBLE/PACKED_EARTH/SCUFFED/CUT_SLAB).
+    // ДОБАВЛЕНИЕ к контракту (правило 26, только рост); невалидный хендл —
+    // прежний кадр, бэкенд подставляет нейтральный лист ради Metal.
+    TextureHandle aux2_texture{};
 };
 
 // ---- Debug / editor introspection (В28) -------------------------------------
@@ -279,6 +286,10 @@ struct RenderEnvironment {
     glm::vec3 ambient_color{0.35f};
     glm::vec3 fog_color{0.63f, 0.71f, 0.80f};    // == sky horizon for seamless blend
     float fog_start_m = 300.0f;
+    // Повторов путевого атласа на МЕТР полотна (материал троп в земле, 22.08).
+    // Едет из look-dev (PATH_TILES_PER_M) через окружение, а не зеркалом в
+    // бэкенде: на зеркале 320/160 эта волна уже обожглась.
+    float path_tiles_per_m = 0.45f;
     float fog_end_m = 850.0f;
     glm::vec3 sky_zenith_color{0.25f, 0.42f, 0.66f};
     glm::vec3 sky_horizon_color{0.63f, 0.71f, 0.80f};

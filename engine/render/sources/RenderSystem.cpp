@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 22:08:2026 - 18:40:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -173,6 +173,8 @@ UPD:
   один кадр).
 - 22:08:2026 - 18:40:00: потоки построек идут через visible_or_casting — с пространственной
   нарезкой ключа (AppHouse) отсечению снова есть что отвергать.
+- 23:08:2026 - 00:30:00: поле классов уходит в оба мешера; путевой атлас едет в террейн-дро
+  вторым доп. листом (aux2, стадия 5).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -959,6 +961,14 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             terrain_params.aux_texture.id = it->second;
         }
     }
+    // Путевой атлас (стадия 5): материал полотна троп — клетки, которые
+    // fs_terrain кладёт самой землёй. Без него подстановка бэкенда — синяя
+    // нейтральная нормаль, и тропы красились бы ею (поймано дымовой парой
+    // 23.08 — фиолетовая стёжка).
+    if (const auto it = texture_cache_.find(path_atlas_asset_);
+        it != texture_cache_.end()) {
+        terrain_params.aux2_texture.id = it->second;
+    }
     for (const auto& [coord, res] : terrain_meshes_) {
         if (!visible_or_casting(frustum, res.bounds, cull_eye)) {
             continue;
@@ -972,7 +982,8 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // submitted AFTER the chunk terrain so that in the one case the two can
     // overlap (a streamed rectangle not aligned to the 128 m node grid) the
     // near, finer surface has already written depth.
-    lod_.draw(renderer, frustum, terrain, atlas, terrain_params.aux_texture);
+    lod_.draw(renderer, frustum, terrain, atlas, terrain_params.aux_texture,
+              terrain_params.aux2_texture);
 
     // The §8.1 PATH SURFACE, drawn after the ground it lies on. Depth alone
     // would resolve the order (the tread sits PATH_GROOVE_DEPTH proud of the
@@ -1340,7 +1351,9 @@ void RenderSystem::upload_terrain(platform::IRenderer& renderer,
     // Explored map: the chunk is baked into the map the moment it streams in,
     // and stays there after unload (drop_terrain frees the GPU mesh only).
     map_.note_chunk(field, surface);
-    const TerrainMeshData data = build_terrain_mesh(field, surface);
+    TerrainMeshOptions mesh_options;
+    mesh_options.path_classes = path_classes_set_ ? &path_classes_ : nullptr;
+    const TerrainMeshData data = build_terrain_mesh(field, surface, mesh_options);
     if (data.vertices.empty()) {
         return;
     }
@@ -1373,7 +1386,8 @@ void RenderSystem::upload_terrain_voxel(platform::IRenderer& renderer,
     if (field != nullptr) {
         map_.note_chunk(*field, surface);
     }
-    const TerrainMeshData data = build_voxel_terrain_mesh(mesh, surface);
+    const TerrainMeshData data = build_voxel_terrain_mesh(
+        mesh, surface, path_classes_set_ ? &path_classes_ : nullptr);
     if (data.vertices.empty()) {
         return; // solid or empty chunk
     }

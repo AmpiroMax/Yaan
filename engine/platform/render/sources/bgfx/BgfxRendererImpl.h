@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 15:05:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -104,6 +104,7 @@ UPD:
   забранное у ключа (вывод из сохранения энергии в комментарии константы);
   цена 160 м переписана честно: полоса 160..300 м без теней и без тумана —
   предусловие городского пресета воздушной перспективы.
+- 23:08:2026 - 00:30:00: s_tex_path — сэмплер путевого атласа (стадия 5).
 */
 
 #pragma once
@@ -535,6 +536,8 @@ struct BgfxRenderer::Impl {
     // (w carries the near cascade's push-off) and the spread travels with the
     // two uv-per-texel factors the shader needs to apply it.
     bgfx::UniformHandle u_shadow_soft = BGFX_INVALID_HANDLE;
+    // Путевой атлас террейна (стадия 5, DrawParams::aux2_texture).
+    bgfx::UniformHandle s_tex_path = BGFX_INVALID_HANDLE;
     bool shadow_active = false;   // this frame: sun above threshold + resources ok
     // The sun shadow map's LIGHT-SPACE view matrix for this frame. Valid only
     // while shadow_active; `submit` uses it to reject casters that cannot

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 22:08:2026 - 21:00:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -168,6 +168,8 @@ UPD:
 - 22:08:2026 - 20:10:00: set_air_override принимает стартовую облачность карты — пишется
   один раз (расписание погоды и DFN_CLOUD выигрывают).
 - 22:08:2026 - 21:00:00: interior у ExtraLight/PointLightCandidate — флаг доезжает до PointLight.
+- 23:08:2026 - 00:30:00: set_path_classes — поле классов полотна от композиции; действует на
+  чанки, воксельную землю и LOD одной упаковкой.
 */
 
 #pragma once
@@ -487,6 +489,17 @@ public:
     /// Back to the global constants (a map without [air] must not inherit the
     /// previous map's air).
     void clear_air_override() { air_override_set_ = false; }
+
+    /// ПОЛЕ КЛАССОВ ПОЛОТНА (22.08, владелец: «тропинки опять плитами
+    /// кладутся, а не тропинкой каменной»): материал троп композиции — в
+    /// самой земле. Пишется приложением после чтения .relief; действует на
+    /// чанки, воксельную землю и LOD-кольцо ОДНОЙ упаковкой альфы (см.
+    /// TerrainMesher.h). Пустой вызов возвращает прежнюю упаковку.
+    void set_path_classes(PathClassField field) {
+        path_classes_ = std::move(field);
+        path_classes_set_ = !path_classes_.strokes.empty();
+        lod_.set_path_classes(path_classes_set_ ? &path_classes_ : nullptr);
+    }
 
     // Water plane capability (stage 3) -----------------------------------------
     // Creates (or replaces) a flat water plane at world height `height_m`
@@ -853,6 +866,9 @@ private:
     /// crack in the colour). Handed to every foliage draw as
     /// DrawParams::aux_texture; 0 until the atlas is built.
     uint32_t leaf_normal_asset_ = 0;
+    // Поле классов полотна троп (см. set_path_classes()).
+    PathClassField path_classes_;
+    bool path_classes_set_ = false;
     // Воздух композиции ([air]): см. set_air_override().
     bool air_override_set_ = false;
     float air_fog_start_m_ = 0.0f;

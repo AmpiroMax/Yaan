@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 19:05:00
-Last updated: 18:08:2026 - 12:38:09
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/world
 File: engine/world/sources/ReliefLayer.cpp
 
@@ -31,6 +31,8 @@ UPD:
   «мягкость» двигает НАЧАЛО спада — ровно как жёсткость у кисти.
   В ФАЙЛ ПИШУТСЯ ТОЧКИ, А НЕ ОТСЧЁТЫ: тропа, сохранённая мазками, потом не
   правится — композитор редактировал бы след своего решения вместо решения.
+- 23:08:2026 - 00:30:00: path читает/пишет необязательное третье число — класс полотна 0..3;
+  файл из двух чисел читается как раньше (укатанный грунт).
 */
 
 #include "engine/world/sources/ReliefLayer.h"
@@ -567,6 +569,18 @@ bool read_relief(const std::filesystem::path& path, ReliefLayer& out,
             flush_path();
             current.half_width_m = half;
             current.edge_softness = soft;
+            // Третье число НЕОБЯЗАТЕЛЬНО — материал полотна (0..3, порядок
+            // путевого атласа). Старый файл из двух чисел читается как
+            // раньше: укатанный грунт.
+            current.path_class = 1;
+            if (int cls = 0; in >> cls) {
+                if (cls < 0 || cls > 3) {
+                    return fail("класс полотна тропы вне 0..3");
+                }
+                current.path_class = cls;
+            } else {
+                in.clear();
+            }
             in_path = true;
             continue;
         }
@@ -646,7 +660,11 @@ bool write_relief(const ReliefLayer& layer, const std::filesystem::path& path) {
     // their order IS authored data — it is the order the composer's list shows
     // and the index his tool deletes by.
     for (const ReliefPath& path : layer.paths()) {
-        out << "path " << path.half_width_m << ' ' << path.edge_softness << "\n";
+        out << "path " << path.half_width_m << ' ' << path.edge_softness;
+        if (path.path_class != 1) {
+            out << ' ' << path.path_class; // класс полотна; грунт — умолчание
+        }
+        out << "\n";
         for (const glm::vec2& pt : path.points) {
             out << "pp " << pt.x << ' ' << pt.y << "\n";
         }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 22:08:2026 - 15:40:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/LodTerrain.cpp
 
@@ -32,6 +32,7 @@ UPD:
   stand-in is built without carves, so inside a tunnel it is rock through the
   corridor's air, and a torch's cube map filled with it lights nothing.
 - 22:08:2026 - 15:40:00: params.aux_texture = aux — рельеф кольца тот же, что у чанков.
+- 23:08:2026 - 00:30:00: options.path_classes из хранимого указателя.
 */
 
 #include "engine/render/sources/LodTerrain.h"
@@ -148,6 +149,7 @@ void LodTerrain::upload(platform::IRenderer& renderer, const LodNode& node,
         options.clip_max = resident_.max;
     }
 
+    options.path_classes = path_classes_; // одна упаковка альфы на весь кадр
     const TerrainMeshData mesh = build_terrain_mesh(field, surface, options);
     if (mesh.vertices.empty() || mesh.indices.empty()) {
         return; // malformed view: leave whatever was resident alone
@@ -200,7 +202,8 @@ void LodTerrain::destroy_all(platform::IRenderer& renderer) {
 size_t LodTerrain::draw(platform::IRenderer& renderer, const math::Frustum& frustum,
                         platform::ProgramHandle program,
                         platform::TextureHandle atlas,
-                        platform::TextureHandle aux) const {
+                        platform::TextureHandle aux,
+                        platform::TextureHandle aux2) const {
     last_draw_count_ = 0;
     if (program.id == 0) {
         return 0;
@@ -219,6 +222,7 @@ size_t LodTerrain::draw(platform::IRenderer& renderer, const math::Frustum& frus
         // The relief sheet the chunk ground shades with — the coarse ring
         // must not go flat at the cross-fade seam (see the header).
         params.aux_texture = aux;
+        params.aux2_texture = aux2; // путевой атлас — тот же, что у чанков
         // A COARSE STAND-IN NEVER CASTS INTO A CARRIED LIGHT'S CUBE. These
         // nodes are built from the heightfield WITHOUT the carves, so inside
         // a tunnel their geometry is solid rock through the corridor's own

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 22:08:2026 - 13:45:06
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -116,6 +116,7 @@ UPD:
 - 22:08:2026 - 13:45:06: u_shadowSoft — юниформ мягкой тени (3x3 PCF в
   dfn_shadow.sh, решение владельца, отменяет в1). Создаётся и уничтожается
   рядом с остальным теневым состоянием.
+- 23:08:2026 - 00:30:00: s_texPath создаётся/уничтожается с остальными.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -465,6 +466,8 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
             bgfx::createUniform("u_lightMtxNear", bgfx::UniformType::Mat4);
         im.u_shadow_soft =
             bgfx::createUniform("u_shadowSoft", bgfx::UniformType::Vec4);
+        im.s_tex_path =
+            bgfx::createUniform("s_texPath", bgfx::UniformType::Sampler);
     }
 
     // Carried-light cube shadows: one colour atlas (linear distance / radius)
@@ -575,6 +578,7 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.s_shadow_map_near)) bgfx::destroy(im.s_shadow_map_near);
     if (bgfx::isValid(im.u_light_mtx_near)) bgfx::destroy(im.u_light_mtx_near);
     if (bgfx::isValid(im.u_shadow_soft)) bgfx::destroy(im.u_shadow_soft);
+    if (bgfx::isValid(im.s_tex_path)) bgfx::destroy(im.s_tex_path);
     if (bgfx::isValid(im.quad_ib)) bgfx::destroy(im.quad_ib);
     if (bgfx::isValid(im.quad_vb)) bgfx::destroy(im.quad_vb);
     if (bgfx::isValid(im.u_params)) bgfx::destroy(im.u_params);

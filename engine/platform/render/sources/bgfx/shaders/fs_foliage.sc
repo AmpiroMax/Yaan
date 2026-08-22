@@ -41,6 +41,7 @@ UPD:
   значение — это суждение о ВИДЕ, которое принимают по кадрам: пересборка на
   каждую догадку стоила бы минут вместо секунд. lo >= hi гасит фейд начисто —
   контрольная рука из того же бинарника (правило 47).
+- 23:08:2026 - 00:30:00: DFN_GATE_RECEIVER(sv)=1.0 — листва не бывает интерьерным приёмником.
 */
 
 // Foliage fragment shader: ALPHA CUTOUT (discard), never blending — cutout
@@ -48,6 +49,10 @@ UPD:
 // Two-sided lighting: a leaf card seen from behind must be lit, not black.
 
 #include <bgfx_shader.sh>
+// Листва отвечает гейту интерьерного света ЕДИНИЦЕЙ: её v_color0.a — затенение
+// кроны для ambient, не замкнутость помещения (приёмка гейта 22.08: пучок в
+// тени наружной стены светился от очага сквозь кладку, maxch 71).
+#define DFN_GATE_RECEIVER(sv) (1.0)
 #include "dfn_env.sh"
 #include "dfn_shadow.sh"
 

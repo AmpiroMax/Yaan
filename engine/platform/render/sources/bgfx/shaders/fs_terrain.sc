@@ -12,6 +12,8 @@ UPD:
 - 22:08:2026 - 21:50:00: третья рука дизера — DFN_DITHER8=2 гладкое смешение без
   порога (DFN_SEL): палитра выключена и разрешение FullHD, исходное
   обоснование дизера могло истечь; решает кадр стыка тремя руками.
+- 23:08:2026 - 00:30:00: материал полотна из альфы (2 бита класса + 6 бит износа) кладётся
+  клеткой путевого атласа САМОЙ землёй; доза 0 — прежняя грязь бит-в-бит.
 */
 $input v_color0, v_normal, v_texcoord0, v_wpos
 
@@ -51,6 +53,11 @@ SAMPLER2D(s_texColor, 0);
 // the aux-sheet contract (BgfxRendererSubmit binds a neutral 1x1 when no
 // draw supplies one); u_params.w > 0.5 = a real sheet is bound.
 SAMPLER2D(s_texAux, 4);
+// ПУТЕВОЙ АТЛАС (стадия 5, DrawParams::aux2_texture): клетки материалов
+// полотна троп в раскладке generate_path_atlas — (0,0) COBBLE, (1,0)
+// PACKED_EARTH, (0,1) SCUFFED, (1,1) CUT_SLAB. Читается только при
+// u_pathMatDose > 0.5 и ненулевом износе.
+SAMPLER2D(s_texPath, 5);
 uniform vec4 u_params;
 
 vec3 atlas_sample(vec2 tiled_uv, vec2 cell)
@@ -150,11 +157,34 @@ void main()
     // нарисованной текстурой» — after paths kept hovering: two surfaces built
     // from one field will always disagree somewhere, and ground cannot hover
     // over itself.
-    float path_w = 1.0 - v_color0.a;
-    // The trodden surface is the DIRT texel, darkened toward bare earth at the
-    // worn centre. Painted last so a path crosses sand and rock as a path —
-    // a trail over a shingle bank is still a trail.
-    albedo = mix(albedo, dirt * mix(1.0, 0.62, path_w), DFN_SEL(path_w));
+    // МАТЕРИАЛ ПОЛОТНА В САМОЙ ЗЕМЛЕ (22.08, владелец: «тропинки опять
+    // плитами кладутся, а не тропинкой каменной»). При дозе > 0.5 альфа несёт
+    // 2 бита класса + 6 бит обратного износа (контракт pack_path_alpha,
+    // TerrainMesher.h): мостовая, укатанный грунт, стёжка и тёсаные плиты —
+    // клетки путевого атласа, положенные ЗЕМЛЁЙ, а не настилом поверх неё.
+    // Грунтовые классы темнеют к протоптанному центру, как прежняя тропа;
+    // камень — нет: у мостовой нет «голой середины». Доза 0 — прежний
+    // 8-битный износ и прежняя грязь бит-в-бит.
+    float path_w;
+    vec3 path_col;
+    if (u_pathMatDose > 0.5) {
+        float a8 = floor(v_color0.a * 255.0 + 0.5);
+        float cls = floor(a8 / 64.0);
+        float wi = a8 - cls * 64.0;
+        path_w = 1.0 - wi / 63.0;
+        vec2 pcell = vec2(mod(cls, 2.0), floor(cls * 0.5));
+        path_col = texture2D(s_texPath,
+                             (pcell + fract(v_wpos.xz * u_pathTiles)) * 0.5).rgb;
+        float earthy = (cls == 1.0 || cls == 2.0) ? 1.0 : 0.0;
+        path_col *= mix(1.0, mix(1.0, 0.72, path_w), earthy);
+    } else {
+        path_w = 1.0 - v_color0.a;
+        // The trodden surface is the DIRT texel, darkened toward bare earth at
+        // the worn centre. Painted last so a path crosses sand and rock as a
+        // path — a trail over a shingle bank is still a trail.
+        path_col = dirt * mix(1.0, 0.62, path_w);
+    }
+    albedo = mix(albedo, path_col, DFN_SEL(path_w));
 
     // THE GROUND'S RELIEF (22.08, «земля — крашеный ковёр рядом со стеной с
     // рельефом»). The normal is picked by the SAME step()/bayer selections

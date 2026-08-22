@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 22:08:2026 - 22:40:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -219,10 +219,19 @@ UPD:
 - 22:08:2026 - 22:40:00: ворота отскока сужены ((sky_vis-0.32)/0.22): широкая
   рампа душила испод навеса до долей процента (A/B: 347 пикселей из 3.7 млн);
   теперь испод крыльца +31 люма, запечатанный интерьер по-прежнему ноль.
+- 23:08:2026 - 00:30:00: u_pathTiles/u_pathMatDose (слот 13) и DFN_GATE_RECEIVER — листва
+  отвечает гейту интерьерного света единицей (её AO — крона, не комната;
+  приёмка: пучок в тени наружной стены светился от очага, maxch 71).
 */
 
 #ifndef DFN_ENV_SH
 #define DFN_ENV_SH
+
+// Приёмник гейта интерьерного света: по умолчанию sky_vis фрагмента;
+// шейдер листвы переопределяет ЕДИНИЦЕЙ до включения этого файла (см. гейт).
+#ifndef DFN_GATE_RECEIVER
+#define DFN_GATE_RECEIVER(sv) (sv)
+#endif
 
 // Cube shadows for the carried lights. Included here rather than by each
 // fragment shader because the light LOOP lives here: a torch that shadowed in
@@ -267,6 +276,9 @@ uniform vec4 u_envParams[41];
 // Отскок от земли для нижней полусферы (G3; слот 13 стоял зарезервированным
 // «was the single light»). DFN_AMBIENT_HEMI, 0 = без отскока бит-в-бит.
 #define u_hemiBounce        (u_envParams[13].x)
+// Повторов путевого атласа на метр полотна и доза материала троп (fs_terrain).
+#define u_pathTiles         (u_envParams[13].y)
+#define u_pathMatDose       (u_envParams[13].z)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
@@ -1016,7 +1028,15 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
         // и признана в плане; уличные жаровни флаг не ставят.
         float gate = 1.0;
         if (u_lightColor(i).w >= 2.0) {
-            gate = mix(1.0, clamp(1.0 - sky_vis, 0.0, 1.0), u_lightInteriorGate);
+            // DFN_GATE_RECEIVER: чем фрагмент отвечает гейту. По умолчанию —
+            // тем же sky_vis, что кормит ambient. ЛИСТВА переопределяет его
+            // единицей (fs_foliage): её v_color0.a — затенение кроны, не
+            // замкнутость помещения, и пучок в тени наружной стены читался
+            // интерьером ровно там, где за стеной горит очаг (приёмка гейта:
+            // maxch 71 на траве у таверны). Флора законным интерьерным
+            // приёмником не бывает — трава в доме это баг, а не случай.
+            gate = mix(1.0, clamp(1.0 - DFN_GATE_RECEIVER(sky_vis), 0.0, 1.0),
+                       u_lightInteriorGate);
         }
         light += u_lightColor(i).rgb * (atten * atten * (3.0 - 2.0 * atten) * occl
                     * gate * max(dot(n, to_light / max(dist, 0.0001)), 0.0));

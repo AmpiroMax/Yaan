@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 22:08:2026 - 15:40:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/LodTerrain.h
 
@@ -67,11 +67,14 @@ UPD:
 - 22:08:2026 - 15:40:00: draw() принимает aux-лист нормалей — кольцо обязано шейдить рельеф
   как чанковая земля, иначе шов LOD мигает плоскостью; заметка о марже
   тени обновлена под полуохват 160 (маржа выросла до 3.2x).
+- 23:08:2026 - 00:30:00: set_path_classes — кольцо пакует альфу тем же правилом, что чанки:
+  разные упаковки при одном дозовом разборе читались бы мусорными классами.
 */
 
 #pragma once
 
 #include "engine/core/math/sources/Aabb.h"
+#include "engine/render/sources/TerrainMesher.h"
 #include "engine/core/math/sources/Frustum.h"
 #include "engine/core/math/sources/HeightField.h"
 #include "engine/core/math/sources/SurfaceField.h"
@@ -167,7 +170,15 @@ public:
     /// the seam every re-selection.
     size_t draw(platform::IRenderer& renderer, const math::Frustum& frustum,
                 platform::ProgramHandle program, platform::TextureHandle atlas,
-                platform::TextureHandle aux = {}) const;
+                platform::TextureHandle aux = {},
+                platform::TextureHandle aux2 = {}) const;
+
+    /// Поле классов полотна (TerrainMesher.h). Кольцо обязано паковать альфу
+    /// ТЕМ ЖЕ правилом, что чанковая земля: шейдер разбирает её одним дозовым
+    /// правилом на весь кадр, и старая 8-битная упаковка на кольце при новой
+    /// на чанках читалась бы мусорными классами. Указатель живёт у владельца
+    /// (RenderSystem); nullptr = прежняя упаковка.
+    void set_path_classes(const PathClassField* classes) { path_classes_ = classes; }
 
     /// What the last update() decided to draw, with each node's fade. Exposed
     /// because a draw COUNT cannot see a wrong fade: a renderer that ignored
@@ -207,6 +218,7 @@ private:
     bool enabled_ = false;
     size_t selected_count_ = 0;
     mutable size_t last_draw_count_ = 0;
+    const PathClassField* path_classes_ = nullptr;
 };
 
 } // namespace dfn::render

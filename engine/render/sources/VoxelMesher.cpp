@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:40:00
-Last updated: 17:08:2026 - 11:54:29
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/VoxelMesher.cpp
 
@@ -37,6 +37,7 @@ UPD:
   даёт байт-в-байт прежние меши). Берётся из поля чанка по x/z вершины: РИСУЕМАЯ
   земля — это ЭТОТ меш, и тропа, нарисованная где-то ещё, была бы второй
   поверхностью поверх него — ровно той лентой, которая висела.
+- 23:08:2026 - 00:30:00: упаковка класса полотна при заданном поле.
 */
 
 #include "engine/render/sources/VoxelMesher.h"
@@ -52,7 +53,8 @@ UPD:
 namespace dfn::render {
 
 TerrainMeshData build_voxel_terrain_mesh(const math::VoxelMeshView& mesh,
-                                        const math::SurfaceFieldView* surface) {
+                                        const math::SurfaceFieldView* surface,
+                                        const PathClassField* path_classes) {
     TerrainMeshData out;
     const size_t count = mesh.positions.size();
     if (count == 0 || mesh.indices.empty()) {
@@ -98,7 +100,17 @@ TerrainMeshData build_voxel_terrain_mesh(const math::VoxelMeshView& mesh,
                                       + static_cast<std::size_t>(gx);
                 if (idx < surface->path_wear.size()) {
                     const float wear = std::clamp(surface->path_wear[idx], 0.0f, 1.0f);
-                    path_a = static_cast<uint8_t>(std::lround((1.0f - wear) * 255.0f));
+                    // С полем классов альфа несёт материал полотна (контракт
+                    // pack_path_alpha, TerrainMesher.h); без него — прежние
+                    // 8 бит износа бит-в-бит.
+                    path_a = path_classes != nullptr
+                        ? pack_path_alpha(wear,
+                              wear > 0.0f
+                                  ? path_classes->class_at(
+                                        {v.position.x, v.position.z})
+                                  : 1u)
+                        : static_cast<uint8_t>(
+                              std::lround((1.0f - wear) * 255.0f));
                 }
             }
         }

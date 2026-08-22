@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 11:00:00
-Last updated: 22:08:2026 - 18:40:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -70,6 +70,8 @@ UPD:
 - 22:08:2026 - 18:40:00: LOOKDEV_SHADOW_CASTER_KEEP_M 320 -> 160 — зеркало
   теневого полуохвата поехало вместе с ним (мягкие тени, BgfxRendererImpl.h);
   на 320 отсечение потоков построек не отвергало ничего на карте 256 м.
+- 23:08:2026 - 00:30:00: make_default_environment отдаёт PATH_TILES_PER_M в окружение —
+  без зеркала в бэкенде (на зеркале 320/160 эта волна уже обожглась).
 */
 
 #pragma once
@@ -341,6 +343,7 @@ make_default_environment(float sand_height_m = -1000.0f) {
     env.ambient_color = LOOKDEV_AMBIENT_COLOR;
     env.fog_color = LOOKDEV_SKY_HORIZON;
     env.fog_start_m = LOOKDEV_FOG_START_FRAC * static_cast<float>(config::CAMERA_FAR);
+    env.path_tiles_per_m = PATH_TILES_PER_M;
     env.fog_end_m = LOOKDEV_FOG_END_FRAC * static_cast<float>(config::CAMERA_FAR);
     env.sky_zenith_color = LOOKDEV_SKY_ZENITH;
     env.sky_horizon_color = LOOKDEV_SKY_HORIZON;

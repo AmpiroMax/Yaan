@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 22:20:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -192,6 +192,8 @@ UPD:
   дизера (палитра + 640x360) истекло. 0/1 — живые контрольные руки.
 - 22:08:2026 - 22:20:00: packed[13].x = hemi_bounce_dose() — зарезервированный слот занят
   отскоком от земли (G3).
+- 23:08:2026 - 00:30:00: packed[13].y = path_tiles_per_m окружения, .z = доза DFN_PATH_MAT
+  (0 = прежний 8-битный износ и прежняя грязь бит-в-бит).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -480,6 +482,12 @@ static float ground_tint_dose() {
 // the 7.43 above was read from.
 // Отскок от земли для нижней полусферы (G3, dfn_env.sh u_hemiBounce). Читается
 // один раз, как остальные дозы; 0 — прежний кадр бит-в-бит.
+// Доза материала троп в земле (fs_terrain, u_pathMatDose). Читается один раз.
+static float path_mat_dose() {
+    static const float value = dose_env_override("DFN_PATH_MAT", 1.0f);
+    return value;
+}
+
 static float hemi_bounce_dose() {
     static const float value = dose_env_override("DFN_AMBIENT_HEMI", 0.22f);
     return value;
@@ -585,7 +593,11 @@ void BgfxRenderer::Impl::apply_environment() const {
         // [13].x — отскок от земли для нижней полусферы (G3, u_hemiBounce):
         // доля солнца, которую освещённая земля отдаёт нижним граням.
         // 0.22 — порядок альбедо травы/пыли; DFN_AMBIENT_HEMI, 0 = бит-в-бит.
-        {hemi_bounce_dose(), 0.0f, 0.0f, 0.0f},
+        // .y — повторов путевого атласа на метр (u_pathTiles, из окружения);
+        // .z — доза материала троп (DFN_PATH_MAT: 0 = прежний 8-битный износ
+        // и прежняя грязь бит-в-бит; обе решётки — упаковка мешеров и разбор
+        // fs_terrain — переключаются одной дверью).
+        {hemi_bounce_dose(), e.path_tiles_per_m, path_mat_dose(), 0.0f},
         {0.0f, 0.0f, 0.0f, e.star_intensity},
     };
     // Lights come from the ORDERED array (order_lights), not straight from

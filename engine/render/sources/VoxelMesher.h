@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:00
-Last updated: 17:08:2026 - 11:54:29
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/VoxelMesher.h
 
@@ -46,6 +46,7 @@ UPD:
   invisible barrow).
 - 17:08:2026 - 11:53:47: build_voxel_terrain_mesh принимает поле поверхности (необязательное).
 - 17:08:2026 - 11:54:29: build_voxel_terrain_mesh принимает поле поверхности (необязательное).
+- 23:08:2026 - 00:30:00: параметр path_classes — та же упаковка, что у TerrainMesher.
 */
 
 #pragma once
@@ -63,8 +64,12 @@ namespace dfn::render {
 /// because THE DRAWN GROUND IS THIS MESH: a path painted anywhere else would
 /// be a second surface over this one, which is exactly the ribbon that used to
 /// hover (user, 17.08: «тропинки должны быть свойством земли»).
+/// `path_classes` — поле материалов полотна (TerrainMesher.h); nullptr =
+/// прежняя 8-битная упаковка износа бит-в-бит. Кодировка обязана быть одной
+/// на всех мешерах кадра.
 [[nodiscard]] TerrainMeshData build_voxel_terrain_mesh(
     const math::VoxelMeshView& mesh,
-    const math::SurfaceFieldView* surface = nullptr);
+    const math::SurfaceFieldView* surface = nullptr,
+    const PathClassField* path_classes = nullptr);
 
 } // namespace dfn::render

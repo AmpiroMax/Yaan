@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 22:08:2026 - 21:30:00
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -43,6 +43,7 @@ UPD:
 - 22:08:2026 - 21:30:00: спавн композиции: y = max(земля+0.2, y файла) — вверх
   желание композитора (спавн на полу дома), вниз запрет (закопать нельзя).
   Прежний «только с земли» ставил внутренний спавн ПОД пол постройки.
+- 23:08:2026 - 00:30:00: паром классов троп рельефа в render_system_.set_path_classes.
 */
 
 #include "engine/app/sources/App.h"
@@ -307,6 +308,24 @@ bool App::enter_world(uint32_t stand) {
             }
         }
         gp.composed_relief = relief_;
+        // МАТЕРИАЛ ПОЛОТНА — В ЗЕМЛЮ (22.08, владелец: «тропинки опять
+        // плитами кладутся, а не тропинкой каменной»). Классы троп рельефа
+        // уезжают в рендер полем полилиний: мешеры пакуют класс в альфу
+        // вершины, шейдер кладёт клетку путевого атласа САМОЙ землёй. Пустой
+        // рельеф возвращает прежнюю упаковку — старые карты не меняются.
+        {
+            render::PathClassField pcf;
+            pcf.strokes.reserve(relief_.paths().size());
+            for (const world::ReliefPath& rp : relief_.paths()) {
+                render::PathClassStroke st;
+                st.points = world::relief_path_polyline(rp);
+                st.half_width_m = rp.half_width_m;
+                st.path_class = static_cast<uint8_t>(
+                    std::clamp(rp.path_class, 0, 3));
+                pcf.strokes.push_back(std::move(st));
+            }
+            render_system_.set_path_classes(std::move(pcf));
+        }
     }
     // THE MAP IS CONTENT AND IT IS LOADED, NOT COMPILED IN (Rule 5). Core moved
     // 441 lines of ONE GAME'S survey -- Vaelmere, Ravenscar, Harrowward -- out

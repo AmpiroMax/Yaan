@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 17:08:2026 - 11:54:29
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -45,6 +45,8 @@ UPD:
   classes (verified row by row against both old tables before landing).
 - 17:08:2026 - 11:53:47: то же для heightfield-пути.
 - 17:08:2026 - 11:54:29: то же для heightfield-пути.
+- 23:08:2026 - 00:30:00: class_at (последний накрывший мазок выигрывает) и упаковка класса
+  при заданном поле; без поля — прежние 8 бит бит-в-бит.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -60,6 +62,34 @@ UPD:
 #include <cstdint>
 
 namespace dfn::render {
+
+uint8_t PathClassField::class_at(glm::vec2 xz, uint8_t fallback) const {
+    // Последний накрывший мазок выигрывает: поздний нарисован поверх.
+    uint8_t cls = fallback;
+    bool hit = false;
+    for (const PathClassStroke& st : strokes) {
+        const float reach = st.half_width_m + 0.75f; // запас на растушёвку кромки
+        const float r2 = reach * reach;
+        for (size_t i = 0; i + 1 < st.points.size(); ++i) {
+            const glm::vec2 a = st.points[i];
+            const glm::vec2 b = st.points[i + 1];
+            const glm::vec2 ab = b - a;
+            const float len2 = glm::dot(ab, ab);
+            const float t = len2 > 1e-8f
+                ? std::clamp(glm::dot(xz - a, ab) / len2, 0.0f, 1.0f)
+                : 0.0f;
+            const glm::vec2 d = xz - (a + ab * t);
+            if (glm::dot(d, d) <= r2) {
+                cls = st.path_class;
+                hit = true;
+                break; // этому мазку хватит одного попадания
+            }
+        }
+    }
+    (void)hit;
+    return cls;
+}
+
 
 namespace {
 
@@ -156,7 +186,15 @@ TerrainMeshData build_terrain_mesh(const math::HeightFieldView& field,
                     surface->surface_class[idx]));
                 if (!surface->path_wear.empty() && idx < surface->path_wear.size()) {
                     const float wear = std::clamp(surface->path_wear[idx], 0.0f, 1.0f);
-                    path_a = static_cast<uint8_t>(std::lround((1.0f - wear) * 255.0f));
+                    // С полем классов альфа несёт МАТЕРИАЛ полотна (2 бита) +
+                    // износ (6 бит); без него — прежние 8 бит износа бит-в-бит.
+                    path_a = options.path_classes != nullptr
+                        ? pack_path_alpha(wear,
+                              wear > 0.0f
+                                  ? options.path_classes->class_at({wpos.x, wpos.z})
+                                  : 1u)
+                        : static_cast<uint8_t>(
+                              std::lround((1.0f - wear) * 255.0f));
                 }
             }
 

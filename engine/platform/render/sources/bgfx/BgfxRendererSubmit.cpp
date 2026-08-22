@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 15:08:2026 - 15:23:22
+Last updated: 23:08:2026 - 00:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -63,6 +63,7 @@ UPD:
   sphere for center_pick (nearest hit). Reuses world_center / world_radius.
 - 15:08:2026 - 15:23:22: привязка DrawParams::aux_texture к стадии 4 с нейтральной подменой;
   u_params.w — признак «лист есть» (был «зарезервировано»).
+- 23:08:2026 - 00:30:00: aux2_texture привязывается на стадию 5 с нейтральной подстановкой.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -329,6 +330,24 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         if (bgfx::isValid(aux)) {
             bgfx::setTexture(4, im.s_tex_aux, aux,
                              BGFX_SAMPLER_MIN_ANISOTROPIC | BGFX_SAMPLER_MAG_POINT);
+        }
+    }
+    // ПУТЕВОЙ АТЛАС (DrawParams::aux2_texture, стадия 5) — материал полотна
+    // троп для террейна. Нейтральная подстановка та же, что у стадии 4: Metal
+    // хочет реальную текстуру за каждым объявленным сэмплером, а шейдер
+    // решает читать или нет по дозе и износу.
+    {
+        bgfx::TextureHandle aux2 = im.neutral_normal;
+        if (params_in.aux2_texture.valid()) {
+            const auto it2 = im.textures.find(params_in.aux2_texture.id);
+            if (it2 != im.textures.end()) {
+                aux2 = it2->second;
+            }
+        }
+        if (bgfx::isValid(aux2) && bgfx::isValid(im.s_tex_path)) {
+            bgfx::setTexture(5, im.s_tex_path, aux2,
+                             BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+                                 | BGFX_SAMPLER_MIP_POINT);
         }
     }
     bgfx::setUniform(im.u_params, params);
