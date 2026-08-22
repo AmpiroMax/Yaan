@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 14:35:00
+Last updated: 23:08:2026 - 05:20:00
 Module: engine/world
 File: engine/world/sources/HouseMeshDetail.h
 
@@ -30,6 +30,8 @@ UPD:
 - 21:08:2026 - 01:50:00: MeshBuilder.collider — косметический слой без физического тела (плашка подтёка перегородила судью).
 - 21:08:2026 - 14:35:00: MeshBuilder.collider_only - флаг проносится в
   MeshPart при flush_part (пандус лестниц: физика без картинки).
+- 23:08:2026 - 05:20:00: push_prism получил uv_shift (сдвиг фазы плитки в метрах; ноль —
+  прежняя рамка бит-в-бит) — против «дощечек-клонов» (владелец 23.08).
 */
 
 #pragma once
@@ -138,9 +140,13 @@ struct MeshBuilder {
                                                   int sides);
 
 /// Призма по кольцу: крышка, днище, бока и выпуклый кусок в коллайдер.
+/// `uv_shift` — сдвиг фазы текстуры в МЕТРАХ по осям рамки (u, v). Ноль —
+/// прежняя рамка бит-в-бит. Заведён против «дощечек-клонов» (владелец 23.08):
+/// рамка uv центрируется на грани, и каждая доска пола сэмплила плитку с
+/// ОДНОЙ фазы — пол читался копиями одной дощечки.
 void push_prism(MeshBuilder& mb, std::span<const glm::vec3> loop,
                 std::span<const std::uint32_t> tris, glm::vec3 axis, float tex_deg,
-                HouseMesh& mesh, ElementId owner);
+                HouseMesh& mesh, ElementId owner, glm::vec2 uv_shift = {});
 
 /// Детерминированная дрожь куска (ряд, колонка) -> 0..1.
 [[nodiscard]] float course_jitter(int row, int col);

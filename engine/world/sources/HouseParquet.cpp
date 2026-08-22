@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 00:40:00
+Last updated: 23:08:2026 - 05:20:00
 Module: engine/world
 File: engine/world/sources/HouseParquet.cpp
 
@@ -23,6 +23,9 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
+- 23:08:2026 - 05:20:00: у каждой доски своя фаза плитки (иррациональные шаги от row/col):
+  рамка uv центрируется на грани, и весь пол резал плитку с одной фазы —
+  «все дощечки как клоны» (владелец 23.08).
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -97,7 +100,15 @@ void build_parquet(const Element& e, const ElementParams& p,
             for (const glm::vec2& q : piece) {
                 loop.push_back(plane.origin + ax * q.x + ay * q.y + lift);
             }
-            push_prism(mb, loop, tris, plane.normal * th, p.tex_deg, mesh, e.id);
+            // ФАЗА ПЛИТКИ — СВОЯ У КАЖДОЙ ДОСКИ (владелец 23.08: «деревянный
+            // пол всё ещё из одинаковых тайликов, все дощечки как клоны»).
+            // Рамка uv центрируется на грани, поэтому без сдвига любая доска
+            // резала плитку одинаково. Иррациональные шаги — чтобы фазы не
+            // складывались в период по ряду.
+            const glm::vec2 phase{course_jitter(row * 13 + 5, col * 17 + 7) * 0.731f,
+                                  course_jitter(row * 19 + 11, col * 23 + 3) * 0.517f};
+            push_prism(mb, loop, tris, plane.normal * th, p.tex_deg, mesh, e.id,
+                       phase);
             u += plank_l;
         }
         v += plank_w + row_gap;

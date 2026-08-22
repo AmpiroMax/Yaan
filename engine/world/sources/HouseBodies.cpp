@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 01:50:00
+Last updated: 23:08:2026 - 05:20:00
 Module: engine/world
 File: engine/world/sources/HouseBodies.cpp
 
@@ -24,6 +24,8 @@ AI Agents Notice (must follow):
 UPD:
 - 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
 - 21:08:2026 - 01:50:00: push_prism уважает MeshBuilder.collider.
+- 23:08:2026 - 05:20:00: рамки uv крышки/днища сдвигаются на uv_shift — перенос начала рамки
+  по её осям сдвигает фазу выреза плитки.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -59,7 +61,7 @@ std::vector<glm::vec3> profile_ring(glm::vec3 center, glm::vec3 axis_u, glm::vec
 /// вызывающим и переиспользуются для крышки, днища и коллайдера.
 void push_prism(MeshBuilder& mb, std::span<const glm::vec3> loop,
                 std::span<const std::uint32_t> tris, glm::vec3 axis, float tex_deg,
-                HouseMesh& mesh, ElementId owner) {
+                HouseMesh& mesh, ElementId owner, glm::vec2 uv_shift) {
     const std::size_t count = loop.size();
     if (count < 3 || tris.size() < 3) {
         return;
@@ -84,8 +86,14 @@ void push_prism(MeshBuilder& mb, std::span<const glm::vec3> loop,
     }
     centre = centre / static_cast<float>(count) + axis * 0.5f;
     // Крышка (лицо, +n) и днище (-n). Днище — те же треугольники наоборот.
-    const UvFrame top_uv = make_uv_frame(centre, n, edge_hint, tex_deg);
-    const UvFrame bottom_uv = make_uv_frame(centre, -n, edge_hint, tex_deg);
+    // Сдвиг фазы: перенос НАЧАЛА рамки на -shift по её же осям сдвигает uv
+    // каждой точки на +shift — плитка та же, вырез из неё другой.
+    const auto shifted = [&uv_shift](UvFrame f) {
+        f.origin -= f.u * uv_shift.x + f.v * uv_shift.y;
+        return f;
+    };
+    const UvFrame top_uv = shifted(make_uv_frame(centre, n, edge_hint, tex_deg));
+    const UvFrame bottom_uv = shifted(make_uv_frame(centre, -n, edge_hint, tex_deg));
     for (std::size_t t = 0; t + 2 < tris.size(); t += 3) {
         mb.push_triangle(loop[tris[t]] + axis, loop[tris[t + 1]] + axis, loop[tris[t + 2]] + axis,
                          top_uv);
