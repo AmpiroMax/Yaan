@@ -8,6 +8,7 @@ UPD:
   нормали теми же step()/bayer, что у альбедо, TBN из экранных производных
   (механизм fs_prop). u_params.w > 0.5 = лист подан; DFN_TERRAIN_NORMALS=0
   снимает подачу — плоская земля прежнего кадра.
+- 22:08:2026 - 21:00:00: дизер 4x4 -> 8x8 (u_ditherFine, DFN_DITHER8; 0 = прежние 4x4 бит-в-бит): 16 порогов при FullHD читались шахматкой на стыках материалов.
 */
 $input v_color0, v_normal, v_texcoord0, v_wpos
 
@@ -97,12 +98,24 @@ void main()
     float sand_w = v_color0.r; // shore mask from core's surface_class only
     float bed_w = v_color0.b;
 
-    // Ordered 4x4 Bayer threshold; the scene view renders at INTERNAL_RES, so
+    // Ordered Bayer threshold; the scene view renders at INTERNAL_RES, so
     // gl_FragCoord is already in internal pixels (blocks stay square).
+    //
+    // 4x4 -> 8x8 (22.08, приёмка круга 2 [N6]): порог 16 уровней задумывался
+    // под 640x360, где клетка дизера была крупным элементом стиля; при FullHD
+    // та же решётка читается «грубой шахматкой по всем стыкам травы, грунта и
+    // мостовой» — полоса перехода квантуется в 16 ступеней, и внутри каждой
+    // ступени глаз ловит правильную решётку. Третий уровень рекурсии Байера
+    // даёт 64 порога: решётка та же, ступени вчетверо мельче. Это всё ещё
+    // ordered dither в пикселях сцены (§4: дизер, не градиенты).
+    // u_ditherFine — доза (слот 40.w): 0 = прежние 4x4 бит-в-бит.
     vec2 ip = floor(gl_FragCoord.xy);
     vec2 f1 = mod(ip, 2.0);
     vec2 f2 = mod(floor(ip * 0.5), 2.0);
-    float bayer = (bayer2(f1) * 4.0 + bayer2(f2) + 0.5) / 16.0; // (0,1)
+    vec2 f3 = mod(floor(ip * 0.25), 2.0);
+    float bayer4 = (bayer2(f1) * 4.0 + bayer2(f2) + 0.5) / 16.0;
+    float bayer8 = (bayer2(f1) * 16.0 + bayer2(f2) * 4.0 + bayer2(f3) + 0.5) / 64.0;
+    float bayer = mix(bayer4, bayer8, u_ditherFine); // (0,1)
 
     // §4 priority via paint order (later mix wins): grass -> bed -> rock ->
     // sand on top. The blend band is a two-material dither: grass and rock

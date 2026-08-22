@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 22:08:2026 - 18:40:00
+Last updated: 22:08:2026 - 21:00:00
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -75,6 +75,7 @@ UPD:
   молчал при жаровне. DFN_LIGHT_PROBE читается один раз.
 - 20:08:2026 - 18:40:00: demo_swing доезжает до GPU-двери.
 - 22:08:2026 - 18:40:00: set_house_mesh меряет габарит каждого потока на заливке.
+- 22:08:2026 - 21:00:00: interior проносится через add()/publish_point_lights.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -481,6 +482,7 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
         out.position = c.position;
         out.radius_m = c.radius;
         out.color = c.color;
+        out.interior = c.interior;
         if (arm_fade) {
             // smoothstep: 1 at edge-window (full brightness), 0 at the edge.
             const float d = std::sqrt(c.d2);
@@ -537,12 +539,14 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     std::vector<PointLightCandidate> candidates;
     const glm::vec3 eye = camera.interpolated_pose(alpha).position;
     const auto add = [&](const glm::vec3& position, float radius,
-                         const glm::vec3& color, bool wants_shadow = true) {
+                         const glm::vec3& color, bool wants_shadow = true,
+                         bool interior = false) {
         if (radius <= 0.0f) {
             return;
         }
         const glm::vec3 to = position - eye;
-        candidates.push_back({position, color, radius, glm::dot(to, to), wants_shadow});
+        candidates.push_back(
+            {position, color, radius, glm::dot(to, to), wants_shadow, interior});
     };
 
     // THE COMPOSITION'S LAMPS AND THIS FRAME'S SWARM, into the same pool as
@@ -550,10 +554,10 @@ void RenderSystem::collect_point_lights(ecs::World& world,
     // order does not matter: publish_point_lights sorts the whole pool by
     // distance and hands out the eight slots itself.
     for (const ExtraLight& l : scene_lights_) {
-        add(l.position, l.radius_m, l.color, l.casts_shadow);
+        add(l.position, l.radius_m, l.color, l.casts_shadow, l.interior);
     }
     for (const ExtraLight& l : transient_lights_) {
-        add(l.position, l.radius_m, l.color, l.casts_shadow);
+        add(l.position, l.radius_m, l.color, l.casts_shadow, l.interior);
     }
 
     world.view<components::CarriedLight, components::Transform>().each(

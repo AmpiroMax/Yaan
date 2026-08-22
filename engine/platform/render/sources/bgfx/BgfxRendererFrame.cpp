@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 17:10:00
+Last updated: 22:08:2026 - 21:00:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -186,6 +186,7 @@ UPD:
   DFN_AMBIENT_OVERCAST, 0 = прежний кадр бит-в-бит. Здесь, а не в CloudModel:
   упаковка кадра — чистая функция состояния, скомпаундиться негде.
 - 22:08:2026 - 17:10:00: packed[40].z = доза горизонтного свечения неба (DFN_SKY_GLOW).
+- 22:08:2026 - 21:00:00: packed[24+i].w — биты флагов (1 casts_shadow, 2 interior); packed[15].z — доза DFN_LIGHT_INTERIOR (0 = флаг игнорируется бит-в-бит).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -575,8 +576,13 @@ void BgfxRenderer::Impl::apply_environment() const {
     // Lights come from the ORDERED array (order_lights), not straight from
     // the environment: shadow casters must occupy the first slots because
     // the shader uses the slot as the cube-atlas index.
-    packed[15] = {e.ambient_darkness, static_cast<float>(light_count), 0.0f,
-                  0.0f};
+    // .z — доза гейта интерьерного света (DFN_LIGHT_INTERIOR: 0 = флаг
+    // interior игнорируется, прежний кадр бит-в-бит; 1 = очаг в доме не
+    // светит улице сквозь кладку — свет умножается на (1 - sky_vis)
+    // приёмника, см. dfn_env.sh).
+    static const float interior_gate = dose_env_override("DFN_LIGHT_INTERIOR", 1.0f);
+    packed[15] = {e.ambient_darkness, static_cast<float>(light_count),
+                  interior_gate, 0.0f};
     packed[32] = {e.wind_direction, e.wind_strength, e.wind_flutter};
     // Clouds (W4): state tuple + the ONE drift offset both samplers read.
     packed[33] = {e.cloud_cover, e.cloud_cumulus, e.cloud_shadow,
@@ -633,13 +639,21 @@ void BgfxRenderer::Impl::apply_environment() const {
     // free component is worth more than a tidy grouping.
     packed[39] = {e.cloud_deck_m, moon_ground_gain()};
     // Slot 40: the foliage edge-fade band (see foliage_edge_band); .z — доза
-    // горизонтного свечения неба (u_skyGlowDose, dfn_sky_gradient).
+    // горизонтного свечения неба (u_skyGlowDose, dfn_sky_gradient); .w — доза
+    // мелкого дизера 8x8 (u_ditherFine, fs_terrain: решётка 4x4 задумывалась
+    // под 640x360 и при FullHD читалась шахматкой на стыках материалов).
     static const float sky_glow = dose_env_override("DFN_SKY_GLOW", 1.0f);
-    packed[40] = {foliage_edge_band().x, foliage_edge_band().y, sky_glow, 0.0f};
+    static const float dither_fine = dose_env_override("DFN_DITHER8", 1.0f);
+    packed[40] = {foliage_edge_band().x, foliage_edge_band().y, sky_glow,
+                  dither_fine};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
         packed[16 + i] = {l.position, l.radius_m};
-        packed[24 + i] = {l.color, l.casts_shadow ? 1.0f : 0.0f};
+        // w — БИТЫ ФЛАГОВ: 1 = casts_shadow (тень решается индексом слота,
+        // бит информационный), 2 = interior (шейдер гейтит свет небесной
+        // видимостью приёмника — dfn_env.sh, u_lightColor(i).w).
+        packed[24 + i] = {l.color, (l.casts_shadow ? 1.0f : 0.0f)
+                                       + (l.interior ? 2.0f : 0.0f)};
     }
     bgfx::setUniform(u_env_params, packed, ENV_PARAM_VEC4S);
 }

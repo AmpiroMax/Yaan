@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 22:08:2026 - 20:10:00
+Last updated: 22:08:2026 - 21:00:00
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -46,6 +46,7 @@ UPD:
 - 20:08:2026 - 15:30:00: [house] в круговороте; кривое pos — отказ со строкой.
 - 22:08:2026 - 16:20:00: раунд-трип [air] + контроль «без записи air.set == false».
 - 22:08:2026 - 20:10:00: cloud в раунд-трипе [air] + контроль «без ключа — не задана».
+- 22:08:2026 - 21:00:00: interior у [light] в круговороте; поля инициализаторов сдвинуты.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -475,12 +476,16 @@ TEST_CASE("scene: lamps survive the round trip and an unlit one stays unlit") {
     doc.world_span_m = 256.0f;
     doc.placements = {at("tree", 60.0f, GROUND_Y, 60.0f)};
     doc.lights.push_back({{128.0f, 27.4f, 96.0f}, {1.0f, 0.85f, 0.55f}, 6.0f, false,
-                          "фонарь у каменной тропы"});
+                          false, "фонарь у каменной тропы"});
     // radius 0 means OFF, and it must come back as off rather than as a
     // default-bright lamp: a composer turning one down to nothing is making a
     // decision, and a reader that "helpfully" restored it would overrule him.
-    doc.lights.push_back({{10.0f, 1.0f, 10.0f}, {1.0f, 1.0f, 1.0f}, 0.0f, false, ""});
-    doc.lights.push_back({{20.0f, 2.0f, 20.0f}, {0.4f, 0.9f, 1.0f}, 12.0f, true, ""});
+    doc.lights.push_back({{10.0f, 1.0f, 10.0f}, {1.0f, 1.0f, 1.0f}, 0.0f, false,
+                          false, ""});
+    // ИНТЕРЬЕРНЫЙ флаг — в круговороте: очаг, который вернулся уличным,
+    // светил бы городу сквозь кладку.
+    doc.lights.push_back({{20.0f, 2.0f, 20.0f}, {0.4f, 0.9f, 1.0f}, 12.0f, true,
+                          true, ""});
     REQUIRE(write_scene(doc, path));
 
     SceneDoc back;
@@ -494,6 +499,8 @@ TEST_CASE("scene: lamps survive the round trip and an unlit one stays unlit") {
     CHECK(back.lights[0].note == "фонарь у каменной тропы");
     CHECK(back.lights[1].radius_m == doctest::Approx(0.0f));
     CHECK(back.lights[2].casts_shadow);
+    CHECK(back.lights[2].interior);
+    CHECK_FALSE(back.lights[0].interior);
     // The placements are untouched by the new section: a reader that lost them
     // while gaining lamps would be a very expensive trade.
     REQUIRE(back.placements.size() == 1);

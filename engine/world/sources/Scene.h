@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 22:08:2026 - 20:10:00
+Last updated: 22:08:2026 - 21:00:00
 Module: engine/world
 File: engine/world/sources/Scene.h
 
@@ -116,6 +116,7 @@ UPD:
   (город 256 м против лесного километра констант). Необязателен.
 - 22:08:2026 - 20:10:00: SceneAir.cloud_cover — стартовая облачность карты (приёмка круга 2:
   под вечной палубой 0.45 тень дома на земле неотличима от облачного пятна).
+- 22:08:2026 - 21:00:00: SceneLight.interior — интерьерный свет гейтится небесной видимостью приёмника (очаг не светит улице сквозь кладку).
 */
 
 #pragma once
@@ -167,6 +168,11 @@ struct SceneLight {
     glm::vec3 color{1.0f, 0.85f, 0.55f}; ///< linear; the default is a flame
     float radius_m = 6.0f;      ///< 0 = off, and an off lamp is not an error
     bool casts_shadow = false;  ///< honoured for the two nearest that ask
+    /// ИНТЕРЬЕРНЫЙ свет гейтится небесной видимостью приёмника (22.08): очаг
+    /// в доме не светит улице сквозь кладку — теневой слот есть только у двух
+    /// ближайших, остальные шесть иначе жгут occl = 1.0 через любую стену.
+    /// Уличные жаровни и фонари флаг НЕ ставят — им гейт погасил бы улицу.
+    bool interior = false;
     std::string note;
 };
 

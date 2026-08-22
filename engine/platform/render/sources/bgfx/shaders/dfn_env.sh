@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 22:08:2026 - 17:10:00
+Last updated: 22:08:2026 - 21:00:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -211,6 +211,7 @@ UPD:
   (нижние ~6°, тёплый подъём того же цвета горизонта; лента 175.8..175.4
   люма на 48 строк была насыщением двухстопного mix). Доза DFN_SKY_GLOW
   через u_envParams[40].z, 0 = прежний градиент бит-в-бит.
+- 22:08:2026 - 21:00:00: гейт интерьерного света небесной видимостью приёмника (u_lightColor(i).w бит 2, доза u_lightInteriorGate). Различение «внутри/снаружи» дало запечённое AO построек.
 */
 
 #ifndef DFN_ENV_SH
@@ -254,6 +255,8 @@ uniform vec4 u_envParams[41];
 // geometric sky-visibility term, and shortens carried lights.
 #define u_ambientDarkness (u_envParams[15].x)
 #define u_lightCount      (u_envParams[15].y)
+// Доза гейта интерьерного света (DFN_LIGHT_INTERIOR; 0 = флаг игнорируется).
+#define u_lightInteriorGate (u_envParams[15].z)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
 #define DFN_MAX_LIGHTS 8
 #define u_lightPosRad(i) (u_envParams[16 + (i)])
@@ -854,6 +857,10 @@ void dfn_screen_door(float fade, vec2 pixel)
 // градиент бит-в-бит). Свободная компонента слота 40 — заведена ПАРОЙ с
 // упаковкой в BgfxRendererFrame.cpp, как того требует контракт слоя.
 #define u_skyGlowDose   (u_envParams[40].z)
+// Доза мелкого дизера (8x8 Байер против прежних 4x4; 0 = 4x4 бит-в-бит).
+// Живёт здесь, потому что порог читают и террейн, и path — двум шейдерам
+// нельзя дать разойтись в решётке на общей кромке.
+#define u_ditherFine    (u_envParams[40].w)
 
 // Surface lighting shared by terrain and props, so night, moonlight and the
 // carried torch can never disagree between them.
@@ -970,8 +977,21 @@ vec3 dfn_surface_light(vec3 wpos, vec3 n, float sun_vis, float sky_vis)
         if (float(i) < u_pointShadowParams.x && atten > 0.0) {
             occl = dfn_point_shadow_factor(i, wpos, n, pos_rad.xyz, pos_rad.w);
         }
+        // ИНТЕРЬЕРНЫЙ СВЕТ НЕ ПРОБИВАЕТ КЛАДКУ (22.08). Теневой слот есть
+        // только у двух ближайших источников; остальные жгут occl = 1.0
+        // сквозь любую стену, и очаг дома светил улице. Флаг interior (бит 2
+        // в w цвета) гейтит источник НЕБЕСНОЙ ВИДИМОСТЬЮ ПРИЁМНИКА: уличная
+        // земля (sky_vis = 1) не получает ничего, пол в доме (sky_vis -> 0,
+        // запечённое AO) — всё. Различение появилось вместе с AO построек —
+        // до него у фрагмента не было понятия «я внутри». Остаточная утечка
+        // «очаг дома A в интерьер дома B в паре метров» ослаблена затуханием
+        // и признана в плане; уличные жаровни флаг не ставят.
+        float gate = 1.0;
+        if (u_lightColor(i).w >= 2.0) {
+            gate = mix(1.0, clamp(1.0 - sky_vis, 0.0, 1.0), u_lightInteriorGate);
+        }
         light += u_lightColor(i).rgb * (atten * atten * (3.0 - 2.0 * atten) * occl
-                    * max(dot(n, to_light / max(dist, 0.0001)), 0.0));
+                    * gate * max(dot(n, to_light / max(dist, 0.0001)), 0.0));
     }
     return light;
 }

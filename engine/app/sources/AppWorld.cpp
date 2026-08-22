@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 22:08:2026 - 20:10:00
+Last updated: 22:08:2026 - 21:00:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -39,6 +39,7 @@ UPD:
 - 22:08:2026 - 16:20:00: паром [air] из сцены в render_system_ (clear на каждой загрузке —
   воздух прошлой карты не наследуется).
 - 22:08:2026 - 20:10:00: паром облачности [air] и её печать в строке [scene] air.
+- 22:08:2026 - 21:00:00: паром SceneLight.interior в ExtraLight.
 */
 
 #include "engine/app/sources/App.h"
@@ -825,7 +826,8 @@ bool App::enter_world(uint32_t stand) {
                 if (L.radius_m <= 0.0f) {
                     continue; // an unlit lamp is a decision, not a defect
                 }
-                lamps.push_back({L.position, L.color, L.radius_m, L.casts_shadow});
+                lamps.push_back(
+                    {L.position, L.color, L.radius_m, L.casts_shadow, L.interior});
                 shadowing += L.casts_shadow ? 1u : 0u;
             }
             // ONE MESH BODY PER TILE. Per placement would be thousands of

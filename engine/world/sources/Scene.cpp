@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 22:08:2026 - 20:10:00
+Last updated: 22:08:2026 - 21:00:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -78,6 +78,7 @@ UPD:
 - 20:08:2026 - 15:30:00: Чтение и запись [house].
 - 22:08:2026 - 16:20:00: чтение и запись [air] (fog_start / fog_end).
 - 22:08:2026 - 20:10:00: ключ cloud в [air] (необязателен; без него -1 «не задана»).
+- 22:08:2026 - 21:00:00: ключ interior у [light].
 */
 
 #include "engine/world/sources/Scene.h"
@@ -389,6 +390,8 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                 }
             } else if (key == "casts_shadow") {
                 L.casts_shadow = value == "1" || value == "true" || value == "yes";
+            } else if (key == "interior") {
+                L.interior = value == "1" || value == "true" || value == "yes";
             } else if (key == "note") {
                 L.note = value;
             }
@@ -540,6 +543,9 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
             << "radius_m = " << L.radius_m << "\n";
         if (L.casts_shadow) {
             out << "casts_shadow = 1\n";
+        }
+        if (L.interior) {
+            out << "interior = 1\n";
         }
         if (!L.note.empty()) {
             out << "note = " << L.note << "\n";

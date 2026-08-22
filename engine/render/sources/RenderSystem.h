@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 22:08:2026 - 20:10:00
+Last updated: 22:08:2026 - 21:00:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -167,6 +167,7 @@ UPD:
   взгляда — пятно меша было размером с карту).
 - 22:08:2026 - 20:10:00: set_air_override принимает стартовую облачность карты — пишется
   один раз (расписание погоды и DFN_CLOUD выигрывают).
+- 22:08:2026 - 21:00:00: interior у ExtraLight/PointLightCandidate — флаг доезжает до PointLight.
 */
 
 #pragma once
@@ -561,6 +562,10 @@ public:
         /// the whole frame, so most lights must say no — and saying no has to
         /// MEAN no, or the field is decoration.
         bool casts_shadow = false;
+        /// ИНТЕРЬЕРНЫЙ свет гейтится небесной видимостью приёмника (см.
+        /// SceneLight::interior): без теневого слота он иначе светит улице
+        /// сквозь кладку.
+        bool interior = false;
     };
     /// Lamps the map's composition owns. Set once when a map opens; survives
     /// until the next one. A composition of a hundred lamps is legal — only
@@ -694,6 +699,8 @@ private:
         /// asked for no shadows got one anyway, from whichever lamp happened
         /// to be closest.
         bool wants_shadow = true;
+        /// См. ExtraLight::interior — доезжает до PointLight и до шейдера.
+        bool interior = false;
     };
     void publish_point_lights(std::vector<PointLightCandidate>& candidates);
     void collect_point_lights(ecs::World& world, const FirstPersonCamera& camera,
