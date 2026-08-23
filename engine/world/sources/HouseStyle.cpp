@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:04:34
-Last updated: 23:08:2026 - 02:49:00
+Last updated: 23:08:2026 - 03:00:43
 Module: engine/world
 File: engine/world/sources/HouseStyle.cpp
 
@@ -26,6 +26,7 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 18:04:34: Создан вместе с HouseStyle.h.
 - 23:08:2026 - 02:49:00: доски раскладки сужены внутри колонны на HOUSE_BOARD_GAP_M — швы обшивки появились (был ноль).
+- 23:08:2026 - 03:00:43: сторож CladdingLeaksAtEnd мерит реальную полосу (start + GAP/2); static_assert потолка переписан под условие с зазором.
 */
 
 #include "engine/world/sources/HouseStyle.h"
@@ -49,9 +50,11 @@ namespace {
 
 constexpr float PI_F = 3.14159265358979323846f;
 
-static_assert(HOUSE_BOARD_STEP_MAX == 2.0f * HOUSE_LINE_RADIUS_DEFAULT,
-              "потолок шага обшивки ВЫВЕДЕН из радиуса угловой стойки: половина "
-              "остатка обязана прятаться в её теле");
+static_assert(HOUSE_BOARD_STEP_MAX
+                  == 2.0f * HOUSE_LINE_RADIUS_DEFAULT - HOUSE_BOARD_GAP_M,
+              "потолок шага обшивки ВЫВЕДЕН из радиуса угловой стойки С УЧЁТОМ "
+              "зазора досок (23.08): половина остатка плюс полузазор первой "
+              "доски обязаны прятаться в её теле");
 static_assert(HOUSE_BOARD_STEP_DEFAULT < HOUSE_BOARD_STEP_MAX,
               "умолчание шага обязано проходить собственный потолок");
 static_assert(WallSpec{}.post_radius == HOUSE_LINE_RADIUS_DEFAULT,
@@ -382,7 +385,11 @@ WallLayout lay_out_wall(const WallSpec& spec, const WallStyle& style) {
     // симметрия проёмов заявлена требованием.
     const float residue = span - static_cast<float>(out.board_columns) * step;
     const float start = margin + residue * 0.5f;
-    out.end_bare = start;
+    // ЧЕСТНЫЙ СТОРОЖ (23.08, находка архитектора): первая доска начинается
+    // на полузазора ПОЗЖЕ начала колонны — реальная неодетая полоса шире
+    // start на GAP/2, и сторож, меривший start, не мог сработать никогда,
+    // молча пропуская окно residue > 0.228 (~0.9% пролётов).
+    out.end_bare = start + HOUSE_BOARD_GAP_M * 0.5f;
 
     if (out.end_bare > spec.post_radius + HOUSE_FIT_EPS) {
         out.findings.push_back(

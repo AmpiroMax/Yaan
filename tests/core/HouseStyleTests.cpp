@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:12:54
-Last updated: 23:08:2026 - 02:52:13
+Last updated: 23:08:2026 - 03:08:03
 Module: tests
 File: tests/core/HouseStyleTests.cpp
 
@@ -36,6 +36,8 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 18:12:54: Создан вместе с HouseStyle.
 - 23:08:2026 - 02:52:13: контракт зазора: между досками ровно HOUSE_BOARD_GAP_M (§2 уточнён 23.08), лицо доски = шаг − зазор.
+- 23:08:2026 - 03:02:17: руки пересчитаны под шаг 0.22 (потолок опущен зазором досок); лицо доски выражено константами.
+- 23:08:2026 - 03:08:03: все ручные счётчики и пороги пересчитаны под шаг 0.22 (окна 3.88, pitch 1.22/1.82, колонны 27/54, обрезок под минимумом — законный −1).
 */
 
 #include <doctest/doctest.h>
@@ -125,10 +127,12 @@ TEST_CASE("обшивка тянется: на длине L ложится floor
     // покручу». Значит счёт досок — это floor, а не подгонка шага под длину.
     struct Row {
         float len;
-        int columns; // посчитано руками: floor(len / 0.23)
+        int columns; // посчитано руками: floor(len / шаг)
     };
+    // Пересчитано руками под шаг 0.22 (23.08: потолок шага опущен зазором
+    // досок, см. HOUSE_BOARD_STEP_MAX): floor(len / 0.22).
     const Row rows[] = {{1.00f, 4},  {2.30f, 10}, {3.00f, 13}, {4.60f, 20},
-                        {6.00f, 26}, {7.25f, 31}, {12.00f, 52}};
+                        {6.00f, 27}, {7.25f, 32}, {12.00f, 54}};
 
     const WallStyle st = plain_style();
     int overshoot_ours = 0;
@@ -179,26 +183,28 @@ TEST_CASE("обшивка тянется: на длине L ложится floor
     const float ours3 = l3.boards.front().u1 - l3.boards.front().u0;
     const float ours6 = l6.boards.front().u1 - l6.boards.front().u0;
     CHECK(quant(ours3) == quant(ours6));
-    CHECK(quant(ours3) == 2300 - quant(dfn::world::HOUSE_BOARD_GAP_M)); // лицо = шаг − зазор
+    CHECK(quant(ours3)
+          == quant(dfn::world::HOUSE_BOARD_STEP_DEFAULT)
+                 - quant(dfn::world::HOUSE_BOARD_GAP_M)); // лицо = шаг − зазор
     const float frac3 = 3.00f / 13.0f;
     const float frac6 = 6.00f / 13.0f;
     CHECK(frac6 / frac3 == doctest::Approx(2.0f).epsilon(1e-5));
-    // Растяжение добавляет ДОСОК, а не ширины: 13 -> 26.
+    // Растяжение добавляет ДОСОК, а не ширины: 13 -> 27 (шаг 0.22).
     CHECK(l3.board_columns == 13);
-    CHECK(l6.board_columns == 26);
+    CHECK(l6.board_columns == 27);
 }
 
 TEST_CASE("просили три окна, влезло два — и это СКАЗАНО, а не проглочено") {
     const WallStyle st = window_style();
     // Выведенные значения стиля: простенок — один шаг доски, шаг ряда — самый
     // плотный законный.
-    CHECK(style_pier(st) == doctest::Approx(0.23f).epsilon(1e-4));
-    CHECK(style_pitch(st) == doctest::Approx(1.23f).epsilon(1e-4));
+    CHECK(style_pier(st) == doctest::Approx(0.22f).epsilon(1e-4));
+    CHECK(style_pitch(st) == doctest::Approx(1.22f).epsilon(1e-4));
 
     // ПОРОГ МЕЖДУ ИЗМЕРЕННЫМИ ОБРАЗЦАМИ (правило 45): три окна требуют
-    // 2*1.23 + 1.00 + 2*0.23 = 3.92 м, и на 3.92 они встают, а на 3.90 — нет.
-    CHECK(wall_opening_capacity(3.92f, st) == 3);
-    CHECK(wall_opening_capacity(3.90f, st) == 2);
+    // 2*1.22 + 1.00 + 2*0.22 = 3.88 м, и на 3.88 они встают, а на 3.86 — нет.
+    CHECK(wall_opening_capacity(3.88f, st) == 3);
+    CHECK(wall_opening_capacity(3.86f, st) == 2);
     CHECK(wall_opening_capacity(3.00f, st) == 2);
     CHECK(wall_opening_capacity(1.46f, st) == 1);
     CHECK(wall_opening_capacity(1.40f, st) == 0);
@@ -212,9 +218,9 @@ TEST_CASE("просили три окна, влезло два — и это С�
     REQUIRE(dropped != nullptr);
     CHECK(dropped->requested == 3);
     CHECK(dropped->placed == 2);
-    CHECK(dropped->value == doctest::Approx(3.92f).epsilon(0.01));
+    CHECK(dropped->value == doctest::Approx(3.88f).epsilon(0.01));
     CHECK(dropped->what.find("просили 3, влезло 2") != std::string::npos);
-    CHECK(dropped->what.find("3.92") != std::string::npos);
+    CHECK(dropped->what.find("3.88") != std::string::npos);
 
     // КОНТРОЛЬ: там, где влезли все три, находки НЕТ. Находка, которая есть
     // всегда, ничего не сообщает.
@@ -278,15 +284,15 @@ TEST_CASE("окна стоят СИММЕТРИЧНО, и одно стоит Р
     // И РЯД НЕ ВЫЛЕЗАЕТ ЗА ПРОСТЕНКИ: у крайних проёмов до торца не меньше 0.23.
     const WallLayout five = lay_out_wall(wall(len, 5), st);
     REQUIRE(five.openings.size() == 5u);
-    CHECK(five.openings.front().u0 >= 0.23f - 1e-4f);
-    CHECK(five.openings.back().u1 <= len - 0.23f + 1e-4f);
+    CHECK(five.openings.front().u0 >= 0.22f - 1e-4f);
+    CHECK(five.openings.back().u1 <= len - 0.22f + 1e-4f);
 }
 
 TEST_CASE("обшивка НЕ ПРОХОДИТ сквозь проём, а кончается у него") {
     const WallStyle st = window_style();
     const WallLayout lay = lay_out_wall(wall(6.00f, 2), st);
     REQUIRE(lay.openings.size() == 2u);
-    CHECK(lay.board_columns == 26);
+    CHECK(lay.board_columns == 27); // шаг 0.22 (23.08)
 
     int hits = 0;
     for (const BoardRun& b : lay.boards) {
@@ -317,13 +323,15 @@ TEST_CASE("обшивка НЕ ПРОХОДИТ сквозь проём, а ко
             ++cut_columns;
         }
     }
-    CHECK(hits_uncut == 10);
-    CHECK(cut_columns == 10);
+    CHECK(hits_uncut == 11);
+    CHECK(cut_columns == 11);
 
     // РАЗРЕЗАННАЯ КОЛОННА НЕ ИСЧЕЗАЕТ, А ДАЁТ ДВА КУСКА — под проёмом и над ним.
     // Без этой строки «ноль пересечений» брался бы выкинутой обшивкой.
-    CHECK(static_cast<int>(lay.boards.size()) == lay.board_columns + cut_columns);
-    CHECK(lay.boards.size() == 36u);
+    // Одна из 11 разрезанных колонн даёт при шаге 0.22 обрезок короче
+    // минимума и он выброшен законно — потому −1, а не равенство.
+    CHECK(static_cast<int>(lay.boards.size()) == lay.board_columns + cut_columns - 1);
+    CHECK(lay.boards.size() == 37u);
 
     // И КАЖДЫЙ КУСОК ПРИМЫКАЕТ К ПРОЁМУ, а не отходит от него: под окном доска
     // кончается ровно на подоконнике, над окном начинается ровно на перемычке.
@@ -369,7 +377,7 @@ TEST_CASE("растяжение стены ВДВОЕ не меняет окно
         two_short.openings[1].center_u() - two_short.openings[0].center_u();
     const float gap_long = two_long.openings[1].center_u() - two_long.openings[0].center_u();
     CHECK(quant(gap_short) == quant(gap_long));
-    CHECK(quant(gap_short) == 12300);
+    CHECK(quant(gap_short) == 12200); // pitch = 1.0 + 0.22
     CHECK(legacy_two_window_gap(6.00f) / legacy_two_window_gap(3.00f) ==
           doctest::Approx(2.0f).epsilon(1e-4));
 
@@ -382,7 +390,10 @@ TEST_CASE("растяжение стены ВДВОЕ не меняет окно
 
     // А ОБШИВКИ СТАЛО ВДВОЕ БОЛЬШЕ. Растяжение добавляет МАТЕРИАЛ, а не масштаб,
     // и это положительная половина того же утверждения.
-    CHECK(two_long.board_columns == two_short.board_columns * 2);
+    // При шаге 0.22 шесть метров дают 27 колонн против 13 на трёх: floor
+    // не обязан удваиваться ровно (13*2=26, а 6.00/0.22 = 27.27) — сравнение
+    // «не меньше двух прежних» сохраняет смысл утверждения без лжи о floor.
+    CHECK(two_long.board_columns >= two_short.board_columns * 2);
 }
 
 TEST_CASE("раскос РАСТЯГИВАЕТСЯ и МЕНЯЕТ УГОЛ, а его полоса выведена из округления") {
@@ -512,7 +523,7 @@ TEST_CASE("стиль приходит ТЕКСТОМ, и опечатка ОТ�
     // ряд само, и два таких окна не налезают друг на друга.
     std::vector<WallStyle> wide_lib;
     REQUIRE(parse_wall_styles("style wide opening=window opening_w=1.60\n", wide_lib).ok);
-    CHECK(style_pitch(wide_lib[0]) == doctest::Approx(1.83f).epsilon(1e-4));
+    CHECK(style_pitch(wide_lib[0]) == doctest::Approx(1.82f).epsilon(1e-4));
     const WallLayout wide = lay_out_wall(wall(5.00f, 2), wide_lib[0]);
     REQUIRE(wide.openings.size() == 2u);
     CHECK(wide.openings[0].u1 <= wide.openings[1].u0 + 1e-5f);
