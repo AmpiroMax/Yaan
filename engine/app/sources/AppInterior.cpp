@@ -1,6 +1,6 @@
 /*
 Created: 23:08:2026 - 23:50:00
-Last updated: 23:08:2026 - 23:50:00
+Last updated: 24:08:2026 - 03:20:00
 Module: engine/app
 File: engine/app/sources/AppInterior.cpp
 
@@ -37,6 +37,14 @@ AI Agents Notice (must follow):
 UPD:
 - 23:08:2026 - 23:50:00: Создан. И15 волна А, шаги 2-4: карман, подвес, слот,
   портал, экран загрузки, свет локации, точка возврата.
+- 24:08:2026 - 03:20:00: ДЛИТЕЛЬНОСТЬ ЭКРАНА СТАЛА НАСТОЯЩЕЙ. DFN_INTERIOR_FADE
+  читалась как «показывать или нет», а секунды в ней не значили ничего:
+  экран жил ровно один кадр при любом значении. hold_loading_screen()
+  показывает кадры, пока не выйдет срок, — и именно КАДРЫ, а не сон: спящее
+  окно перестаёт отвечать ОС посреди собственного экрана загрузки.
+  И СНИМОК САМОГО ЭКРАНА: он живёт между двумя кадрами штатной петли и
+  потому невидим для DFN_SHOT_AFTER, который считает показанные ею кадры;
+  пишется ровно один раз за прогон туда, куда прогон уже кладёт снимки.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -93,6 +101,31 @@ void App::present_loading_frame() {
     render_system_.set_hud_visible(true);
     window_->poll_events();
     render_system_.render(world_, *renderer_, camera_, 0.0f);
+    // КАДР ЭКРАНА ЗАГРУЗКИ ИНАЧЕ НЕ ПОПАДАЕТ НИ НА ОДИН БЕСПИЛОТНЫЙ ПРОГОН.
+    // Экран живёт между двумя кадрами штатной петли и потому невидим для
+    // DFN_SHOT_AFTER, который считает ПОКАЗАННЫЕ ею кадры. Снимок пишется
+    // ровно один раз за прогон и только туда, куда прогон уже складывает
+    // снимки, — новой двери для этого не нужно.
+    if (!loading_shot_ && !capture_dir_.empty() && unattended_run()) {
+        loading_shot_ = true;
+        (void)renderer_->save_screenshot(capture_dir_ + "/loading_000.png");
+    }
+}
+
+void App::hold_loading_screen() {
+    // ДЛИТЕЛЬНОСТЬ ЭКРАНА — ЭТО КАДРЫ, А НЕ ОДИН КАДР И ЗАСЫПАНИЕ. Спать
+    // нельзя: окно перестаёт отвечать ОС, и рабочий стол помечает
+    // приложение как зависшее посреди его же экрана загрузки (то же
+    // рассуждение, что у полосы запекания ассетов).
+    if (interior_fade_s_ <= 0.0f) {
+        return;
+    }
+    const auto until = std::chrono::steady_clock::now()
+                     + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                           std::chrono::duration<float>(interior_fade_s_));
+    while (std::chrono::steady_clock::now() < until) {
+        present_loading_frame();
+    }
 }
 
 void App::upload_interior_body(const std::vector<std::uint32_t>& indices) {
@@ -417,9 +450,7 @@ bool App::enter_interior(const std::string& scene_path,
             std::chrono::steady_clock::now() - t0).count();
     std::fprintf(stderr, "[интерьер] ВХОД %s за %.1f ms%s\n", scene_path.c_str(),
                  interior_enter_ms_, resident ? " (геометрия уже была залита)" : "");
-    if (interior_fade_s_ > 0.0f) {
-        present_loading_frame();
-    }
+    hold_loading_screen();
     loading_.hide();
     render_system_.set_hud_visible(false);
     return true;
