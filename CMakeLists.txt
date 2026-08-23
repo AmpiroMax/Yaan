@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 21:08:2026 - 13:20:00
+# Last updated: 24:08:2026 - 02:00:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -86,6 +86,9 @@
 #   заводить с `-G Ninja`.
 # - 20:08:2026 - 15:50:00: Цель dfn_houses — кузница готовых построек (tools/forge_houses.cpp).
 # - 21:08:2026 - 13:20:00: Цель dfn_furniture — кузница предметов интерьера (tools/forge_furniture.cpp).
+# - 24:08:2026 - 02:00:00: dfn_interior_check — приёмка интерьера-локации (И15 волна А)
+#                          и две его дозы в ctest: чистый пилот 0 находок,
+#                          испорченная оснастка ровно 4.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -269,6 +272,26 @@ target_link_libraries(dfn_forge PRIVATE dfn_render dfn_core)
 # so it builds with everything else and cannot rot.
 add_executable(dfn_scene_check tools/check_scene.cpp)
 target_link_libraries(dfn_scene_check PRIVATE dfn_world dfn_render dfn_core)
+
+# ПРИЁМКА ИНТЕРЬЕРА-ЛОКАЦИИ (dfn_interior_check, И15 волна А): руки 1/2/5/7 по
+# геометрии локации и рука 6 по парности ссылок города. Стоит рядом с судьёй
+# сцены и по той же причине: прибор, который перестал собираться, обнаруживают
+# в день, когда он нужнее всего.
+add_executable(dfn_interior_check tools/check_interior.cpp)
+target_link_libraries(dfn_interior_check PRIVATE dfn_world dfn_core)
+
+# ДВЕ ДОЗЫ ОДНОГО ПРИБОРА В ctest (правило 30 и свод И15, дельта-5).
+# Отрицательное плечо: верная локация пилота обязана дать НОЛЬ находок.
+# Положительное: нарочно испорченная — РОВНО ЧЕТЫРЕ, по одной на руку.
+# Без второго теста молчание прибора неотличимо от прибора неработающего;
+# без первого «четыре находки» доказывали бы только, что он шумит.
+add_test(NAME interiors_pilot_clean
+         COMMAND dfn_interior_check assets/scenes/int/whiterun/x100z84.scene
+                 --city assets/scenes/wr-int.scene --expect 0
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME interiors_broken_fixture
+         COMMAND dfn_interior_check assets/scenes/int/broken.scene --expect 4
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # THE BUILDING KIT CLI (dfn_kit): forges the construction parts an agent
 # assembles houses out of. Same standing again — a kit that stopped compiling
