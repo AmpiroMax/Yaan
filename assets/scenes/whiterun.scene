@@ -1104,241 +1104,325 @@ note = убранство: ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 87.200 34.596 59.850
+pos = 92.200 34.596 59.850
 yaw = 0.000000
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 89.167 34.596 59.850
+pos = 94.143 34.596 59.850
 yaw = 0.000000
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 91.133 34.596 59.850
+pos = 96.086 34.596 59.850
 yaw = 0.000000
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 93.100 34.596 59.850
+pos = 98.029 34.596 59.850
 yaw = 0.000000
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 95.067 34.596 59.850
+pos = 99.971 34.596 59.850
 yaw = 0.000000
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 97.033 34.596 59.850
+pos = 101.914 34.596 59.850
 yaw = 0.000000
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 99.000 34.596 59.850
+pos = 103.857 34.596 59.850
 yaw = 0.000000
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 100.967 34.596 59.850
+pos = 105.800 34.596 59.850
 yaw = 0.000000
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 102.933 34.596 59.850
-yaw = 0.000000
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 104.900 34.596 59.850
-yaw = 0.000000
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 106.867 34.596 59.850
-yaw = 0.000000
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 108.833 34.596 59.850
-yaw = 0.000000
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 110.800 34.596 59.850
-yaw = 0.000000
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 112.650 34.596 59.700
+pos = 107.650 34.596 59.700
 yaw = 4.712389
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 112.650 34.596 61.667
+pos = 107.650 34.596 61.350
 yaw = 4.712389
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 112.650 34.596 63.633
+pos = 107.650 34.596 63.000
 yaw = 4.712389
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 112.650 34.596 65.600
+pos = 107.650 34.596 64.650
 yaw = 4.712389
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 112.650 34.596 67.567
+pos = 107.650 34.596 66.300
 yaw = 4.712389
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 112.650 34.596 69.533
-yaw = 4.712389
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 112.650 34.596 71.500
-yaw = 4.712389
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 112.800 34.596 73.350
+pos = 107.800 34.596 68.150
 yaw = 3.141593
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 110.833 34.596 73.350
+pos = 105.857 34.596 68.150
 yaw = 3.141593
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 108.867 34.596 73.350
+pos = 103.914 34.596 68.150
 yaw = 3.141593
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 106.900 34.596 73.350
+pos = 101.971 34.596 68.150
 yaw = 3.141593
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 104.933 34.596 73.350
+pos = 100.029 34.596 68.150
 yaw = 3.141593
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 102.967 34.596 73.350
+pos = 98.086 34.596 68.150
 yaw = 3.141593
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 101.000 34.596 73.350
+pos = 96.143 34.596 68.150
 yaw = 3.141593
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 99.033 34.596 73.350
+pos = 94.200 34.596 68.150
 yaw = 3.141593
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 97.067 34.596 73.350
-yaw = 3.141593
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 95.100 34.596 73.350
-yaw = 3.141593
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 93.133 34.596 73.350
-yaw = 3.141593
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 91.167 34.596 73.350
-yaw = 3.141593
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 89.200 34.596 73.350
-yaw = 3.141593
-note = фундамент ЗАМОК
-
-[house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 87.350 34.596 73.500
+pos = 92.350 34.596 68.300
 yaw = 1.570796
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 87.350 34.596 71.533
+pos = 92.350 34.596 66.650
 yaw = 1.570796
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 87.350 34.596 69.567
+pos = 92.350 34.596 65.000
 yaw = 1.570796
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 87.350 34.596 67.600
+pos = 92.350 34.596 63.350
 yaw = 1.570796
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 87.350 34.596 65.633
+pos = 92.350 34.596 61.700
 yaw = 1.570796
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 87.350 34.596 63.667
+pos = 87.200 34.596 60.850
+yaw = 0.000000
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 89.000 34.596 60.850
+yaw = 0.000000
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 90.800 34.596 60.850
+yaw = 0.000000
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 92.650 34.596 60.700
+yaw = 4.712389
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 92.650 34.596 62.233
+yaw = 4.712389
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 92.650 34.596 63.767
+yaw = 4.712389
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 92.650 34.596 65.300
+yaw = 4.712389
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 92.800 34.596 67.150
+yaw = 3.141593
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 91.000 34.596 67.150
+yaw = 3.141593
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 89.200 34.596 67.150
+yaw = 3.141593
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 87.350 34.596 67.300
 yaw = 1.570796
 note = фундамент ЗАМОК
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 87.350 34.596 61.700
+pos = 87.350 34.596 65.767
+yaw = 1.570796
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 87.350 34.596 64.233
+yaw = 1.570796
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 87.350 34.596 62.700
+yaw = 1.570796
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 107.200 34.596 60.850
+yaw = 0.000000
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 109.000 34.596 60.850
+yaw = 0.000000
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 110.800 34.596 60.850
+yaw = 0.000000
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 112.650 34.596 60.700
+yaw = 4.712389
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 112.650 34.596 62.233
+yaw = 4.712389
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 112.650 34.596 63.767
+yaw = 4.712389
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 112.650 34.596 65.300
+yaw = 4.712389
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 112.800 34.596 67.150
+yaw = 3.141593
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 111.000 34.596 67.150
+yaw = 3.141593
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 109.200 34.596 67.150
+yaw = 3.141593
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 107.350 34.596 67.300
+yaw = 1.570796
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 107.350 34.596 65.767
+yaw = 1.570796
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 107.350 34.596 64.233
+yaw = 1.570796
+note = фундамент ЗАМОК
+
+[house]
+file = assets/houses/city-foot2-h14.dfh
+pos = 107.350 34.596 62.700
 yaw = 1.570796
 note = фундамент ЗАМОК
 
@@ -1355,76 +1439,118 @@ yaw = 4.712389
 note = донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 119.854 33.596 68.076
+file = assets/houses/city-revet2-h40.dfh
+pos = 120.904 31.996 67.926
 yaw = 4.712389
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 119.854 33.596 69.576
+file = assets/houses/city-revet2-h32.dfh
+pos = 120.904 28.796 67.926
 yaw = 4.712389
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 119.854 33.596 71.076
+file = assets/houses/city-butt-h40.dfh
+pos = 120.904 31.646 68.476
 yaw = 4.712389
-note = фундамент донжон
+note = контрфорс донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 120.004 33.596 72.926
+file = assets/houses/city-revet2-h40.dfh
+pos = 120.904 31.996 69.576
+yaw = 4.712389
+note = подпорная стенка донжон
+
+[house]
+file = assets/houses/city-revet2-h36.dfh
+pos = 120.904 28.396 69.576
+yaw = 4.712389
+note = подпорная стенка донжон
+
+[house]
+file = assets/houses/city-revet2-h40.dfh
+pos = 120.904 31.996 71.226
+yaw = 4.712389
+note = подпорная стенка донжон
+
+[house]
+file = assets/houses/city-revet2-h36.dfh
+pos = 120.904 28.396 71.226
+yaw = 4.712389
+note = подпорная стенка донжон
+
+[house]
+file = assets/houses/city-butt-h40.dfh
+pos = 120.904 31.646 71.776
+yaw = 4.712389
+note = контрфорс донжон
+
+[house]
+file = assets/houses/city-revet2-h40.dfh
+pos = 120.154 31.996 73.976
 yaw = 3.141593
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 118.504 33.596 72.926
+file = assets/houses/city-butt-h36.dfh
+pos = 119.604 32.046 73.976
 yaw = 3.141593
-note = фундамент донжон
+note = контрфорс донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 117.004 33.596 72.926
+file = assets/houses/city-revet2-h28.dfh
+pos = 118.504 33.196 73.976
 yaw = 3.141593
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 115.154 33.596 73.076
+file = assets/houses/city-revet2-h20.dfh
+pos = 116.854 33.996 73.976
+yaw = 3.141593
+note = подпорная стенка донжон
+
+[house]
+file = assets/houses/city-butt-h16.dfh
+pos = 116.304 34.046 73.976
+yaw = 3.141593
+note = контрфорс донжон
+
+[house]
+file = assets/houses/city-revet2-h04.dfh
+pos = 114.104 35.596 73.226
 yaw = 1.570796
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 115.154 33.596 71.576
+file = assets/houses/city-revet2-h04.dfh
+pos = 114.104 35.596 71.576
 yaw = 1.570796
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 115.154 33.596 70.076
+file = assets/houses/city-revet2-h04.dfh
+pos = 114.104 35.596 69.926
 yaw = 1.570796
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 115.004 33.596 68.226
+file = assets/houses/city-revet2-h04.dfh
+pos = 114.854 35.596 67.176
 yaw = 0.000000
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 116.504 33.596 68.226
+file = assets/houses/city-revet2-h04.dfh
+pos = 116.504 35.596 67.176
 yaw = 0.000000
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 118.004 33.596 68.226
+file = assets/houses/city-revet2-h04.dfh
+pos = 118.154 35.596 67.176
 yaw = 0.000000
-note = фундамент донжон
+note = подпорная стенка донжон
 
 [house]
 file = assets/houses/city-house-l.dfh
@@ -1542,97 +1668,85 @@ note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 82.380 32.453 86.909
+pos = 82.246 32.453 86.949
 yaw = 0.291457
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 84.095 32.453 86.395
+pos = 83.827 32.453 86.475
 yaw = 0.291457
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 85.810 32.453 85.880
+pos = 85.407 32.453 86.001
 yaw = 0.291457
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 87.524 32.453 85.366
+pos = 86.988 32.453 85.527
 yaw = 0.291457
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 89.239 32.453 84.852
-yaw = 0.291457
-note = фундамент усадьба
-
-[house]
-file = assets/houses/city-foot2-h16.dfh
-pos = 90.967 32.453 84.176
+pos = 88.717 32.453 84.852
 yaw = 5.003846
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 91.462 32.453 85.824
+pos = 89.211 32.453 86.499
 yaw = 5.003846
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 91.956 32.453 87.471
+pos = 89.705 32.453 88.147
 yaw = 5.003846
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 92.450 32.453 89.119
+pos = 90.199 32.453 89.794
 yaw = 5.003846
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 92.944 32.453 90.766
+pos = 90.693 32.453 91.442
 yaw = 5.003846
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 93.439 32.453 92.414
+pos = 91.188 32.453 93.089
 yaw = 5.003846
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 94.114 32.453 94.143
+pos = 91.863 32.453 94.818
 yaw = 3.433049
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 92.399 32.453 94.657
+pos = 90.283 32.453 95.292
 yaw = 3.433049
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 90.685 32.453 95.171
+pos = 88.702 32.453 95.766
 yaw = 3.433049
 note = фундамент усадьба
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
-pos = 88.970 32.453 95.686
-yaw = 3.433049
-note = фундамент усадьба
-
-[house]
-file = assets/houses/city-foot2-h16.dfh
-pos = 87.256 32.453 96.200
+pos = 87.122 32.453 96.240
 yaw = 3.433049
 note = фундамент усадьба
 
@@ -1931,12 +2045,6 @@ yaw = 2.034444
 note = фундамент дом
 
 [house]
-file = assets/houses/city-stoop16-h02.dfh
-pos = 115.827 32.748 98.444
-yaw = 2.034444
-note = крыльцо дом
-
-[house]
 file = assets/houses/city-temple.dfh
 pos = 83.000 32.945 105.000
 yaw = 0.000000
@@ -2076,103 +2184,91 @@ note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 95.150 32.345 106.460
+pos = 95.150 32.345 106.350
 yaw = 4.712389
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 95.150 32.345 108.220
+pos = 95.150 32.345 108.000
 yaw = 4.712389
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 95.150 32.345 109.980
+pos = 95.150 32.345 109.650
 yaw = 4.712389
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 95.150 32.345 111.740
+pos = 95.150 32.345 111.300
 yaw = 4.712389
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 95.150 32.345 113.500
-yaw = 4.712389
-note = фундамент ХРАМ
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 95.300 32.345 115.350
+pos = 95.300 32.345 113.150
 yaw = 3.141593
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 93.533 32.345 115.350
+pos = 93.533 32.345 113.150
 yaw = 3.141593
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 91.767 32.345 115.350
+pos = 91.767 32.345 113.150
 yaw = 3.141593
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 90.000 32.345 115.350
+pos = 90.000 32.345 113.150
 yaw = 3.141593
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 88.233 32.345 115.350
+pos = 88.233 32.345 113.150
 yaw = 3.141593
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 86.467 32.345 115.350
+pos = 86.467 32.345 113.150
 yaw = 3.141593
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 84.700 32.345 115.350
+pos = 84.700 32.345 113.150
 yaw = 3.141593
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 82.850 32.345 115.500
+pos = 82.850 32.345 113.300
 yaw = 1.570796
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 82.850 32.345 113.740
+pos = 82.850 32.345 111.650
 yaw = 1.570796
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 82.850 32.345 111.980
+pos = 82.850 32.345 110.000
 yaw = 1.570796
 note = фундамент ХРАМ
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
-pos = 82.850 32.345 110.220
-yaw = 1.570796
-note = фундамент ХРАМ
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 82.850 32.345 108.460
+pos = 82.850 32.345 108.350
 yaw = 1.570796
 note = фундамент ХРАМ
 
@@ -3126,73 +3222,61 @@ note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 101.850 27.463 143.350
+pos = 101.733 27.463 143.350
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 103.500 27.463 143.350
+pos = 103.267 27.463 143.350
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 105.150 27.463 143.350
+pos = 104.800 27.463 143.350
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 106.800 27.463 143.350
-yaw = 0.000000
-note = фундамент лавка
-
-[house]
-file = assets/houses/city-foot2-h22.dfh
-pos = 108.650 27.463 143.200
+pos = 106.650 27.463 143.200
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.650 27.463 144.733
+pos = 106.650 27.463 144.733
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.650 27.463 146.267
+pos = 106.650 27.463 146.267
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.650 27.463 147.800
+pos = 106.650 27.463 147.800
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.800 27.463 149.650
+pos = 106.800 27.463 149.650
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 107.150 27.463 149.650
+pos = 105.267 27.463 149.650
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 105.500 27.463 149.650
-yaw = 3.141593
-note = фундамент лавка
-
-[house]
-file = assets/houses/city-foot2-h22.dfh
-pos = 103.850 27.463 149.650
+pos = 103.733 27.463 149.650
 yaw = 3.141593
 note = фундамент лавка
 
@@ -3294,73 +3378,61 @@ note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 99.087 26.665 159.329
+pos = 98.970 26.665 159.329
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 100.737 26.665 159.329
+pos = 100.504 26.665 159.329
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 102.387 26.665 159.329
+pos = 102.037 26.665 159.329
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 104.037 26.665 159.329
-yaw = 0.000000
-note = фундамент лавка
-
-[house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 105.887 26.665 159.179
+pos = 103.887 26.665 159.179
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 105.887 26.665 160.713
+pos = 103.887 26.665 160.713
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 105.887 26.665 162.246
+pos = 103.887 26.665 162.246
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 105.887 26.665 163.779
+pos = 103.887 26.665 163.779
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 106.037 26.665 165.629
+pos = 104.037 26.665 165.629
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 104.387 26.665 165.629
+pos = 102.504 26.665 165.629
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 102.737 26.665 165.629
-yaw = 3.141593
-note = фундамент лавка
-
-[house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 101.087 26.665 165.629
+pos = 100.970 26.665 165.629
 yaw = 3.141593
 note = фундамент лавка
 
@@ -3492,97 +3564,85 @@ note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 132.646 26.716 159.197
+pos = 132.786 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 130.856 26.716 159.197
+pos = 131.136 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 129.066 26.716 159.197
+pos = 129.486 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 127.276 26.716 159.197
+pos = 127.836 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 125.486 26.716 159.197
-yaw = 3.141593
-note = фундамент таверна
-
-[house]
-file = assets/houses/city-foot2-h12.dfh
-pos = 123.636 26.716 159.347
+pos = 125.986 26.716 159.347
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.636 26.716 157.627
+pos = 125.986 26.716 157.627
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.636 26.716 155.907
+pos = 125.986 26.716 155.907
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.636 26.716 154.187
+pos = 125.986 26.716 154.187
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.636 26.716 152.467
+pos = 125.986 26.716 152.467
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.636 26.716 150.747
+pos = 125.986 26.716 150.747
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.486 26.716 148.897
+pos = 125.836 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 125.276 26.716 148.897
+pos = 127.486 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 127.066 26.716 148.897
+pos = 129.136 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 128.856 26.716 148.897
-yaw = 0.000000
-note = фундамент таверна
-
-[house]
-file = assets/houses/city-foot2-h12.dfh
-pos = 130.646 26.716 148.897
+pos = 130.786 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
@@ -3591,12 +3651,6 @@ file = assets/houses/city-foot2-h12.dfh
 pos = 132.436 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
-
-[house]
-file = assets/houses/city-stoop16-h02.dfh
-pos = 125.686 27.536 153.247
-yaw = 6.283185
-note = крыльцо таверна
 
 [house]
 file = assets/houses/city-shop-old.dfh
@@ -3684,73 +3738,61 @@ note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 121.665 26.557 168.276
+pos = 121.665 26.557 168.392
 yaw = 1.570796
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 121.665 26.557 166.626
+pos = 121.665 26.557 166.859
 yaw = 1.570796
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 121.665 26.557 164.976
+pos = 121.665 26.557 165.326
 yaw = 1.570796
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 121.665 26.557 163.326
-yaw = 1.570796
-note = фундамент кузница
-
-[house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 121.515 26.557 161.476
+pos = 121.515 26.557 163.476
 yaw = 0.000000
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 123.048 26.557 161.476
+pos = 123.048 26.557 163.476
 yaw = 0.000000
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 124.582 26.557 161.476
+pos = 124.582 26.557 163.476
 yaw = 0.000000
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 126.115 26.557 161.476
+pos = 126.115 26.557 163.476
 yaw = 0.000000
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 127.965 26.557 161.326
+pos = 127.965 26.557 163.326
 yaw = 4.712389
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 127.965 26.557 162.976
+pos = 127.965 26.557 164.859
 yaw = 4.712389
 note = фундамент кузница
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 127.965 26.557 164.626
-yaw = 4.712389
-note = фундамент кузница
-
-[house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 127.965 26.557 166.276
+pos = 127.965 26.557 166.392
 yaw = 4.712389
 note = фундамент кузница
 
@@ -3759,12 +3801,6 @@ file = assets/houses/city-foot2-h10.dfh
 pos = 127.965 26.557 167.926
 yaw = 4.712389
 note = фундамент кузница
-
-[house]
-file = assets/houses/city-stoop16-h02.dfh
-pos = 125.615 27.177 163.176
-yaw = 4.712389
-note = крыльцо кузница
 
 [house]
 file = assets/houses/city-house-s.dfh
@@ -4325,12 +4361,6 @@ yaw = 3.232253
 note = фундамент дом
 
 [house]
-file = assets/houses/city-stoop16-h02.dfh
-pos = 114.755 27.254 164.671
-yaw = 3.232253
-note = крыльцо дом
-
-[house]
 file = assets/houses/city-house-s-old.dfh
 pos = 89.641 28.113 150.959
 yaw = 5.878294
@@ -4800,73 +4830,67 @@ note = убранство: амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 83.568 25.248 200.829
+pos = 85.068 25.248 200.829
 yaw = 1.570796
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 83.568 25.248 199.063
+pos = 85.068 25.248 199.063
 yaw = 1.570796
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 83.568 25.248 197.296
+pos = 85.068 25.248 197.296
 yaw = 1.570796
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 83.568 25.248 195.529
+pos = 85.068 25.248 195.529
 yaw = 1.570796
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 83.568 25.248 193.763
+pos = 85.068 25.248 193.763
 yaw = 1.570796
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 83.568 25.248 191.996
+pos = 85.068 25.248 191.996
 yaw = 1.570796
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 83.568 25.248 190.229
+pos = 85.068 25.248 190.229
 yaw = 1.570796
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 83.418 25.248 188.379
+pos = 84.918 25.248 188.379
 yaw = 0.000000
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 85.238 25.248 188.379
+pos = 86.818 25.248 188.379
 yaw = 0.000000
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 87.058 25.248 188.379
+pos = 88.718 25.248 188.379
 yaw = 0.000000
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 88.878 25.248 188.379
-yaw = 0.000000
-note = фундамент амбар
-
-[house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 90.698 25.248 188.379
+pos = 90.618 25.248 188.379
 yaw = 0.000000
 note = фундамент амбар
 
@@ -4926,31 +4950,25 @@ note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 92.698 25.248 200.679
+pos = 92.618 25.248 200.679
 yaw = 3.141593
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 90.878 25.248 200.679
+pos = 90.718 25.248 200.679
 yaw = 3.141593
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 89.058 25.248 200.679
+pos = 88.818 25.248 200.679
 yaw = 3.141593
 note = фундамент амбар
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
-pos = 87.238 25.248 200.679
-yaw = 3.141593
-note = фундамент амбар
-
-[house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 85.418 25.248 200.679
+pos = 86.918 25.248 200.679
 yaw = 3.141593
 note = фундамент амбар
 
@@ -5034,49 +5052,37 @@ note = фундамент МЕЛЬНИЦА
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 128.377 25.669 182.085
+pos = 128.371 25.669 182.097
 yaw = 1.107149
 note = фундамент МЕЛЬНИЦА
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 129.217 25.669 180.403
+pos = 129.206 25.669 180.427
 yaw = 1.107149
 note = фундамент МЕЛЬНИЦА
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 130.058 25.669 178.722
+pos = 130.040 25.669 178.758
 yaw = 1.107149
 note = фундамент МЕЛЬНИЦА
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 130.899 25.669 177.040
-yaw = 1.107149
-note = фундамент МЕЛЬНИЦА
-
-[house]
-file = assets/houses/city-foot2-h04.dfh
-pos = 131.740 25.669 175.359
-yaw = 1.107149
-note = фундамент МЕЛЬНИЦА
-
-[house]
-file = assets/houses/city-foot2-h04.dfh
-pos = 132.433 25.669 173.637
+pos = 130.734 25.669 177.036
 yaw = 5.819538
 note = фундамент МЕЛЬНИЦА
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 134.103 25.669 174.472
+pos = 132.403 25.669 177.871
 yaw = 5.819538
 note = фундамент МЕЛЬНИЦА
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 135.772 25.669 175.307
+pos = 134.073 25.669 178.706
 yaw = 5.819538
 note = фундамент МЕЛЬНИЦА
 
@@ -5118,73 +5124,67 @@ note = убранство: конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 118.081 25.680 182.669
+pos = 116.583 25.680 182.748
 yaw = 4.764972
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 118.174 25.680 184.433
+pos = 116.676 25.680 184.512
 yaw = 4.764972
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 118.267 25.680 186.198
+pos = 116.769 25.680 186.276
 yaw = 4.764972
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 118.360 25.680 187.962
+pos = 116.862 25.680 188.041
 yaw = 4.764972
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 118.453 25.680 189.726
+pos = 116.955 25.680 189.805
 yaw = 4.764972
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 118.546 25.680 191.490
+pos = 117.048 25.680 191.569
 yaw = 4.764972
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 118.638 25.680 193.254
+pos = 117.140 25.680 193.333
 yaw = 4.764972
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 118.885 25.680 195.094
+pos = 117.388 25.680 195.173
 yaw = 3.194176
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 117.068 25.680 195.190
+pos = 115.490 25.680 195.273
 yaw = 3.194176
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 115.250 25.680 195.285
+pos = 113.593 25.680 195.373
 yaw = 3.194176
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 113.433 25.680 195.381
-yaw = 3.194176
-note = фундамент конюшни
-
-[house]
-file = assets/houses/city-foot2-h04.dfh
-pos = 111.615 25.680 195.477
+pos = 111.695 25.680 195.472
 yaw = 3.194176
 note = фундамент конюшни
 
@@ -5244,31 +5244,25 @@ note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 108.972 25.680 183.299
+pos = 109.052 25.680 183.295
 yaw = 0.052583
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 110.789 25.680 183.203
+pos = 110.949 25.680 183.195
 yaw = 0.052583
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 112.607 25.680 183.107
+pos = 112.846 25.680 183.095
 yaw = 0.052583
 note = фундамент конюшни
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
-pos = 114.424 25.680 183.012
-yaw = 0.052583
-note = фундамент конюшни
-
-[house]
-file = assets/houses/city-foot2-h04.dfh
-pos = 116.242 25.680 182.916
+pos = 114.744 25.680 182.995
 yaw = 0.052583
 note = фундамент конюшни
 
@@ -5388,97 +5382,85 @@ note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 183.807 24.713 117.769
+pos = 183.827 24.713 117.630
 yaw = 4.570492
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 183.554 24.713 119.541
+pos = 183.593 24.713 119.263
 yaw = 4.570492
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 183.300 24.713 121.313
+pos = 183.360 24.713 120.897
 yaw = 4.570492
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 183.047 24.713 123.085
+pos = 183.127 24.713 122.530
 yaw = 4.570492
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 182.794 24.713 124.857
-yaw = 4.570492
-note = фундамент постоялый двор
-
-[house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 182.681 24.713 126.709
+pos = 183.013 24.713 124.383
 yaw = 2.999696
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 180.978 24.713 126.466
+pos = 181.311 24.713 124.140
 yaw = 2.999696
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 179.276 24.713 126.223
+pos = 179.608 24.713 123.896
 yaw = 2.999696
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 177.573 24.713 125.980
+pos = 177.905 24.713 123.653
 yaw = 2.999696
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 175.870 24.713 125.736
+pos = 176.203 24.713 123.410
 yaw = 2.999696
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 174.167 24.713 125.493
+pos = 174.500 24.713 123.167
 yaw = 2.999696
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 172.315 24.713 125.380
+pos = 172.647 24.713 123.054
 yaw = 1.428899
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 172.568 24.713 123.608
+pos = 172.881 24.713 121.420
 yaw = 1.428899
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 172.821 24.713 121.836
+pos = 173.114 24.713 119.787
 yaw = 1.428899
 note = фундамент постоялый двор
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 173.074 24.713 120.064
-yaw = 1.428899
-note = фундамент постоялый двор
-
-[house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 173.327 24.713 118.292
+pos = 173.347 24.713 118.153
 yaw = 1.428899
 note = фундамент постоялый двор
 
