@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 24:08:2026 - 12:40:00
-# Last updated: 24:08:2026 - 20:30:00
+# Last updated: 24:08:2026 - 21:20:00
 # Module: tools
 # File: tools/gen_city.py
 #
@@ -146,6 +146,29 @@
 #   усадьбы лежит в её дворике, снаружи стен. План снят с рецепта (главный
 #   корпус, крыло с маршем, два дверных коридора), столбов нет намеренно —
 #   ростовки под балку 2.82 в выпечке нет. Выпуск Вайтрана — байт-в-байт.
+# - 24:08:2026 - 21:20:00: ВОЛНА Г, ЗАХОД 4 — ОГОНЬ ПЕРЕСТАЛ БЫТЬ ГИРЛЯНДОЙ.
+#   Три находки пилота, и все три об одном: правило, верное для одного вида
+#   предметов, молча распространили на все.
+#   (5) НОРМА НАДВЕРНОГО ОГНЯ (DOOR_LIGHT паспорта: шаг и потолок в круге).
+#       Фонарь ставился У КАЖДОЙ ДВЕРИ — правило, молчаливо предполагавшее
+#       город, где дверей мало. На сплошном фасадном ряду их восемьдесят, и
+#       «у каждой» это ровная гирлянда на четверть километра; пилот чинил РИТМ
+#       ЯРКОСТЬЮ — приглушил надверный фонарь вчетверо по площади свечения.
+#       У Корнхолла теперь 36 фонарей из 85 дверей при честной яркости.
+#   (6) ПЛОЩАДКА УМЕЕТ РАЗРЕШИТЬ СВОЙ ОГОНЬ (spot_free(plaza_ok),
+#       FIRE_PLAZA_OK паспорта). Запрет «не на площади» писался для дворового
+#       клаттера, а отказывал уличному огню САМОЙ площадки: у Корнхолла вся
+#       рыночная улица объявлена площадкой, и узлы осевой пришлось стереть
+#       вовсе. Оба вернулись на место.
+#   (7) ОДНО МЕСТО — НЕСКОЛЬКО ГНЁЗД (ключ nests). Ядро, торговый ряд и набор
+#       считались от ОДНОГО прямоугольника, поэтому улица длиной 208 м с одним
+#       гнездом огня была тёмной улицей с ярким пятном посередине, а пилоту
+#       пришлось объявить ДВА МЕСТА и потерять имя главной формы города.
+#       Гнездо — поправка к месту (своё пятно, ядро, ряд, ореол); полотно и
+#       набор общие, и числа набора относятся к ГНЕЗДУ.
+#   Выпуск Вайтрана — байт-в-байт с HEAD (у него у всех мест по одному гнезду,
+#   DOOR_LIGHT пуст, FIRE_PLAZA_OK выключен — то есть все три умолчания это
+#   «как было»).
 import importlib
 import json
 import math
@@ -275,8 +298,8 @@ def load_city(name):
     # ПРЯМОУГОЛЬНИКИ ПЛОЩАДЕЙ. Дворовый клаттер, бордюр и отодвиг от дорог
     # спрашивают «это площадь?» — раньше через MRX/MRZ рынка, единственной
     # площади единственного города. Список объявляют МЕСТА паспорта.
-    PLAZA_RECTS = [tuple(plan_ref(p["rect"])) for p in PLACES
-                   if p.get("plaza")]
+    PLAZA_RECTS = [tuple(plan_ref(nest["rect"])) for p in PLACES
+                   if p.get("plaza") for nest in place_nests(p)]
     RING = _ring_build()
     check_kinds()
 
@@ -2034,9 +2057,21 @@ def dist_to_roads(px, pz):
             best = min(best, math.hypot(px - (x0+vx*t), pz - (z0+vz*t)) - rd["w"]/2)
     return best
 
-def spot_free(px, pz, r, skip=None):
-    """Место под клаттер: не в теле дома, не на полосе дороги, не на площади."""
-    if on_plaza(px, pz) or dist_to_roads(px, pz) < r:
+def spot_free(px, pz, r, skip=None, plaza_ok=False):
+    """Место под клаттер: не в теле дома, не на полосе дороги, не на площади.
+
+    ...И ПЛОЩАДЬ УМЕЕТ РАЗРЕШИТЬ СЕБЯ (plaza_ok; находка пилота Корнхолла №6).
+    Запрет «не на площади» писался для ДВОРОВОГО КЛАТТЕРА — чтобы поленница
+    соседа не вылезла на торговую площадь, — и для него он верен. Но тот же
+    запрет отказывал ОГНЮ САМОЙ ПЛОЩАДИ: у Корнхолла рыночная УЛИЦА целиком
+    объявлена площадкой, а узловая жаровня ищет чистое место отодвигом поперёк
+    улицы — то есть внутри этой же площадки, — и не находила его нигде. Огонь
+    улицы пришлось отдать торгам, а узлы осевой стереть вовсе. У Вайтрана этого
+    не видно: там площадь 14x11 и осевая её только пересекает.
+    Мера, приложенная не к своему предмету, — тот же класс дефекта, что и
+    «фонарь у каждой двери»: правило, верное для одного вида предметов,
+    молча распространили на все."""
+    if (not plaza_ok and on_plaza(px, pz)) or dist_to_roads(px, pz) < r:
         return False
     if not (1.0 <= px <= LAST and 1.0 <= pz <= LAST):
         return False
@@ -2415,6 +2450,23 @@ def put_brazier(Hh, cx, cz, note, on_square=False):
 # террасу — последней. Поэтому оркестратор идёт по ФАЗАМ и спрашивает у каждого
 # места только те, что у него есть.
 
+def place_nests(pl):
+    """ГНЁЗДА МЕСТА: одно место — одно гнездо, если паспорт не сказал иначе.
+
+    НАХОДКА ПИЛОТА КОРНХОЛЛА №7. У механизма места гнездо было ровно одно:
+    ядро, торговый ряд, набор по карте свободы — всё считалось от ОДНОГО
+    прямоугольника. Пока место это площадь 14x11, разницы нет; но рыночная
+    УЛИЦА длиной 208 м с одним гнездом огня — это тёмная улица с ярким пятном
+    посередине, а правило огня просит гнёзда не ближе 60 м и, значит, их
+    должно быть несколько. Пилоту пришлось объявить ДВА МЕСТА («северный торг»
+    и «южный торг») — то есть повторить пятнадцать строк паспорта ради второго
+    гнезда одной и той же улицы, и город потерял имя своей главной формы.
+    ГНЕЗДО — ЭТО ПОПРАВКА К МЕСТУ: своё пятно, своё ядро, свой торговый ряд,
+    свой ореол; полотно, набор оживления и правила раскладки — общие. Поэтому
+    здесь dict(место, **гнездо), а не отдельный вид места."""
+    ns = pl.get("nests")
+    return [dict(pl, **n) for n in ns] if ns else [pl]
+
 def place_at(pl):
     """Точка места: явная ссылка в чертёж («gildergreen») или центр его пятна."""
     if "at" in pl:
@@ -2430,15 +2482,22 @@ def place_grade(pl, Hh):
     минуют полотно трактов и пады домов) или None."""
     g = pl.get("grade")
     if not g:
-        return None
-    if "rect" in g:
-        x0, z0, w, d = plan_ref(g["rect"])
-    else:
-        cx, cz = place_at(pl)
-        w = d = float(g["square"])
-        x0, z0 = cx - w/2.0, cz - d/2.0
-    grade_rect(Hh, x0, z0, w, d, g["feather"])
-    return (x0, z0, w, d)
+        return []
+    out = []
+    for nest in place_nests(pl):
+        if "rect" in g:
+            # У ГНЕЗДА ПЛАНИРУЕТСЯ ЕГО СОБСТВЕННОЕ ПЯТНО. Ключ grade.rect
+            # остаётся у мест без гнёзд (площадку рынка Вайтрана планируют по
+            # его же прямоугольнику, но право назвать другой у паспорта есть).
+            x0, z0, w, d = plan_ref(nest["rect"] if "nests" in pl
+                                    else g["rect"])
+        else:
+            cx, cz = place_at(nest)
+            w = d = float(g["square"])
+            x0, z0 = cx - w/2.0, cz - d/2.0
+        grade_rect(Hh, x0, z0, w, d, g["feather"])
+        out.append((x0, z0, w, d))
+    return out
 
 # --- МЕХАНИЗМ: МОЩЁНЫЙ ПРЯМОУГОЛЬНИК ШТРИХОВКОЙ ------------------------------
 def pave_rect(x0, z0, w, d, half, over, inset, note, cls=0):
@@ -2642,10 +2701,11 @@ def place_floor(pl, Hh):
     # замера цены мощения из одного бинарника.
     if pl["kind"] != "market" or os.environ.get("DFN_GEN_NO_COBBLE") == "1":
         return
-    x0, z0, w, d = plan_ref(pl["rect"])
-    fl = pl["floor"]
-    pave_rect(x0, z0, w, d, fl["half"], fl["over"], fl["inset"], fl["note"])
-    SQUARES.append((pl["name"], "rect", (x0, z0, w, d), 0))
+    for nest in place_nests(pl):
+        x0, z0, w, d = plan_ref(nest["rect"])
+        fl = nest["floor"]
+        pave_rect(x0, z0, w, d, fl["half"], fl["over"], fl["inset"], fl["note"])
+        SQUARES.append((nest["name"], "rect", (x0, z0, w, d), 0))
 
 def place_core(pl, Hh):
     """ФАЗА 3 — ЯДРО ПЛОЩАДИ И ТОРГОВЫЙ РЯД. Ядро садится на ЗЕМЛЮ по своему
@@ -2654,21 +2714,24 @@ def place_core(pl, Hh):
     мимо check_layout, и потому может встать посреди улицы, а прибор промолчит.
     Ровно это и было — колодец стоял в узле главной улицы."""
     if pl["kind"] != "market":
-        return None
-    co = pl["core"]
-    wx, wz = plan_ref(co["at"])
-    bx, bz = co["body"]
-    sw, sd = co["size"]
-    y = min(hh_at(Hh, px, pz)
-            for px, pz in rect_points(wx + bx, wz + bz, sw, sd, 0.0,
-                                      n=5)) - co["sink"]
-    house(co["rec"], wx, y, wz, 0, co["note"])
-    _cx, _cz, _w, _d, _a, _o = recipe_box(co["rec"])
-    LANDMARKS.append((co["note"], wx + _cx, wz + _cz, _w, _d, 0.0, False))
-    st = pl.get("stalls")
-    if st:
-        stall_row(Hh, st)
-    return (wx, wz, y)
+        return []
+    out = []
+    for nest in place_nests(pl):
+        co = nest["core"]
+        wx, wz = plan_ref(co["at"])
+        bx, bz = co["body"]
+        sw, sd = co["size"]
+        y = min(hh_at(Hh, px, pz)
+                for px, pz in rect_points(wx + bx, wz + bz, sw, sd, 0.0,
+                                          n=5)) - co["sink"]
+        house(co["rec"], wx, y, wz, 0, co["note"])
+        _cx, _cz, _w, _d, _a, _o = recipe_box(co["rec"])
+        LANDMARKS.append((co["note"], wx + _cx, wz + _cz, _w, _d, 0.0, False))
+        st = nest.get("stalls")
+        if st:
+            stall_row(Hh, st)
+        out.append((wx, wz, y))
+    return out
 
 def stall_row(Hh, st):
     """ТОРГОВЫЙ РЯД. Точка чертежа — ЦЕНТР прилавка, и смещение к углу ОБЯЗАНО
@@ -2702,13 +2765,23 @@ def stall_row(Hh, st):
         house(bk["rec"], bx2, sy, bz2, (syaw + bk["yaw"]) % 360.0,
               f"стеллаж прилавка {i+1}")
 
-def place_life(pl, Hh, core):
+def place_life(pl, Hh, cores):
     """ФАЗА 4 — ЖИЗНЬ ПЛОЩАДИ: скамьи и фонари вокруг ядра, тара у лотков,
     набор по карте свободы. ЯДРО надо не «украсить», а СДЕЛАТЬ ЦЕНТРОМ
     ВНИМАНИЯ: вокруг него садятся скамьи лицом к нему и фонари, то есть
-    появляется причина к нему подойти. Лотки при этом остаются кромкой."""
-    if pl["kind"] != "market" or core is None:
+    появляется причина к нему подойти. Лотки при этом остаются кромкой.
+    НАБОР САДИТСЯ В КАЖДОЕ ГНЕЗДО СВОЙ: у длинного места «столько-то жаровен
+    на место» значит «столько-то на всю улицу», то есть одно светлое пятно на
+    двести метров. Гнездо и есть та единица, к которой относятся числа набора."""
+    if pl["kind"] != "market" or not cores:
         return 0
+    n_all = 0
+    for nest, core in zip(place_nests(pl), cores):
+        n_all += place_life_nest(nest, Hh, core)
+    return n_all
+
+def place_life_nest(pl, Hh, core):
+    """Жизнь ОДНОГО гнезда места."""
     co = pl["core"]
     wcx, wcz = core[0] + co["body"][0], core[1] + co["body"][1]
     n = 0
@@ -2902,18 +2975,25 @@ def place_terrace(pl, Hh):
     """ФАЗА 7 — ПОСТРОЕННЫЙ ПЕРЕПАД на нагорной кромке площади."""
     if not pl.get("terrace"):
         return 0, 0
-    return market_terrace(Hh, plan_ref(pl["rect"]))
+    # ТЕРРАСА — У ПЕРВОГО ГНЕЗДА: построенный перепад стоит на НАГОРНОЙ кромке
+    # места, и она одна, сколько бы гнёзд место ни держало.
+    return market_terrace(Hh, plan_ref(place_nests(pl)[0]["rect"]))
 
 def place_halo(pl):
-    """ОРЕОЛ ВЫТОПТАННОГО у ядра места — для покраски земли классами."""
-    h = pl.get("halo")
-    if h is None:
-        return None
-    if isinstance(h, dict):
-        px, pz = plan_ref(h["at"])
-        return (px + h["d"][0], pz + h["d"][1], h["r"])
-    cx, cz = place_at(pl)
-    return (cx, cz, h)
+    """ОРЕОЛЫ ВЫТОПТАННОГО у ядер места — для покраски земли классами.
+    Список: у места с несколькими гнёздами ореол у каждого свой."""
+    out = []
+    for nest in place_nests(pl):
+        h = nest.get("halo")
+        if h is None:
+            continue
+        if isinstance(h, dict):
+            px, pz = plan_ref(h["at"])
+            out.append((px + h["d"][0], pz + h["d"][1], h["r"]))
+        else:
+            cx, cz = place_at(nest)
+            out.append((cx, cz, h))
+    return out
 
 # --- ОЗЕЛЕНЕНИЕ ГОРОДА (п. 5: «мало кустиков по городу») ---------------------
 # Кусты СУЩЕСТВУЮЩИЕ (полка glade, табу владельца на правку) и ставятся ТАМ,
@@ -2994,16 +3074,47 @@ def street_lamps(Hh):
           f"порядке по обеим кромкам)")
     return n
 
+def door_norm_ok(px, pz, at):
+    """НОРМА НАДВЕРНОГО ОГНЯ: можно ли зажечь ещё один в этой точке.
+
+    НАХОДКА ПИЛОТА КОРНХОЛЛА №5. Фонарь ставился У КАЖДОЙ ДВЕРИ, и это правило
+    молчаливо предполагало город, где дверей мало. На сплошном фасадном ряду
+    их восемьдесят, и «у каждой» превращается в РОВНУЮ ГИРЛЯНДУ на четверть
+    километра — ровно то, чего правило огня Корнхолла (гнёзда не ближе 60 м,
+    между ними темнота) не допускает НИ ПРИ КАКОЙ раскладке. Пилот обошёл это
+    единственным доступным рычагом: приглушил надверный фонарь вчетверо по
+    площади свечения, то есть чинил РИТМ ЯРКОСТЬЮ.
+    Норму объявляет паспорт (DOOR_LIGHT), и она из двух мер:
+      * «pitch» — шаг: ближе этого второго надверного огня не бывает;
+      * «cap» — (радиус, потолок): сколько их вообще можно в круге. Шаг один
+        держит цепочку вдоль улицы, но не мешает ей сгуститься на перекрёстке,
+        где сходятся три фасада; потолок в круге — держит.
+    Пустой DOOR_LIGHT значит «у каждой двери», как было."""
+    pitch = DOOR_LIGHT.get("pitch")
+    if pitch and any(math.hypot(px-ax, pz-az) < pitch for ax, az in at):
+        return False
+    cap = DOOR_LIGHT.get("cap")
+    if cap:
+        r_cap, n_cap = cap
+        if sum(1 for ax, az in at
+               if math.hypot(px-ax, pz-az) <= r_cap) >= n_cap:
+            return False
+    return True
+
 def door_lights(Hh, FR):
     """ФОНАРЬ У ДВЕРИ — НАСТЕННЫЙ (furn-lamp-wall кузни-3), а не столб рядом.
     Спинка садится РОВНО на дверную грань дома, потому что у рецепта плоскость
     крепления — локальный z=0; фонарь, отодвинутый «для надёжности» на
     полметра, читался бы как столбик без столба.
     Ставится СБОКУ ОТ СТВОРА (1.1 м вдоль фасада): над самой дверью он бьёт в
-    глаза выходящему и загораживает косяк."""
+    глаза выходящему и загораживает косяк.
+    ...И НЕ У КАЖДОЙ ДВЕРИ, ЕСЛИ ПАСПОРТ СКАЗАЛ ИНАЧЕ — см. door_norm_ok."""
     n = 0
+    at = []
     for f in FR:
         fx, fz = f["door"]
+        if not door_norm_ok(fx, fz, at):
+            continue
         ux, uz = fx - f["x"], fz - f["z"]
         ul = math.hypot(ux, uz) or 1.0
         ux, uz = ux/ul, uz/ul                  # наружу из двери
@@ -3021,12 +3132,18 @@ def door_lights(Hh, FR):
             put_wall_lamp(Hh, px, pz, ux, uz,
                           "фонарь у двери: " + (f["hs"]["name"] or f["hs"]["kind"] or "дом"))
             hold(px, pz, 0.5)
+            at.append((fx, fz))
             n += 1
             placed = True
             break
         if not placed:
             continue
-    print(f"фонари у дверей: {n} настенных из {len(FR)} построек")
+    norm = ""
+    if DOOR_LIGHT:
+        cap = DOOR_LIGHT.get("cap")
+        norm = (f" — норма паспорта: шаг {DOOR_LIGHT.get('pitch', 0):.0f} м"
+                + (f", не больше {cap[1]} в круге {cap[0]:.0f} м" if cap else ""))
+    print(f"фонари у дверей: {n} настенных из {len(FR)} построек{norm}")
     return n
 
 # --- МОЩЕНИЕ (плиты wr-forge, семейство city-cobble) -------------------------
@@ -4986,7 +5103,8 @@ def paint_ground(Hh):
     # ТОЧКИ ПРИТЯЖЕНИЯ — из чертежа и из расстановки, а не выдуманные: ворота,
     # ядра МЕСТ (каждое объявляет свой ореол само) и подножия крылец.
     spots = [(g["pos"][0], g["pos"][1], GROUND_GATE_R) for g in PLAN["gates"]]
-    spots += [h for h in (place_halo(pl) for pl in PLACES) if h is not None]
+    for pl in PLACES:
+        spots += place_halo(pl)
     for (_k, _dx, _dz, fx, fz, _n) in STOOPS:
         spots.append((fx, fz, GROUND_STOOP_R))
     for (fx, fz) in STOOP_FOOT:
@@ -5387,7 +5505,8 @@ def brazier(px, pz, note):
                         and river_dist(qx, qz) >= BRAZIER_BANK \
                         and all(math.hypot(qx-ax, qz-az) >= BRAZIER_APART
                                 for ax, az in BRAZIER_AT) \
-                        and spot_free(qx, qz, BRAZIER_CLEAR):
+                        and spot_free(qx, qz, BRAZIER_CLEAR,
+                                      plaza_ok=FIRE_PLAZA_OK):
                     found = (qx, qz)
                     break
             if found:
@@ -5616,8 +5735,7 @@ def main(city="whiterun"):
     # ЧЕРЕЗ рынок, и полотно тракта, спланированное после площади, поднимало её
     # кромку на 1.35 м — плита с прилавками зависала над землёй, бот вставал на
     # неё и застревал (char-трасса: (119.97, 29.11, 147.57), 5 с без смещения).
-    SQUARES_RECT = [r for r in (place_grade(pl, PLAN_H) for pl in PLACES)
-                    if r is not None]
+    SQUARES_RECT = [r for pl in PLACES for r in place_grade(pl, PLAN_H)]
     # ...и полотно трактов кладётся ПОВЕРХ их каймы, минуя сами прямоугольники:
     # кайма площади ложилась на улицу и снова делала её волнистой (покрытие
     # подхода к рынку падало с 46 до 28%). Внутри места — место, снаружи —
