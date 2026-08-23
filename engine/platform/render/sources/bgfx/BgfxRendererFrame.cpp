@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 02:45:45
+Last updated: 23:08:2026 - 18:00:21
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererFrame.cpp
 
@@ -205,6 +205,7 @@ UPD:
 - 23:08:2026 - 02:13:26: packed[14].z — доза DFN_CLOUD_MACRO (сверх-октавы поля, дефолт 1).
 - 23:08:2026 - 02:15:40: packed[38].w — доза DFN_CLOUD_PATHRES (дефолт 1).
 - 23:08:2026 - 02:45:45: packed[50].x — доза DFN_PATH_TILES_BOMB (дефолт 1); массив 50 -> 51.
+- 23:08:2026 - 18:00:21: упаковка светов по слотам pos/col/room с хвостом 51..74 (бюджет 16, первые восемь бит-в-бит).
   бит-в-бит).
 */
 
@@ -789,20 +790,26 @@ void BgfxRenderer::Impl::apply_environment() const {
                   path_frag_dose() > 0.5f ? e.path_mask_res_px : 0.0f};
     for (uint32_t i = 0; i < light_count; ++i) {
         const PointLight& l = lights[i];
-        packed[16 + i] = {l.position, l.radius_m};
-        // Слот 41+i — КОРОБКА КОМНАТЫ интерьерного света (cx, cz, hx, hz);
-        // нулевые полуразмеры = коробки нет, шейдер падает на гейт по AO.
-        packed[41 + i] = {l.room_center_xz.x, l.room_center_xz.y,
-                          l.room_half_xz.x, l.room_half_xz.y};
+        // Слоты первых восьми — прежние (16../24../41..); света 8..15 живут
+        // хвостом 51..74 (24.08, бюджет 16): только добавление, прежняя
+        // восьмёрка бит-в-бит.
+        const uint32_t pos_slot = i < 8 ? 16 + i : 51 + (i - 8);
+        const uint32_t col_slot = i < 8 ? 24 + i : 59 + (i - 8);
+        const uint32_t room_slot = i < 8 ? 41 + i : 67 + (i - 8);
+        packed[pos_slot] = {l.position, l.radius_m};
+        // Коробка комнаты интерьерного света (cx, cz, hx, hz); нулевые
+        // полуразмеры = коробки нет, шейдер падает на гейт по AO.
+        packed[room_slot] = {l.room_center_xz.x, l.room_center_xz.y,
+                             l.room_half_xz.x, l.room_half_xz.y};
         // w — БИТЫ ФЛАГОВ: 1 = casts_shadow (тень решается индексом слота,
         // бит информационный), 2 = interior (шейдер гейтит свет небесной
         // видимостью приёмника — dfn_env.sh, u_lightColor(i).w).
         // Дробная часть w — МЯГКОСТЬ источника (0..1, масштаб 0.9, чтобы
         // не переползти в следующий бит флага); целая — прежние биты.
-        packed[24 + i] = {l.color,
-                          (l.casts_shadow ? 1.0f : 0.0f)
-                              + (l.interior ? 2.0f : 0.0f)
-                              + glm::clamp(l.softness, 0.0f, 1.0f) * 0.9f};
+        packed[col_slot] = {l.color,
+                            (l.casts_shadow ? 1.0f : 0.0f)
+                                + (l.interior ? 2.0f : 0.0f)
+                                + glm::clamp(l.softness, 0.0f, 1.0f) * 0.9f};
     }
     bgfx::setUniform(u_env_params, packed, ENV_PARAM_VEC4S);
 }

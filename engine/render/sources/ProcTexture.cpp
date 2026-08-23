@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:48:00
-Last updated: 22:08:2026 - 15:40:00
+Last updated: 23:08:2026 - 17:58:10
 Module: engine/render
 File: engine/render/sources/ProcTexture.cpp
 
@@ -32,6 +32,7 @@ UPD:
   them rather than a continuous field — which is what makes them read as set
   stones at 640x360 instead of as grey noise.
 - 22:08:2026 - 15:40:00: terrain_field_t() извлечён из shade_texel (четыре клетки сплата) —
+- 23:08:2026 - 17:58:10: шов COBBLE — мягкая канавка −0.26 вместо порогового сброса −0.45, квантование 6 -> 24 ступени (палитра выключена): чёрные обводки камней у источников света.
   до-квантовое поле одно, альбедо и нормали не могут разойтись;
   generate_terrain_normal_atlas() — центральные разности того же поля,
   рельеф на клетку художественно завышен по прецеденту PartsAtlas.
@@ -250,10 +251,18 @@ glm::vec3 shade_texel(ProcTextureKind kind, glm::vec2 uv, uint32_t seed) {
         const float grain = tileable_fbm(uv, {40, 40}, seed ^ 0x5Au, 2);
         float t = (0.34f + 0.52f * c.id) * (0.60f + 0.40f * dome)
                 + 0.10f * (grain - 0.5f);
-        if (joint < 0.055f) {
-            t -= 0.45f; // the mortar/earth line between stones
-        }
-        return ramp_quantized(COBBLE_STOPS, 3, t, 6);
+        // ШОВ — КАНАВКА С РАСТВОРОМ, А НЕ ПРОПАСТЬ (владелец 24.08: «около
+        // источника света чёрные границы на полу»). Жёсткий порог со сбросом
+        // −0.45 ронял шов в самый низ рампы (альбедо 0.15 против 0.5-0.67 у
+        // камня, контраст 4x), и у близкого огня обводка каждого камня
+        // выворачивалась в уголь. Мягкий профиль по joint + глубина раствора
+        // −0.26: шов темнее камня, но остаётся кладкой, а не трещиной в мир.
+        const float mortar =
+            1.0f - glm::clamp((joint - 0.035f) / 0.04f, 0.0f, 1.0f);
+        t -= 0.26f * mortar;
+        // 24 ступени вместо 6: палитра выключена 15.08, квантовать мостовую
+        // лестницей больше не для чего — ступени сами рисовали контуры.
+        return ramp_quantized(COBBLE_STOPS, 3, t, 24);
     }
     case ProcTextureKind::PACKED_EARTH: {
         // Compacted, smoothed, with pebbles worked to the surface.

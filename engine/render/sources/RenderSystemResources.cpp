@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 23:08:2026 - 01:17:49
+Last updated: 23:08:2026 - 17:59:57
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -79,6 +79,7 @@ UPD:
 - 23:08:2026 - 01:40:00: коробка проносится add()/publish_point_lights.
 - 22:08:2026 - 22:52:34: softness едет через кандидатов в PointLight (мягкость источника из сцены).
 - 23:08:2026 - 01:17:49: мерцание огня: модуляция цвета кандидата от времени сцены и фазы позиции (flicker из [light]).
+- 23:08:2026 - 17:59:57: бюджет светов: дверь DFN_LIGHT_BUDGET (дефолт 16, 8 = прежняя рука), сортировка по значимости d/r, растворение в той же шкале.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -450,13 +451,32 @@ void RenderSystem::set_transient_lights(std::vector<ExtraLight> lights) {
 }
 
 void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candidates) {
-    const uint32_t budget = platform::MAX_POINT_LIGHTS;
-    // Full sort: the dissolve needs the budget-edge distance, and the kept set is
-    // at most a few dozen candidates, so the nth_element optimisation buys
-    // nothing over sorting them all.
+    // Дверь бюджета (DFN_LIGHT_BUDGET, 24.08): 8 — прежняя рука бит-в-бит,
+    // дефолт 16 («свет должен гореть всегда на любом удалении»).
+    static const uint32_t budget = [] {
+        uint32_t b = platform::MAX_POINT_LIGHTS;
+        if (const char* e = std::getenv("DFN_LIGHT_BUDGET");
+            e != nullptr && *e != '\0') {
+            int v = 0;
+            if (std::sscanf(e, "%d", &v) == 1 && v >= 1
+                && v <= static_cast<int>(platform::MAX_POINT_LIGHTS)) {
+                b = static_cast<uint32_t>(v);
+                std::fprintf(stderr, "[light] DFN_LIGHT_BUDGET=%u\n", b);
+            } else {
+                std::fprintf(stderr,
+                             "[light] DFN_LIGHT_BUDGET malformed: %s\n", e);
+            }
+        }
+        return b;
+    }();
+    // ЗНАЧИМОСТЬ, А НЕ ДИСТАНЦИЯ (24.08): слоты по d/r — большая жаровня
+    // релевантна через площадь, надверный огонёк в шаге не ворует слот у
+    // дальнего фонаря улицы. Сравнение крест-накрест без делений; равные
+    // радиусы падают в прежний порядок по d2.
     std::sort(candidates.begin(), candidates.end(),
               [](const PointLightCandidate& a, const PointLightCandidate& b) {
-                  return a.d2 < b.d2;
+                  return a.d2 * (b.radius * b.radius)
+                       < b.d2 * (a.radius * a.radius);
               });
 
     // THE BUDGET DISSOLVE (the fix for «свет мигает»). With more flames than
@@ -473,7 +493,13 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
     // The edge is the distance of the last kept flame; at the swap instant it
     // equals the distance of the first dropped one, which is why fading toward
     // zero here makes the swap invisible.
-    const float edge = arm_fade ? std::sqrt(candidates[budget - 1].d2) : 0.0f;
+    // Кромка — в БЕЗРАЗМЕРНОЙ шкале d/r той же сортировки; окно (метры)
+    // переводится на шкалу каждого света делением на его радиус: при r = 1
+    // поведение прежнее побуквенно.
+    const float edge = arm_fade
+        ? std::sqrt(candidates[budget - 1].d2)
+              / std::max(candidates[budget - 1].radius, 1e-4f)
+        : 0.0f;
 
     if (candidates.size() > budget) {
         candidates.resize(budget);
@@ -491,8 +517,10 @@ void RenderSystem::publish_point_lights(std::vector<PointLightCandidate>& candid
         out.softness = c.softness;
         if (arm_fade) {
             // smoothstep: 1 at edge-window (full brightness), 0 at the edge.
-            const float d = std::sqrt(c.d2);
-            const float t = std::clamp((edge - d) / window, 0.0f, 1.0f);
+            const float dr = std::sqrt(c.d2) / std::max(c.radius, 1e-4f);
+            const float t = std::clamp(
+                (edge - dr) / (window / std::max(c.radius, 1e-4f)), 0.0f,
+                1.0f);
             out.color *= t * t * (3.0f - 2.0f * t);
         }
         // THE NEAREST TWO FLAMES CAST, and the cap is the contract's own.

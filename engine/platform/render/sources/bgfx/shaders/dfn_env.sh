@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:52:00
-Last updated: 23:08:2026 - 02:45:45
+Last updated: 23:08:2026 - 18:00:21
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_env.sh
 
@@ -235,6 +235,7 @@ UPD:
 - 23:08:2026 - 02:13:26: Э3 — пятиоктавное листовое поле (сверх-октавы 0.25/0.50, mean/sd ЗАМЕРЕНЫ на 409600 образцах: 0.498204/0.104267); куб кумулюсов намеренно на прежней тройке; доза DFN_CLOUD_MACRO (слот 14.z), 0 = бит-в-бит.
 - 23:08:2026 - 02:15:40: u_cloudPathResDose (слот 38.w, DFN_CLOUD_PATHRES) — Э6.
 - 23:08:2026 - 02:45:45: u_pathBombDose (слот 50.x, DFN_PATH_TILES_BOMB); массив 50 -> 51 — анти-повтор мостовой.
+- 23:08:2026 - 18:00:21: массив 51 -> 75, DFN_MAX_LIGHTS 8 -> 16, макросы светов с хвостом 51..74 — бюджет города («свет горит на удалении»).
   их мёртвыми на рыночном навесе (|dRGB| 0.003 между дозами) — испод сидит на
   0.30..0.34, порог 0.32 съедал эффект; запечатанный интерьер остаётся нулём.
 */
@@ -253,7 +254,7 @@ UPD:
 // terrain but not in props would be worse than one that never shadowed.
 #include "dfn_pointshadow.sh"
 
-uniform vec4 u_envParams[51]; // 41..48 — коробки; 49 — маска троп; 50 — дозы (пара с Impl.h)
+uniform vec4 u_envParams[75]; // 41..48 коробки 0..7; 49 маска троп; 50 дозы; 51..74 — света 8..15 (пара с Impl.h)
 
 #define u_sunDir         (u_envParams[0].xyz)
 #define u_sunColor       (u_envParams[1].xyz)
@@ -291,7 +292,7 @@ uniform vec4 u_envParams[51]; // 41..48 — коробки; 49 — маска т
 // Доза коробки комнаты (DFN_LIGHT_ROOM; 0 = окно игнорируется).
 #define u_lightRoomGate     (u_envParams[15].w)
 // Коробка комнаты источника i: (cx, cz, hx, hz); нулевые h — коробки нет.
-#define u_lightRoom(i)      (u_envParams[41 + (i)])
+#define u_lightRoom(i)      (u_envParams[(i) < 8 ? 41 + (i) : 67 + (i) - 8])
 // Отскок от земли для нижней полусферы (G3; слот 13 стоял зарезервированным
 // «was the single light»). DFN_AMBIENT_HEMI, 0 = без отскока бит-в-бит.
 #define u_hemiBounce        (u_envParams[13].x)
@@ -308,9 +309,12 @@ uniform vec4 u_envParams[51]; // 41..48 — коробки; 49 — маска т
 #define u_cloudPathResDose  (u_envParams[38].w)
 #define u_pathBombDose      (u_envParams[50].x)
 // Point lights: [16+i] = position.xyz + radius, [24+i] = colour.xyz + flags.
-#define DFN_MAX_LIGHTS 8
-#define u_lightPosRad(i) (u_envParams[16 + (i)])
-#define u_lightColor(i)  (u_envParams[24 + (i)])
+#define DFN_MAX_LIGHTS 16
+// Света 8..15 живут хвостом массива (24.08, бюджет 16): первые восемь —
+// прежние слоты бит-в-бит, тернарник по индексу цикла разворачивается
+// компилятором в константу.
+#define u_lightPosRad(i) (u_envParams[(i) < 8 ? 16 + (i) : 51 + (i) - 8])
+#define u_lightColor(i)  (u_envParams[(i) < 8 ? 24 + (i) : 59 + (i) - 8])
 // Wind: ONE wind for the world (foliage now, grass and cloth later).
 #define u_windDir        (u_envParams[32].xy)
 #define u_windStrength   (u_envParams[32].z)

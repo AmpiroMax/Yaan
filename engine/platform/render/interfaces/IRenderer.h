@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 22:08:2026 - 23:48:18
+Last updated: 23:08:2026 - 17:59:57
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -107,6 +107,7 @@ UPD:
 - 23:08:2026 - 01:40:00: PointLight.room_center_xz/room_half_xz — коробка комнаты интерьерного
 - 22:08:2026 - 22:51:38: PointLight.softness — мягкость источника 0..1 (wrap-диффуз + пологое затухание, дробная часть w цвета в envParams; только добавление).
 - 22:08:2026 - 23:48:18: DrawParams.aux3_texture (стадия 6, маска троп) и RenderEnvironment.path_mask_* — тропа из фрагмента; только добавления.
+- 23:08:2026 - 17:59:57: MAX_POINT_LIGHTS 8 -> 16 — свет города горит на удалении (заказ владельца 24.08); слоты первых восьми прежние.
   света (свет принадлежит помещению, а не радиусу; гейт по AO оставлял течь
   6.9% на наружной кладке). Только добавление.
 */
@@ -196,7 +197,12 @@ struct PointLight {
     float softness = 0.0f;
 };
 
-inline constexpr uint32_t MAX_POINT_LIGHTS = 8;
+// 16 с 24.08 (владелец: «свет должен гореть всегда на любом удалении, а он
+// только при приближении работает»): восьми ближайших не хватало городу с 75
+// огнями — дальние фонари стояли тёмными, пока игрок не подойдёт. Слоты
+// первых восьми в envParams прежние (16..31, 41..48), хвост 51..74 —
+// только добавление (правило 26).
+inline constexpr uint32_t MAX_POINT_LIGHTS = 16;
 inline constexpr uint32_t MAX_SHADOW_POINT_LIGHTS = 2;
 
 // PER-DRAW material parameters. Deliberately one small struct rather than a

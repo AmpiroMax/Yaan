@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 02:47:15
+Last updated: 23:08:2026 - 18:00:21
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -109,6 +109,7 @@ UPD:
 - 23:08:2026 - 06:30:00: u_ps_near — ближний exclude кубовой тени.
 - 22:08:2026 - 23:48:18: ENV_PARAM_VEC4S 49 -> 50 (слот 49 — маска троп, пара с dfn_env.sh); s_tex_path_mask (стадия 6).
 - 23:08:2026 - 02:47:15: ENV_PARAM_VEC4S 50 -> 51 (слот 50 — россыпь доз волны 23.08, пара с dfn_env.sh).
+- 23:08:2026 - 18:00:21: ENV_PARAM_VEC4S 51 -> 75 — хвост светов 8..15 (pos 51.., col 59.., room 67..; пара с dfn_env.sh).
 */
 
 #pragma once
@@ -435,7 +436,7 @@ inline constexpr int BGFX_MESH_HANDLE_BUDGET = 4 << 10;
 // 41 -> 49 (23.08): слоты 41..48 — коробки комнат восьми точечных светов
 // (u_lightRoom(i), cx/cz/hx/hz). Правится ПАРОЙ с dfn_env.sh — история этого
 // файла дважды показала, чем кончается рост массива в один файл.
-inline constexpr uint16_t ENV_PARAM_VEC4S = 51; // layout contract with dfn_env.sh
+inline constexpr uint16_t ENV_PARAM_VEC4S = 75; // layout contract with dfn_env.sh
 
 // SLOT 38 — THE FILL'S DIRECTION (user: "тёмные деревья, словно их нет, как
 // чёрное пятно ... она должна быть темнее переда, но цвет одинаковый").
