@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 23:08:2026 - 01:17:49
+Last updated: 23:08:2026 - 22:10:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -82,6 +82,15 @@ UPD:
 - 23:08:2026 - 01:40:00: ключ room = cx cz hx hz у [light].
 - 22:08:2026 - 22:51:38: ключ softness у [light] — мягкость источника 0..1.
 - 23:08:2026 - 01:17:49: ключ flicker у [light] — мерцание живого огня 0..1.
+- 23:08:2026 - 22:10:00: И15 волна А, шаг 1: чтение и запись [portal] и [spawn], ключ
+  interior= у [house]. И РАЗБОР СЕКЦИЙ ПЕРЕПИСАН НА ПЕРЕЧИСЛЕНИЕ. Семь
+  параллельных булей требовали от автора девятой секции дописать по строке
+  сброса в КАЖДУЮ из восьми чужих веток; пропущенная строка не роняет чтение —
+  она кладёт ключ новой секции в предыдущую, то есть даёт разобранный,
+  правдоподобный и неверный документ. Перечисление делает это состояние
+  непредставимым: секция — одно значение, присваивается один раз. Рука дозы 0
+  (правило 47) в tests/core/SceneTests.cpp: боевой Вайтран читается без единого
+  портала и без единого interior=, а два прохода записи сходятся побайтово.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -128,7 +137,21 @@ namespace {
     }
 }
 
+/// WHICH SECTION THE READER IS INSIDE. One value, not one bool per section.
+///
+/// The predecessor was seven parallel bools, and the cost was paid by whoever
+/// added the EIGHTH section: every one of the seven existing branches had to
+/// grow a line turning the newcomer off, and a forgotten line does not fail
+/// loudly — it files the new section's keys into the previous section, which
+/// parses, looks plausible and is wrong. Nine sections is 72 such lines; the
+/// enum is one assignment.
+enum class Section : uint8_t {
+    Header, Place, River, Pad, Light, House, Air, Spawn, Portal, Unknown
+};
+
 } // namespace
+
+bool portal_is_back(const ScenePortal& p) { return p.to == "^back"; }
 
 bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& error) {
     std::ifstream in(path);
@@ -140,14 +163,9 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
     std::string line;
     int line_no = 0;
     Placement current;
-    bool in_placement = false;
-    bool in_light = false;
-    bool in_pad = false;
-    bool in_river = false;
-    bool in_house = false;
-    bool in_air = false;
+    Section section = Section::Header;
     const auto flush = [&] {
-        if (in_placement && !current.object.empty()) {
+        if (section == Section::Place && !current.object.empty()) {
             out.placements.push_back(current);
         }
         current = Placement{};
@@ -158,84 +176,48 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
         if (t.empty() || t[0] == '#') {
             continue;
         }
-        if (t == "[place]") {
-            flush();
-            in_house = false;
-            in_placement = true;
-            in_light = false;
-            in_pad = false;
-            in_river = false;
-            in_air = false;
-            continue;
-        }
-        if (t == "[river]") {
-            flush();
-            in_house = false;
-            in_placement = false;
-            in_light = false;
-            in_pad = false;
-            in_river = true;
-            out.rivers.emplace_back();
-            in_air = false;
-            continue;
-        }
-        if (t == "[pad]") {
-            flush();
-            in_house = false;
-            in_placement = false;
-            in_light = false;
-            in_river = false;
-            in_pad = true;
-            out.pads.emplace_back();
-            in_air = false;
-            continue;
-        }
-        if (t == "[light]") {
-            flush();
-            in_house = false;
-            in_placement = false;
-            in_pad = false;
-            in_river = false;
-            in_light = true;
-            out.lights.emplace_back();
-            in_air = false;
-            continue;
-        }
-        if (t == "[house]") {
-            flush();
-            in_placement = false;
-            in_light = false;
-            in_pad = false;
-            in_river = false;
-            in_house = true;
-            in_air = false;
-            out.houses.emplace_back();
-            continue;
-        }
-        if (t == "[air]") {
-            flush();
-            in_placement = false;
-            in_light = false;
-            in_pad = false;
-            in_river = false;
-            in_house = false;
-            in_air = true;
-            out.air.set = true;
-            continue;
-        }
-        // ANY OTHER SECTION IS SKIPPED, not fatal. The format grows — the
-        // interior work is adding a [portal] section right now — and a reader
-        // that dies on tomorrow's section cannot read today's file written by
-        // a newer tool. Same stance the unknown-KEY rule already takes, and it
-        // has to be the same stance or the promise is only half kept.
         if (t.front() == '[' && t.back() == ']') {
             flush();
-            in_placement = false;
-            in_light = false;
-            in_pad = false;
-            in_river = false;
-            in_house = false;
-            in_air = false;
+            if (t == "[place]") {
+                section = Section::Place;
+            } else if (t == "[river]") {
+                section = Section::River;
+                out.rivers.emplace_back();
+            } else if (t == "[pad]") {
+                section = Section::Pad;
+                out.pads.emplace_back();
+            } else if (t == "[light]") {
+                section = Section::Light;
+                out.lights.emplace_back();
+            } else if (t == "[house]") {
+                section = Section::House;
+                out.houses.emplace_back();
+            } else if (t == "[air]") {
+                section = Section::Air;
+                out.air.set = true;
+            } else if (t == "[spawn]") {
+                section = Section::Spawn;
+                out.spawns.emplace_back();
+            } else if (t == "[portal]") {
+                section = Section::Portal;
+                out.portals.emplace_back();
+            } else {
+                // ANY OTHER SECTION IS SKIPPED, not fatal. The format grows and
+                // a reader that dies on tomorrow's section cannot read today's
+                // file written by a newer tool. Same stance the unknown-KEY
+                // rule takes, and it has to be the same stance or the promise
+                // is only half kept. THIS IS THE CIRCULAR-RUN GUARANTEE the
+                // interior wave leans on: yesterday's binary opens a scene
+                // carrying [portal] and [spawn] and simply sees a city.
+                //
+                // ITS KEYS ARE SKIPPED TOO, and that is a CHANGE from the seven
+                // bools, which turned themselves all off and thereby fed the
+                // unknown section's keys to the HEADER — so a future section
+                // with a `spawn` key would have silently moved the player.
+                // No shipped scene has an unknown section, so the change is
+                // invisible today and removes tomorrow's silent misparse.
+                section = Section::Unknown;
+            }
             continue;
         }
         const auto eq = t.find('=');
@@ -253,7 +235,51 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             return true;
         };
-        if (in_air) {
+        // A three-number "x y z" value, said once (four sections want it).
+        const auto three = [&](glm::vec3& dst, const char* what) {
+            float x = 0.0f;
+            float y = 0.0f;
+            float z = 0.0f;
+            if (std::sscanf(value.c_str(), "%f %f %f", &x, &y, &z) != 3) {
+                error = "line " + std::to_string(line_no) + ": " + what
+                      + " wants three numbers \"x y z\"";
+                return false;
+            }
+            dst = {x, y, z};
+            return true;
+        };
+        if (section == Section::Unknown) {
+            continue;
+        }
+        if (section == Section::Spawn) {
+            SceneSpawn& S = out.spawns.back();
+            if (key == "name") {
+                S.name = value;
+            } else if (key == "pos") {
+                if (!three(S.position, "pos")) return false;
+            } else if (key == "yaw") {
+                if (!number(S.yaw)) return false;
+            } else if (key == "note") {
+                S.note = value;
+            }
+            continue;
+        }
+        if (section == Section::Portal) {
+            ScenePortal& P = out.portals.back();
+            if (key == "at") {
+                if (!three(P.at, "at")) return false;
+            } else if (key == "radius_m") {
+                if (!number(P.radius_m)) return false;
+            } else if (key == "to") {
+                P.to = value;
+            } else if (key == "to_spawn") {
+                P.to_spawn = value;
+            } else if (key == "note") {
+                P.note = value;
+            }
+            continue;
+        }
+        if (section == Section::Air) {
             SceneAir& A = out.air;
             if (key == "fog_start") {
                 if (!number(A.fog_start_m)) {
@@ -271,7 +297,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             // Неизвестный ключ пропускается — та же позиция, что у секций.
             continue;
         }
-        if (in_house) {
+        if (section == Section::House) {
             ScenePlacedHouse& H = out.houses.back();
             if (key == "file") {
                 H.file = value;
@@ -290,12 +316,14 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                     error = "line " + std::to_string(line_no) + ": bad yaw";
                     return false;
                 }
+            } else if (key == "interior") {
+                H.interior = value;
             } else if (key == "note") {
                 H.note = value;
             }
             continue;
         }
-        if (in_river) {
+        if (section == Section::River) {
             SceneRiver& R = out.rivers.back();
             if (key == "point") {
                 float x = 0.0f;
@@ -327,7 +355,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             continue;
         }
-        if (in_pad) {
+        if (section == Section::Pad) {
             ScenePad& P = out.pads.back();
             const auto two = [&](glm::vec2& dst) {
                 float a = 0.0f;
@@ -363,7 +391,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             continue;
         }
-        if (in_light) {
+        if (section == Section::Light) {
             SceneLight& L = out.lights.back();
             if (key == "pos") {
                 float x = 0.0f;
@@ -416,7 +444,7 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
             }
             continue;
         }
-        if (!in_placement) {
+        if (section != Section::Place) {
             if (key == "map") {
                 out.map = value;
             } else if (key == "world_span_m") {
@@ -503,6 +531,18 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
             << "\n"
             << "spawn_yaw = " << doc.spawn_yaw << "\n";
     }
+    // НАЗВАННЫЕ ТОЧКИ ВХОДА — сразу за заголовком: их читает человек, который
+    // открыл файл, чтобы понять, куда эта локация впускает.
+    for (const SceneSpawn& S : doc.spawns) {
+        out << "\n[spawn]\n"
+            << "name = " << S.name << "\n"
+            << "pos = " << S.position.x << ' ' << S.position.y << ' '
+            << S.position.z << "\n"
+            << "yaw = " << S.yaw << "\n";
+        if (!S.note.empty()) {
+            out << "note = " << S.note << "\n";
+        }
+    }
     for (const Placement& p : doc.placements) {
         out << "\n[place]\n"
             << "object = " << p.object << "\n"
@@ -523,8 +563,24 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
             << "pos = " << H.position.x << ' ' << H.position.y << ' '
             << H.position.z << "\n"
             << "yaw = " << H.yaw << "\n";
+        if (!H.interior.empty()) {
+            out << "interior = " << H.interior << "\n";
+        }
         if (!H.note.empty()) {
             out << "note = " << H.note << "\n";
+        }
+    }
+    // ПОРТАЛЫ ПОСЛЕ ПОСТРОЕК: дверь читается после дома, в который она ведёт.
+    for (const ScenePortal& P : doc.portals) {
+        out << "\n[portal]\n"
+            << "at = " << P.at.x << ' ' << P.at.y << ' ' << P.at.z << "\n"
+            << "radius_m = " << P.radius_m << "\n"
+            << "to = " << P.to << "\n";
+        if (!P.to_spawn.empty()) {
+            out << "to_spawn = " << P.to_spawn << "\n";
+        }
+        if (!P.note.empty()) {
+            out << "note = " << P.note << "\n";
         }
     }
     for (const SceneRiver& R : doc.rivers) {

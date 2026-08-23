@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 23:08:2026 - 01:18:18
+Last updated: 23:08:2026 - 22:10:00
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -50,6 +50,13 @@ UPD:
 - 23:08:2026 - 01:40:00: room у [light] в круговороте; без ключа полуразмеры нулевые.
 - 22:08:2026 - 22:53:04: SceneLight.softness в агрегатных инициализаторах; круговорот мягкости у первого фонаря.
 - 23:08:2026 - 01:18:18: SceneLight.flicker в агрегатных инициализаторах; круговорот мерцания.
+- 23:08:2026 - 22:10:00: И15 волна А, шаг 1 — три добавления формата с обоих концов:
+  круговорот [portal]/[spawn]/interior= и КОНТРОЛЬ «без записей поля пусты»;
+  выдуманная секция [gizmo] с ключом spawn внутри — читатель обязан её
+  пропустить И не пустить её ключи в заголовок (прежние семь булей пускали:
+  чужой spawn молча переставил бы игрока); и рука дозы 0 по правилу 47 —
+  настоящий Вайтран не приобрёл ни портала, ни interior=, а два прохода
+  записи сходятся побайтово.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -643,4 +650,177 @@ TEST_CASE("scene: [house] survives the round trip and a wrong pos is refused") {
 
     std::error_code ec;
     std::filesystem::remove(path, ec);
+}
+
+TEST_CASE("scene: [portal], [spawn] and interior= survive the round trip") {
+    // И15 волна А, шаг 1. Три добавления формата, одна проверка: интерьер
+    // адресуется от постройки (interior=), вход в него именован ([spawn]), а
+    // переход между локациями — своя запись ([portal]).
+    const auto path = std::filesystem::temp_directory_path() / "dfn_scene_portal.scene";
+    SceneDoc doc;
+    doc.map = "int/whiterun/x100z84";
+    doc.world_span_m = 64.0f;
+
+    dfn::world::SceneSpawn s;
+    s.name = "door";
+    s.position = {2.25f, 0.0f, 5.5f};
+    s.yaw = 3.14159f;
+    s.note = "у двери, лицом в комнату";
+    doc.spawns.push_back(s);
+
+    dfn::world::ScenePlacedHouse h;
+    h.file = "assets/houses/city-house-s-portal.dfh";
+    h.position = {0.0f, 0.0f, 0.0f};
+    h.interior = "assets/scenes/int/whiterun/x100z84.scene";
+    doc.houses.push_back(h);
+
+    dfn::world::ScenePortal p;
+    p.at = {2.25f, 0.9f, 6.0f};
+    p.radius_m = 1.25f;
+    p.to = "^back";
+    p.to_spawn = "";
+    p.note = "обратная дверь";
+    doc.portals.push_back(p);
+
+    dfn::world::ScenePortal q;
+    q.at = {100.0f, 35.5f, 84.0f};
+    q.radius_m = 1.0f;
+    q.to = "assets/scenes/int/whiterun/x100z84.scene";
+    q.to_spawn = "door";
+    doc.portals.push_back(q);
+
+    REQUIRE(write_scene(doc, path));
+
+    SceneDoc back;
+    std::string error;
+    REQUIRE(read_scene(path, back, error));
+
+    REQUIRE(back.spawns.size() == 1);
+    CHECK(back.spawns[0].name == "door");
+    CHECK(back.spawns[0].position.x == doctest::Approx(2.25f));
+    CHECK(back.spawns[0].position.z == doctest::Approx(5.5f));
+    CHECK(back.spawns[0].yaw == doctest::Approx(3.14159f));
+    CHECK(back.spawns[0].note == "у двери, лицом в комнату");
+
+    REQUIRE(back.houses.size() == 1);
+    CHECK(back.houses[0].interior == h.interior);
+
+    REQUIRE(back.portals.size() == 2);
+    CHECK(back.portals[0].at.y == doctest::Approx(0.9f));
+    CHECK(back.portals[0].radius_m == doctest::Approx(1.25f));
+    CHECK(dfn::world::portal_is_back(back.portals[0]));
+    CHECK(back.portals[0].to_spawn.empty());
+    CHECK(back.portals[0].note == "обратная дверь");
+    CHECK_FALSE(dfn::world::portal_is_back(back.portals[1]));
+    CHECK(back.portals[1].to == q.to);
+    CHECK(back.portals[1].to_spawn == "door");
+
+    // КОНТРОЛЬНОЕ ПЛЕЧО (правило 30): без этих записей поля пусты, а не
+    // «услужливо» заполнены. Дом без interior= — оболочка с дверью-
+    // декорацией, и это ЗАКОННОЕ умолчание, которое обязано читаться как
+    // отсутствие, а не как ссылка на пустую строку-путь.
+    {
+        std::ofstream f(path, std::ios::trunc);
+        f << "map = x\nworld_span_m = 64\n\n[house]\nfile = a.dfh\n"
+             "pos = 1 2 3\nyaw = 0\n";
+    }
+    SceneDoc plain;
+    REQUIRE(read_scene(path, plain, error));
+    CHECK(plain.portals.empty());
+    CHECK(plain.spawns.empty());
+    REQUIRE(plain.houses.size() == 1);
+    CHECK(plain.houses[0].interior.empty());
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
+
+TEST_CASE("scene: tomorrow's section does not break today's reader, and does "
+          "not leak into the header") {
+    // КРУГОВОЙ ПРОГОН И15: старый движок обязан открыть новую сцену. Тот же
+    // механизм с другого конца — сегодняшний движок обязан открыть сцену,
+    // написанную ЗАВТРАШНИМ инструментом. Проверяется выдуманной секцией:
+    // если бы её ключи текли в заголовок, ключ `spawn` из чужой секции
+    // молча переставил бы игрока — самый дорогой отказ этого файла.
+    const auto path = std::filesystem::temp_directory_path() / "dfn_scene_future.scene";
+    {
+        std::ofstream f(path, std::ios::trunc);
+        f << "map = houses/whiterun\n"
+             "world_span_m = 256\n"
+             "spawn = 113 0 248\n"
+             "spawn_yaw = 0\n"
+             "\n[gizmo]\n"          // секции нет и не будет
+             "spawn = 999 999 999\n"
+             "world_span_m = 1\n"
+             "wobble = 4\n"
+             "\n[house]\n"
+             "file = assets/houses/city-house-s.dfh\n"
+             "pos = 10 20 30\n"
+             "yaw = 0.5\n"
+             "interior = assets/scenes/int/a.scene\n"
+             "\n[portal]\n"
+             "at = 10 21 33\n"
+             "radius_m = 1\n"
+             "to = assets/scenes/int/a.scene\n"
+             "to_spawn = door\n"
+             "moodlight = teal\n";  // ключа нет и не будет
+    }
+    SceneDoc doc;
+    std::string error;
+    REQUIRE(read_scene(path, doc, error));
+    CHECK(error.empty());
+    // Заголовок не тронут чужой секцией.
+    CHECK(doc.spawn.x == doctest::Approx(113.0f));
+    CHECK(doc.world_span_m == doctest::Approx(256.0f));
+    // Известные секции после неизвестной прочитаны целиком.
+    REQUIRE(doc.houses.size() == 1);
+    CHECK(doc.houses[0].interior == "assets/scenes/int/a.scene");
+    REQUIRE(doc.portals.size() == 1);
+    CHECK(doc.portals[0].to_spawn == "door");
+    CHECK(doc.portals[0].radius_m == doctest::Approx(1.0f));
+
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+}
+
+TEST_CASE("scene: a shipped city is unchanged by the interior keys (dose 0)") {
+    // ПРАВИЛО 47, КОНТРОЛЬНАЯ РУКА: мир БЕЗ порталов обязан остаться прежним.
+    // Читается настоящая боевая сцена Вайтрана; у неё не должно появиться ни
+    // одного портала, ни одной названной точки входа и ни одного interior=,
+    // а круговой прогон (чтение→запись→чтение→запись) обязан сойтись
+    // ПОБАЙТОВО — то есть добавления формата ничего не сдвинули.
+    const std::filesystem::path city{"assets/scenes/whiterun.scene"};
+    if (!std::filesystem::exists(city)) {
+        return; // сцена не в дереве — судить нечего
+    }
+    SceneDoc doc;
+    std::string error;
+    REQUIRE(read_scene(city, doc, error));
+    CHECK(doc.portals.empty());
+    CHECK(doc.spawns.empty());
+    std::size_t with_interior = 0;
+    for (const auto& h : doc.houses) {
+        if (!h.interior.empty()) {
+            ++with_interior;
+        }
+    }
+    CHECK(with_interior == 0);
+    CHECK(doc.houses.size() > 100); // прибор действительно читал город
+
+    const auto a = std::filesystem::temp_directory_path() / "dfn_city_pass1.scene";
+    const auto b = std::filesystem::temp_directory_path() / "dfn_city_pass2.scene";
+    REQUIRE(write_scene(doc, a));
+    SceneDoc again;
+    REQUIRE(read_scene(a, again, error));
+    REQUIRE(write_scene(again, b));
+    const auto read_all = [](const std::filesystem::path& p) {
+        std::ifstream f(p, std::ios::binary);
+        return std::string(std::istreambuf_iterator<char>(f),
+                           std::istreambuf_iterator<char>());
+    };
+    CHECK(read_all(a) == read_all(b));
+
+    std::error_code ec;
+    std::filesystem::remove(a, ec);
+    std::filesystem::remove(b, ec);
 }
