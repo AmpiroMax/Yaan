@@ -429,10 +429,32 @@
  "houses": [
   {
    "x": 247.5,
-   "z": 187.49,
+   "z": 184.07,
    "w": 0,
    "d": 0,
    "deg": -4.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "jetty"
+  },
+  {
+   "x": 247.5,
+   "z": 192.16,
+   "w": 0,
+   "d": 0,
+   "deg": -3.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "house"
+  },
+  {
+   "x": 247.5,
+   "z": 200.75,
+   "w": 0,
+   "d": 0,
+   "deg": -2.0,
    "door": "E",
    "walk": null,
    "name": "",
@@ -440,377 +462,289 @@
   },
   {
    "x": 247.5,
-   "z": 198.57,
-   "w": 0,
-   "d": 0,
-   "deg": -3.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 205.57,
-   "w": 0,
-   "d": 0,
-   "deg": -2.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 245.55,
-   "w": 0,
-   "d": 0,
-   "deg": -4.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "house-l"
-  },
-  {
-   "x": 247.5,
-   "z": 254.7,
-   "w": 0,
-   "d": 0,
-   "deg": -3.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 261.7,
-   "w": 0,
-   "d": 0,
-   "deg": -2.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 272.79,
+   "z": 209.59,
    "w": 0,
    "d": 0,
    "deg": -1.0,
    "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "jetty"
+  },
+  {
+   "x": 264.5,
+   "z": 183.82,
+   "w": 0,
+   "d": 0,
+   "deg": -4.0,
+   "door": "W",
+   "walk": null,
+   "name": "",
+   "kind": "house"
+  },
+  {
+   "x": 264.5,
+   "z": 191.91,
+   "w": 0,
+   "d": 0,
+   "deg": -3.0,
+   "door": "W",
+   "walk": null,
+   "name": "",
+   "kind": "jetty"
+  },
+  {
+   "x": 264.5,
+   "z": 200.75,
+   "w": 0,
+   "d": 0,
+   "deg": -2.0,
+   "door": "W",
    "walk": null,
    "name": "",
    "kind": "manor"
   },
   {
-   "x": 247.5,
-   "z": 317.4,
-   "w": 0,
-   "d": 0,
-   "deg": -4.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 326.55,
-   "w": 0,
-   "d": 0,
-   "deg": -3.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "house-l"
-  },
-  {
-   "x": 247.5,
-   "z": 335.7,
-   "w": 0,
-   "d": 0,
-   "deg": -2.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 342.7,
-   "w": 0,
-   "d": 0,
-   "deg": -1.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 349.7,
-   "w": 0,
-   "d": 0,
-   "deg": 0.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 358.85,
-   "w": 0,
-   "d": 0,
-   "deg": 1.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "house-l"
-  },
-  {
-   "x": 247.5,
-   "z": 368.0,
-   "w": 0,
-   "d": 0,
-   "deg": 2.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 375.0,
-   "w": 0,
-   "d": 0,
-   "deg": 3.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 382.0,
-   "w": 0,
-   "d": 0,
-   "deg": 4.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 247.5,
-   "z": 391.15,
-   "w": 0,
-   "d": 0,
-   "deg": -4.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "house-l"
-  },
-  {
-   "x": 247.5,
-   "z": 400.3,
-   "w": 0,
-   "d": 0,
-   "deg": -3.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
    "x": 264.5,
-   "z": 183.4,
-   "w": 0,
-   "d": 0,
-   "deg": -4.0,
-   "door": "W",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 264.5,
-   "z": 192.55,
-   "w": 0,
-   "d": 0,
-   "deg": -3.0,
-   "door": "W",
-   "walk": null,
-   "name": "",
-   "kind": "house-l"
-  },
-  {
-   "x": 264.5,
-   "z": 201.7,
-   "w": 0,
-   "d": 0,
-   "deg": -2.0,
-   "door": "W",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 264.5,
-   "z": 208.7,
+   "z": 209.59,
    "w": 0,
    "d": 0,
    "deg": -1.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "jetty"
   },
   {
    "x": 264.5,
-   "z": 219.79,
+   "z": 217.68,
    "w": 0,
    "d": 0,
    "deg": 0.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "manor"
+   "kind": "house"
   },
   {
    "x": 264.5,
-   "z": 230.87,
+   "z": 225.77,
    "w": 0,
    "d": 0,
    "deg": 1.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "jetty"
   },
   {
-   "x": 264.5,
-   "z": 240.02,
+   "x": 247.5,
+   "z": 246.1,
    "w": 0,
    "d": 0,
-   "deg": 2.0,
-   "door": "W",
+   "deg": -4.0,
+   "door": "E",
    "walk": null,
    "name": "",
-   "kind": "house-l"
+   "kind": "arcade"
   },
   {
-   "x": 264.5,
-   "z": 249.17,
+   "x": 247.5,
+   "z": 258.5,
    "w": 0,
    "d": 0,
-   "deg": 3.0,
-   "door": "W",
+   "deg": -3.0,
+   "door": "E",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "arcade"
   },
   {
-   "x": 264.5,
-   "z": 256.17,
+   "x": 247.5,
+   "z": 270.9,
    "w": 0,
    "d": 0,
-   "deg": 4.0,
-   "door": "W",
+   "deg": -2.0,
+   "door": "E",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "arcade"
   },
   {
    "x": 264.5,
-   "z": 267.25,
+   "z": 242.1,
    "w": 0,
    "d": 0,
    "deg": -4.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "manor"
+   "kind": "arcade"
   },
   {
    "x": 264.5,
-   "z": 278.34,
+   "z": 254.5,
    "w": 0,
    "d": 0,
    "deg": -3.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "arcade"
   },
   {
    "x": 264.5,
-   "z": 333.55,
-   "w": 0,
-   "d": 0,
-   "deg": -4.0,
-   "door": "W",
-   "walk": null,
-   "name": "",
-   "kind": "house-l"
-  },
-  {
-   "x": 264.5,
-   "z": 371.4,
-   "w": 0,
-   "d": 0,
-   "deg": -4.0,
-   "door": "W",
-   "walk": null,
-   "name": "",
-   "kind": "shop"
-  },
-  {
-   "x": 264.5,
-   "z": 382.49,
-   "w": 0,
-   "d": 0,
-   "deg": -3.0,
-   "door": "W",
-   "walk": null,
-   "name": "",
-   "kind": "manor"
-  },
-  {
-   "x": 264.5,
-   "z": 393.57,
+   "z": 266.9,
    "w": 0,
    "d": 0,
    "deg": -2.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "arcade"
+  },
+  {
+   "x": 247.5,
+   "z": 324.1,
+   "w": 0,
+   "d": 0,
+   "deg": -4.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "arcade"
+  },
+  {
+   "x": 247.5,
+   "z": 336.5,
+   "w": 0,
+   "d": 0,
+   "deg": -3.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "arcade"
+  },
+  {
+   "x": 247.5,
+   "z": 348.9,
+   "w": 0,
+   "d": 0,
+   "deg": -2.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "arcade"
   },
   {
    "x": 264.5,
-   "z": 402.72,
+   "z": 328.1,
    "w": 0,
    "d": 0,
-   "deg": -1.0,
+   "deg": -4.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "house-l"
+   "kind": "arcade"
+  },
+  {
+   "x": 247.5,
+   "z": 364.07,
+   "w": 0,
+   "d": 0,
+   "deg": -4.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "jetty"
+  },
+  {
+   "x": 247.5,
+   "z": 372.16,
+   "w": 0,
+   "d": 0,
+   "deg": -3.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "house"
+  },
+  {
+   "x": 247.5,
+   "z": 380.75,
+   "w": 0,
+   "d": 0,
+   "deg": -2.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "manor-old"
+  },
+  {
+   "x": 247.5,
+   "z": 389.34,
+   "w": 0,
+   "d": 0,
+   "deg": -1.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "house"
+  },
+  {
+   "x": 247.5,
+   "z": 397.43,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "E",
+   "walk": null,
+   "name": "",
+   "kind": "jetty"
   },
   {
    "x": 264.5,
-   "z": 312.0,
+   "z": 374.1,
+   "w": 0,
+   "d": 0,
+   "deg": -4.0,
+   "door": "W",
+   "walk": null,
+   "name": "",
+   "kind": "arcade"
+  },
+  {
+   "x": 264.5,
+   "z": 384.47,
+   "w": 0,
+   "d": 0,
+   "deg": -3.0,
+   "door": "W",
+   "walk": null,
+   "name": "",
+   "kind": "jetty"
+  },
+  {
+   "x": 264.5,
+   "z": 393.31,
+   "w": 0,
+   "d": 0,
+   "deg": -2.0,
+   "door": "W",
+   "walk": null,
+   "name": "",
+   "kind": "manor-old"
+  },
+  {
+   "x": 264.5,
+   "z": 310.0,
    "w": 0,
    "d": 0,
    "deg": 0.0,
    "door": "W",
    "walk": [
     260.5,
-    312.0
+    310.0
    ],
    "name": "РАТУША",
    "kind": "hall"
@@ -830,32 +764,32 @@
    "kind": "temple"
   },
   {
-   "x": 278.0,
-   "z": 284.0,
+   "x": 264.5,
+   "z": 283.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "W",
+   "walk": [
+    260.5,
+    283.0
+   ],
+   "name": "весовая палата",
+   "kind": "weigh"
+  },
+  {
+   "x": 280.0,
+   "z": 306.0,
    "w": 0,
    "d": 0,
    "deg": 0.0,
    "door": "W",
    "walk": null,
-   "name": "башня ратуши",
-   "kind": "donjon"
+   "name": "каланча",
+   "kind": "firetower"
   },
   {
-   "x": 200.0,
-   "z": 250.0,
-   "w": 0,
-   "d": 0,
-   "deg": 0.0,
-   "door": "E",
-   "walk": [
-    204.0,
-    250.0
-   ],
-   "name": "гильдейский дом",
-   "kind": "guild"
-  },
-  {
-   "x": 155.55,
+   "x": 153.82,
    "z": 286.0,
    "w": 0,
    "d": 0,
@@ -863,10 +797,10 @@
    "door": "S",
    "walk": null,
    "name": "",
-   "kind": "house-l"
+   "kind": "house"
   },
   {
-   "x": 165.1,
+   "x": 162.26,
    "z": 286.0,
    "w": 0,
    "d": 0,
@@ -874,10 +808,10 @@
    "door": "S",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "thatch"
   },
   {
-   "x": 171.9,
+   "x": 170.7,
    "z": 286.0,
    "w": 0,
    "d": 0,
@@ -888,7 +822,7 @@
    "kind": "house"
   },
   {
-   "x": 178.7,
+   "x": 178.94,
    "z": 286.0,
    "w": 0,
    "d": 0,
@@ -896,10 +830,10 @@
    "door": "S",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "house"
   },
   {
-   "x": 188.25,
+   "x": 187.38,
    "z": 286.0,
    "w": 0,
    "d": 0,
@@ -907,10 +841,21 @@
    "door": "S",
    "walk": null,
    "name": "",
-   "kind": "house-l"
+   "kind": "thatch"
   },
   {
-   "x": 322.8,
+   "x": 195.82,
+   "z": 286.0,
+   "w": 0,
+   "d": 0,
+   "deg": 1.0,
+   "door": "S",
+   "walk": null,
+   "name": "",
+   "kind": "house"
+  },
+  {
+   "x": 323.82,
    "z": 298.0,
    "w": 0,
    "d": 0,
@@ -921,7 +866,7 @@
    "kind": "house"
   },
   {
-   "x": 329.6,
+   "x": 332.26,
    "z": 298.0,
    "w": 0,
    "d": 0,
@@ -929,10 +874,10 @@
    "door": "N",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "thatch"
   },
   {
-   "x": 337.0,
+   "x": 340.7,
    "z": 298.0,
    "w": 0,
    "d": 0,
@@ -940,10 +885,10 @@
    "door": "N",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "house"
   },
   {
-   "x": 346.55,
+   "x": 348.94,
    "z": 298.0,
    "w": 0,
    "d": 0,
@@ -951,10 +896,10 @@
    "door": "N",
    "walk": null,
    "name": "",
-   "kind": "house-l"
+   "kind": "house"
   },
   {
-   "x": 355.5,
+   "x": 357.38,
    "z": 298.0,
    "w": 0,
    "d": 0,
@@ -962,10 +907,10 @@
    "door": "N",
    "walk": null,
    "name": "",
-   "kind": "house"
+   "kind": "thatch"
   },
   {
-   "x": 362.3,
+   "x": 365.82,
    "z": 298.0,
    "w": 0,
    "d": 0,
@@ -973,302 +918,352 @@
    "door": "N",
    "walk": null,
    "name": "",
-   "kind": "shop"
+   "kind": "house"
+  },
+  {
+   "x": 330.0,
+   "z": 286.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "S",
+   "walk": [
+    330.0,
+    290.0
+   ],
+   "name": "ПИВОВАРНЯ",
+   "kind": "brewery"
   },
   {
    "x": 190.0,
-   "z": 216.8,
+   "z": 218.02,
    "w": 0,
    "d": 0,
    "deg": -4.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 190.0,
-   "z": 222.6,
+   "z": 226.26,
    "w": 0,
    "d": 0,
    "deg": -3.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 190.0,
-   "z": 228.4,
+   "z": 234.5,
    "w": 0,
    "d": 0,
    "deg": -2.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 190.0,
-   "z": 234.2,
+   "z": 242.74,
    "w": 0,
    "d": 0,
    "deg": -1.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
-  },
-  {
-   "x": 190.0,
-   "z": 240.0,
-   "w": 0,
-   "d": 0,
-   "deg": 0.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 322.0,
-   "z": 216.8,
+   "z": 218.02,
    "w": 0,
    "d": 0,
    "deg": -4.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 322.0,
-   "z": 222.6,
+   "z": 226.26,
    "w": 0,
    "d": 0,
    "deg": -3.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 322.0,
-   "z": 228.4,
+   "z": 234.5,
    "w": 0,
    "d": 0,
    "deg": -2.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 322.0,
-   "z": 234.2,
+   "z": 242.74,
    "w": 0,
    "d": 0,
    "deg": -1.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
-  },
-  {
-   "x": 322.0,
-   "z": 240.0,
-   "w": 0,
-   "d": 0,
-   "deg": 0.0,
-   "door": "W",
-   "walk": null,
-   "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 190.0,
-   "z": 340.8,
+   "z": 338.02,
    "w": 0,
    "d": 0,
    "deg": -4.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 190.0,
-   "z": 346.6,
+   "z": 346.26,
    "w": 0,
    "d": 0,
    "deg": -3.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 190.0,
-   "z": 352.4,
+   "z": 354.5,
    "w": 0,
    "d": 0,
    "deg": -2.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 190.0,
-   "z": 358.2,
+   "z": 362.74,
    "w": 0,
    "d": 0,
    "deg": -1.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
-  },
-  {
-   "x": 190.0,
-   "z": 364.0,
-   "w": 0,
-   "d": 0,
-   "deg": 0.0,
-   "door": "E",
-   "walk": null,
-   "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 322.0,
-   "z": 340.8,
+   "z": 338.02,
    "w": 0,
    "d": 0,
    "deg": -4.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 322.0,
-   "z": 346.6,
+   "z": 346.26,
    "w": 0,
    "d": 0,
    "deg": -3.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 322.0,
-   "z": 352.4,
+   "z": 354.5,
    "w": 0,
    "d": 0,
    "deg": -2.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
    "x": 322.0,
-   "z": 358.2,
+   "z": 362.74,
    "w": 0,
    "d": 0,
    "deg": -1.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "thatch"
   },
   {
-   "x": 322.0,
-   "z": 364.0,
-   "w": 0,
-   "d": 0,
-   "deg": 0.0,
-   "door": "W",
-   "walk": null,
-   "name": "",
-   "kind": "old"
-  },
-  {
-   "x": 300.0,
+   "x": 306.0,
    "z": 180.0,
    "w": 0,
    "d": 0,
    "deg": -3.0,
    "door": "W",
    "walk": [
-    296.0,
+    302.0,
     180.0
    ],
    "name": "кузница",
    "kind": "kuznya"
   },
   {
-   "x": 210.0,
-   "z": 420.0,
-   "w": 0,
-   "d": 0,
-   "deg": 2.0,
-   "door": "E",
-   "walk": null,
-   "name": "амбар",
-   "kind": "barn"
-  },
-  {
-   "x": 300.0,
-   "z": 420.0,
-   "w": 0,
-   "d": 0,
-   "deg": -2.0,
-   "door": "W",
-   "walk": null,
-   "name": "амбар",
-   "kind": "barn"
-  },
-  {
-   "x": 248.0,
-   "z": 168.0,
+   "x": 246.0,
+   "z": 170.0,
    "w": 0,
    "d": 0,
    "deg": 0.0,
    "door": "E",
    "walk": [
-    252.0,
-    168.0
+    250.0,
+    170.0
    ],
-   "name": "постоялый двор севера",
-   "kind": "house-l"
+   "name": "постоялый двор ярмарочных ворот",
+   "kind": "inn"
   },
   {
-   "x": 264.0,
-   "z": 424.0,
+   "x": 380.0,
+   "z": 282.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "S",
+   "walk": [
+    380.0,
+    286.0
+   ],
+   "name": "постоялый двор пивоварских ворот",
+   "kind": "inn"
+  },
+  {
+   "x": 264.5,
+   "z": 416.0,
    "w": 0,
    "d": 0,
    "deg": 0.0,
    "door": "W",
    "walk": [
-    260.0,
-    424.0
+    260.5,
+    416.0
    ],
-   "name": "постоялый двор юга",
-   "kind": "house-l"
+   "name": "постоялый двор скотных ворот",
+   "kind": "inn"
+  },
+  {
+   "x": 229.0,
+   "z": 196.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "W",
+   "walk": null,
+   "name": "голубятня",
+   "kind": "dovecote"
+  },
+  {
+   "x": 229.0,
+   "z": 264.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "W",
+   "walk": null,
+   "name": "голубятня",
+   "kind": "dovecote"
+  },
+  {
+   "x": 283.0,
+   "z": 200.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "E",
+   "walk": null,
+   "name": "голубятня",
+   "kind": "dovecote"
+  },
+  {
+   "x": 283.0,
+   "z": 390.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "E",
+   "walk": null,
+   "name": "голубятня",
+   "kind": "dovecote"
+  },
+  {
+   "x": 234.0,
+   "z": 350.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "E",
+   "walk": null,
+   "name": "амбар на грибах",
+   "kind": "granary"
+  },
+  {
+   "x": 40.0,
+   "z": 258.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "E",
+   "walk": null,
+   "name": "амбар на грибах",
+   "kind": "granary"
+  },
+  {
+   "x": 470.0,
+   "z": 340.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "W",
+   "walk": null,
+   "name": "амбар на грибах",
+   "kind": "granary"
+  },
+  {
+   "x": 240.0,
+   "z": 490.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "E",
+   "walk": null,
+   "name": "амбар на грибах",
+   "kind": "granary"
   },
   {
    "x": 52.0,
-   "z": 266.8,
+   "z": 268.02,
    "w": 0,
    "d": 0,
    "deg": -4.0,
    "door": "S",
    "walk": null,
    "name": "",
-   "kind": "house"
+   "kind": "thatch"
   },
   {
    "x": 52.0,
@@ -1279,7 +1274,7 @@
    "door": "N",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "hut"
   },
   {
    "x": 460.0,
@@ -1290,7 +1285,7 @@
    "door": "S",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "hut"
   },
   {
    "x": 460.0,
@@ -1305,25 +1300,25 @@
   },
   {
    "x": 244.0,
-   "z": 458.8,
+   "z": 460.02,
    "w": 0,
    "d": 0,
    "deg": -4.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "house"
+   "kind": "thatch"
   },
   {
    "x": 244.0,
-   "z": 471.4,
+   "z": 473.84,
    "w": 0,
    "d": 0,
    "deg": -3.0,
    "door": "E",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "hut"
   },
   {
    "x": 268.0,
@@ -1334,54 +1329,84 @@
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "old"
+   "kind": "hut"
   },
   {
    "x": 268.0,
-   "z": 471.4,
+   "z": 472.62,
    "w": 0,
    "d": 0,
    "deg": -3.0,
    "door": "W",
    "walk": null,
    "name": "",
-   "kind": "house"
+   "kind": "thatch"
   },
   {
-   "x": 40.0,
-   "z": 330.0,
+   "x": 220.0,
+   "z": 470.0,
    "w": 0,
    "d": 0,
    "deg": 0.0,
    "door": "E",
-   "walk": [
-    46.0,
-    330.0
-   ],
-   "name": "МЕЛЬНИЦА",
-   "kind": "mill"
-  },
-  {
-   "x": 470.0,
-   "z": 258.0,
-   "w": 0,
-   "d": 0,
-   "deg": 0.0,
-   "door": "W",
    "walk": null,
    "name": "скотный баз",
    "kind": "barn"
   },
   {
-   "x": 40.0,
-   "z": 258.0,
+   "x": 119.0,
+   "z": 171.1,
    "w": 0,
    "d": 0,
    "deg": 0.0,
-   "door": "E",
+   "door": "N",
    "walk": null,
-   "name": "сенной сарай",
-   "kind": "barn-old"
+   "name": "ВЕТРЯК",
+   "kind": "windmill"
+  },
+  {
+   "x": 73.9,
+   "z": 233.5,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "N",
+   "walk": null,
+   "name": "ВЕТРЯК",
+   "kind": "windmill"
+  },
+  {
+   "x": 78.0,
+   "z": 352.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "N",
+   "walk": null,
+   "name": "ВЕТРЯК",
+   "kind": "windmill"
+  },
+  {
+   "x": 238.0,
+   "z": 130.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "S",
+   "walk": null,
+   "name": "гончарный горн",
+   "kind": "kiln"
+  },
+  {
+   "x": 442.0,
+   "z": 270.0,
+   "w": 0,
+   "d": 0,
+   "deg": 0.0,
+   "door": "S",
+   "walk": null,
+   "name": "гончарный горн",
+   "kind": "kiln"
   }
  ],
  "market_n": {
