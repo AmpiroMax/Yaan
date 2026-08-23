@@ -33,29 +33,29 @@ point = 121 256 24.60
 
 [place]
 object = glade-bush-a
-pos = 112.500 27.704 155.500
-yaw = 2.862340
-scale = 1
-note = куст рынка
-
-[place]
-object = glade-juniper-creep
-pos = 120.500 27.704 154.500
-yaw = 3.054326
-scale = 1
-note = куст рынка
-
-[place]
-object = glade-bush-a
-pos = 122.500 27.704 153.500
+pos = 122.500 27.778 153.500
 yaw = 3.979351
 scale = 1
 note = куст рынка
 
 [place]
 object = glade-bush-a
-pos = 122.500 27.633 157.500
+pos = 122.500 27.685 157.500
 yaw = 1.396263
+scale = 1
+note = куст рынка
+
+[place]
+object = glade-bush-a
+pos = 112.500 27.778 155.500
+yaw = 2.862340
+scale = 1
+note = куст рынка
+
+[place]
+object = glade-juniper-creep
+pos = 120.500 27.778 154.500
+yaw = 3.054326
 scale = 1
 note = куст рынка
 
@@ -385,29 +385,15 @@ note = куст сквера Гилдергрина
 
 [place]
 object = glade-bush-a
-pos = 115.235 31.901 125.595
+pos = 115.235 31.902 125.595
 yaw = 3.700098
 scale = 1
 note = куст сквера Гилдергрина
 
 [place]
 object = glade-bush-b
-pos = 111.700 31.364 124.582
+pos = 111.700 31.370 124.582
 yaw = 4.625123
-scale = 1
-note = куст сквера Гилдергрина
-
-[place]
-object = glade-bush-c
-pos = 109.511 32.261 113.321
-yaw = 5.550147
-scale = 1
-note = куст сквера Гилдергрина
-
-[place]
-object = glade-juniper-creep
-pos = 110.821 32.302 112.011
-yaw = 0.191986
 scale = 1
 note = куст сквера Гилдергрина
 
@@ -469,14 +455,14 @@ note = озеленение у стены: ЗАМОК
 
 [place]
 object = glade-bush-b
-pos = 120.014 26.508 56.319
+pos = 118.524 33.486 73.976
 yaw = 0.925025
 scale = 1
 note = озеленение у стены: донжон
 
 [place]
 object = glade-bush-c
-pos = 120.014 28.278 58.614
+pos = 116.229 35.405 73.976
 yaw = 1.850049
 scale = 1
 note = озеленение у стены: донжон
@@ -539,28 +525,28 @@ note = озеленение у стены: ЙОРРВАСКР 45°
 
 [place]
 object = glade-juniper-creep
-pos = 119.182 31.652 104.423
+pos = 119.603 31.626 104.944
 yaw = 0.191986
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-bush-a
-pos = 120.066 31.903 106.782
+pos = 119.812 32.234 107.455
 yaw = 1.117011
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-bush-a
-pos = 120.397 32.227 118.454
+pos = 120.343 32.227 118.412
 yaw = 1.117011
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-bush-b
-pos = 119.512 32.227 116.094
+pos = 119.495 32.227 116.039
 yaw = 2.042035
 scale = 1
 note = озеленение у стены: дом
@@ -574,113 +560,78 @@ note = озеленение у стены: дом
 
 [place]
 object = glade-bush-c
-pos = 101.935 32.058 120.338
+pos = 101.935 32.059 120.338
 yaw = 2.967060
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-bush-c
-pos = 117.917 30.629 132.875
+pos = 117.917 30.632 132.875
 yaw = 2.967060
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-juniper-creep
-pos = 115.526 30.146 133.672
+pos = 115.526 30.164 133.672
 yaw = 3.892084
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-juniper-creep
-pos = 103.055 29.182 142.250
+pos = 103.055 29.201 142.250
 yaw = 3.892084
 scale = 1
 note = озеленение у стены: лавка
 
 [place]
 object = glade-bush-a
-pos = 106.115 28.825 142.250
+pos = 106.115 28.863 142.250
 yaw = 4.817109
 scale = 1
 note = озеленение у стены: лавка
 
 [place]
 object = glade-bush-a
-pos = 102.001 27.325 158.504
+pos = 100.292 27.307 158.229
 yaw = 4.817109
 scale = 1
 note = озеленение у стены: лавка
 
 [place]
 object = glade-bush-b
-pos = 131.189 27.055 160.204
+pos = 131.566 27.043 160.447
 yaw = 5.742133
 scale = 1
 note = озеленение у стены: таверна
 
 [place]
-object = glade-bush-c
-pos = 126.194 27.374 160.204
-yaw = 0.383972
-scale = 1
-note = озеленение у стены: таверна
-
-[place]
 object = glade-juniper-creep
-pos = 126.638 27.798 139.458
+pos = 126.638 27.833 139.458
 yaw = 1.308997
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-bush-a
-pos = 125.842 28.882 137.067
+pos = 125.842 28.888 137.067
 yaw = 2.234021
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-bush-a
-pos = 141.059 27.616 145.331
+pos = 141.107 27.622 145.302
 yaw = 2.234021
 scale = 1
 note = озеленение у стены: дом
 
 [place]
 object = glade-bush-b
-pos = 142.309 27.616 147.519
+pos = 142.357 27.611 147.490
 yaw = 3.159046
-scale = 1
-note = озеленение у стены: дом
-
-[place]
-object = glade-bush-b
-pos = 110.495 26.993 165.541
-yaw = 3.159046
-scale = 1
-note = озеленение у стены: дом
-
-[place]
-object = glade-bush-c
-pos = 113.004 27.234 165.313
-yaw = 4.084070
-scale = 1
-note = озеленение у стены: дом
-
-[place]
-object = glade-bush-c
-pos = 133.357 26.840 167.598
-yaw = 4.084070
-scale = 1
-note = озеленение у стены: дом
-
-[place]
-object = glade-juniper-creep
-pos = 130.847 26.919 167.826
-yaw = 5.009095
 scale = 1
 note = озеленение у стены: дом
 
@@ -802,6 +753,246 @@ pos = 152.432 26.946 124.264
 yaw = 2.775074
 scale = 1
 note = куст у ворот east
+
+[house]
+file = assets/houses/city-gate.dfh
+pos = 113.035 26.135 176.717
+yaw = 0.337062
+note = ворота south
+
+[house]
+file = assets/houses/city-gate.dfh
+pos = 148.763 26.673 135.924
+yaw = 1.640505
+note = ворота east
+
+[house]
+file = assets/houses/city-wall-arc12-s050.dfh
+pos = 123.281 26.671 173.360
+yaw = 0.658431
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc16-s025.dfh
+pos = 132.772 26.690 166.017
+yaw = 0.887188
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s025.dfh
+pos = 142.878 26.822 153.612
+yaw = 1.074556
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s050.dfh
+pos = 146.687 26.549 146.577
+yaw = 1.365717
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc16-s025.dfh
+pos = 147.956 27.263 124.156
+yaw = 1.771864
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 144.761 29.368 108.479
+yaw = 1.834346
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s025.dfh
+pos = 142.677 29.494 100.755
+yaw = 1.959232
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 139.647 29.470 93.351
+yaw = 2.084118
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 135.718 28.050 86.382
+yaw = 2.084118
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc16-s000.dfh
+pos = 131.790 27.206 79.413
+yaw = 2.084118
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s100.dfh
+pos = 123.932 27.855 65.475
+yaw = 2.414389
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s025.dfh
+pos = 114.968 33.428 57.498
+yaw = 2.869545
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s025.dfh
+pos = 107.262 30.953 55.348
+yaw = 3.077736
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s050.dfh
+pos = 95.287 30.135 54.582
+yaw = 3.409778
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s050.dfh
+pos = 87.573 32.427 56.702
+yaw = 3.907253
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s025.dfh
+pos = 81.805 33.173 62.246
+yaw = 4.280877
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 78.459 25.487 69.513
+yaw = 4.405763
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 76.044 25.487 77.140
+yaw = 4.405763
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 73.630 25.681 84.767
+yaw = 4.405763
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s000.dfh
+pos = 71.215 25.929 92.394
+yaw = 4.405763
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc16-s050.dfh
+pos = 67.593 26.460 103.834
+yaw = 4.530587
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 64.700 26.524 119.570
+yaw = 4.655410
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s025.dfh
+pos = 64.244 26.654 127.557
+yaw = 4.780297
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 64.787 26.649 135.539
+yaw = 4.905183
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s050.dfh
+pos = 66.320 26.338 143.390
+yaw = 5.071458
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 70.537 26.290 154.625
+yaw = 5.237733
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s025.dfh
+pos = 74.549 26.290 161.546
+yaw = 5.362620
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s050.dfh
+pos = 79.392 26.364 167.914
+yaw = 5.736243
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc16-s000.dfh
+pos = 86.225 26.066 172.075
+yaw = 5.984981
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s100.dfh
+pos = 101.519 25.708 176.775
+yaw = 0.032066
+note = стена кольца
+
+[house]
+file = assets/houses/city-tower.dfh
+pos = 100.089 25.878 176.696
+yaw = 3.215772
+note = башня кольца (наружу)
+
+[house]
+file = assets/houses/city-tower.dfh
+pos = 137.168 26.803 159.346
+yaw = 2.440014
+note = башня кольца (наружу)
+
+[house]
+file = assets/houses/city-tower.dfh
+pos = 147.557 26.814 140.840
+yaw = 2.011705
+note = башня кольца (наружу)
+
+[house]
+file = assets/houses/city-tower.dfh
+pos = 146.692 27.801 116.046
+yaw = 1.468191
+note = башня кольца (наружу)
+
+[house]
+file = assets/houses/city-tower.dfh
+pos = 126.821 27.294 70.835
+yaw = 0.426851
+note = башня кольца (наружу)
+
+[house]
+file = assets/houses/city-tower.dfh
+pos = 83.759 28.035 53.766
+yaw = 5.984609
+note = башня кольца (наружу)
+
+[house]
+file = assets/houses/city-tower.dfh
+pos = 62.765 26.344 107.763
+yaw = 5.008255
+note = башня кольца (наружу)
+
+[house]
+file = assets/houses/city-tower.dfh
+pos = 68.120 26.167 155.241
+yaw = 3.945661
+note = башня кольца (наружу)
 
 [house]
 file = assets/houses/city-keep-s.dfh
@@ -1159,224 +1350,80 @@ note = крыльцо ЗАМОК
 
 [house]
 file = assets/houses/city-donjon.dfh
-pos = 114.414 35.996 55.139
-yaw = 0.000000
+pos = 119.704 35.996 68.376
+yaw = 4.712389
 note = донжон
 
 [house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 114.114 31.996 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 114.114 27.996 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 114.114 26.196 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 115.614 31.996 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 115.614 27.996 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 115.614 26.196 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 117.114 31.996 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 117.114 27.996 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 117.114 26.196 54.989
-yaw = 0.000000
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 118.964 31.996 54.839
+file = assets/houses/city-foot2-h24.dfh
+pos = 119.854 33.596 68.076
 yaw = 4.712389
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 118.964 27.996 54.839
+file = assets/houses/city-foot2-h24.dfh
+pos = 119.854 33.596 69.576
 yaw = 4.712389
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 118.964 26.196 54.839
+file = assets/houses/city-foot2-h24.dfh
+pos = 119.854 33.596 71.076
 yaw = 4.712389
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 118.964 31.996 56.339
-yaw = 4.712389
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 118.964 27.996 56.339
-yaw = 4.712389
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 118.964 26.196 56.339
-yaw = 4.712389
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 118.964 31.996 57.839
-yaw = 4.712389
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 118.964 27.996 57.839
-yaw = 4.712389
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 118.964 26.196 57.839
-yaw = 4.712389
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 119.114 31.996 59.689
+file = assets/houses/city-foot2-h24.dfh
+pos = 120.004 33.596 72.926
 yaw = 3.141593
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 119.114 27.996 59.689
+file = assets/houses/city-foot2-h24.dfh
+pos = 118.504 33.596 72.926
 yaw = 3.141593
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 119.114 26.196 59.689
+file = assets/houses/city-foot2-h24.dfh
+pos = 117.004 33.596 72.926
 yaw = 3.141593
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 117.614 31.996 59.689
-yaw = 3.141593
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 117.614 27.996 59.689
-yaw = 3.141593
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 117.614 26.196 59.689
-yaw = 3.141593
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 116.114 31.996 59.689
-yaw = 3.141593
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 116.114 27.996 59.689
-yaw = 3.141593
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 116.114 26.196 59.689
-yaw = 3.141593
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 114.264 31.996 59.839
+file = assets/houses/city-foot2-h24.dfh
+pos = 115.154 33.596 73.076
 yaw = 1.570796
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 114.264 27.996 59.839
+file = assets/houses/city-foot2-h24.dfh
+pos = 115.154 33.596 71.576
 yaw = 1.570796
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 114.264 26.196 59.839
+file = assets/houses/city-foot2-h24.dfh
+pos = 115.154 33.596 70.076
 yaw = 1.570796
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 114.264 31.996 58.339
-yaw = 1.570796
+file = assets/houses/city-foot2-h24.dfh
+pos = 115.004 33.596 68.226
+yaw = 0.000000
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 114.264 27.996 58.339
-yaw = 1.570796
+file = assets/houses/city-foot2-h24.dfh
+pos = 116.504 33.596 68.226
+yaw = 0.000000
 note = фундамент донжон
 
 [house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 114.264 26.196 58.339
-yaw = 1.570796
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 114.264 31.996 56.839
-yaw = 1.570796
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h40.dfh
-pos = 114.264 27.996 56.839
-yaw = 1.570796
-note = фундамент донжон
-
-[house]
-file = assets/houses/city-foot2-h18.dfh
-pos = 114.264 26.196 56.839
-yaw = 1.570796
+file = assets/houses/city-foot2-h24.dfh
+pos = 118.004 33.596 68.226
+yaw = 0.000000
 note = фундамент донжон
 
 [house]
@@ -2419,433 +2466,433 @@ note = фундамент ЙОРРВАСКР 45°
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 112.997 33.080 104.734
-yaw = 0.358771
+pos = 113.567 33.080 103.560
+yaw = 0.083141
 note = дом
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 114.571 33.200 104.517
-yaw = 0.358771
+pos = 115.141 33.200 103.780
+yaw = 0.083141
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 115.086 33.400 104.751
-yaw = 1.004542
+pos = 115.572 33.400 104.146
+yaw = 0.728913
 note = огонь очага: дом
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 114.390 33.200 106.882
-yaw = 0.358771
+pos = 114.323 33.200 106.006
+yaw = 0.083141
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 114.308 33.200 106.378
-yaw = 0.358771
+pos = 114.381 33.200 105.499
+yaw = 0.083141
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 114.852 33.200 107.830
-yaw = 0.358771
+pos = 114.509 33.200 107.044
+yaw = 0.083141
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 117.263 33.200 107.139
-yaw = 0.358771
+pos = 117.017 33.200 107.036
+yaw = 0.083141
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 114.051 33.200 106.688
-yaw = 1.929567
+pos = 114.049 33.200 105.728
+yaw = 1.653938
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 117.035 33.200 105.249
-yaw = 0.358771
+pos = 117.312 33.200 105.155
+yaw = 0.083141
 note = убранство: дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 112.664 32.080 104.699
-yaw = 0.358771
+file = assets/houses/city-foot2-h14.dfh
+pos = 113.255 31.680 103.436
+yaw = 0.083141
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 114.115 32.080 104.154
-yaw = 0.358771
+file = assets/houses/city-foot2-h14.dfh
+pos = 114.800 31.680 103.307
+yaw = 0.083141
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 115.566 32.080 103.610
-yaw = 0.358771
+file = assets/houses/city-foot2-h14.dfh
+pos = 116.345 31.680 103.178
+yaw = 0.083141
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 117.246 32.080 102.820
-yaw = 5.071160
+file = assets/houses/city-foot2-h14.dfh
+pos = 118.176 31.680 102.875
+yaw = 4.795530
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 117.784 32.080 104.256
-yaw = 5.071160
+file = assets/houses/city-foot2-h14.dfh
+pos = 118.303 31.680 104.403
+yaw = 4.795530
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 118.323 32.080 105.692
-yaw = 5.071160
+file = assets/houses/city-foot2-h14.dfh
+pos = 118.431 31.680 105.931
+yaw = 4.795530
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 118.861 32.080 107.127
-yaw = 5.071160
+file = assets/houses/city-foot2-h14.dfh
+pos = 118.558 31.680 107.459
+yaw = 4.795530
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 119.651 32.080 108.807
-yaw = 3.500363
+file = assets/houses/city-foot2-h14.dfh
+pos = 118.861 31.680 109.290
+yaw = 3.224734
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 118.200 32.080 109.351
-yaw = 3.500363
+file = assets/houses/city-foot2-h14.dfh
+pos = 117.316 31.680 109.419
+yaw = 3.224734
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 116.748 32.080 109.895
-yaw = 3.500363
+file = assets/houses/city-foot2-h14.dfh
+pos = 115.772 31.680 109.548
+yaw = 3.224734
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 115.069 32.080 110.685
-yaw = 1.929567
+file = assets/houses/city-foot2-h14.dfh
+pos = 113.941 31.680 109.851
+yaw = 1.653938
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 114.530 32.080 109.250
-yaw = 1.929567
+file = assets/houses/city-foot2-h14.dfh
+pos = 113.813 31.680 108.323
+yaw = 1.653938
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 113.992 32.080 107.814
-yaw = 1.929567
+file = assets/houses/city-foot2-h14.dfh
+pos = 113.686 31.680 106.795
+yaw = 1.653938
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h10.dfh
-pos = 113.454 32.080 106.378
-yaw = 1.929567
+file = assets/houses/city-foot2-h14.dfh
+pos = 113.559 31.680 105.267
+yaw = 1.653938
 note = фундамент дом
 
 [house]
-file = assets/houses/city-stoop16-h07.dfh
-pos = 116.936 32.225 111.107
-yaw = 1.929567
+file = assets/houses/city-stoop16-h06.dfh
+pos = 115.597 32.300 110.466
+yaw = 1.653938
 note = крыльцо дом
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 126.581 32.578 118.143
-yaw = 3.500363
+pos = 126.532 32.577 118.199
+yaw = 3.484617
 note = дом
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 125.007 32.698 118.359
-yaw = 3.500363
+pos = 124.954 32.697 118.390
+yaw = 3.484617
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 124.492 32.898 118.125
-yaw = 4.146135
+pos = 124.443 32.897 118.148
+yaw = 4.130388
 note = огонь очага: дом
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 125.189 32.698 115.995
-yaw = 3.500363
+pos = 125.173 32.697 116.029
+yaw = 3.484617
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 125.271 32.698 116.498
-yaw = 3.500363
+pos = 125.247 32.697 116.534
+yaw = 3.484617
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 124.726 32.698 115.047
-yaw = 3.500363
+pos = 124.725 32.697 115.074
+yaw = 3.484617
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 122.315 32.698 115.737
-yaw = 3.500363
+pos = 122.304 32.697 115.726
+yaw = 3.484617
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 125.528 32.698 116.188
-yaw = 5.071160
+pos = 125.509 32.697 116.228
+yaw = 5.055413
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 122.544 32.698 117.628
-yaw = 3.500363
+pos = 122.502 32.697 117.620
+yaw = 3.484617
 note = убранство: дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 126.915 31.578 118.178
-yaw = 3.500363
+pos = 126.865 31.577 118.239
+yaw = 3.484617
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 125.464 31.578 118.722
-yaw = 3.500363
+pos = 125.405 31.577 118.760
+yaw = 3.484617
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 124.012 31.578 119.266
-yaw = 3.500363
+pos = 123.945 31.577 119.282
+yaw = 3.484617
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 122.333 31.578 120.056
-yaw = 1.929567
+pos = 122.253 31.577 120.045
+yaw = 1.913820
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 121.794 31.578 118.620
-yaw = 1.929567
+pos = 121.738 31.577 118.601
+yaw = 1.913820
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 121.256 31.578 117.185
-yaw = 1.929567
+pos = 121.222 31.577 117.157
+yaw = 1.913820
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 120.718 31.578 115.749
-yaw = 1.929567
+pos = 120.706 31.577 115.713
+yaw = 1.913820
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 119.928 31.578 114.070
-yaw = 0.358771
+pos = 119.943 31.577 114.021
+yaw = 0.343024
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 121.379 31.578 113.525
-yaw = 0.358771
+pos = 121.402 31.577 113.500
+yaw = 0.343024
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 122.830 31.578 112.981
-yaw = 0.358771
+pos = 122.862 31.577 112.979
+yaw = 0.343024
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 124.510 31.578 112.191
-yaw = 5.071160
+pos = 124.554 31.577 112.215
+yaw = 5.055413
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 125.048 31.578 113.627
-yaw = 5.071160
+pos = 125.070 31.577 113.659
+yaw = 5.055413
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 125.587 31.578 115.062
-yaw = 5.071160
+pos = 125.585 31.577 115.103
+yaw = 5.055413
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 126.125 31.578 116.498
-yaw = 5.071160
+pos = 126.101 31.577 116.547
+yaw = 5.055413
 note = фундамент дом
 
 [house]
 file = assets/houses/city-stoop16-h03.dfh
-pos = 122.854 32.148 112.331
-yaw = 5.071160
+pos = 122.896 32.147 112.329
+yaw = 5.055413
 note = крыльцо дом
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 98.144 32.260 126.647
+pos = 98.144 32.261 126.647
 yaw = 1.670465
 note = дом
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 98.338 32.380 125.070
+pos = 98.338 32.381 125.070
 yaw = 1.670465
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 98.696 32.580 124.632
+pos = 98.696 32.581 124.632
 yaw = 2.316237
 note = огонь очага: дом
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 100.577 32.380 125.851
+pos = 100.577 32.381 125.851
 yaw = 1.670465
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 100.070 32.380 125.801
+pos = 100.070 32.381 125.801
 yaw = 1.670465
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 101.612 32.380 125.647
+pos = 101.612 32.381 125.647
 yaw = 1.670465
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 101.562 32.380 123.139
+pos = 101.562 32.381 123.139
 yaw = 1.670465
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 100.303 32.380 126.129
+pos = 100.303 32.381 126.129
 yaw = 3.241261
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 99.677 32.380 122.876
+pos = 99.677 32.381 122.876
 yaw = 1.670465
 note = убранство: дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 98.025 30.860 126.960
+pos = 98.025 30.861 126.960
 yaw = 1.670465
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 97.871 30.860 125.418
+pos = 97.871 30.861 125.418
 yaw = 1.670465
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 97.716 30.860 123.876
+pos = 97.716 30.861 123.876
 yaw = 1.670465
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 97.383 30.860 122.050
+pos = 97.383 30.861 122.050
 yaw = 0.099669
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 98.909 30.860 121.897
+pos = 98.909 30.861 121.897
 yaw = 0.099669
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 100.434 30.860 121.745
+pos = 100.434 30.861 121.745
 yaw = 0.099669
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 101.960 30.860 121.592
+pos = 101.960 30.861 121.592
 yaw = 0.099669
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 103.786 30.860 121.259
+pos = 103.786 30.861 121.259
 yaw = 4.812058
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 103.940 30.860 122.801
+pos = 103.940 30.861 122.801
 yaw = 4.812058
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 104.095 30.860 124.343
+pos = 104.095 30.861 124.343
 yaw = 4.812058
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 104.428 30.860 126.169
+pos = 104.428 30.861 126.169
 yaw = 3.241261
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 102.902 30.860 126.322
+pos = 102.902 30.861 126.322
 yaw = 3.241261
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 101.376 30.860 126.474
+pos = 101.376 30.861 126.474
 yaw = 3.241261
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
-pos = 99.851 30.860 126.627
+pos = 99.851 30.861 126.627
 yaw = 3.241261
 note = фундамент дом
 
 [house]
-file = assets/houses/city-stoop16-h07.dfh
-pos = 105.313 31.405 124.473
+file = assets/houses/city-stoop16-h06.dfh
+pos = 105.015 31.481 124.502
 yaw = 3.241261
 note = крыльцо дом
 
@@ -2995,721 +3042,727 @@ note = крыльцо дом
 
 [house]
 file = assets/houses/city-shop.dfh
-pos = 100.500 29.660 149.500
+pos = 100.500 29.663 149.500
 yaw = 1.570796
 note = лавка
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 100.900 29.780 149.050
+pos = 100.900 29.783 149.050
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 101.300 29.980 148.650
+pos = 101.300 29.983 148.650
 yaw = 2.216568
 note = огонь очага: лавка
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 105.100 29.780 146.600
+pos = 105.100 29.783 146.600
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 101.700 29.780 143.900
+pos = 101.700 29.783 143.900
 yaw = 0.000000
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 103.300 29.780 143.900
+pos = 103.300 29.783 143.900
 yaw = 0.000000
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 103.100 29.780 149.100
+pos = 103.100 29.783 149.100
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 105.400 29.780 144.900
+pos = 105.400 29.783 144.900
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 105.450 29.780 145.750
+pos = 105.450 29.783 145.750
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 100.350 27.460 149.800
+pos = 100.350 27.463 149.800
 yaw = 1.570796
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 100.350 27.460 148.267
+pos = 100.350 27.463 148.267
 yaw = 1.570796
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 100.350 27.460 146.733
+pos = 100.350 27.463 146.733
 yaw = 1.570796
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 100.350 27.460 145.200
+pos = 100.350 27.463 145.200
 yaw = 1.570796
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 100.200 27.460 143.350
+pos = 100.200 27.463 143.350
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 101.850 27.460 143.350
+pos = 101.850 27.463 143.350
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 103.500 27.460 143.350
+pos = 103.500 27.463 143.350
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 105.150 27.460 143.350
+pos = 105.150 27.463 143.350
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 106.800 27.460 143.350
+pos = 106.800 27.463 143.350
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.650 27.460 143.200
+pos = 108.650 27.463 143.200
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.650 27.460 144.733
+pos = 108.650 27.463 144.733
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.650 27.460 146.267
+pos = 108.650 27.463 146.267
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.650 27.460 147.800
+pos = 108.650 27.463 147.800
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 108.800 27.460 149.650
+pos = 108.800 27.463 149.650
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 107.150 27.460 149.650
+pos = 107.150 27.463 149.650
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 105.500 27.460 149.650
+pos = 105.500 27.463 149.650
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 103.850 27.460 149.650
+pos = 103.850 27.463 149.650
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
-pos = 102.200 27.460 149.650
+pos = 102.200 27.463 149.650
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
-file = assets/houses/city-stoop16-h19.dfh
-pos = 109.950 27.608 147.300
+file = assets/houses/city-stoop16-h17.dfh
+pos = 109.650 27.813 147.300
 yaw = 3.141593
 note = крыльцо лавка
 
 [house]
 file = assets/houses/city-shop.dfh
-pos = 99.446 27.678 165.754
+pos = 97.737 27.665 165.479
 yaw = 1.570796
 note = лавка
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 99.846 27.798 165.304
+pos = 98.137 27.785 165.029
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 100.246 27.998 164.904
+pos = 98.537 27.985 164.629
 yaw = 2.216568
 note = огонь очага: лавка
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 104.046 27.798 162.854
+pos = 102.337 27.785 162.579
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 100.646 27.798 160.154
+pos = 98.937 27.785 159.879
 yaw = 0.000000
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 102.246 27.798 160.154
+pos = 100.537 27.785 159.879
 yaw = 0.000000
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 102.046 27.798 165.354
+pos = 100.337 27.785 165.079
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 104.346 27.798 161.154
+pos = 102.637 27.785 160.879
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 104.396 27.798 162.004
+pos = 102.687 27.785 161.729
 yaw = 1.570796
 note = убранство: лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 99.296 26.678 166.054
+pos = 97.587 26.665 165.779
 yaw = 1.570796
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 99.296 26.678 164.521
+pos = 97.587 26.665 164.246
 yaw = 1.570796
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 99.296 26.678 162.988
+pos = 97.587 26.665 162.713
 yaw = 1.570796
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 99.296 26.678 161.454
+pos = 97.587 26.665 161.179
 yaw = 1.570796
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 99.146 26.678 159.604
+pos = 97.437 26.665 159.329
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 100.796 26.678 159.604
+pos = 99.087 26.665 159.329
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 102.446 26.678 159.604
+pos = 100.737 26.665 159.329
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 104.096 26.678 159.604
+pos = 102.387 26.665 159.329
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 105.746 26.678 159.604
+pos = 104.037 26.665 159.329
 yaw = 0.000000
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 107.596 26.678 159.454
+pos = 105.887 26.665 159.179
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 107.596 26.678 160.988
+pos = 105.887 26.665 160.713
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 107.596 26.678 162.521
+pos = 105.887 26.665 162.246
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 107.596 26.678 164.054
+pos = 105.887 26.665 163.779
 yaw = 4.712389
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 107.746 26.678 165.904
+pos = 106.037 26.665 165.629
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 106.096 26.678 165.904
+pos = 104.387 26.665 165.629
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 104.446 26.678 165.904
+pos = 102.737 26.665 165.629
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 102.796 26.678 165.904
+pos = 101.087 26.665 165.629
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
-pos = 101.146 26.678 165.904
+pos = 99.437 26.665 165.629
 yaw = 3.141593
 note = фундамент лавка
 
 [house]
 file = assets/houses/city-stoop16-h05.dfh
-pos = 106.496 27.031 163.554
+pos = 104.787 27.019 163.279
 yaw = 3.141593
 note = крыльцо лавка
 
 [house]
 file = assets/houses/city-house-l.dfh
-pos = 133.759 27.855 148.804
+pos = 134.136 27.916 149.047
 yaw = 4.712389
 note = таверна
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 133.359 28.500 153.104
+pos = 133.736 28.561 153.347
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 132.959 28.700 153.504
+pos = 133.336 28.761 153.747
 yaw = 5.358161
 note = огонь очага: таверна
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 130.759 28.500 152.404
+pos = 131.136 28.561 152.647
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 131.259 28.500 152.504
+pos = 131.636 28.561 152.747
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 129.559 28.500 152.504
+pos = 129.936 28.561 152.747
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 128.209 28.500 149.254
+pos = 128.586 28.561 149.497
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 128.209 28.500 157.354
+pos = 128.586 28.561 157.597
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 130.359 28.500 158.304
+pos = 130.736 28.561 158.547
 yaw = 3.141593
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-column-h272.dfh
-pos = 129.859 28.500 150.904
+pos = 130.236 28.561 151.147
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-column-h272.dfh
-pos = 129.859 28.500 156.704
+pos = 130.236 28.561 156.947
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 133.159 28.500 149.254
+pos = 133.536 28.561 149.497
 yaw = 4.712389
 note = убранство: таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 133.909 26.655 148.504
+pos = 134.286 26.716 148.747
 yaw = 4.712389
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 133.909 26.655 150.224
+pos = 134.286 26.716 150.467
 yaw = 4.712389
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 133.909 26.655 151.944
+pos = 134.286 26.716 152.187
 yaw = 4.712389
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 133.909 26.655 153.664
+pos = 134.286 26.716 153.907
 yaw = 4.712389
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 133.909 26.655 155.384
+pos = 134.286 26.716 155.627
 yaw = 4.712389
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 133.909 26.655 157.104
+pos = 134.286 26.716 157.347
 yaw = 4.712389
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 134.059 26.655 158.954
+pos = 134.436 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 132.269 26.655 158.954
+pos = 132.646 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 130.479 26.655 158.954
+pos = 130.856 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 128.689 26.655 158.954
+pos = 129.066 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 126.899 26.655 158.954
+pos = 127.276 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 125.109 26.655 158.954
+pos = 125.486 26.716 159.197
 yaw = 3.141593
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.259 26.655 159.104
+pos = 123.636 26.716 159.347
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.259 26.655 157.384
+pos = 123.636 26.716 157.627
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.259 26.655 155.664
+pos = 123.636 26.716 155.907
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.259 26.655 153.944
+pos = 123.636 26.716 154.187
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.259 26.655 152.224
+pos = 123.636 26.716 152.467
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.259 26.655 150.504
+pos = 123.636 26.716 150.747
 yaw = 1.570796
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 123.109 26.655 148.654
+pos = 123.486 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 124.899 26.655 148.654
+pos = 125.276 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 126.689 26.655 148.654
+pos = 127.066 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 128.479 26.655 148.654
+pos = 128.856 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 130.269 26.655 148.654
+pos = 130.646 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 132.059 26.655 148.654
+pos = 132.436 26.716 148.897
 yaw = 0.000000
 note = фундамент таверна
+
+[house]
+file = assets/houses/city-stoop16-h02.dfh
+pos = 125.686 27.536 153.247
+yaw = 6.283185
+note = крыльцо таверна
 
 [house]
 file = assets/houses/city-shop-old.dfh
-pos = 127.780 27.413 175.858
+pos = 127.815 27.557 169.626
 yaw = 3.141593
 note = кузница
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 125.480 27.533 175.458
+pos = 125.515 27.677 169.226
 yaw = 3.141593
 note = убранство: кузница
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 125.080 27.733 175.058
+pos = 125.115 27.877 168.826
 yaw = 3.787364
 note = огонь очага: кузница
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 126.180 27.533 173.258
+pos = 126.215 27.677 167.026
 yaw = 3.141593
 note = убранство: кузница
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 122.680 27.533 175.258
+pos = 122.715 27.677 169.026
 yaw = 3.141593
 note = убранство: кузница
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 122.680 27.533 174.158
+pos = 122.715 27.677 167.926
 yaw = 3.141593
 note = убранство: кузница
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 123.480 27.533 171.258
+pos = 123.515 27.677 165.026
 yaw = 3.141593
 note = убранство: кузница
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 127.430 27.533 171.058
+pos = 127.465 27.677 164.826
 yaw = 3.141593
 note = убранство: кузница
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 127.480 27.533 173.658
+pos = 127.515 27.677 167.426
 yaw = 4.712389
 note = убранство: кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 128.080 26.013 176.008
+file = assets/houses/city-foot2-h10.dfh
+pos = 128.115 26.557 169.776
 yaw = 3.141593
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 126.547 26.013 176.008
+file = assets/houses/city-foot2-h10.dfh
+pos = 126.582 26.557 169.776
 yaw = 3.141593
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 125.013 26.013 176.008
+file = assets/houses/city-foot2-h10.dfh
+pos = 125.048 26.557 169.776
 yaw = 3.141593
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 123.480 26.013 176.008
+file = assets/houses/city-foot2-h10.dfh
+pos = 123.515 26.557 169.776
 yaw = 3.141593
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 121.630 26.013 176.158
+file = assets/houses/city-foot2-h10.dfh
+pos = 121.665 26.557 169.926
 yaw = 1.570796
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 121.630 26.013 174.508
+file = assets/houses/city-foot2-h10.dfh
+pos = 121.665 26.557 168.276
 yaw = 1.570796
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 121.630 26.013 172.858
+file = assets/houses/city-foot2-h10.dfh
+pos = 121.665 26.557 166.626
 yaw = 1.570796
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 121.630 26.013 171.208
+file = assets/houses/city-foot2-h10.dfh
+pos = 121.665 26.557 164.976
 yaw = 1.570796
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 121.630 26.013 169.558
+file = assets/houses/city-foot2-h10.dfh
+pos = 121.665 26.557 163.326
 yaw = 1.570796
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 121.480 26.013 167.708
+file = assets/houses/city-foot2-h10.dfh
+pos = 121.515 26.557 161.476
 yaw = 0.000000
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 123.013 26.013 167.708
+file = assets/houses/city-foot2-h10.dfh
+pos = 123.048 26.557 161.476
 yaw = 0.000000
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 124.547 26.013 167.708
+file = assets/houses/city-foot2-h10.dfh
+pos = 124.582 26.557 161.476
 yaw = 0.000000
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 126.080 26.013 167.708
+file = assets/houses/city-foot2-h10.dfh
+pos = 126.115 26.557 161.476
 yaw = 0.000000
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 127.930 26.013 167.558
+file = assets/houses/city-foot2-h10.dfh
+pos = 127.965 26.557 161.326
 yaw = 4.712389
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 127.930 26.013 169.208
+file = assets/houses/city-foot2-h10.dfh
+pos = 127.965 26.557 162.976
 yaw = 4.712389
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 127.930 26.013 170.858
+file = assets/houses/city-foot2-h10.dfh
+pos = 127.965 26.557 164.626
 yaw = 4.712389
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 127.930 26.013 172.508
+file = assets/houses/city-foot2-h10.dfh
+pos = 127.965 26.557 166.276
 yaw = 4.712389
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-foot2-h14.dfh
-pos = 127.930 26.013 174.158
+file = assets/houses/city-foot2-h10.dfh
+pos = 127.965 26.557 167.926
 yaw = 4.712389
 note = фундамент кузница
 
 [house]
-file = assets/houses/city-stoop16-h03.dfh
-pos = 125.580 26.983 169.108
+file = assets/houses/city-stoop16-h02.dfh
+pos = 125.615 27.177 163.176
 yaw = 4.712389
 note = крыльцо кузница
 
@@ -3768,508 +3821,514 @@ yaw = 3.463343
 note = убранство: дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 133.162 27.229 139.423
+file = assets/houses/city-foot2-h22.dfh
+pos = 133.162 27.429 139.423
 yaw = 3.463343
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 131.692 27.229 139.913
+file = assets/houses/city-foot2-h22.dfh
+pos = 131.692 27.429 139.913
 yaw = 3.463343
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 130.221 27.229 140.403
+file = assets/houses/city-foot2-h22.dfh
+pos = 130.221 27.429 140.403
 yaw = 3.463343
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 128.514 27.229 141.131
+file = assets/houses/city-foot2-h22.dfh
+pos = 128.514 27.429 141.131
 yaw = 1.892547
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 128.029 27.229 139.676
+file = assets/houses/city-foot2-h22.dfh
+pos = 128.029 27.429 139.676
 yaw = 1.892547
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 127.544 27.229 138.221
+file = assets/houses/city-foot2-h22.dfh
+pos = 127.544 27.429 138.221
 yaw = 1.892547
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 127.059 27.229 136.767
+file = assets/houses/city-foot2-h22.dfh
+pos = 127.059 27.429 136.767
 yaw = 1.892547
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 126.332 27.229 135.059
+file = assets/houses/city-foot2-h22.dfh
+pos = 126.332 27.429 135.059
 yaw = 0.321751
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 127.802 27.229 134.569
+file = assets/houses/city-foot2-h22.dfh
+pos = 127.802 27.429 134.569
 yaw = 0.321751
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 129.273 27.229 134.079
+file = assets/houses/city-foot2-h22.dfh
+pos = 129.273 27.429 134.079
 yaw = 0.321751
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 130.980 27.229 133.351
+file = assets/houses/city-foot2-h22.dfh
+pos = 130.980 27.429 133.351
 yaw = 5.034140
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 131.465 27.229 134.806
+file = assets/houses/city-foot2-h22.dfh
+pos = 131.465 27.429 134.806
 yaw = 5.034140
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 131.950 27.229 136.261
+file = assets/houses/city-foot2-h22.dfh
+pos = 131.950 27.429 136.261
 yaw = 5.034140
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h24.dfh
-pos = 132.435 27.229 137.715
+file = assets/houses/city-foot2-h22.dfh
+pos = 132.435 27.429 137.715
 yaw = 5.034140
 note = фундамент дом
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 135.004 27.805 146.626
+pos = 135.052 27.814 146.597
 yaw = 0.519146
 note = дом
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 136.523 27.925 146.161
+pos = 136.571 27.934 146.132
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 137.069 28.125 146.309
+pos = 137.117 28.134 146.281
 yaw = 1.164918
 note = огонь очага: дом
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 136.722 27.925 148.523
+pos = 136.769 27.934 148.495
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 136.560 27.925 148.040
+pos = 136.608 27.934 148.011
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 137.329 27.925 149.386
+pos = 137.377 27.934 149.357
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 139.599 27.925 148.319
+pos = 139.647 27.934 148.290
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 136.356 27.925 148.387
+pos = 136.404 27.934 148.358
 yaw = 2.089942
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 139.072 27.925 146.489
+pos = 139.120 27.934 146.460
 yaw = 0.519146
 note = убранство: дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 134.669 26.605 146.644
+pos = 134.717 26.614 146.616
 yaw = 0.519146
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 136.015 26.605 145.875
+pos = 136.062 26.614 145.847
 yaw = 0.519146
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 137.360 26.605 145.106
+pos = 137.408 26.614 145.077
 yaw = 0.519146
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 138.892 26.605 144.058
+pos = 138.940 26.614 144.029
 yaw = 5.231535
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 139.653 26.605 145.390
+pos = 139.701 26.614 145.361
 yaw = 5.231535
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 140.414 26.605 146.721
+pos = 140.462 26.614 146.692
 yaw = 5.231535
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 141.174 26.605 148.052
+pos = 141.222 26.614 148.023
 yaw = 5.231535
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 142.223 26.605 149.584
+pos = 142.270 26.614 149.555
 yaw = 3.660739
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 140.877 26.605 150.353
+pos = 140.925 26.614 150.324
 yaw = 3.660739
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 139.531 26.605 151.122
+pos = 139.579 26.614 151.093
 yaw = 3.660739
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 137.999 26.605 152.170
+pos = 138.047 26.614 152.141
 yaw = 2.089942
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 137.238 26.605 150.839
+pos = 137.286 26.614 150.810
 yaw = 2.089942
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 136.478 26.605 149.507
+pos = 136.526 26.614 149.479
 yaw = 2.089942
 note = фундамент дом
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
-pos = 135.717 26.605 148.176
+pos = 135.765 26.614 148.147
 yaw = 2.089942
 note = фундамент дом
 
 [house]
 file = assets/houses/city-stoop16-h07.dfh
-pos = 139.909 26.950 152.288
+pos = 139.957 26.959 152.259
 yaw = 2.089942
 note = крыльцо дом
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 109.157 27.436 171.587
+pos = 109.228 27.444 172.850
 yaw = 1.661456
 note = дом
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 109.365 27.556 170.012
+pos = 109.437 27.564 171.274
 yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 109.727 27.756 169.577
+pos = 109.799 27.764 170.840
 yaw = 2.307228
 note = огонь очага: дом
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 111.597 27.556 170.813
+pos = 111.668 27.564 172.075
 yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 111.090 27.556 170.759
+pos = 111.161 27.564 172.021
 yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 112.633 27.556 170.619
+pos = 112.705 27.564 171.881
 yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 112.606 27.556 168.111
+pos = 112.678 27.564 169.373
 yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 111.320 27.556 171.089
+pos = 111.392 27.564 172.352
 yaw = 3.232253
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.723 27.556 167.830
+pos = 110.795 27.564 169.092
 yaw = 1.661456
 note = убранство: дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 109.034 26.636 171.900
+file = assets/houses/city-foot2-h10.dfh
+pos = 109.106 26.444 173.162
 yaw = 1.661456
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 108.894 26.636 170.356
+file = assets/houses/city-foot2-h10.dfh
+pos = 108.966 26.444 171.618
 yaw = 1.661456
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 108.754 26.636 168.812
+file = assets/houses/city-foot2-h10.dfh
+pos = 108.826 26.444 170.075
 yaw = 1.661456
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 108.437 26.636 166.984
+file = assets/houses/city-foot2-h10.dfh
+pos = 108.509 26.444 168.246
 yaw = 0.090660
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 109.964 26.636 166.845
+file = assets/houses/city-foot2-h10.dfh
+pos = 110.036 26.444 168.107
 yaw = 0.090660
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 111.491 26.636 166.706
+file = assets/houses/city-foot2-h10.dfh
+pos = 111.563 26.444 167.968
 yaw = 0.090660
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 113.018 26.636 166.567
+file = assets/houses/city-foot2-h10.dfh
+pos = 113.090 26.444 167.829
 yaw = 0.090660
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 114.847 26.636 166.250
+file = assets/houses/city-foot2-h10.dfh
+pos = 114.919 26.444 167.512
 yaw = 4.803049
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 114.987 26.636 167.794
+file = assets/houses/city-foot2-h10.dfh
+pos = 115.059 26.444 169.056
 yaw = 4.803049
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 115.127 26.636 169.337
+file = assets/houses/city-foot2-h10.dfh
+pos = 115.199 26.444 170.600
 yaw = 4.803049
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 115.444 26.636 171.166
+file = assets/houses/city-foot2-h10.dfh
+pos = 115.516 26.444 172.429
 yaw = 3.232253
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 113.917 26.636 171.305
+file = assets/houses/city-foot2-h10.dfh
+pos = 113.989 26.444 172.567
 yaw = 3.232253
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 112.390 26.636 171.444
+file = assets/houses/city-foot2-h10.dfh
+pos = 112.462 26.444 172.706
 yaw = 3.232253
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h08.dfh
-pos = 110.863 26.636 171.583
+file = assets/houses/city-foot2-h10.dfh
+pos = 110.935 26.444 172.845
 yaw = 3.232253
 note = фундамент дом
 
 [house]
 file = assets/houses/city-house-s.dfh
-pos = 134.695 27.211 161.552
-yaw = 4.803049
+pos = 108.462 27.634 166.699
+yaw = 1.661456
 note = дом
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 134.487 27.331 163.127
-yaw = 4.803049
+pos = 108.671 27.754 165.124
+yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 134.125 27.531 163.562
-yaw = 5.448821
+pos = 109.033 27.954 164.689
+yaw = 2.307228
 note = огонь очага: дом
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 132.255 27.331 162.326
-yaw = 4.803049
+pos = 110.902 27.754 165.925
+yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 132.762 27.331 162.380
-yaw = 4.803049
+pos = 110.395 27.754 165.871
+yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 131.219 27.331 162.521
-yaw = 4.803049
+pos = 111.939 27.754 165.731
+yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-bed.dfh
-pos = 131.246 27.331 165.029
-yaw = 4.803049
+pos = 111.912 27.754 163.223
+yaw = 1.661456
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 132.531 27.331 162.050
-yaw = 0.090660
+pos = 110.626 27.754 166.201
+yaw = 3.232253
 note = убранство: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 133.129 27.331 165.309
-yaw = 4.803049
+pos = 110.029 27.754 162.942
+yaw = 1.661456
 note = убранство: дом
 
 [house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 134.817 26.611 161.240
-yaw = 4.803049
-note = фундамент дом
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 134.958 26.611 162.783
-yaw = 4.803049
-note = фундамент дом
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 135.098 26.611 164.327
-yaw = 4.803049
-note = фундамент дом
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 135.415 26.611 166.156
-yaw = 3.232253
-note = фундамент дом
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 133.888 26.611 166.295
-yaw = 3.232253
-note = фундамент дом
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 132.361 26.611 166.433
-yaw = 3.232253
-note = фундамент дом
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 130.834 26.611 166.572
-yaw = 3.232253
-note = фундамент дом
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 129.005 26.611 166.889
+file = assets/houses/city-foot2-h10.dfh
+pos = 108.340 26.634 167.012
 yaw = 1.661456
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 128.865 26.611 165.345
+file = assets/houses/city-foot2-h10.dfh
+pos = 108.200 26.634 165.468
 yaw = 1.661456
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 128.724 26.611 163.802
+file = assets/houses/city-foot2-h10.dfh
+pos = 108.059 26.634 163.924
 yaw = 1.661456
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 128.407 26.611 161.973
+file = assets/houses/city-foot2-h10.dfh
+pos = 107.743 26.634 162.096
 yaw = 0.090660
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 129.934 26.611 161.834
+file = assets/houses/city-foot2-h10.dfh
+pos = 109.270 26.634 161.957
 yaw = 0.090660
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 131.461 26.611 161.695
+file = assets/houses/city-foot2-h10.dfh
+pos = 110.797 26.634 161.818
 yaw = 0.090660
 note = фундамент дом
 
 [house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 132.989 26.611 161.557
+file = assets/houses/city-foot2-h10.dfh
+pos = 112.324 26.634 161.679
 yaw = 0.090660
 note = фундамент дом
+
+[house]
+file = assets/houses/city-foot2-h10.dfh
+pos = 114.152 26.634 161.362
+yaw = 4.803049
+note = фундамент дом
+
+[house]
+file = assets/houses/city-foot2-h10.dfh
+pos = 114.293 26.634 162.906
+yaw = 4.803049
+note = фундамент дом
+
+[house]
+file = assets/houses/city-foot2-h10.dfh
+pos = 114.433 26.634 164.449
+yaw = 4.803049
+note = фундамент дом
+
+[house]
+file = assets/houses/city-foot2-h10.dfh
+pos = 114.750 26.634 166.278
+yaw = 3.232253
+note = фундамент дом
+
+[house]
+file = assets/houses/city-foot2-h10.dfh
+pos = 113.223 26.634 166.417
+yaw = 3.232253
+note = фундамент дом
+
+[house]
+file = assets/houses/city-foot2-h10.dfh
+pos = 111.696 26.634 166.556
+yaw = 3.232253
+note = фундамент дом
+
+[house]
+file = assets/houses/city-foot2-h10.dfh
+pos = 110.169 26.634 166.695
+yaw = 3.232253
+note = фундамент дом
+
+[house]
+file = assets/houses/city-stoop16-h02.dfh
+pos = 114.755 27.254 164.671
+yaw = 3.232253
+note = крыльцо дом
 
 [house]
 file = assets/houses/city-house-s-old.dfh
@@ -5437,211 +5496,211 @@ note = крыльцо постоялый двор
 
 [house]
 file = assets/houses/city-well.dfh
-pos = 120.000 27.724 151.500
+pos = 120.000 27.798 151.500
 yaw = 0.000000
 note = колодец рынка
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 112.337 27.724 149.781
+pos = 112.337 27.798 149.781
 yaw = 3.019420
 note = прилавок 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 112.051 28.574 149.645
+pos = 112.051 28.648 149.645
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 111.061 28.574 149.503
+pos = 111.061 28.648 149.503
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 112.299 27.724 149.272
+pos = 112.299 27.798 149.272
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.711 27.724 149.077
+pos = 110.711 27.798 149.077
 yaw = 3.019420
 note = товар прилавка 1
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 112.370 27.724 147.870
+pos = 112.370 27.798 147.870
 yaw = 4.590216
 note = стеллаж прилавка 1
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 119.100 27.724 149.650
+pos = 119.100 27.798 149.650
 yaw = 3.141593
 note = прилавок 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 118.800 28.574 149.550
+pos = 118.800 28.648 149.550
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 117.800 28.574 149.530
+pos = 117.800 28.648 149.530
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 119.000 27.724 149.150
+pos = 119.000 27.798 149.150
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 117.400 27.724 149.150
+pos = 117.400 27.798 149.150
 yaw = 3.787364
 note = товар прилавка 2
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 118.900 27.724 147.750
+pos = 118.900 27.798 147.750
 yaw = 4.712389
 note = стеллаж прилавка 2
 
 [house]
 file = assets/houses/city-stall.dfh
-pos = 122.447 27.724 149.513
+pos = 122.447 27.798 149.513
 yaw = 3.263766
 note = прилавок 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 122.137 28.574 149.450
+pos = 122.137 28.648 149.450
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 121.142 28.574 149.552
+pos = 121.142 28.648 149.552
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 122.286 27.724 149.029
+pos = 122.286 27.798 149.029
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 120.698 27.724 149.223
+pos = 120.698 27.798 149.223
 yaw = 4.555309
 note = товар прилавка 3
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 122.017 27.724 147.651
+pos = 122.017 27.798 147.651
 yaw = 4.834562
 note = стеллаж прилавка 3
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 122.077 27.724 154.124
+pos = 122.077 27.798 154.124
 yaw = 5.235988
 note = скамья у колодца рынка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 108.600 27.724 150.725
+pos = 108.600 27.798 150.725
 yaw = 0.000000
 note = товар у лотка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.818 27.724 151.711
+pos = 110.818 27.798 151.711
 yaw = 1.012291
 note = товар у лотка 1
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 110.591 27.724 151.940
+pos = 110.591 27.798 151.940
 yaw = 4.049164
 note = товар у лотка 1
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 120.378 27.724 151.563
+pos = 120.378 27.798 151.563
 yaw = 0.383972
 note = товар у лотка 2
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 119.762 27.724 151.638
+pos = 119.762 27.798 151.638
 yaw = 6.248279
 note = товар у лотка 3
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 122.029 27.724 151.747
+pos = 122.029 27.798 151.747
 yaw = 0.471239
 note = товар у лотка 3
 
 [house]
 file = assets/houses/furn-brazier-fire.dfh
-pos = 109.238 27.724 153.064
+pos = 109.238 27.798 153.064
 yaw = -0.244346
 note = жаровня рынка
 
 [house]
 file = assets/houses/furn-lamp-post.dfh
-pos = 110.672 27.724 154.961
+pos = 110.672 27.798 154.961
 yaw = 2.391101
 note = фонарь рынка
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 112.227 27.724 156.876
+pos = 112.227 27.798 156.876
 yaw = 2.879793
 note = скамья рынка
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 110.855 27.724 150.238
+pos = 110.855 27.798 150.238
 yaw = 2.234021
 note = скамья рынка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 110.001 27.724 155.126
+pos = 110.001 27.798 155.126
 yaw = 4.066617
 note = тара рынка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 121.156 27.724 153.856
+pos = 121.156 27.798 153.856
 yaw = 1.588250
 note = тара рынка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 121.027 27.724 152.645
+pos = 121.027 27.798 152.645
 yaw = 1.082104
 note = тара рынка
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 111.557 27.724 152.878
+pos = 111.557 27.798 152.878
 yaw = 4.904375
 note = тара рынка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 121.838 27.724 156.862
+pos = 121.838 27.798 156.862
 yaw = 3.106686
 note = тара рынка
 
@@ -5671,7 +5730,7 @@ note = жаровня: east
 
 [house]
 file = assets/houses/furn-brazier-fire.dfh
-pos = 122.015 27.723 142.310
+pos = 122.015 27.780 142.310
 yaw = -0.069813
 note = жаровня: главная улица
 
@@ -5695,13 +5754,13 @@ note = жаровня: главная улица
 
 [house]
 file = assets/houses/furn-brazier-fire.dfh
-pos = 102.785 27.825 152.840
+pos = 102.785 27.859 152.840
 yaw = -0.331613
 note = жаровня: рынок
 
 [house]
 file = assets/houses/furn-brazier-fire.dfh
-pos = 121.741 27.454 159.408
+pos = 121.741 27.494 159.408
 yaw = -0.104720
 note = жаровня: рынок
 
@@ -5710,234 +5769,6 @@ file = assets/houses/furn-brazier-fire.dfh
 pos = 150.184 26.813 137.498
 yaw = -0.122173
 note = жаровня: мост
-
-[house]
-file = assets/houses/city-gate.dfh
-pos = 113.035 26.135 176.717
-yaw = 0.337062
-note = ворота south
-
-[house]
-file = assets/houses/city-gate.dfh
-pos = 148.763 26.673 135.924
-yaw = 1.640505
-note = ворота east
-
-[house]
-file = assets/houses/city-wall-arc12-s050.dfh
-pos = 123.281 26.671 173.360
-yaw = 0.658431
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc16-s025.dfh
-pos = 132.772 26.690 166.017
-yaw = 0.887188
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 142.878 26.822 153.612
-yaw = 1.074556
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s050.dfh
-pos = 146.687 26.549 146.577
-yaw = 1.365717
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc16-s025.dfh
-pos = 148.167 27.143 125.740
-yaw = 1.759058
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc16-s025.dfh
-pos = 145.173 29.252 110.023
-yaw = 1.884021
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s025.dfh
-pos = 140.243 28.957 94.801
-yaw = 2.029807
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s025.dfh
-pos = 134.926 27.473 84.043
-yaw = 2.196416
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 127.899 27.454 74.316
-yaw = 2.279720
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 122.691 31.215 68.244
-yaw = 2.404607
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s100.dfh
-pos = 116.767 35.620 62.867
-yaw = 2.859763
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 105.240 35.579 59.530
-yaw = 3.314920
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 97.360 35.579 60.909
-yaw = 3.564692
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 90.065 35.619 64.194
-yaw = 3.814464
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 83.809 28.040 69.180
-yaw = 4.064237
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s000.dfh
-pos = 78.979 25.594 75.558
-yaw = 4.189123
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 72.983 25.699 85.952
-yaw = 4.314009
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 69.879 25.938 93.326
-yaw = 4.438895
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s025.dfh
-pos = 67.719 26.462 101.028
-yaw = 4.522200
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 65.450 26.462 112.812
-yaw = 4.605504
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc16-s050.dfh
-pos = 64.597 26.536 120.766
-yaw = 4.730328
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc16-s050.dfh
-pos = 64.884 26.348 136.764
-yaw = 4.979975
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s025.dfh
-pos = 69.114 26.182 152.194
-yaw = 5.188104
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s050.dfh
-pos = 74.610 26.182 162.862
-yaw = 5.520145
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 80.392 26.439 168.391
-yaw = 5.768883
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 87.357 26.546 172.326
-yaw = 5.893769
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s025.dfh
-pos = 94.758 25.740 175.363
-yaw = 6.101960
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s050.dfh
-pos = 106.561 25.700 177.526
-yaw = 0.150816
-note = стена кольца
-
-[house]
-file = assets/houses/city-tower.dfh
-pos = 100.096 25.878 176.696
-yaw = 3.211308
-note = башня кольца (наружу)
-
-[house]
-file = assets/houses/city-tower.dfh
-pos = 137.182 26.784 159.334
-yaw = 2.428087
-note = башня кольца (наружу)
-
-[house]
-file = assets/houses/city-tower.dfh
-pos = 147.565 26.815 140.821
-yaw = 1.997934
-note = башня кольца (наружу)
-
-[house]
-file = assets/houses/city-tower.dfh
-pos = 146.690 27.802 116.027
-yaw = 1.455196
-note = башня кольца (наружу)
-
-[house]
-file = assets/houses/city-tower.dfh
-pos = 126.822 27.294 70.835
-yaw = 0.427289
-note = башня кольца (наружу)
-
-[house]
-file = assets/houses/city-tower.dfh
-pos = 87.811 35.720 60.751
-yaw = 6.020844
-note = башня кольца (наружу)
-
-[house]
-file = assets/houses/city-tower.dfh
-pos = 62.772 26.345 107.741
-yaw = 5.023329
-note = башня кольца (наружу)
-
-[house]
-file = assets/houses/city-tower.dfh
-pos = 68.115 26.167 155.236
-yaw = 3.950096
-note = башня кольца (наружу)
 
 [house]
 file = assets/houses/city-bridge-arc.dfh
@@ -6013,19 +5844,19 @@ note = огород
 
 [house]
 file = assets/houses/furn-forge-hearth.dfh
-pos = 125.580 26.721 177.578
+pos = 125.615 27.120 171.346
 yaw = 3.141593
 note = кузнечный двор: кузница
 
 [house]
 file = assets/houses/furn-anvil.dfh
-pos = 124.970 26.465 177.738
+pos = 125.005 27.107 171.506
 yaw = 4.712389
 note = кузнечный двор: кузница
 
 [house]
 file = assets/houses/furn-quench.dfh
-pos = 124.161 26.704 178.409
+pos = 124.196 27.192 172.177
 yaw = 3.141593
 note = кузнечный двор: кузница
 
@@ -6157,44 +5988,44 @@ note = двор: дом
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 127.074 32.311 120.169
-yaw = 3.500363
+pos = 126.992 32.327 120.232
+yaw = 3.484617
 note = двор: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 123.499 32.423 121.456
-yaw = 3.500363
+pos = 123.397 32.411 121.463
+yaw = 3.484617
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 128.877 31.764 122.697
-yaw = 3.500363
+pos = 128.755 31.786 122.788
+yaw = 3.484617
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 127.129 32.087 123.352
-yaw = 3.500363
+pos = 126.997 32.106 123.416
+yaw = 3.484617
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 125.381 32.257 124.007
-yaw = 3.500363
+pos = 125.239 32.266 124.044
+yaw = 3.484617
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 128.174 32.058 120.824
-yaw = 5.071160
+pos = 128.082 32.081 120.905
+yaw = 5.055413
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 122.931 32.332 122.790
-yaw = 5.071160
+pos = 122.808 32.324 122.788
+yaw = 5.055413
 note = двор: дом
 
 [house]
@@ -6295,152 +6126,104 @@ note = двор: лавка
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 97.576 26.970 165.354
+pos = 95.867 26.970 165.079
 yaw = 1.570796
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 97.626 27.099 160.354
+pos = 95.917 27.113 160.079
 yaw = 1.570796
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 95.276 26.970 166.154
+pos = 93.567 26.970 165.879
 yaw = 1.570796
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 95.276 26.971 163.888
+pos = 93.567 26.970 163.613
 yaw = 1.570796
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 95.276 27.015 161.621
+pos = 93.567 27.013 161.346
 yaw = 1.570796
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 97.276 26.970 166.154
+pos = 95.567 26.970 165.879
 yaw = 3.141593
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 97.276 27.200 159.354
+pos = 95.567 27.217 159.079
 yaw = 3.141593
 note = двор: лавка
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 135.779 27.070 158.354
+pos = 136.156 27.060 158.597
 yaw = 4.712389
 note = двор: таверна
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 135.829 27.070 157.454
+pos = 136.206 27.060 157.697
 yaw = 4.712389
 note = двор: таверна
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 127.380 26.111 177.728
-yaw = 3.141593
-note = двор: кузница
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 122.380 27.027 177.678
+pos = 127.415 26.913 171.496
 yaw = 3.141593
 note = двор: кузница
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 107.072 26.890 171.526
+pos = 107.144 26.801 172.788
 yaw = 1.661456
 note = двор: дом
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 106.778 26.970 167.737
+pos = 106.850 26.970 168.999
 yaw = 1.661456
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 104.157 26.815 172.594
+pos = 104.229 26.673 173.856
 yaw = 1.661456
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 103.988 26.928 170.735
+pos = 104.060 26.870 171.997
 yaw = 1.661456
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 103.819 26.970 168.876
+pos = 103.891 26.947 170.138
 yaw = 1.661456
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 106.149 26.820 172.413
+pos = 106.221 26.685 173.675
 yaw = 3.232253
 note = двор: дом
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 105.642 26.971 166.836
+pos = 105.714 26.970 168.098
 yaw = 3.232253
-note = двор: дом
-
-[house]
-file = assets/houses/furn-woodpile.dfh
-pos = 136.779 27.002 161.614
-yaw = 4.803049
-note = двор: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 137.073 26.876 165.403
-yaw = 4.803049
-note = двор: дом
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 138.997 26.984 160.609
-yaw = 4.803049
-note = двор: дом
-
-[house]
-file = assets/houses/furn-fence-gate.dfh
-pos = 139.166 26.884 162.468
-yaw = 4.803049
-note = двор: дом
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 139.335 26.779 164.327
-yaw = 4.803049
-note = двор: дом
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 137.006 27.038 160.790
-yaw = 0.090660
-note = двор: дом
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 137.513 26.790 166.367
-yaw = 0.090660
 note = двор: дом
 
 [house]
@@ -6606,6 +6389,12 @@ yaw = 3.926991
 note = кольцевая скамья Гилдергрина
 
 [house]
+file = assets/houses/furn-bench-arc.dfh
+pos = 115.500 32.247 118.000
+yaw = 3.141593
+note = кольцевая скамья Гилдергрина
+
+[house]
 file = assets/houses/furn-planter.dfh
 pos = 120.404 32.247 119.146
 yaw = 5.934119
@@ -6625,13 +6414,13 @@ note = цветник сквера
 
 [house]
 file = assets/houses/furn-lamp-post.dfh
-pos = 113.164 31.736 123.545
+pos = 113.164 31.740 123.545
 yaw = 5.480334
 note = фонарь сквера Гилдергрина
 
 [house]
 file = assets/houses/furn-lamp-post.dfh
-pos = 111.633 31.871 122.557
+pos = 111.633 31.873 122.557
 yaw = 5.026548
 note = фонарь сквера Гилдергрина
 
@@ -6697,13 +6486,7 @@ note = фонарь парадного двора
 
 [house]
 file = assets/houses/furn-lamp-post.dfh
-pos = 121.921 27.331 164.243
-yaw = 5.864306
-note = фонарь улицы
-
-[house]
-file = assets/houses/furn-lamp-post.dfh
-pos = 103.744 32.079 119.767
+pos = 103.744 32.080 119.767
 yaw = 3.019420
 note = фонарь улицы
 
@@ -6763,14 +6546,14 @@ note = фонарь улицы
 
 [house]
 file = assets/houses/furn-lamp-post-s.dfh
-pos = 115.392 32.247 116.194
-yaw = 4.956735
+pos = 112.888 32.247 116.007
+yaw = 4.398230
 note = фонарь улицы
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 111.183 35.916 61.191
-yaw = 5.502823
+pos = 113.146 35.916 68.859
+yaw = 4.585186
 note = фонарь у двери: донжон
 
 [house]
@@ -6799,26 +6582,26 @@ note = фонарь у двери: ЙОРРВАСКР 45°
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 106.500 27.968 147.650
+pos = 106.500 28.027 147.650
 yaw = 1.570796
 note = фонарь у двери: лавка
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 107.499 27.326 162.036
-yaw = 2.020091
+pos = 107.307 27.342 162.108
+yaw = 1.840676
 note = фонарь у двери: лавка
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 123.860 27.768 150.908
-yaw = 4.393789
+pos = 123.880 27.835 150.915
+yaw = 4.375518
 note = фонарь у двери: таверна
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 125.142 27.125 165.362
-yaw = 3.262083
+pos = 124.288 27.270 164.387
+yaw = 4.459308
 note = фонарь у двери: кузница
 
 [house]
@@ -6829,20 +6612,14 @@ note = фонарь у двери: дом
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 138.546 27.099 150.264
-yaw = 0.610437
+pos = 138.526 27.095 150.235
+yaw = 0.579735
 note = фонарь у двери: дом
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 115.296 27.315 169.336
-yaw = 1.841773
-note = фонарь у двери: дом
-
-[house]
-file = assets/houses/furn-lamp-wall.dfh
-pos = 124.710 27.398 161.639
-yaw = 4.539405
+pos = 114.323 27.352 167.290
+yaw = 2.187395
 note = фонарь у двери: дом
 
 [house]
@@ -6883,25 +6660,25 @@ note = фонарь у двери: конюшни
 
 [house]
 file = assets/houses/city-steps6-h12r2.dfh
-pos = 111.000 27.663 146.000
+pos = 111.000 27.701 146.000
 yaw = 1.570796
 note = марш террасы рынка
 
 [house]
 file = assets/houses/city-kerb2-h12.dfh
-pos = 111.000 27.871 146.000
+pos = 111.000 27.908 146.000
 yaw = 3.141593
 note = подпорная кромка рынка
 
 [house]
 file = assets/houses/city-kerb2-h10.dfh
-pos = 119.000 27.745 146.000
+pos = 119.000 27.786 146.000
 yaw = 3.141593
 note = подпорная кромка рынка
 
 [house]
 file = assets/houses/city-kerb2-h04.dfh
-pos = 121.000 27.711 146.000
+pos = 121.000 27.766 146.000
 yaw = 3.141593
 note = подпорная кромка рынка
 
@@ -6925,67 +6702,67 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb06.dfh
-pos = 140.588 27.561 138.099
+pos = 140.588 27.562 138.099
 yaw = 3.709383
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 140.149 27.602 138.381
+pos = 140.149 27.608 138.381
 yaw = 3.655851
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 139.172 27.649 138.936
+pos = 139.172 27.659 138.936
 yaw = 3.603240
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 138.139 27.671 139.450
+pos = 138.139 27.685 139.450
 yaw = 3.571241
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 137.066 27.691 139.942
+pos = 137.066 27.706 139.942
 yaw = 3.558149
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 135.975 27.710 140.425
+pos = 135.975 27.731 140.425
 yaw = 3.552644
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 134.937 27.720 140.879
+pos = 134.937 27.747 140.879
 yaw = 3.506666
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 130.488 27.751 142.356
+pos = 130.488 27.790 142.356
 yaw = 3.430752
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 129.322 27.760 142.703
+pos = 129.322 27.801 142.703
 yaw = 3.442241
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 128.141 27.765 143.069
+pos = 128.141 27.811 143.069
 yaw = 3.467666
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 126.952 27.770 143.472
+pos = 126.952 27.819 143.472
 yaw = 3.505895
 note = бордюр тропы
 
@@ -7015,170 +6792,182 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb06b.dfh
-pos = 142.202 27.593 140.507
+pos = 142.202 27.595 140.507
 yaw = 0.612968
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb06.dfh
-pos = 141.642 27.614 140.866
+pos = 141.642 27.615 140.866
 yaw = 0.567790
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 140.531 27.632 141.496
+pos = 140.531 27.641 141.496
 yaw = 0.514258
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 139.389 27.650 142.067
+pos = 139.389 27.669 142.067
 yaw = 0.461648
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 138.256 27.676 142.586
+pos = 138.256 27.687 142.586
 yaw = 0.429648
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 137.141 27.695 143.080
+pos = 137.141 27.715 143.080
 yaw = 0.416556
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 136.034 27.712 143.562
+pos = 136.034 27.734 143.562
 yaw = 0.411051
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 134.852 27.720 144.016
+pos = 134.852 27.745 144.016
 yaw = 0.365073
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 133.662 27.727 144.420
+pos = 133.662 27.757 144.420
 yaw = 0.326250
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 132.482 27.737 144.787
+pos = 132.482 27.769 144.787
 yaw = 0.301660
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 131.316 27.741 145.135
+pos = 131.316 27.781 145.135
 yaw = 0.289615
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 130.165 27.752 145.477
+pos = 130.165 27.791 145.477
 yaw = 0.289159
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 129.035 27.760 145.828
+pos = 129.035 27.801 145.828
 yaw = 0.300648
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 127.933 27.765 146.201
+pos = 127.933 27.811 146.201
 yaw = 0.326073
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 126.864 27.770 146.610
+pos = 126.864 27.818 146.610
 yaw = 0.364302
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 114.647 28.990 143.204
+pos = 114.647 29.030 143.204
 yaw = 1.910650
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 114.249 28.990 142.078
+pos = 114.249 29.030 142.078
 yaw = 1.906794
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 113.856 29.237 140.955
+pos = 113.856 29.271 140.955
 yaw = 1.899781
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 113.469 29.514 139.822
+pos = 113.469 29.544 139.822
 yaw = 1.898073
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 113.077 29.673 138.666
+pos = 113.077 29.703 138.666
 yaw = 1.912103
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 112.671 29.822 137.522
+pos = 112.671 29.847 137.522
 yaw = 1.921615
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 112.256 29.969 136.390
+pos = 112.256 29.998 136.390
 yaw = 1.925869
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 111.839 30.121 135.266
+pos = 111.839 30.141 135.266
 yaw = 1.924935
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 111.426 30.268 134.149
+pos = 111.426 30.288 134.149
 yaw = 1.918855
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 109.931 30.843 129.716
+pos = 109.931 30.861 129.716
 yaw = 1.834999
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 109.632 30.985 128.615
+pos = 109.632 30.995 128.615
 yaw = 1.794432
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 109.384 31.165 127.536
+pos = 109.384 31.175 127.536
 yaw = 1.730523
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 109.204 31.298 126.438
+pos = 109.204 31.308 126.438
 yaw = 1.670588
+note = бордюр тропы
+
+[house]
+file = assets/houses/furn-curb12b.dfh
+pos = 109.089 31.445 125.304
+yaw = 1.629124
+note = бордюр тропы
+
+[house]
+file = assets/houses/furn-curb12.dfh
+pos = 109.021 31.617 124.136
+yaw = 1.608498
 note = бордюр тропы
 
 [house]
@@ -7297,73 +7086,73 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 111.115 29.014 141.901
+pos = 111.115 29.050 141.901
 yaw = 5.048387
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 110.724 29.311 140.756
+pos = 110.724 29.341 140.756
 yaw = 5.041374
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 110.338 29.520 139.618
+pos = 110.338 29.550 139.618
 yaw = 5.039666
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 109.943 29.665 138.506
+pos = 109.943 29.695 138.506
 yaw = 5.053696
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 109.535 29.812 137.392
+pos = 109.535 29.835 137.392
 yaw = 5.063208
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 109.120 29.956 136.273
+pos = 109.120 29.985 136.273
 yaw = 5.067462
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 108.703 30.108 135.146
+pos = 108.703 30.128 135.146
 yaw = 5.066528
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 108.291 30.259 134.010
+pos = 108.291 30.279 134.010
 yaw = 5.060448
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 107.889 30.405 132.861
+pos = 107.889 30.425 132.861
 yaw = 5.049002
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 106.538 31.011 128.088
+pos = 106.538 31.021 128.088
 yaw = 4.936024
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 106.330 31.140 126.813
+pos = 106.330 31.146 126.813
 yaw = 4.872116
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 106.199 31.300 125.533
+pos = 106.199 31.302 125.533
 yaw = 4.812180
 note = бордюр тропы
 
@@ -7565,29 +7354,29 @@ flicker = 0.48
 note = очаг: ЙОРРВАСКР 45°
 
 [light]
-pos = 115.473 34.130 104.927
-color = 0.973 0.494 0.186
-radius_m = 6.57
+pos = 115.896 34.130 104.420
+color = 0.887 0.489 0.199
+radius_m = 6.10
 casts_shadow = 0
 interior = 1
-room = 116.157 106.753 2.845 3.413
+room = 116.058 106.363 2.003 2.890
 softness = 0.25
-flicker = 0.48
+flicker = 0.42
 note = очаг: дом
 
 [light]
-pos = 124.106 33.628 117.949
-color = 0.983 0.484 0.176
-radius_m = 6.51
+pos = 124.059 33.627 117.966
+color = 1.000 0.625 0.252
+radius_m = 6.06
 casts_shadow = 0
 interior = 1
-room = 123.421 116.124 2.845 3.413
+room = 123.404 116.130 2.805 3.392
 softness = 0.25
-flicker = 0.49
+flicker = 0.60
 note = очаг: дом
 
 [light]
-pos = 98.965 33.310 124.303
+pos = 98.965 33.311 124.303
 color = 1.000 0.592 0.238
 radius_m = 6.23
 casts_shadow = 0
@@ -7609,7 +7398,7 @@ flicker = 0.48
 note = очаг: дом
 
 [light]
-pos = 101.600 30.710 148.350
+pos = 101.600 30.713 148.350
 color = 1.000 0.551 0.210
 radius_m = 7.30
 casts_shadow = 0
@@ -7620,36 +7409,36 @@ flicker = 0.55
 note = очаг: лавка
 
 [light]
-pos = 100.546 28.728 164.604
-color = 0.999 0.504 0.188
-radius_m = 7.62
+pos = 98.837 28.715 164.329
+color = 0.873 0.472 0.188
+radius_m = 7.35
 casts_shadow = 0
 interior = 1
-room = 103.361 162.754 3.385 2.300
+room = 101.652 162.479 3.385 2.300
 softness = 0.25
-flicker = 0.50
+flicker = 0.42
 note = очаг: лавка
 
 [light]
-pos = 132.659 29.430 153.804
-color = 1.000 0.509 0.192
-radius_m = 11.67
+pos = 133.036 29.491 154.047
+color = 1.000 0.549 0.205
+radius_m = 12.06
 casts_shadow = 0
 interior = 1
-room = 128.969 153.804 4.460 4.450
+room = 129.346 154.047 4.460 4.450
 softness = 0.25
-flicker = 0.50
+flicker = 0.56
 note = очаг: таверна
 
 [light]
-pos = 124.780 28.463 174.758
-color = 1.000 0.537 0.197
-radius_m = 7.92
+pos = 124.815 28.607 168.526
+color = 0.971 0.475 0.171
+radius_m = 7.73
 casts_shadow = 0
 interior = 1
-room = 124.780 171.943 2.300 3.385
+room = 124.815 165.711 2.300 3.385
 softness = 0.25
-flicker = 0.55
+flicker = 0.48
 note = очаг: кузница
 
 [light]
@@ -7664,36 +7453,36 @@ flicker = 0.53
 note = очаг: дом
 
 [light]
-pos = 137.478 28.855 146.421
-color = 1.000 0.543 0.208
-radius_m = 6.82
+pos = 137.526 28.864 146.392
+color = 1.000 0.511 0.184
+radius_m = 7.11
 casts_shadow = 0
 interior = 1
-room = 138.446 148.114 3.202 3.562
+room = 138.494 148.085 3.202 3.562
 softness = 0.25
 flicker = 0.53
 note = очаг: дом
 
 [light]
-pos = 109.999 28.486 169.251
-color = 0.976 0.490 0.181
-radius_m = 6.35
+pos = 110.070 28.494 170.514
+color = 1.000 0.578 0.216
+radius_m = 6.95
 casts_shadow = 0
 interior = 1
-room = 111.941 169.075 2.908 2.030
+room = 112.012 170.337 2.908 2.030
 softness = 0.25
-flicker = 0.48
+flicker = 0.60
 note = очаг: дом
 
 [light]
-pos = 133.853 28.261 163.888
-color = 0.865 0.473 0.191
-radius_m = 6.82
+pos = 109.304 28.684 164.363
+color = 1.000 0.590 0.236
+radius_m = 6.66
 casts_shadow = 0
 interior = 1
-room = 131.911 164.064 2.908 2.030
+room = 111.246 164.187 2.908 2.030
 softness = 0.25
-flicker = 0.41
+flicker = 0.56
 note = очаг: дом
 
 [light]
@@ -7720,7 +7509,7 @@ note = очаг: ветхий
 
 [light]
 pos = 103.699 27.130 198.172
-color = 0.888 0.484 0.195
+color = 0.888 0.485 0.195
 radius_m = 6.69
 casts_shadow = 0
 interior = 1
@@ -7752,7 +7541,7 @@ flicker = 0.53
 note = очаг: постоялый двор
 
 [light]
-pos = 109.500 30.474 153.500
+pos = 109.500 30.548 153.500
 color = 1.000 0.501 0.166
 radius_m = 10.82
 casts_shadow = 1
@@ -7761,7 +7550,7 @@ flicker = 0.75
 note = жаровня рынка
 
 [light]
-pos = 110.310 30.224 154.323
+pos = 110.310 30.298 154.323
 color = 1.000 0.866 0.651
 radius_m = 8.67
 casts_shadow = 1
@@ -7806,7 +7595,7 @@ flicker = 0.61
 note = жаровня: east
 
 [light]
-pos = 122.349 30.473 142.694
+pos = 122.349 30.530 142.694
 color = 0.879 0.422 0.140
 radius_m = 9.35
 casts_shadow = 1
@@ -7842,7 +7631,7 @@ flicker = 0.56
 note = жаровня: главная улица
 
 [light]
-pos = 103.008 30.575 153.297
+pos = 103.008 30.609 153.297
 color = 1.000 0.485 0.159
 radius_m = 10.00
 casts_shadow = 1
@@ -7851,7 +7640,7 @@ flicker = 0.72
 note = жаровня: рынок
 
 [light]
-pos = 122.062 30.204 159.804
+pos = 122.062 30.244 159.804
 color = 1.000 0.526 0.169
 radius_m = 10.24
 casts_shadow = 1
@@ -7869,16 +7658,16 @@ flicker = 0.56
 note = жаровня: мост
 
 [light]
-pos = 124.780 27.771 177.028
-color = 0.970 0.372 0.107
-radius_m = 5.87
+pos = 124.815 28.170 170.796
+color = 0.954 0.392 0.121
+radius_m = 6.72
 casts_shadow = 1
 softness = 0.15
-flicker = 0.58
+flicker = 0.56
 note = горн: кузница
 
 [light]
-pos = 113.492 34.236 124.201
+pos = 113.492 34.240 124.201
 color = 1.000 0.874 0.633
 radius_m = 7.72
 casts_shadow = 1
@@ -7887,7 +7676,7 @@ flicker = 0.62
 note = фонарь сквера Гилдергрина
 
 [light]
-pos = 111.640 34.371 123.291
+pos = 111.640 34.373 123.291
 color = 0.985 0.770 0.545
 radius_m = 9.23
 casts_shadow = 1
@@ -7932,16 +7721,7 @@ flicker = 0.50
 note = фонарь парадного двора
 
 [light]
-pos = 122.471 29.831 164.728
-color = 1.000 0.811 0.514
-radius_m = 6.79
-casts_shadow = 0
-softness = 0.6
-flicker = 0.13
-note = фонарь улицы
-
-[light]
-pos = 103.076 34.579 119.463
+pos = 103.076 34.580 119.463
 color = 1.000 0.825 0.528
 radius_m = 6.53
 casts_shadow = 0
@@ -8031,18 +7811,18 @@ flicker = 0.11
 note = фонарь улицы
 
 [light]
-pos = 115.348 34.447 116.844
-color = 0.892 0.731 0.511
-radius_m = 4.92
+pos = 112.506 34.447 116.535
+color = 0.951 0.716 0.460
+radius_m = 4.87
 casts_shadow = 0
 softness = 0.6
-flicker = 0.10
+flicker = 0.11
 note = фонарь улицы
 
 [light]
-pos = 110.987 38.256 61.644
-color = 0.952 0.686 0.423
-radius_m = 4.27
+pos = 112.667 38.256 68.979
+color = 0.942 0.667 0.405
+radius_m = 4.87
 casts_shadow = 0
 softness = 0.5
 flicker = 0.14
@@ -8085,7 +7865,7 @@ flicker = 0.16
 note = фонарь у двери: ЙОРРВАСКР 45°
 
 [light]
-pos = 106.960 30.308 147.470
+pos = 106.960 30.367 147.470
 color = 0.905 0.661 0.413
 radius_m = 4.28
 casts_shadow = 0
@@ -8094,30 +7874,30 @@ flicker = 0.13
 note = фонарь у двери: лавка
 
 [light]
-pos = 107.836 29.666 161.674
-color = 0.946 0.676 0.414
-radius_m = 4.86
+pos = 107.702 29.682 161.812
+color = 1.000 0.744 0.422
+radius_m = 4.50
 casts_shadow = 0
 softness = 0.5
-flicker = 0.14
+flicker = 0.17
 note = фонарь у двери: лавка
 
 [light]
-pos = 123.367 30.108 150.935
-color = 0.899 0.637 0.387
-radius_m = 4.72
+pos = 123.386 30.175 150.932
+color = 1.000 0.767 0.458
+radius_m = 4.29
 casts_shadow = 0
 softness = 0.5
-flicker = 0.13
+flicker = 0.17
 note = фонарь у двери: таверна
 
 [light]
-pos = 124.908 29.465 164.927
-color = 0.903 0.655 0.407
-radius_m = 4.21
+pos = 123.798 29.610 164.446
+color = 0.855 0.579 0.336
+radius_m = 4.67
 casts_shadow = 0
 softness = 0.5
-flicker = 0.13
+flicker = 0.12
 note = фонарь у двери: кузница
 
 [light]
@@ -8130,27 +7910,18 @@ flicker = 0.14
 note = фонарь у двери: дом
 
 [light]
-pos = 138.957 29.439 150.538
-color = 0.868 0.638 0.401
-radius_m = 4.57
+pos = 138.929 29.435 150.521
+color = 1.000 0.741 0.418
+radius_m = 4.90
 casts_shadow = 0
 softness = 0.5
-flicker = 0.12
+flicker = 0.17
 note = фонарь у двери: дом
 
 [light]
-pos = 115.691 29.655 169.040
-color = 0.908 0.638 0.384
-radius_m = 4.65
-casts_shadow = 0
-softness = 0.5
-flicker = 0.13
-note = фонарь у двери: дом
-
-[light]
-pos = 124.226 29.738 161.737
-color = 1.000 0.768 0.465
-radius_m = 4.81
+pos = 114.594 29.692 166.877
+color = 1.000 0.812 0.510
+radius_m = 4.74
 casts_shadow = 0
 softness = 0.5
 flicker = 0.17
