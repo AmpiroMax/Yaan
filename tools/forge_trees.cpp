@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 22:08:2026 - 15:45:00
+Last updated: 23:08:2026 - 23:55:00
 Module: tools
 File: tools/forge_trees.cpp
 
@@ -73,6 +73,20 @@ UPD:
   spray_frac 0.198 -> 0.2473 по тому же правилу абсолютного листа. Рецептурное
   W/H стало 1.28 — теперь внутри паспортной полосы §2.5. Прочие 76 .dfo
   байт-в-байт.
+- 23:08:2026 - 23:55:00: ГИЛДЕРГРИН СТАЛ РОЗОВЫМ + ПОЛКА ЦВЕТНЫХ ОБРАЗЦОВ (решение
+  владельца 24.08). (1) gilder.tone OakDeep -> BlossomPink: сцена Вайтрана
+  писала «розовая листва» с первой постановки, рендер давал зелёный, потому
+  что розового РЯДА в атласе не было; геометрия дерева не тронута ни числом.
+  (2) Новая полка assets/objects/flora-colours — по одному образцу на каждый
+  новый ряд (flora-sample-pink/red/gold/blue/violet, 11-13 м, разные силуэты,
+  один класс размера) под карту trees/colours; отдельная полка выбрана
+  СПЕЦИАЛЬНО, чтобы принятые сцены не сдвинулись. (3) INDEX.md несёт колонку
+  leaf_row — паспорт видит заказанный цвет, а не догадывается по имени.
+  ЧЕСТНО ВСЛУХ: перепечены ВСЕ 77 .dfo, а не только Гилдергрин. Высота атласа
+  выросла с 8 рядов до 13, v-координата делится на неё — значит uv изменились
+  у каждой карточки и каждого тайла коры. САМИ ТАЙЛЫ не изменились ни на
+  тексель, поэтому вид старых деревьев прежний; доказано кадром рощи
+  до/после (pngdiff 0.000 %).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -283,7 +297,14 @@ int main(int argc, char** argv) {
         gilder.crown_radius = 7.28f;
         gilder.crown_base_frac = 0.22f;
         gilder.trunk_radius = 0.85f;
-        gilder.tone = LeafTone::OakDeep;
+        // РОЗОВАЯ КРОНА — то, что сцена Вайтрана объявляла с первого дня
+        // («Гилдергрин (розовая листва — зона флоры)»), а рендер давал
+        // зелёный: строчка ниже стояла на OakDeep, потому что розового РЯДА
+        // в атласе не существовало. Он появился 23.08 (FloraCards,
+        // LeafTone::BlossomPink) — и претензия закрывается одним полем, без
+        // единой правки геометрии: высота, крона, сучья и spray_frac те же,
+        // что приняты 22.08 под замок §11.
+        gilder.tone = LeafTone::BlossomPink;
         gilder.card_shape = LeafShape::RoundLobed;
         gilder.scaffold_count = 10;
         gilder.secondary_per_scaffold = 4;
@@ -312,7 +333,11 @@ int main(int argc, char** argv) {
              "# по геометрии выше на свес лап: у great-forge-oak рецепт 0.87,\n"
              "# измерено 1.56; у gildergreen-forge рецепт 1.28 (в полосе §2.5),\n"
              "# измерено 1.88. Разница метрик — не расползание.\n#\n";
-    index += "# name | file | content_hash | wood_tris | leaf_tris | leaf_share\n";
+    // ЦВЕТ ЛИСТВЫ — В ИНДЕКСЕ. Ряд атласа перестал быть «оттенком зелени»
+    // (23.08: pink/red/gold/blue/violet рядом с восемью зелёными), и паспорт,
+    // читающий индекс, обязан видеть, какой цвет заказан у КАЖДОГО рецепта —
+    // иначе розовый Гилдергрин отличим от зелёного дуба только глазами.
+    index += "# name | file | leaf_row | content_hash | wood_tris | leaf_tris | leaf_share\n";
     bool all_ok = true;
     for (const TreeForgeParams& params : gallery) {
         const RegistryObject obj = forge_tree(params);
@@ -356,8 +381,9 @@ int main(int argc, char** argv) {
                                         * 0.5f),
                     static_cast<double>(ext.bottom));
         char row[256];
-        std::snprintf(row, sizeof(row), "%s | %s | %016llx | %zu | %zu | %.2f\n",
+        std::snprintf(row, sizeof(row), "%s | %s | %s | %016llx | %zu | %zu | %.2f\n",
                       params.name.c_str(), file.filename().string().c_str(),
+                      leaf_tone_name(params.tone),
                       static_cast<unsigned long long>(obj.content_hash), wood_tris,
                       leaf_tris, share);
         index += row;
@@ -399,6 +425,112 @@ int main(int argc, char** argv) {
                         obj.wood.indices.size() / 3 + obj.ground.indices.size() / 3,
                         obj.cards.indices.size() / 3, shelf.string().c_str());
         }
+    }
+
+    // --- ПОЛКА ЦВЕТНЫХ ОБРАЗЦОВ (владелец, 24.08: «добавить красные, жёлтые,
+    // синие, фиолетовые необходимо сразу»). ОДИН образец на каждый новый ряд
+    // атласа, на СОБСТВЕННОЙ полке assets/objects/flora-colours и под
+    // собственной картой trees/colours — чтобы каталог эпохи смотрел цвета
+    // рядом, а ни одна принятая сцена (полянка, Вайтран) от их появления не
+    // сдвинулась ни на пиксель.
+    //
+    // ПОЧЕМУ ОДИН КЛАСС РАЗМЕРА (11-13 м, крона 4.6-5.4). Полка — витрина
+    // ЦВЕТА, и если рядом поставить сакуру-карлика и тополь, глаз сравнит
+    // рост, а не ряд. Силуэты при этом РАЗНЫЕ (порода за цветом стоит своя),
+    // но в одной весовой категории — ряд читается как ряд.
+    {
+        const fs::path shelf = out_dir.parent_path() / "flora-colours";
+        std::error_code cec;
+        fs::create_directories(shelf, cec);
+        const auto bake_sample = [&](const TreeForgeParams& tp) {
+            const RegistryObject obj = forge_tree(tp);
+            const fs::path file = shelf / (tp.name + ".dfo");
+            if (!write_object(obj, file) || !read_object(file).has_value()) {
+                std::fprintf(stderr, "[forge] sample %s: FAILED\n", tp.name.c_str());
+                all_ok = false;
+                return;
+            }
+            const ObjectExtent ext = measure_object(obj);
+            std::printf("[forge] colours/%-22s ряд %-12s  H %.1f м  Ø %.1f м\n",
+                        tp.name.c_str(), leaf_tone_name(tp.tone),
+                        static_cast<double>(ext.top - ext.bottom),
+                        static_cast<double>(ext.radius * 2.0f));
+        };
+        // САКУРА — цветущая крона Гилдергрина в рядовом размере: низкий
+        // кряжистый ствол, купол шире собственной высоты.
+        TreeForgeParams pink;
+        pink.seed = 3101;
+        pink.name = "flora-sample-pink";
+        pink.height = 11.0f;
+        pink.crown_radius = 5.4f;
+        pink.crown_base_frac = 0.24f;
+        pink.trunk_radius = 0.42f;
+        pink.bark = {0.30f, 0.24f, 0.22f}; // cherry: grey over warm
+        pink.tone = LeafTone::BlossomPink;
+        pink.card_shape = LeafShape::RoundLobed;
+        pink.scaffold_count = 7;
+        pink.spray_per_branch = 3;
+        pink.spray_frac = 0.32f;
+        bake_sample(pink);
+        // КЛЁН — лиственный купол на прямом стволе, лист лопастной.
+        TreeForgeParams red;
+        red.seed = 3111;
+        red.name = "flora-sample-red";
+        red.height = 13.0f;
+        red.crown_radius = 4.9f;
+        red.crown_base_frac = 0.34f;
+        red.trunk_radius = 0.38f;
+        red.bark = {0.26f, 0.22f, 0.19f};
+        red.tone = LeafTone::MapleRed;
+        red.card_shape = LeafShape::RoundLobed;
+        red.scaffold_count = 6;
+        red.spray_frac = 0.28f;
+        bake_sample(red);
+        // ОСИНА/БЕРЁЗА В ЗОЛОТЕ — светлый тонкий ствол, монетки OvalSpray.
+        TreeForgeParams gold;
+        gold.seed = 3121;
+        gold.name = "flora-sample-gold";
+        gold.height = 12.5f;
+        gold.crown_radius = 4.0f;
+        gold.crown_base_frac = 0.42f;
+        gold.trunk_radius = 0.24f;
+        gold.bark = {0.78f, 0.77f, 0.71f}; // pale paper bole
+        gold.tone = LeafTone::AutumnGold;
+        gold.card_shape = LeafShape::OvalSpray;
+        gold.scaffold_count = 5;
+        gold.spray_frac = 0.27f;
+        bake_sample(gold);
+        // МАГИЧЕСКОЕ — пепельная бола, редкая рваная крона: синий ряд должен
+        // читаться сквозь просветы, а не заливкой.
+        TreeForgeParams blue;
+        blue.seed = 3131;
+        blue.name = "flora-sample-blue";
+        blue.height = 12.0f;
+        blue.crown_radius = 4.6f;
+        blue.crown_base_frac = 0.38f;
+        blue.trunk_radius = 0.30f;
+        blue.bark = {0.52f, 0.54f, 0.58f};
+        blue.tone = LeafTone::ArcaneBlue;
+        blue.card_shape = LeafShape::RaggedTip;
+        blue.scaffold_count = 6;
+        blue.spray_frac = 0.25f;
+        bake_sample(blue);
+        // ФИОЛЕТОВОЕ — самая плотная крона набора: тёмный ряд без массы
+        // прочитается как серый.
+        TreeForgeParams violet;
+        violet.seed = 3141;
+        violet.name = "flora-sample-violet";
+        violet.height = 11.5f;
+        violet.crown_radius = 5.0f;
+        violet.crown_base_frac = 0.30f;
+        violet.trunk_radius = 0.36f;
+        violet.bark = {0.22f, 0.20f, 0.21f};
+        violet.tone = LeafTone::DuskViolet;
+        violet.card_shape = LeafShape::RoundLobed;
+        violet.scaffold_count = 7;
+        violet.spray_per_branch = 3;
+        violet.spray_frac = 0.30f;
+        bake_sample(violet);
     }
 
     // --- THE GLADE SHELF (user, 16.08: «полянка с цветами, мелкими тонкими

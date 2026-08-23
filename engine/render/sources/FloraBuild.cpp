@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:48:30
-Last updated: 13:08:2026 - 21:40:00
+Last updated: 23:08:2026 - 23:55:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.cpp
 
@@ -68,6 +68,12 @@ UPD:
   with a seam. No lighting term can draw a cylinder on geometry that has none.
   Per-face vertices are KEPT (this zone recolours whole faces); only the normals
   changed, and the cone's taper tilts them.
+- 23:08:2026 - 23:55:00: Страховочный зажим тона карточки — на КОНЕЦ ЗЕЛЁНОЙ ПОЛОСЫ
+  (LEAF_ATLAS_GREEN_TONES-1), а не на последний ряд атласа. С пятью цветными
+  рядами «последний ряд» стал фиолетовым, и единственная строка, задача
+  которой — падать безопасно, падала бы в ФИОЛЕТОВУЮ ХВОЮ. Для достижимых
+  входов (unit() строго [0,1), полосы видов не выходят за 7) значение не
+  изменилось ни для одного вида — поэтому вид рассеиваемой флоры прежний.
 */
 
 #include "engine/render/sources/FloraBuild.h"
@@ -534,8 +540,15 @@ void emit_card_cluster(Tree& t, glm::vec3 at, float reach, int card_count) {
         const auto tone_i = static_cast<uint32_t>(sp.tone_first)
             + static_cast<uint32_t>(t.rng.unit()
                                     * static_cast<float>(std::max<uint8_t>(sp.tone_count, 1)));
+        // CLAMPED TO THE GREEN BAND, NOT TO THE ROW COUNT. This is a
+        // belt-and-braces guard — rng.unit() is [0,1), so tone_i cannot leave
+        // a species' own band (the widest is oak's 0..2, the highest pine's
+        // 7..7) and the clamp has never fired. It still had to change when
+        // the colour rows landed on 23.08: "the last row" used to mean
+        // ConiferDark and now means DuskViolet, so the one line whose whole
+        // job is to fail safe would have failed into VIOLET NEEDLES.
         p.tone = static_cast<LeafTone>(
-            std::min<uint32_t>(tone_i, LEAF_ATLAS_TONES - 1));
+            std::min<uint32_t>(tone_i, LEAF_ATLAS_GREEN_TONES - 1));
         // b: ONE value per card, all six vertices. Per-vertex would make it a
         // gradient across the card, which is not what a value jitter is.
         p.value_jitter = t.rng.unit();

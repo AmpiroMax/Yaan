@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 11:16:13
+Last updated: 23:08:2026 - 23:55:00
 Module: engine/render
 File: engine/render/sources/TreeForge.h
 
@@ -63,6 +63,12 @@ UPD:
 - 17:08:2026 - 09:54:18: far_lod — дальняя форма дерева (контракт лида: `<имя>-far`, второй .dfo, силуэт совпадает): без вееров, один лист на якорь, без желудей/сучьев/юбки.
 - 17:08:2026 - 10:02:06: BushForgeParams.far_lod — дальняя форма куста: ягоды с мелочью опущены (5-7 см за 44 м — субпиксель), стебли и листы нетронуты.
 - 17:08:2026 - 11:16:13: PathLightPart Post/Glow — пламя и стекло куются ОТДЕЛЬНЫМИ объектами с kind=emissive (контракт лида: такой .dfo рисуется unlit; ночь больше не чернит источник света).
+- 23:08:2026 - 23:55:00: ЦВЕТ ЛИСТВЫ — ПАРАМЕТР РЕЦЕПТА, названный вслух. Поле `tone`
+  существовало с первого дня, но читалось как «оттенок зелени вида»; с пятью
+  цветными рядами атласа (FloraCards, 23.08) это ручка, которой паспорт
+  города заказывает осеннюю или цветную рощу, и в шапке она теперь так и
+  описана — вместе с правилом, что цвет НЕ связан с формой листа и не стоит
+  ни одного лишнего треугольника.
 */
 
 #pragma once
@@ -86,6 +92,14 @@ struct TreeForgeParams {
     float crown_base_frac = 0.35f; ///< of height: where the crown begins
     float trunk_radius = 0.42f;    ///< bole at breast height
     glm::vec3 bark{0.16f, 0.12f, 0.09f};
+    /// THE LEAF COLOUR OF THE RECIPE — one atlas ROW, and the only field a
+    /// passport has to move to order a coloured grove (owner, 24.08: pink,
+    /// red, gold, blue, violet added beside the greens). It is independent of
+    /// `card_shape`: an autumn maple is the broadleaf silhouette on the red
+    /// row, not a second mesh, so a coloured tree costs the same triangles
+    /// and the same draw as its green twin. Passports name it by word —
+    /// leaf_tone_by_name("pink") — because a passport is data (Rules 5-6) and
+    /// must not carry an enum index.
     LeafTone tone = LeafTone::OakMid;
     LeafShape card_shape = LeafShape::RoundLobed;
     int scaffold_count = 5;        ///< order-1 branches off the bole

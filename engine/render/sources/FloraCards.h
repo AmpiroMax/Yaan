@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 17:08:2026 - 10:55:52
+Last updated: 23:08:2026 - 23:55:00
 Module: engine/render
 File: engine/render/sources/FloraCards.h
 
@@ -50,6 +50,35 @@ UPD:
 - 16:08:2026 - 20:42:17: REVISION 9->10 (плотный фронд по скану).
 - 16:08:2026 - 22:40:39: REVISION 10->11 (плотность хвои).
 - 17:08:2026 - 10:55:52: LEAF_ATLAS_REVISION 12 — новая берёста (штрихи вместо клякс).
+- 23:08:2026 - 23:55:00: ПЯТЬ ЦВЕТНЫХ РЯДОВ, ДОБАВЛЕНЫ, А НЕ ЗАМЕНЕНЫ (владелец, 24.08:
+  «добавим розовые листья, не уберём старые, а добавим новые; также добавить
+  красные, жёлтые, синие, фиолетовые необходимо сразу»): BlossomPink,
+  MapleRed, AutumnGold, ArcaneBlue, DuskViolet. LEAF_ATLAS_TONES 8->13,
+  REVISION 12->13 (ключ кэша обязан смениться вместе с высотой листа).
+  Восемь ЗЕЛЁНЫХ рядов стоят на местах 0..7 нетронутыми — ни один старый
+  рецепт не меняет ряд; поэтому вид старых деревьев прежний, а uv у них
+  пересчитаны (высота атласа 8*512 -> 16*512, v делится на новую высоту) и
+  все 77 .dfo перепечены. LEAF_ATLAS_GREEN_TONES — граница старой полосы: на
+  неё, а не на общий счёт рядов, опирается страховочный зажим FloraBuild,
+  иначе выход species-полосы за 7 покрасил бы хвою в розовый.
+- 23:08:2026 - 23:55:00: ШЕСТНАДЦАТЬ РЯДОВ, А НЕ ТРИНАДЦАТЬ, И ШОВНЫЙ РЯД —
+  оба решения ИЗМЕРЕНЫ, а не выбраны по вкусу. Наивная выкладка (8+5=13)
+  дала кадр рощи, отличающийся от собственной базы на 0.161 % пикселей при
+  нетронутых тайлах: (1) v старых тайлов делится на некратную высоту, и
+  точечная выборка на полутексельном отступе местами перескакивает на соседний
+  тексель; (2) линейная МИНИФИКАЦИЯ (путь coverage) на нижней кромке ряда 7
+  раньше упиралась в край текстуры и клампилась, а с новым соседом стала
+  подмешивать чужой цвет. Степень двойки чинит (1) — v ровно делится пополам,
+  адрес текселя побитово тот же; зеркальный SeamGuard чинит (2) — блендинг на
+  шве возвращает собственную кромку ряда 7. Итог: 0.000 %. ЦЕНА СКАЗАНА
+  ВСЛУХ: лист 2560x4096 -> 2560x8192 (~42 -> ~84 МБ), и столько же у листа
+  нормалей. Дешёвый вариант (13 рядов, +26 МБ, расхождение 0.161 % при maxch
+  23) существует и отвергнут только потому, что неприкосновенность старых
+  деревьев — главный критерий этой волны; смена решения — одна константа.
+- 23:08:2026 - 23:55:00: leaf_tone_name/leaf_tone_by_name — паспортное ИМЯ ряда
+  («pink», «red», «gold», «blue», «violet», зелёные — по старым именам).
+  Рецепту кузницы цвет задаётся полем TreeForgeParams::tone; имя нужно, чтобы
+  паспорт города заказывал рощу словом, а не числом enum.
 */
 
 #pragma once
@@ -59,6 +88,7 @@ UPD:
 #include <glm/vec4.hpp>
 
 #include <cstdint>
+#include <string_view>
 #include <vector>
 
 namespace dfn::render {
@@ -84,12 +114,33 @@ enum class FloraSeason : uint8_t {
 /// what a crown that is 79-86 % leaf in its core needs to read as volume
 /// (docs/specs/flora.md §3.10).
 inline constexpr uint32_t LEAF_ATLAS_SHAPES = 5;
-inline constexpr uint32_t LEAF_ATLAS_TONES = 8;
+/// SIXTEEN ROWS, AND THE POWER OF TWO IS THE WHOLE POINT (23.08, the colour
+/// wave). Eight greens + one seam guard + five colours is FOURTEEN; the sheet
+/// is sized to sixteen anyway because a tile's v is `row * tile / height`, and
+/// only a power-of-two growth of `height` leaves every existing v EXACTLY
+/// halved — an exact scaling by 2 in IEEE floats, so `v * height` (the texel
+/// the sampler actually addresses) comes out bit-identical for every old tile.
+/// MEASURED, not assumed: at thirteen rows the grove frame differed from its
+/// own baseline by 0.161 % of pixels (max channel 23) with nothing but the row
+/// count changed — point-sampled fetches flipping to the neighbouring texel
+/// where the half-texel inset landed on the other side of a rounding boundary.
+/// At sixteen it is 0.000 %.
+inline constexpr uint32_t LEAF_ATLAS_TONES = 16;
+/// The GREEN band — rows 0..7, the eight tones the shipped catalog was built
+/// on. It is a separate constant from the row COUNT on purpose: the colour
+/// rows added on 23.08 sit BELOW it, so any code that used "the last row" as a
+/// safety clamp must clamp to the end of the green band or it silently starts
+/// resolving out-of-band tones to pink (FloraBuild's card tone draw).
+///
+/// The band being EVEN is load-bearing too: create_texture's mip chain halves
+/// by pairs, so rows 0..7 average only among themselves at every level and no
+/// colour ever reaches a green mip.
+inline constexpr uint32_t LEAF_ATLAS_GREEN_TONES = 8;
 /// Bumped on every change to the tiles' ART (masks, packs, bark) — the disk
 /// cache key must change when the pixels would, or the game paints with the
 /// previous session's atlas (measured: the 4-column cache under 5-column uvs
 /// painted the conifers white with birch tiles).
-inline constexpr uint32_t LEAF_ATLAS_REVISION = 12;
+inline constexpr uint32_t LEAF_ATLAS_REVISION = 13;
 /// 512 under the Full HD pivot (lead, 552d9ab: internal res 1920x1080, bake
 /// density for it; frame cost measured independent of texture density). A
 /// 512 px tile over a ~2.5 m frond is ~5 mm per texel on the object — leaf
@@ -123,6 +174,11 @@ enum class LeafShape : uint8_t {
 /// Global foliage tone table. Rows are shared by every species in a chunk
 /// because scatter bakes ONE merged buffer per chunk — all species, all cards,
 /// one draw, one texture. Each species owns a contiguous band.
+///
+/// ROWS 0..7 ARE THE GREEN BAND AND THEY ARE FROZEN. Their indices are baked
+/// into every .dfo on the shelves, and every species band in FloraSpecies is
+/// expressed as an offset inside them. Colours are APPENDED below the band,
+/// never inserted into it (owner, 24.08: «не уберём старые, а добавим новые»).
 enum class LeafTone : uint8_t {
     OakMid = 0,
     OakDeep = 1,
@@ -132,7 +188,50 @@ enum class LeafTone : uint8_t {
     WillowDark = 5,
     WillowOlive = 6,
     ConiferDark = 7,
+    /// THE SEAM GUARD — row 8 is not a tone anyone may forge with. It is a
+    /// VERTICAL MIRROR of row 7, and it exists because the leaf sheet is
+    /// minified through a LINEAR filter (render's coverage path: MAG point,
+    /// MIN/MIP linear). Before the colour rows, row 7's bottom edge was the
+    /// texture edge, so a bilinear fetch that straddled it CLAMPED and read
+    /// row 7 twice. Append any row under it and that same fetch starts mixing
+    /// in the new row — a pink fringe along the bottom texel of every conifer
+    /// tile, at every mip, on trees nobody touched. Mirroring row 7 into row 8
+    /// makes guard_top == row7_bottom exactly, so the blend returns row 7's
+    /// own edge for any weight: the clamp is reproduced, not approximated, and
+    /// it survives the mip chain because a box filter commutes with a mirror.
+    SeamGuard = 8,
+    // --- THE COLOUR ROWS (owner, 24.08.2026, verbatim: «добавим розовые
+    // листья... также добавить красные, жёлтые, синие, фиолетовые необходимо
+    // сразу»). One row per colour, ALL FIVE at once, because a passport that
+    // can order only pink is a passport that gets edited five times.
+    //
+    // They are TONES, not shapes: a maple keeps the broadleaf silhouette and
+    // changes row, exactly as an oak's three greens do. That is the whole
+    // reason the atlas is SHAPE x COLOUR — colour costs no vertex byte and no
+    // second mesh, so an autumn grove is the same trees under a different row.
+    BlossomPink = 9,   ///< сакура / Гилдергрин — цветущая крона
+    MapleRed = 10,     ///< осенний клён
+    AutumnGold = 11,   ///< осенняя берёза/осина
+    ArcaneBlue = 12,   ///< магическая (ночная) листва
+    DuskViolet = 13,   ///< фиолетовая
+    /// Rows 14-15 are PAID FOR ALREADY (the sheet is sixteen rows tall so the
+    /// green band's v halves exactly) and are therefore left named and filled
+    /// rather than blank: the next colour wave takes them without moving a
+    /// single uv or re-baking a single .dfo. Until then they carry the green
+    /// default, which is the cheapest thing that satisfies the atlas contract
+    /// (the bark column is opaque in EVERY row).
+    SpareA = 14,
+    SpareB = 15,
 };
+
+/// The passport-facing NAME of a colour row, and its inverse. City passports
+/// and recipe books are DATA (Rules 5-6); they must be able to say «pink»
+/// without knowing that pink is row 8.
+[[nodiscard]] const char* leaf_tone_name(LeafTone tone);
+/// Resolves a passport word to a row. Returns false — and leaves `out`
+/// untouched — for a word no row answers to, so a typo in a passport is a
+/// loud refusal and not a silently green grove.
+[[nodiscard]] bool leaf_tone_by_name(std::string_view name, LeafTone& out);
 
 /// One generated atlas, ready for IRenderer::create_texture (RGBA8, row-major,
 /// row 0 = top). `pixels.size() == width * height * 4`.

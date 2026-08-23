@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 19:38:20
-Last updated: 17:08:2026 - 09:49:23
+Last updated: 23:08:2026 - 23:55:00
 Module: tests/render
 File: tests/render/ProcFloraTests.cpp
 
@@ -225,6 +225,13 @@ UPD:
 - 15:08:2026 - 16:02:49: Тест нормал-атласа: кора несёт рельеф (контроль правила 30 — плоский нейтральный лист даёт ноль и падает), все не-коровые тексели — строго нейтраль.
 - 16:08:2026 - 20:42:17: Полоса просветов NeedleFan отвязана от лиственной (у еловой лапы небо между иголками — строение, скан ~30%): frond cap 0.38, контроль слипшегося клина остаётся на ragged.
 - 17:08:2026 - 09:49:23: Светлячки: детерминизм двух рук, границы карты и полоса высот, ночной гейт меша, медленный рост когерентности фаз, до трёх разнесённых огней.
+- 23:08:2026 - 23:55:00: ЗАМОК НА ЗЕЛЁНУЮ ПОЛОСУ + пять цветных рядов. Восемь старых
+  тонов выписаны литералами: любая будущая цветовая правка, задевшая ряд 0..7,
+  теперь падает тестом, а не обнаруживается кадром через неделю. Контроль
+  правила 30 для самой фичи — «пять подкрашенных зелёных»: он проваливает и
+  доминирование канала по каждому цвету, и порог расхождения 0.12 между любой
+  парой. Плюс round-trip паспортного ИМЕНИ ряда и громкий отказ на слово,
+  которого нет (молчаливый зелёный по опечатке — ровно то, что запрещено).
 */
 
 #include "engine/render/sources/FloraSkeleton.h"
@@ -236,7 +243,11 @@ UPD:
 
 #include <doctest/doctest.h>
 
+#include <glm/common.hpp> // glm::abs, used by the colour-row separation check
+
+#include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <vector>
 
 using namespace dfn;
@@ -1249,6 +1260,132 @@ TEST_CASE("atlas: species VALUE ORDER holds in every season") {
     CHECK_FALSE(leaf_tone_has_foliage(LeafTone::OakMid, FloraSeason::Winter));
     CHECK(leaf_tone_has_foliage(LeafTone::ConiferDark, FloraSeason::Winter));
     CHECK(leaf_tone_has_foliage(LeafTone::OakMid, FloraSeason::Autumn));
+}
+
+TEST_CASE("atlas: the GREEN BAND is frozen and the colour rows sit beside it") {
+    // THE INVARIANT THE OWNER'S 24.08 RULING IS MADE OF: «не уберём старые, а
+    // добавим новые». Five colour rows landed under the eight greens, which
+    // changed the atlas HEIGHT and therefore every card's v — that part is
+    // unavoidable and was paid for by re-baking all 77 .dfo. What must NOT
+    // change is the CONTENT of rows 0..7, because that is what makes the
+    // re-bake invisible.
+    //
+    // The literals below are the shipped summer values as of 17.08. They are
+    // written out rather than derived so this test FAILS on any future edit to
+    // a green row — which is the whole point: a green row is now something a
+    // colour pass could touch by accident, and there was no gate saying so.
+    struct Frozen { LeafTone tone; float r, g, b; };
+    const Frozen GREENS[] = {
+        {LeafTone::OakMid, 0.30f, 0.42f, 0.18f},
+        {LeafTone::OakDeep, 0.19f, 0.30f, 0.13f},
+        {LeafTone::OakSunlit, 0.42f, 0.53f, 0.20f},
+        {LeafTone::BirchLight, 0.52f, 0.61f, 0.27f},
+        {LeafTone::BirchPale, 0.62f, 0.68f, 0.34f},
+        {LeafTone::WillowDark, 0.16f, 0.27f, 0.19f},
+        {LeafTone::WillowOlive, 0.24f, 0.34f, 0.18f},
+        {LeafTone::ConiferDark, 0.28f, 0.35f, 0.19f},
+    };
+    REQUIRE(std::size(GREENS) == LEAF_ATLAS_GREEN_TONES);
+    for (const Frozen& f : GREENS) {
+        const glm::vec3 c = leaf_tone_color(f.tone, FloraSeason::Summer);
+        CHECK(c.r == doctest::Approx(f.r));
+        CHECK(c.g == doctest::Approx(f.g));
+        CHECK(c.b == doctest::Approx(f.b));
+        // ...and every green row is still GREEN: g is the leading channel.
+        CHECK(c.g > c.r);
+        CHECK(c.g > c.b);
+    }
+    // The colour rows are APPENDED, behind the seam guard, and the sheet is a
+    // POWER OF TWO tall so every old tile's v halves exactly.
+    CHECK(static_cast<uint32_t>(LeafTone::SeamGuard) == LEAF_ATLAS_GREEN_TONES);
+    CHECK(static_cast<uint32_t>(LeafTone::BlossomPink) == LEAF_ATLAS_GREEN_TONES + 1);
+    CHECK(LEAF_ATLAS_TONES == 16);
+    CHECK((LEAF_ATLAS_TONES & (LEAF_ATLAS_TONES - 1)) == 0u);
+    CHECK((LEAF_ATLAS_GREEN_TONES % 2u) == 0u); // mips pair inside the band
+
+    // THE SEAM GUARD IS A MIRROR, and the property that matters is a single
+    // scanline: the guard's FIRST row must equal the last green row's LAST
+    // row, or a bilinear fetch straddling the boundary stops reproducing the
+    // clamp that was there before the colour rows existed. The Rule-30
+    // control is a plain COPY of row 7 — it fails this on the first texel of
+    // any tile whose top and bottom scanlines differ, which is all of them.
+    {
+        const LeafAtlas g = generate_leaf_atlas(64, FloraSeason::Summer);
+        const uint32_t t = g.tile_px;
+        const size_t stride = static_cast<size_t>(g.width) * 4u;
+        const size_t green_last = static_cast<size_t>(LEAF_ATLAS_GREEN_TONES * t - 1);
+        const size_t guard_first = static_cast<size_t>(LEAF_ATLAS_GREEN_TONES * t);
+        size_t mismatched = 0;
+        for (size_t i = 0; i < stride; ++i) {
+            if (g.pixels[green_last * stride + i] != g.pixels[guard_first * stride + i]) {
+                ++mismatched;
+            }
+        }
+        CHECK(mismatched == 0);
+        // ...and it really is a MIRROR of the whole tile, not two equal lines.
+        size_t mirror_bad = 0;
+        for (uint32_t y = 0; y < t; ++y) {
+            const size_t src = static_cast<size_t>((LEAF_ATLAS_GREEN_TONES - 1) * t
+                                                   + (t - 1 - y)) * stride;
+            const size_t dst = static_cast<size_t>(LEAF_ATLAS_GREEN_TONES * t + y) * stride;
+            for (size_t i = 0; i < stride; ++i) {
+                if (g.pixels[src + i] != g.pixels[dst + i]) ++mirror_bad;
+            }
+        }
+        CHECK(mirror_bad == 0);
+    }
+
+    // Each new row is the colour its NAME claims — the control this rejects is
+    // the cheap version of the feature, five rows that are all the same tinted
+    // green. Stated as channel dominance, which is what "red" means to an eye.
+    const glm::vec3 pink = leaf_tone_color(LeafTone::BlossomPink, FloraSeason::Summer);
+    const glm::vec3 red = leaf_tone_color(LeafTone::MapleRed, FloraSeason::Summer);
+    const glm::vec3 gold = leaf_tone_color(LeafTone::AutumnGold, FloraSeason::Summer);
+    const glm::vec3 blue = leaf_tone_color(LeafTone::ArcaneBlue, FloraSeason::Summer);
+    const glm::vec3 violet = leaf_tone_color(LeafTone::DuskViolet, FloraSeason::Summer);
+    CHECK(pink.r > pink.g);                 // pink: red leads, blue over green
+    CHECK(pink.b > pink.g);
+    CHECK(red.r > red.g * 2.0f);            // red: red dominates outright
+    CHECK(red.r > red.b * 2.0f);
+    CHECK(gold.r > gold.g);                 // gold: warm, blue starved
+    CHECK(gold.g > gold.b * 2.0f);
+    CHECK(blue.b > blue.g);                 // blue: blue leads
+    CHECK(blue.b > blue.r * 2.0f);
+    CHECK(violet.b > violet.g);             // violet: red and blue over green
+    CHECK(violet.r > violet.g);
+    // No colour row collapses onto another in VALUE-and-hue at once: any two
+    // of them differ by at least 0.12 in some channel, or the five are one.
+    const glm::vec3 all[] = {pink, red, gold, blue, violet};
+    for (size_t i = 0; i < std::size(all); ++i) {
+        for (size_t j = i + 1; j < std::size(all); ++j) {
+            const glm::vec3 d = glm::abs(all[i] - all[j]);
+            CHECK(std::max(d.r, std::max(d.g, d.b)) > 0.12f);
+        }
+    }
+    // The sacred and the arcane row keep their cards in winter; the three
+    // seasonal rows are ordinary deciduous foliage and drop them.
+    CHECK(leaf_tone_has_foliage(LeafTone::BlossomPink, FloraSeason::Winter));
+    CHECK(leaf_tone_has_foliage(LeafTone::ArcaneBlue, FloraSeason::Winter));
+    CHECK_FALSE(leaf_tone_has_foliage(LeafTone::MapleRed, FloraSeason::Winter));
+    CHECK_FALSE(leaf_tone_has_foliage(LeafTone::AutumnGold, FloraSeason::Winter));
+    CHECK_FALSE(leaf_tone_has_foliage(LeafTone::DuskViolet, FloraSeason::Winter));
+
+    // PASSPORTS ORDER BY WORD (Rules 5-6). Every row round-trips through its
+    // name, and a word no row answers to is REFUSED rather than defaulted —
+    // a typo that silently forges a green grove is the failure this exists
+    // to prevent.
+    for (uint32_t i = 0; i < LEAF_ATLAS_TONES; ++i) {
+        const auto t = static_cast<LeafTone>(i);
+        LeafTone back = LeafTone::ConiferDark;
+        REQUIRE(leaf_tone_by_name(leaf_tone_name(t), back));
+        CHECK(static_cast<uint32_t>(back) == i);
+    }
+    LeafTone unused = LeafTone::OakMid;
+    CHECK_FALSE(leaf_tone_by_name("chartreuse", unused));
+    CHECK(unused == LeafTone::OakMid); // untouched on refusal
+    LeafTone ru = LeafTone::OakMid;
+    CHECK(leaf_tone_by_name("розовый", ru));
+    CHECK(ru == LeafTone::BlossomPink);
 }
 
 // ===========================================================================

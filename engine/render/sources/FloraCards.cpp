@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 17:08:2026 - 10:55:52
+Last updated: 23:08:2026 - 23:55:00
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -55,6 +55,31 @@ UPD:
 - 16:08:2026 - 20:42:17: ФРОНД ПО СКАНУ Picea abies: стержень ОДЕТ иголками (не голый рахис с перьями), гребёнки веточек плотнее (скан ~70% иголка/просвет — было 45%, «рыбий скелет»), каждая иголка со своим светом; тон хвои — тёплый средне-зелёный по скану. Порог просветов фронда в тесте — от скана (~30% неба между иголками), не от лиственных крон; слипшийся клин по-прежнему валится по ragged.
 - 16:08:2026 - 22:40:39: Хвоя гуще: иголки длиннее (0.074/0.105) и гребёнка плотнее (порог 0.0115) — призрачные ярусы стали лапами.
 - 17:08:2026 - 10:55:52: Берёста: чечевички — короткие горизонтальные штрихи рядами (2-4 см x 10-20 см) + редкие шрамы; старое поле 3x17 рисовало гладкие полуметровые кляксы «вектором».
+- 23:08:2026 - 23:55:00: ПЯТЬ ЦВЕТНЫХ РЯДОВ (владелец, 24.08). Правка — ТОЛЬКО ДОПИСКА:
+  в три сезонные таблицы, в bark_style и в leaf_tone_has_foliage добавлены
+  ветки для рядов 8..12; ни одно старое значение не сдвинуто ни на единицу,
+  и растеризатор тайла не тронут вовсе (он берёт из ряда один `base`, а
+  штамп/эрозия/альфа считаются от ШАПКИ — поэтому розовый дуб рисуется тем же
+  дубовым листом, что и зелёный, а не «дубом в розовой заливке» второго
+  сорта). Кора цветных рядов заполнена НЕ ради потребителя (TreeForge берёт
+  ряд коры из OakMid/OakDeep/OakSunlit/BirchLight/ConiferDark и цвет листвы
+  на него не влияет), а ради контракта теста: колонка BarkPlate обязана быть
+  непрозрачной В КАЖДОМ ряду, иначе «кора — не вырезка» перестаёт быть
+  свойством листа и становится свойством восьми его строк.
+  ВЕЧНОЗЕЛЁНОСТЬ: BlossomPink и ArcaneBlue цветут и зимой (священное и
+  магическое дерево — Гилдергрин без цвета не Гилдергрин), клён/золото/фиолет
+  опадают как всякая лиственная порода.
+- 23:08:2026 - 23:55:00: write_seam_guard() — ряд 8 есть ЗЕРКАЛО ряда 7, и это не
+  украшение, а починка измеренного дефекта. Лист минифицируется ЛИНЕЙНЫМ
+  фильтром (путь coverage у render: MAG точечный, MIN/MIP линейные). Пока ряд 7
+  был последним, выборка, задевшая его нижнюю кромку, упиралась в край
+  текстуры и читала ряд 7 дважды (кламп). Любой ряд под ним превращает ту же
+  выборку в подмешивание чужого цвета — розовая бахрома по нижнему текселю
+  КАЖДОГО хвойного тайла, на всех мипах, у деревьев, которых никто не трогал.
+  Зеркало кладёт одну и ту же строку по обе стороны шва, поэтому блендинг при
+  любом весе возвращает её же: кламп воспроизведён, а не приближен. И живёт
+  во всей цепочке мипов даром — коробочный фильтр коммутирует с зеркалом.
+  Пишется ПОСЛЕ основного прохода: это функция от готовой зелёной полосы.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -174,6 +199,32 @@ glm::vec3 tone_summer(LeafTone t) {
     case LeafTone::BirchPale: return {0.62f, 0.68f, 0.34f};
     case LeafTone::WillowDark: return {0.16f, 0.27f, 0.19f};
     case LeafTone::WillowOlive: return {0.24f, 0.34f, 0.18f};
+    // --- THE COLOUR ROWS. Same rule as the greens: these are LOOK-DEV values,
+    // not photometry (§3.10.4 — a photograph tells us about structure and
+    // never about hue). Two constraints they DO have to answer to:
+    //   1. VALUE ORDER (design §5.11) is a per-species property, and these
+    //      rows are their own species band, so what must hold inside the band
+    //      is that no two of the five collapse to the same luminance — a
+    //      grove of five colours that all read mid-grey in shadow is one
+    //      colour with five names. Luma here: pink 0.66, gold 0.68, red 0.32,
+    //      violet 0.34, blue 0.36 — bright pair, dark trio, and the dark trio
+    //      separates by HUE, which is the only axis left to it.
+    //   2. They sit inside the same exposure the greens do (max channel under
+    //      0.92), or the crown blooms white against the sky the moment the
+    //      sun is on it.
+    case LeafTone::BlossomPink: return {0.90f, 0.60f, 0.72f};
+    case LeafTone::MapleRed: return {0.68f, 0.19f, 0.13f};
+    case LeafTone::AutumnGold: return {0.86f, 0.66f, 0.16f};
+    case LeafTone::ArcaneBlue: return {0.22f, 0.38f, 0.72f};
+    case LeafTone::DuskViolet: return {0.47f, 0.24f, 0.62f};
+    // The seam guard and the two spare rows fall through to the green
+    // default. The guard is OVERWRITTEN by the mirror pass at the end of the
+    // rasteriser, so what it is drawn with here never survives; the spares
+    // are simply the cheapest legal filling of rows the power-of-two height
+    // paid for.
+    case LeafTone::SeamGuard:
+    case LeafTone::SpareA:
+    case LeafTone::SpareB:
     // Calibrated against the fir photoscan AND the Picea abies herbarium
     // scan (docs/reference/spruce): live needles are a warm MID-GREEN
     // (the old {0.12 0.22 0.19} was murk, the olive first fit still a shade
@@ -191,6 +242,18 @@ glm::vec3 tone_autumn(LeafTone t) {
     case LeafTone::BirchPale: return {0.82f, 0.71f, 0.31f};
     case LeafTone::WillowDark: return {0.24f, 0.21f, 0.11f};
     case LeafTone::WillowOlive: return {0.34f, 0.29f, 0.13f};
+    // Autumn on a row that is ALREADY autumn is not "more orange": maple and
+    // gold are at their season and only deepen, blossom drops to a spent
+    // rose, and the two magical rows do not answer to the calendar at all —
+    // a season is weather, and an arcane crown is not weather.
+    case LeafTone::BlossomPink: return {0.82f, 0.48f, 0.56f};
+    case LeafTone::MapleRed: return {0.74f, 0.16f, 0.09f};
+    case LeafTone::AutumnGold: return {0.90f, 0.68f, 0.14f};
+    case LeafTone::ArcaneBlue: return {0.22f, 0.38f, 0.72f};
+    case LeafTone::DuskViolet: return {0.44f, 0.21f, 0.58f};
+    case LeafTone::SeamGuard:
+    case LeafTone::SpareA:
+    case LeafTone::SpareB:
     // Measured: conifers stay green in all three autumn reference frames, so
     // the pine's only seasonal delta is snow — which is render's and core's.
     case LeafTone::ConiferDark: default: return {0.26f, 0.31f, 0.17f};
@@ -210,6 +273,19 @@ glm::vec3 tone_winter(LeafTone t) {
     case LeafTone::BirchPale: return {0.64f, 0.59f, 0.48f};
     case LeafTone::WillowDark: return {0.18f, 0.17f, 0.13f};
     case LeafTone::WillowOlive: return {0.26f, 0.23f, 0.17f};
+    // Pink and blue are the two rows that still CARRY cards in winter
+    // (leaf_tone_has_foliage below), so unlike the deciduous rows these two
+    // values are drawn, not merely defined: blossom under snow light goes
+    // cold and pale, the arcane row goes colder and slightly brighter — it is
+    // its own light source in spirit, and winter is when that reads.
+    case LeafTone::BlossomPink: return {0.84f, 0.68f, 0.74f};
+    case LeafTone::MapleRed: return {0.36f, 0.18f, 0.15f};
+    case LeafTone::AutumnGold: return {0.52f, 0.44f, 0.26f};
+    case LeafTone::ArcaneBlue: return {0.26f, 0.44f, 0.80f};
+    case LeafTone::DuskViolet: return {0.34f, 0.24f, 0.44f};
+    case LeafTone::SeamGuard:
+    case LeafTone::SpareA:
+    case LeafTone::SpareB:
     case LeafTone::ConiferDark: default: return {0.20f, 0.26f, 0.16f};
     }
 }
@@ -244,6 +320,28 @@ BarkStyle bark_style(LeafTone row) {
     case LeafTone::BirchPale: return {{0.78f, 0.77f, 0.70f}, 0.0f, true, 0.0f, 0.0f, 0.0f, 0.0f};
     case LeafTone::WillowDark: return {{0.38f, 0.36f, 0.33f}, 0.0f, false, 24.0f, 3.0f, 0.40f, 0.60f};
     case LeafTone::WillowOlive: return {{0.44f, 0.40f, 0.34f}, 0.35f, false, 24.0f, 3.0f, 0.40f, 0.60f};
+    // --- BARK OF THE COLOUR ROWS. Nothing in the forge asks for these today:
+    // a trunk's colourway is chosen from the bark's own albedo (TreeForge's
+    // bark_row), so a pink CROWN still stands on an oak-furrowed bole and
+    // that is correct. They are filled because the BarkPlate column is opaque
+    // BY CONTRACT in every row (ProcFloraTests), and because the day someone
+    // forges a sakura they will want a smooth grey-brown cherry bark to
+    // exist rather than a pine plate wearing the default label.
+    case LeafTone::BlossomPink: // cherry: smooth, banded, grey over warm
+        return {{0.44f, 0.36f, 0.34f}, 0.0f, false, 30.0f, 2.0f, 0.34f, 0.70f};
+    case LeafTone::MapleRed: // maple: shallow long ridges, grey-brown
+        return {{0.40f, 0.34f, 0.29f}, 0.20f, false, 28.0f, 3.0f, 0.45f, 0.55f};
+    case LeafTone::AutumnGold: // the aspen/birch habit: pale paper
+        return {{0.80f, 0.78f, 0.71f}, 0.0f, true, 0.0f, 0.0f, 0.0f, 0.0f};
+    case LeafTone::ArcaneBlue: // pale ashen bole, deep narrow cracks
+        return {{0.52f, 0.54f, 0.58f}, 0.0f, false, 34.0f, 3.0f, 0.55f, 0.70f};
+    case LeafTone::DuskViolet: // dark, mossy, coarse
+        return {{0.31f, 0.28f, 0.30f}, 0.45f, false, 20.0f, 3.0f, 0.60f, 0.50f};
+    // Guard and spares: the pine default (below) is fine — the guard's tiles
+    // are overwritten by the mirror pass and the spares are never addressed.
+    case LeafTone::SeamGuard:
+    case LeafTone::SpareA:
+    case LeafTone::SpareB:
     // Pine: plate-scale ridges in a dark desaturated brown (photoscan
     // calibration, passports §1 — V-median 0.24, warm hue, S≈0.3).
     case LeafTone::ConiferDark: default:
@@ -341,6 +439,53 @@ float bark_height(float tx, float ty, const BarkStyle& st, uint32_t seed) {
     return std::clamp(h, 0.0f, 1.0f);
 }
 
+/// Writes the SEAM GUARD: row LEAF_ATLAS_GREEN_TONES becomes a vertical
+/// mirror of the last green row, across the FULL width (leaf columns and the
+/// bark column alike).
+///
+/// Why a mirror and not a copy: what has to hold is that the guard's TOP
+/// scanline equals the last green row's BOTTOM scanline, because that is the
+/// pair a bilinear fetch straddling the seam blends. A straight copy puts the
+/// green row's top scanline there, which is a different picture and would
+/// bleed just as visibly as pink. A mirror puts the same scanline on both
+/// sides of the boundary, so the blend returns it unchanged for any weight —
+/// exactly what CLAMP did when row 7 was the bottom of the sheet.
+///
+/// It survives minification for free: a box mip filter and a mirror commute,
+/// so the mirrored relationship holds at every level of the chain.
+/// `mirror` picks WHICH clamp is being imitated, and the choice follows the
+/// sheet's SAMPLER, not taste:
+///   - MIRROR is exact for a TWO-TAP fetch at every mip level (a box filter
+///     commutes with a mirror), which is what the colour sheet gets: it is
+///     mipped and read trilinearly, i.e. bilinear inside each level.
+///   - EXTEND (row 7's last scanline repeated down the whole guard tile) is
+///     exact for an ARBITRARILY WIDE footprint on an UNMIPPED sheet — which is
+///     what the normal sheet is: it is opaque everywhere, so create_texture
+///     builds it no mip chain, and render binds it MIN_ANISOTROPIC. An
+///     anisotropic footprint reaches further than two texels, and past two
+///     texels a mirror stops matching clamp and starts reflecting.
+/// Getting this backwards is not theoretical: with the mirror on both sheets
+/// the grove still differed by 0.020 % of pixels, all of it on BOLES — the
+/// only place the normal sheet is not neutral.
+void write_seam_guard(std::vector<uint8_t>& pixels, uint32_t width,
+                      uint32_t tile_px, bool mirror) {
+    if constexpr (LEAF_ATLAS_TONES <= LEAF_ATLAS_GREEN_TONES) {
+        return; // no row under the band: the texture edge still clamps
+    }
+    const uint32_t last_green = (LEAF_ATLAS_GREEN_TONES - 1) * tile_px;
+    const uint32_t guard = LEAF_ATLAS_GREEN_TONES * tile_px;
+    const size_t stride = static_cast<size_t>(width) * 4u;
+    const size_t edge = static_cast<size_t>(guard - 1) * stride; // row 7's last
+    for (uint32_t y = 0; y < tile_px; ++y) {
+        const size_t src = mirror
+            ? static_cast<size_t>(last_green + (tile_px - 1 - y)) * stride
+            : edge;
+        const size_t dst = static_cast<size_t>(guard + y) * stride;
+        std::copy_n(pixels.begin() + static_cast<std::ptrdiff_t>(src), stride,
+                    pixels.begin() + static_cast<std::ptrdiff_t>(dst));
+    }
+}
+
 } // namespace
 
 glm::vec3 leaf_tone_color(LeafTone tone, FloraSeason season) {
@@ -357,8 +502,64 @@ bool leaf_tone_has_foliage(LeafTone tone, FloraSeason season) {
     }
     // Winter costs ONE boolean (LANDSCAPE §5.11): deciduous cards are not
     // emitted and the bare skeleton — which is generated regardless — becomes
-    // the tree. Conifers keep their needles.
-    return tone == LeafTone::ConiferDark;
+    // the tree. Conifers keep their needles, and so do the two rows that are
+    // not weather: the blossom row is the sacred tree (a Gildergreen that
+    // stands bare in winter is a dead Gildergreen, which is a different plot
+    // point) and the arcane row is lit from inside.
+    return tone == LeafTone::ConiferDark || tone == LeafTone::BlossomPink
+        || tone == LeafTone::ArcaneBlue;
+}
+
+const char* leaf_tone_name(LeafTone tone) {
+    switch (tone) {
+    case LeafTone::OakMid: return "oak-mid";
+    case LeafTone::OakDeep: return "oak-deep";
+    case LeafTone::OakSunlit: return "oak-sunlit";
+    case LeafTone::BirchLight: return "birch-light";
+    case LeafTone::BirchPale: return "birch-pale";
+    case LeafTone::WillowDark: return "willow-dark";
+    case LeafTone::WillowOlive: return "willow-olive";
+    case LeafTone::ConiferDark: return "conifer-dark";
+    case LeafTone::SeamGuard: return "seam-guard";
+    case LeafTone::BlossomPink: return "pink";
+    case LeafTone::MapleRed: return "red";
+    case LeafTone::AutumnGold: return "gold";
+    case LeafTone::ArcaneBlue: return "blue";
+    case LeafTone::DuskViolet: return "violet";
+    case LeafTone::SpareA: return "spare-a";
+    case LeafTone::SpareB: return "spare-b";
+    }
+    return "oak-mid";
+}
+
+bool leaf_tone_by_name(std::string_view name, LeafTone& out) {
+    for (uint32_t i = 0; i < LEAF_ATLAS_TONES; ++i) {
+        const auto t = static_cast<LeafTone>(i);
+        if (name == leaf_tone_name(t)) {
+            out = t;
+            return true;
+        }
+    }
+    // The colour rows answer to their Russian order words too: the passports
+    // and the recipe books are written in the language the owner briefs in,
+    // and a table that only speaks English makes every author add a glossary.
+    struct Alias { std::string_view word; LeafTone tone; };
+    static constexpr Alias ALIASES[] = {
+        {"розовый", LeafTone::BlossomPink}, {"blossom", LeafTone::BlossomPink},
+        {"красный", LeafTone::MapleRed},    {"maple", LeafTone::MapleRed},
+        {"жёлтый", LeafTone::AutumnGold},   {"желтый", LeafTone::AutumnGold},
+        {"золотой", LeafTone::AutumnGold},  {"autumn", LeafTone::AutumnGold},
+        {"синий", LeafTone::ArcaneBlue},    {"arcane", LeafTone::ArcaneBlue},
+        {"фиолетовый", LeafTone::DuskViolet}, {"dusk", LeafTone::DuskViolet},
+        {"зелёный", LeafTone::OakMid},      {"зеленый", LeafTone::OakMid},
+    };
+    for (const Alias& a : ALIASES) {
+        if (name == a.word) {
+            out = a.tone;
+            return true;
+        }
+    }
+    return false;
 }
 
 glm::vec4 leaf_tile_uv(LeafShape shape, LeafTone tone, uint32_t tile_px) {
@@ -810,6 +1011,9 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
             }
         }
     }
+    // THE SEAM GUARD, WRITTEN LAST: it is a function of the finished green
+    // band, so it cannot be rasterised in the same pass that produces it.
+    write_seam_guard(atlas.pixels, atlas.width, atlas.tile_px, /*mirror=*/true);
     return atlas;
 }
 
@@ -866,6 +1070,12 @@ LeafAtlas generate_leaf_normal_atlas(uint32_t tile_px) {
             }
         }
     }
+    // The normal sheet takes the SAME guard, and takes it as a PIXEL mirror —
+    // deliberately not a normal-vector mirror (which would negate y). Nothing
+    // ever samples the guard as a surface; the only thing it has to do is make
+    // the bilinear blend across the row-7 boundary return row 7's own edge,
+    // and that is a statement about BYTES, not about geometry.
+    write_seam_guard(atlas.pixels, atlas.width, atlas.tile_px, /*mirror=*/false);
     return atlas;
 }
 
