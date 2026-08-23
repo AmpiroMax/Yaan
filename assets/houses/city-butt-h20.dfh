@@ -1,0 +1,10 @@
+# dfh 1
+vertex v1 free 0.0000 0.0000 -0.3000
+vertex v2 free 0.9000 0.0000 -0.3000
+vertex v3 free 0.0000 0.6667 -0.1875
+vertex v4 free 0.9000 0.6667 -0.1875
+vertex v5 free 0.0000 1.3333 -0.0750
+vertex v6 free 0.9000 1.3333 -0.0750
+surface e1 v1 v2 style=- height=0.666667 thickness=0.6 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
+surface e2 v3 v4 style=- height=0.666667 thickness=0.375 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
+surface e3 v5 v6 style=- height=0.666667 thickness=0.15 mat=3 tone=1 fill=3 wear=0.5 unsupported=1

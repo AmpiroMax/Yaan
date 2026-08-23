@@ -1,6 +1,6 @@
 /*
 Created: 23:08:2026 - 20:48:17
-Last updated: 24:08:2026 - 01:05:00
+Last updated: 24:08:2026 - 01:25:00
 Module: tools
 File: tools/house_manifest.h
 
@@ -147,6 +147,36 @@ UPD:
   правило 29 — про общий ИНДЕКС, запись 00:41:00 — про общий ФАЙЛ, эта — про
   общего АДРЕСАТА. Разделяемый ресурс, о котором никто не думает как о
   ресурсе, — это распределение работы между агентами.
+- 24:08:2026 - 01:25:00: КОЛОНКА wpoly — КОНТУР ПЯТНА СТЕН (правка по
+  претензии владельца 24.08: «много домов, у которых фундамент СИЛЬНО ШИРЕ
+  самого дома»).
+  ЧТО ОКАЗАЛОСЬ. Прямоугольник w* честно отвечает на свой вопрос — «сколько
+  места занять», — и генератор города правильно берёт его для посадки, пада и
+  приёмки утопленности. Но ЛЕНТЕ ФУНДАМЕНТА он отвечал на другой вопрос, «где
+  стоит стена», и врал тем сильнее, чем сложнее план. Замер по всей полке:
+  city-house-l 10.00x8.00 стен против 10.00x10.35 охвата (+2.35 — два столба
+  крыльца r=0.10 и марш, попавшие в нижний венец), city-temple +2.20
+  (паперть), city-shop +2.00 (навес), city-mill +3.80 (ось водяного колеса),
+  city-barn +1.50 (въездная аппарель), city-keep-s — зал 15x8 и два крыла 5x6
+  внутри охвата 25.0x13.2, то есть лента обводила ВОЗДУХ МЕЖДУ КРЫЛЬЯМИ.
+  ПОЧЕМУ ЗАМЕР ЗДЕСЬ, А НЕ В ГЕНЕРАТОРЕ. Кольца выводятся из графа — из
+  цепочек-стен нижнего венца, — а граф разбирает только read_house. Второй
+  разборщик .dfh в питоне и был бы ровно тем, о чём предупреждает шапка:
+  разошлись бы молча. Обход граней плоского графа (в каждой вершине первый
+  поворот по часовой) выбран не из любви к алгоритму, а по факту полки: у
+  усадьбы и у ратуши в одной вершине сходятся ТРИ стены (к корпусу примыкает
+  дворовая ограда), и наивная цепочка уходит в ограду, теряя корпус. Он же
+  даром отдаёт РАЗБИЕНИЕ ПО КОРПУСАМ: у city-keep девять колец (зал, два
+  крыла, шесть башен), у cornhall-inn два, у усадьбы одно из десяти вершин.
+  ДВЕ ВЕТКИ, БЕЗ КОТОРЫХ КОЛЕЦ НЕ БЫЛО БЫ У ШЕСТИ РЕЦЕПТОВ. Первая:
+  ЗАМКНУТАЯ ПАНЕЛЬ, чья проекция на план вырождается в отрезок, — это стена
+  (щипцовые торцы амбара построены контуром, а не цепочкой). Вторая:
+  РАЗОМКНУТАЯ ЦЕПЬ С ДВУМЯ КОНЦАМИ ЗАМЫКАЕТСЯ (аркада ратуши и устье печи —
+  стены с проёмом во всю сторону; фундамент под аркадой есть, кольца не было).
+  Без колец остаются три рецепта, и это честно: cornhall-granary на сваях,
+  city-stall на ножках, city-gate — проём. Читателю там остаётся w*.
+  Полка перепеклась БАЙТ-В-БАЙТ (163 прежних .dfh, shasum сошёлся), в
+  INDEX.txt добавилась одна колонка в конец.
 */
 
 #pragma once
@@ -162,7 +192,9 @@ UPD:
 #include <iterator>
 #include <limits>
 #include <map>
+#include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "engine/world/sources/HouseFile.h"
@@ -290,6 +322,277 @@ inline std::string fnum(double v) {
     // -0 печатается как «-0» и сбивает глаз на нулевой кромке.
     std::snprintf(buf, sizeof(buf), "%.9g", v == 0.0 ? 0.0 : v);
     return buf;
+}
+
+/// НАЗЕМНЫЙ ОТРЕЗОК КЛАДКИ в плане: (x,z) начала и конца.
+using PlanSeg = std::array<double, 4>;
+
+/// ОТРЕЗКИ НАЗЕМНОЙ КЛАДКИ рецепта. Стеной считается ровно то, что стоит НА
+/// ЗЕМЛЕ и несёт толщину:
+///  - цепочка (surface из двух вершин) с height > 0, обе вершины на y == 0;
+///  - ЗАМКНУТАЯ панель, чья проекция на план ВЫРОЖДАЕТСЯ В ОТРЕЗОК и чей низ
+///    лежит на земле — так собраны щипцовые торцы амбара: снаружи это стена,
+///    а в графе — контур, и без этой ветки у амбара кольца нет вовсе.
+/// Створка двери (door=1) и дощатая мелочь тоньше 0.15 отброшены: под ними
+/// фундамента не бывает, а в нижний венец они попадают наравне со стеной.
+[[nodiscard]] inline std::vector<PlanSeg> ground_wall_segs(
+        const dfn::world::HouseGraph& g,
+        const std::map<dfn::world::VertexId, std::array<double, 3>>& pos) {
+    using namespace dfn::world;
+    std::vector<PlanSeg> out;
+    for (const Element& e : g.elements()) {
+        if (e.kind != ElementKind::Surface || flag(e, "door")) {
+            continue;
+        }
+        if (param_num(e, "thickness") < 0.15) {
+            continue;
+        }
+        std::vector<const std::array<double, 3>*> refs;
+        for (const VertexId id : e.refs) {
+            const auto it = pos.find(id);
+            if (it != pos.end()) {
+                refs.push_back(&it->second);
+            }
+        }
+        if (refs.size() < 2) {
+            continue;
+        }
+        if (e.closed) {
+            double ylo = std::numeric_limits<double>::infinity();
+            double xlo = ylo;
+            double zlo = ylo;
+            double xhi = -ylo;
+            double zhi = -ylo;
+            for (const auto* p : refs) {
+                ylo = std::min(ylo, (*p)[1]);
+                xlo = std::min(xlo, (*p)[0]);
+                xhi = std::max(xhi, (*p)[0]);
+                zlo = std::min(zlo, (*p)[2]);
+                zhi = std::max(zhi, (*p)[2]);
+            }
+            const double dx = xhi - xlo;
+            const double dz = zhi - zlo;
+            if (ylo > 1e-6 || std::min(dx, dz) > 1e-4 || std::max(dx, dz) < 0.1) {
+                continue;
+            }
+            out.push_back({xlo, zlo, xhi, zhi});
+            continue;
+        }
+        if (refs.size() != 2 || param_num(e, "height") <= 0.01) {
+            continue;
+        }
+        if (std::fabs((*refs[0])[1]) > 1e-6 || std::fabs((*refs[1])[1]) > 1e-6) {
+            continue;
+        }
+        out.push_back({(*refs[0])[0], (*refs[0])[2], (*refs[1])[0], (*refs[1])[2]});
+    }
+    return out;
+}
+
+/// ЗАМКНУТЫЕ КОЛЬЦА из отрезков кладки — обходом граней плоского графа.
+///
+/// ПОЧЕМУ ОБХОД ГРАНЕЙ, А НЕ «СОБРАТЬ ЦЕПОЧКУ ПО СОСЕДЯМ». У ратуши и у
+/// усадьбы в одной вершине сходятся ТРИ стены (к корпусу примыкает дворовая
+/// ограда), и наивный обход уходит в ограду, теряя корпус. Обход граней
+/// (в каждой вершине берётся первый поворот ПО ЧАСОВОЙ от входящего ребра)
+/// разбирает такой узел правильно и заодно отдаёт КАЖДЫЙ корпус своим
+/// кольцом: у замка их девять — зал, два крыла и шесть башен.
+///
+/// РАЗОМКНУТАЯ ЦЕПЬ ЗАМЫКАЕТСЯ. Ратушная аркада и устье обжиговой печи —
+/// стены с проёмом во всю сторону: концов у цепи два, кольца нет, а
+/// фундамент под аркадой есть. Если у связной части ровно два конца, они
+/// соединяются; если больше — часть остаётся без кольца и рецепт уходит на
+/// прямоугольник (амбар на сваях, рыночный лоток).
+[[nodiscard]] inline std::vector<std::vector<std::array<double, 2>>> wall_rings(
+        std::vector<PlanSeg> segs) {
+    using Pt = std::array<double, 2>;
+    const auto key = [](double x, double z) {
+        return std::make_pair(static_cast<long long>(std::llround(x * 10000.0)),
+                              static_cast<long long>(std::llround(z * 10000.0)));
+    };
+    std::map<std::pair<long long, long long>, Pt> node;
+    std::map<std::pair<long long, long long>, std::set<std::pair<long long, long long>>> adj;
+    for (const PlanSeg& s : segs) {
+        const auto a = key(s[0], s[1]);
+        const auto b = key(s[2], s[3]);
+        if (a == b) {
+            continue;
+        }
+        node[a] = {s[0], s[1]};
+        node[b] = {s[2], s[3]};
+        adj[a].insert(b);
+        adj[b].insert(a);
+    }
+    // Замыкание разомкнутых цепей: по связной части, и только если концов два.
+    std::set<std::pair<long long, long long>> seen;
+    for (const auto& kv : adj) {
+        if (seen.count(kv.first) != 0) {
+            continue;
+        }
+        std::vector<std::pair<long long, long long>> comp;
+        std::vector<std::pair<long long, long long>> st{kv.first};
+        seen.insert(kv.first);
+        while (!st.empty()) {
+            const auto v = st.back();
+            st.pop_back();
+            comp.push_back(v);
+            for (const auto& w : adj[v]) {
+                if (seen.insert(w).second) {
+                    st.push_back(w);
+                }
+            }
+        }
+        std::vector<std::pair<long long, long long>> ends;
+        for (const auto& v : comp) {
+            if (adj[v].size() == 1) {
+                ends.push_back(v);
+            }
+        }
+        if (ends.size() == 2 && adj[ends[0]].count(ends[1]) == 0) {
+            adj[ends[0]].insert(ends[1]);
+            adj[ends[1]].insert(ends[0]);
+        }
+    }
+    std::set<std::pair<std::pair<long long, long long>, std::pair<long long, long long>>> used;
+    std::vector<std::vector<Pt>> rings;
+    for (const auto& kv : adj) {
+        for (const auto& to : kv.second) {
+            auto start = std::make_pair(kv.first, to);
+            if (used.count(start) != 0) {
+                continue;
+            }
+            std::vector<Pt> pts;
+            auto cur = start;
+            bool ok = true;
+            while (used.count(cur) == 0) {
+                used.insert(cur);
+                pts.push_back(node[cur.first]);
+                const Pt a = node[cur.first];
+                const Pt b = node[cur.second];
+                const double in_ang = std::atan2(a[1] - b[1], a[0] - b[0]);
+                double best = 0.0;
+                bool have = false;
+                std::pair<long long, long long> next{};
+                for (const auto& c : adj[cur.second]) {
+                    const Pt p = node[c];
+                    double d = std::atan2(p[1] - b[1], p[0] - b[0]) - in_ang;
+                    while (d <= 1e-9) {
+                        d += 2.0 * 3.14159265358979323846;
+                    }
+                    while (d > 2.0 * 3.14159265358979323846 + 1e-9) {
+                        d -= 2.0 * 3.14159265358979323846;
+                    }
+                    if (!have || d < best) {
+                        best = d;
+                        next = c;
+                        have = true;
+                    }
+                }
+                if (!have) {
+                    ok = false;
+                    break;
+                }
+                cur = std::make_pair(cur.second, next);
+                if (cur == start) {
+                    break;
+                }
+            }
+            if (!ok || pts.size() < 3) {
+                continue;
+            }
+            double a2 = 0.0;
+            for (std::size_t i = 0; i < pts.size(); ++i) {
+                const Pt& p0 = pts[i];
+                const Pt& p1 = pts[(i + 1) % pts.size()];
+                a2 += p0[0] * p1[1] - p1[0] * p0[1];
+            }
+            // Грань обхода с ПОЛОЖИТЕЛЬНОЙ площадью — внутренность корпуса;
+            // отрицательная — та же связная часть снаружи, её кольцом не
+            // считаем. Порог 1 кв.м отсекает щели между примыкающими телами.
+            if (a2 / 2.0 < 1.0) {
+                continue;
+            }
+            // Снять точки, лежащие на прямой между соседями: сторона стены —
+            // это сторона, а не цепочка вершин, доставшихся от проёмов.
+            std::vector<Pt> flat;
+            for (std::size_t i = 0; i < pts.size(); ++i) {
+                const Pt& p = pts[i];
+                const Pt& q = pts[(i + pts.size() - 1) % pts.size()];
+                const Pt& r = pts[(i + 1) % pts.size()];
+                const double cr = (p[0] - q[0]) * (r[1] - p[1])
+                                  - (p[1] - q[1]) * (r[0] - p[0]);
+                const double dt = (p[0] - q[0]) * (r[0] - p[0])
+                                  + (p[1] - q[1]) * (r[1] - p[1]);
+                if (std::fabs(cr) < 1e-7 && dt > 0.0) {
+                    continue;
+                }
+                flat.push_back(p);
+            }
+            if (flat.size() >= 3) {
+                rings.push_back(flat);
+            }
+        }
+    }
+    // Кольцо ВНУТРИ другого кольца — это комната, а не корпус: под внутренней
+    // перегородкой фундамент есть, но он под полом и ленте наружу не нужен.
+    std::sort(rings.begin(), rings.end(),
+              [](const std::vector<Pt>& a, const std::vector<Pt>& b) {
+                  const auto area = [](const std::vector<Pt>& r) {
+                      double s = 0.0;
+                      for (std::size_t i = 0; i < r.size(); ++i) {
+                          s += r[i][0] * r[(i + 1) % r.size()][1]
+                               - r[(i + 1) % r.size()][0] * r[i][1];
+                      }
+                      return s;
+                  };
+                  const double aa = area(a);
+                  const double ab = area(b);
+                  if (aa != ab) {
+                      return aa > ab;
+                  }
+                  return a < b;
+              });
+    const auto inside = [](const Pt& p, const std::vector<Pt>& poly) {
+        bool c = false;
+        for (std::size_t i = 0; i < poly.size(); ++i) {
+            const Pt& p1 = poly[i];
+            const Pt& p2 = poly[(i + 1) % poly.size()];
+            if ((p1[1] > p[1]) != (p2[1] > p[1])
+                && p[0] < (p2[0] - p1[0]) * (p[1] - p1[1]) / (p2[1] - p1[1]) + p1[0]) {
+                c = !c;
+            }
+        }
+        return c;
+    };
+    std::vector<std::vector<Pt>> keep;
+    for (const auto& r : rings) {
+        double cx = 0.0;
+        double cz = 0.0;
+        for (const Pt& p : r) {
+            cx += p[0];
+            cz += p[1];
+        }
+        cx /= static_cast<double>(r.size());
+        cz /= static_cast<double>(r.size());
+        bool nested = false;
+        for (const auto& k : keep) {
+            if (inside({cx, cz}, k)) {
+                nested = true;
+                break;
+            }
+        }
+        if (!nested) {
+            keep.push_back(r);
+        }
+    }
+    // КАНОНИЧЕСКОЕ НАЧАЛО КОЛЬЦА — младшая точка: обход граней стартует с
+    // произвольной дуги, и без этого одна и та же кладка печаталась бы
+    // разными строками от прогона к прогону.
+    for (auto& r : keep) {
+        const auto it = std::min_element(r.begin(), r.end());
+        std::rotate(r.begin(), it, r.end());
+    }
+    return keep;
 }
 
 } // namespace detail
@@ -450,6 +753,7 @@ inline std::string fnum(double v) {
         }
     }
     std::sort(r.beams.begin(), r.beams.end());
+    r.wpoly = detail::wall_rings(detail::ground_wall_segs(g, pos));
 
     if (r.has_door) {
         const double cx = (r.g_lo[0] + r.g_hi[0]) / 2.0;
@@ -496,7 +800,7 @@ inline constexpr const char* MANIFEST_COLUMNS =
     "gx0 gy0 gz0 gx1 gy1 gz1 "
     "mx0 my0 mz0 mx1 my1 mz1 "
     "top wx0 wz0 wx1 wz1 "
-    "door_axis door_off dpx dpz face_off beams floor";
+    "door_axis door_off dpx dpz face_off beams floor wpoly";
 
 /// Обходит полку, замеряет КАЖДЫЙ .dfh и пишет dir/INDEX.txt.
 ///
@@ -561,6 +865,15 @@ inline constexpr const char* MANIFEST_COLUMNS =
     out += "#   floor       верх САМОЙ ШИРОКОЙ горизонтальной замкнутой плиты,\n";
     out += "#               целиком лежащей в пятне стен. У дома это пол; у\n";
     out += "#               прогона стены — боевой ход, у бордюра — его верх\n";
+    out += "#   wpoly       КОНТУР пятна стен: замкнутые кольца наземной кладки,\n";
+    out += "#               кольцо на корпус. Кольца через ';', точки через ',',\n";
+    out += "#               x и z через '/'. Обход ПРОТИВ ЧАСОВОЙ: наружная\n";
+    out += "#               нормаль стороны (a -> b) равна (dz, -dx)/|ab|.\n";
+    out += "#               Прямоугольник w* говорит, СКОЛЬКО МЕСТА занять;\n";
+    out += "#               wpoly — ГДЕ ИМЕННО СТОИТ СТЕНА, и у Г-образного\n";
+    out += "#               плана, у корпуса с крыльями и у мельницы с колесом\n";
+    out += "#               это разные ответы. '-' — колец нет (амбар на сваях,\n";
+    out += "#               лоток), читателю остаётся прямоугольник\n";
     out += "#\n";
     out += "# columns: ";
     out += MANIFEST_COLUMNS;
@@ -626,6 +939,24 @@ inline constexpr const char* MANIFEST_COLUMNS =
             }
         }
         line += ' ' + (r.has_floor ? detail::fnum(r.floor) : std::string("-"));
+        if (r.wpoly.empty()) {
+            line += " -";
+        } else {
+            line += ' ';
+            for (std::size_t i = 0; i < r.wpoly.size(); ++i) {
+                if (i != 0) {
+                    line += ';';
+                }
+                for (std::size_t j = 0; j < r.wpoly[i].size(); ++j) {
+                    if (j != 0) {
+                        line += ',';
+                    }
+                    line += detail::fnum(r.wpoly[i][j][0]);
+                    line += '/';
+                    line += detail::fnum(r.wpoly[i][j][1]);
+                }
+            }
+        }
         line += '\n';
         out += line;
         ++rows;
