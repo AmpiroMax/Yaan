@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 24:08:2026 - 12:40:00
-# Last updated: 24:08:2026 - 12:40:00
+# Last updated: 24:08:2026 - 14:05:00
 # Module: tools
 # File: tools/gen_city.py
 #
@@ -64,6 +64,14 @@
 #       ядро, жизнь, огонь, убранство, терраса), и оркестратор проходит фазы
 #       в том же порядке, в каком их звал прежний main(). Иначе байт-в-байт
 #       недостижимо в принципе, как бы ни совпадала геометрия.
+# - 24:08:2026 - 14:05:00: ШАПКА СЦЕНЫ СТАЛА ПАРАМЕТРОМ write_scene (просьба
+#   epoch-i15, зона И15 «интерьеры-локации»). Довод его, и он точный: у
+#   интерьерной сцены шапка отличается СОСТАВОМ, а не значениями — нет relief,
+#   нет world_span_m города, свой [air] и несколько [spawn]. Функция, которая
+#   печатает шапку внутри себя, годна ровно для одного вида сцен, а всё тело
+#   ниже шапки — общее, и делить его копией было бы дороже, чем передать
+#   десять строк параметром. Город зовёт city_header(); выпуск проверен —
+#   whiterun.scene побайтово тот же.
 import importlib
 import json
 import math
@@ -4796,15 +4804,27 @@ def check_ring_fabric(bands):
 # сцене на каждый вход; функция, которую можно позвать N+1 раз, — это ровно то
 # место, куда она встанет, и стоит она сегодня ничего.
 
-def write_scene(rel_path, terrain, places, houses, lights):
-    """Сцена: шапка паспорта, terrain-блоки, [place], [house], [light]."""
-    out = list(CITY.SCENE_HEADER) + [
+def city_header():
+    """Шапка ГОРОДСКОЙ сцены: карта, размер мира, рельеф, спавн, воздух."""
+    return list(CITY.SCENE_HEADER) + [
         f"map = {CITY.MAP_ZONE}/{OUT}",
         f"world_span_m = {SPAN}",
         f"relief = {OUT}.relief",
         f"spawn = {CITY.SPAWN[0]} {CITY.SPAWN[1]} {CITY.SPAWN[2]}",
         f"spawn_yaw = {CITY.SPAWN_YAW}", "",
         "[air]"] + [f"{k} = {v}" for k, v in CITY.AIR] + [""]
+
+def write_scene(rel_path, header, terrain, places, houses, lights):
+    """Сцена: готовая ШАПКА, terrain-блоки, [place], [house], [light].
+
+    ШАПКА — ПАРАМЕТР, А НЕ СОБСТВЕННОСТЬ ЭТОЙ ФУНКЦИИ, и просьба epoch-i15
+    (зона И15, интерьеры-локации) назвала причину точно: у интерьерной сцены
+    шапка ДРУГАЯ по составу, а не по значениям — нет relief, нет размера мира
+    города, свой [air] и несколько [spawn]. Функция, которая печатает шапку
+    сама, годна ровно для одного вида сцен; ниже неё всё тело — общее, и
+    делить его копией было бы хуже, чем передать десять строк параметром.
+    Город зовёт city_header(), интерьер построит свою."""
+    out = list(header)
     out.append("\n".join(terrain))
     for obj, x, y, z, yaw, note, sc in places:
         out += ["[place]", f"object = {obj}",
@@ -5372,7 +5392,8 @@ def main(city="whiterun"):
     n_kerb = kerbs_along(PATHS)
 
     # 15. ВЫПУСК.
-    write_scene(f"assets/scenes/{OUT}.scene", terrain, P, H, LIGHTS)
+    write_scene(f"assets/scenes/{OUT}.scene", city_header(), terrain,
+                P, H, LIGHTS)
     # ЗЕМЛЯ ГОРОДА КЛАССАМИ — перед записью рельефа, когда крыльца и
     # притяжения уже расставлены: ореол вытоптанного считается от НИХ.
     paint_ground(PLAN_H)
