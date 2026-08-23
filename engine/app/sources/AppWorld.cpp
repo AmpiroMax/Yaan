@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 23:08:2026 - 02:00:26
+Last updated: 23:08:2026 - 20:42:20
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -50,6 +50,7 @@ UPD:
 - 22:08:2026 - 23:50:11: растеризация маски троп (1/4 м, поперечник relief_path_wear) в render_system_.set_path_mask — кромка полотна из фрагмента, лечение «шевронов» круга 5.
 - 23:08:2026 - 01:17:49: паром SceneLight.flicker с дозой DFN_LIGHT_FLICKER (0 = ровный свет бит-в-бит).
 - 23:08:2026 - 02:00:26: маска троп несёт альфу 255 по всему полю — тексели с альфой 0 включали мип-эвристику листвы, и мип усреднял канал класса (лоскуты классов, которых нет в файле).
+- 23:08:2026 - 20:42:20: И0 — прибор времени загрузки (DFN_LOAD_LOG): этапы enter_world с миллисекундами; «24 с на 437 домов» в репо не существовало, теперь величина измерима.
 */
 
 #include "engine/app/sources/App.h"
@@ -232,8 +233,31 @@ void App::unload_world() {
 }
 
 bool App::enter_world(uint32_t stand) {
+    // ПРИБОР ВРЕМЕНИ ЗАГРУЗКИ (И0 эпохи 12 городов): «24 с на 437 домов»
+    // оказалось городской легендой — ни одного зафиксированного замера
+    // загрузки в репо не было, а масштабировать неизмеренную величину
+    // нельзя. DFN_LOAD_LOG=1 — печать этапов с миллисекундами; выключенный
+    // прибор не стоит ничего и кадра не касается вовсе.
+    const auto load_t0 = std::chrono::steady_clock::now();
+    static const bool load_log = [] {
+        const char* e = door_value("DFN_LOAD_LOG");
+        return e != nullptr && *e != '\0' && *e != '0';
+    }();
+    auto load_mark = [&, last = load_t0](const char* what) mutable {
+        if (!load_log) {
+            return;
+        }
+        const auto now_t = std::chrono::steady_clock::now();
+        const auto ms = [](auto d) {
+            return std::chrono::duration<double, std::milli>(d).count();
+        };
+        std::fprintf(stderr, "[load] %-28s %8.1f ms  (итого %8.1f)\n", what,
+                     ms(now_t - last), ms(now_t - load_t0));
+        last = now_t;
+    };
     // ПЕРВОЙ СТРОКОЙ — СНОС ТОГО, ЧТО УЖЕ СТОИТ (см. unload_world выше).
     unload_world();
+    load_mark("снос прежнего мира");
     active_stand_ = stand;
     // Chunk streaming: stage 2 serves the in-memory generated world (core's
     // open_generated path; .dfw file IO lands in stage 3). Testbed extent 4x4
@@ -413,6 +437,7 @@ bool App::enter_world(uint32_t stand) {
                     }
                 }
             }
+            load_mark("маска троп растеризована");
             render_system_.set_path_mask(std::move(mask), res, {0.0f, 0.0f},
                                          span);
         }
@@ -998,6 +1023,7 @@ bool App::enter_world(uint32_t stand) {
                              scene_emissive.triangle_count());
             }
             render_system_.set_scene_lights(std::move(lamps));
+            load_mark("свет композиции");
             if (!doc.lights.empty()) {
                 std::fprintf(stderr, "[scene] %zu lamp(s), %zu asking for a shadow; "
                                      "%u light the frame, %u of those cast\n",
@@ -1830,13 +1856,22 @@ bool App::enter_world(uint32_t stand) {
     // ГОТОВЫЕ ПОСТРОЙКИ КАРТЫ (секция [house], 20.08): графы из .dfh встают в
     // общие потоки и общий коллайдер постройки. После физики и сцены — им
     // нужны обе.
+    load_mark("мир и рассев до построек");
     load_scene_houses();
+    load_mark("постройки залиты (меши+AO+коллайдер)");
 
     // A DFN_TRAJ_REC run begins recording as soon as the world (and the stand it
     // stamps into the file) exists. The seed is this function's fixed worldgen
     // seed, recorded so a replay is checked against the world it was taken in.
     if (traj_rec_arm_ && !traj_rec_.active()) {
         traj_rec_.begin(active_stand_, 1u);
+    }
+    load_mark("мир готов");
+    if (load_log) {
+        const auto total = std::chrono::duration<double, std::milli>(
+                               std::chrono::steady_clock::now() - load_t0)
+                               .count();
+        std::fprintf(stderr, "[load] ГОРОД ЗАГРУЖЕН за %.1f ms\n", total);
     }
     return true;
 }
