@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 22:08:2026 - 23:48:18
+Last updated: 23:08:2026 - 18:10:03
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -65,6 +65,7 @@ UPD:
   u_params.w — признак «лист есть» (был «зарезервировано»).
 - 23:08:2026 - 00:30:00: aux2_texture привязывается на стадию 5 с нейтральной подстановкой.
 - 22:08:2026 - 23:48:18: aux3_texture привязывается на стадию 6 (маска троп): износ линейно, CLAMP, нейтральная подстановка.
+- 23:08:2026 - 18:10:03: params.z = -1 у эмиссивного дро (fs_prop выводит альбедо без освещения).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -289,7 +290,12 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     // u_params: x = texture bound, y = fade (screen-door dither below 1),
     // z = highlight, w = an aux material sheet is bound (bark normals). Per DRAW, unlike u_envParams which is per
     // frame — that split is the whole reason the DrawParams sync happened.
-    float params[4] = {0.0f, params_in.fade, params_in.highlight, params_in.aux0};
+    // ЭМИССИЯ — ОТРИЦАТЕЛЬНЫЙ z (24.08): hover неотрицателен по контракту,
+    // и знак z говорит fs_prop «выведи альбедо без освещения» — пламя и
+    // стекло фонаря горят независимо от бюджета точечных светов.
+    float params[4] = {0.0f, params_in.fade,
+                       params_in.emissive ? -1.0f : params_in.highlight,
+                       params_in.aux0};
     const auto tex_it = im.textures.find(texture.id);
     if (tex_it != im.textures.end()) {
         // Point-sampled material textures: Daggerfall crunch, and no bleed

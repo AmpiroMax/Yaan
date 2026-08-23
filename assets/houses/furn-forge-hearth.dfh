@@ -163,17 +163,17 @@ surface e3 v3 v4 style=- height=0.85 thickness=0.22 mat=3 tone=1 fill=3 wear=0
 surface e4 v4 v1 style=- height=0.85 thickness=0.22 mat=3 tone=1 fill=3 wear=0
 surface e5 v5 v6 v7 v8 style=- closed=1 thickness=0.100 mat=3 tone=1
 surface e6 v9 v10 v11 v12 style=- closed=1 thickness=0.060 mat=3 tone=2 paint=6
-surface e7 v13 v14 v15 v16 v17 v18 v19 v20 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=3
-surface e8 v21 v22 v23 v24 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=2
-surface e9 v25 v26 v27 v28 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=2
-surface e10 v29 v30 v31 v32 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=2
-surface e11 v33 v34 v35 v36 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=2
-surface e12 v37 v39 v41 v43 v45 v47 v49 v51 v53 v54 v52 v50 v48 v46 v44 v42 v40 v38 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=2
-surface e13 v55 v57 v59 v61 v63 v65 v67 v69 v71 v72 v70 v68 v66 v64 v62 v60 v58 v56 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=2
-surface e14 v73 v75 v77 v79 v81 v83 v85 v87 v89 v90 v88 v86 v84 v82 v80 v78 v76 v74 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=2
-surface e15 v91 v93 v95 v97 v99 v101 v103 v105 v107 v108 v106 v104 v102 v100 v98 v96 v94 v92 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=1
-surface e16 v109 v111 v113 v115 v117 v119 v121 v123 v125 v126 v124 v122 v120 v118 v116 v114 v112 v110 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=1
-surface e17 v127 v129 v131 v133 v135 v137 v139 v141 v143 v144 v142 v140 v138 v136 v134 v132 v130 v128 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=1
+surface e7 v13 v14 v15 v16 v17 v18 v19 v20 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=3 glow=1
+surface e8 v21 v22 v23 v24 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=2 glow=1
+surface e9 v25 v26 v27 v28 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=2 glow=1
+surface e10 v29 v30 v31 v32 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=2 glow=1
+surface e11 v33 v34 v35 v36 style=- closed=1 thickness=0.050 mat=5 tone=0 paint=2 glow=1
+surface e12 v37 v39 v41 v43 v45 v47 v49 v51 v53 v54 v52 v50 v48 v46 v44 v42 v40 v38 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=2 glow=1
+surface e13 v55 v57 v59 v61 v63 v65 v67 v69 v71 v72 v70 v68 v66 v64 v62 v60 v58 v56 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=2 glow=1
+surface e14 v73 v75 v77 v79 v81 v83 v85 v87 v89 v90 v88 v86 v84 v82 v80 v78 v76 v74 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=2 glow=1
+surface e15 v91 v93 v95 v97 v99 v101 v103 v105 v107 v108 v106 v104 v102 v100 v98 v96 v94 v92 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=1 glow=1
+surface e16 v109 v111 v113 v115 v117 v119 v121 v123 v125 v126 v124 v122 v120 v118 v116 v114 v112 v110 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=1 glow=1
+surface e17 v127 v129 v131 v133 v135 v137 v139 v141 v143 v144 v142 v140 v138 v136 v134 v132 v130 v128 style=- closed=1 thickness=0.02 mat=5 tone=0 paint=1 glow=1
 line e18 v145 v146 style=- radius=0.050 form=square mat=0 tone=2 paint=6
 surface e19 v147 v148 v149 v150 style=- closed=1 thickness=0.100 mat=3 tone=1 paint=0
 surface e20 v151 v152 v153 v154 style=- closed=1 thickness=0.100 mat=3 tone=1 paint=0

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 00:25:12
+Last updated: 23:08:2026 - 18:11:16
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -179,6 +179,7 @@ UPD:
 - 22:08:2026 - 23:14:42: tuft_params: пышность травы (DFN_GRASS_LUSH через set_grass_lushness) — плотность к середине полосы реестра, формы пучков гуще; 0 = прежний пол бит-в-бит.
 - 22:08:2026 - 23:49:20: ленивая заливка маски троп + привязка aux3 чанкам и LOD-кольцу.
 - 23:08:2026 - 00:25:12: сев пучков фильтруется полотном троп (PathClassField::covered, усадка 0.35 м) — трава не растёт сквозь мостовую.
+- 23:08:2026 - 18:11:16: DrawParams.emissive у самосветных потоков построек.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1157,6 +1158,9 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             // per-pixel, и никакой цвет вершины их не заменит (см. fs_prop).
             platform::DrawParams dp;
             dp.aux_texture = tex_of(st.normal_asset);
+            // Самосветный поток (пламя, стекло фонаря): без освещения —
+            // горит с любого расстояния независимо от бюджета светов.
+            dp.emissive = st.emissive;
             renderer.submit(platform::MeshHandle{st.mesh_id},
                             platform::ProgramHandle{prop_program_}, identity,
                             tex_of(st.texture_asset), dp);

@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 23:08:2026 - 07:20:00
+Last updated: 23:08:2026 - 18:11:50
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -58,6 +58,7 @@ UPD:
   части): «материал|тон» сливал город в ~15 мешей размером с карту, и
   отсечение не могло отвергнуть ничего по построению.
 - 23:08:2026 - 07:20:00: пятна построек для травы собираются при заливке (габарит по вершинам,
+- 23:08:2026 - 18:11:50: самосветные части (glow) уходят отдельными потоками с DrawParams.emissive; дверь DFN_HOUSE_GLOW (0 = прежние освещённые потоки бит-в-бит).
   усадка 0.45 — габарит несёт свес, трава у стены снаружи законна).
 */
 
@@ -768,11 +769,24 @@ void App::upload_house_mesh() {
                 };
                 const std::uint64_t cell_key =
                     (cell(anchor.x) << 6) | cell(anchor.z);
+                // САМОСВЕТНАЯ ЧАСТЬ — СВОЙ ПОТОК (24.08, владелец: «свет
+                // должен гореть всегда на любом удалении»): пламя и стекло
+                // фонаря (glow=1 рецепта) рисуются без освещения и горят
+                // независимо от бюджета точечных светов. Дверь-доза
+                // DFN_HOUSE_GLOW: 0 — флаг игнорируется, части живут в
+                // прежних освещённых потоках бит-в-бит.
+                static const bool glow_on = [] {
+                    const char* e = door_value("DFN_HOUSE_GLOW");
+                    return (e == nullptr || *e == '\0')
+                        || std::strtof(e, nullptr) > 0.5f;
+                }();
+                const bool part_glow = glow_on && part.emissive;
                 auto& st = streams[(cell_key << 16)
                                    | (static_cast<std::uint64_t>(surface) << 8)
-                                   | tone];
+                                   | (part_glow ? (1ull << 15) : 0ull) | tone];
                 st.surface = surface;
                 st.tone = tone;
+                st.emissive = part_glow;
                 into = &st.mesh;
             }
             for (std::uint32_t i = 0; i < part.index_count; ++i) {

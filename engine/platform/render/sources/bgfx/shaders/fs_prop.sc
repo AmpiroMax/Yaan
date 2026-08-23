@@ -74,6 +74,15 @@ void main()
                        f2.y);
         albedo *= 0.88 + 0.16 * n1 + 0.08 * n2;
     }
+    // САМОСВЕТНЫЙ ДРО (u_params.z < -0.5, UPD 23:08:2026 - 18:10:31): альбедо без
+    // освещения и без теней — пламя и стекло фонаря видны с любого
+    // расстояния и с любой грани, независимо от бюджета точечных светов.
+    // Воздух поверх остаётся: дальний огонь тает в дымке, как всё в мире;
+    // скотопик яркое не серит.
+    if (u_params.z < -0.5) {
+        gl_FragColor = vec4(dfn_aerial(v_wpos, albedo), 1.0);
+        return;
+    }
     // Vertex alpha is the sky-visibility channel (1.0 on everything built
     // above ground); dfn_surface_light adds moon and torch on top of sun.
     vec3 lit = albedo * dfn_surface_light(v_wpos, n, vis, v_color0.a);

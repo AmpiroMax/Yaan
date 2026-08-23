@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 23:08:2026 - 01:17:49
+Last updated: 23:08:2026 - 18:11:50
 Module: engine/app
 File: engine/app/sources/AppDoors.cpp
 
@@ -25,6 +25,7 @@ UPD:
 - 22:08:2026 - 17:45:00: DFN_HOUSE_AO в таблице (65 -> 66, не безлюдная).
 - 22:08:2026 - 23:15:13: DFN_GRASS_LUSH в таблице (66 -> 67, читает AppWorld).
 - 23:08:2026 - 01:17:49: DFN_LIGHT_FLICKER в таблице (67 -> 68, читает AppWorld).
+- 23:08:2026 - 18:11:50: DFN_HOUSE_GLOW в таблице (68 -> 69, читает AppHouse).
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -41,7 +42,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 68> TABLE{{
+constexpr std::array<Door, 69> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -180,6 +181,11 @@ constexpr std::array<Door, 68> TABLE{{
     {"DFN_CAM_TRACE",
      "печатать на каждом кадре редактора пару «пришло смещение мыши / стал рыск». Заведена потому, что «мышь не дошла» и «камера проигнорировала» выглядели одинаково три захода подряд.",
      DoorRead::Once},
+    {"DFN_HOUSE_GLOW",
+     "доза самосветных деталей построек (glow=1 рецепта — пламя, стекло "
+     "фонаря): 1 (дефолт) — рисуются без освещения и горят на любом "
+     "удалении; 0 — прежние освещённые потоки бит-в-бит.",
+     DoorRead::Once, false},
     {"DFN_LIGHT_FLICKER",
      "доза мерцания живого огня (ключ flicker у [light]): 0 — ровный свет "
      "бит-в-бит; 1 (дефолт) — жаровни и очаги дышат, фаза из позиции.",

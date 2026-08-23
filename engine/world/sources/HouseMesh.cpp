@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 23:08:2026 - 02:01:25
+Last updated: 23:08:2026 - 18:09:35
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -46,6 +46,7 @@ UPD:
 - 22:08:2026 - 17:45:00: тело bake_house_sky_visibility().
 - 22:08:2026 - 22:46:52: AO крупных горизонтальных панелей усредняется по части: интерполяция от тёмного угла тянула КЛИН через плиту 2х2 м, триангуляция проступала тенью (владелец: «чёрные треугольники на террасе»). Порог 3 м², грани n.y>0.7.
 - 23:08:2026 - 02:01:25: AO-печка: косинусные веса и деление на их сумму — мера перестала штрафовать за наклон (скат терял половину веера по касательной, потолок стены был 0.5).
+- 23:08:2026 - 18:09:35: mb.glow из ElementParams — самосветные элементы (пламя, стекло).
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -138,6 +139,7 @@ HouseMesh build_house_mesh(const HouseGraph& g) {
         for (const ParamIssue& is : issues) {
             mesh.findings.push_back({id, MeshIssue::UnknownParam, 0.0f, is.token + ": " + is.why});
         }
+        mb.glow = p.glow > 0.5f;
         mb.begin_element(id);
         if (e->kind == ElementKind::Line) {
             build_line(g, *e, p, mb, mesh);

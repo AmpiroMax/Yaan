@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 00:40:00
+Last updated: 23:08:2026 - 18:09:35
 Module: engine/world
 File: engine/world/sources/HouseParams.cpp
 
@@ -25,6 +25,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
+- 23:08:2026 - 18:09:35: ключ glow в таблице параметров (самосвечение детали).
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -79,6 +80,7 @@ std::span<const ParamSlot> param_slots() {
         {"porch", &ElementParams::porch},     {"plinth", &ElementParams::plinth},
         {"roof", &ElementParams::roof},       {"unsupported", &ElementParams::unsupported},
         {"open", &ElementParams::open},       {"beams", &ElementParams::beams},
+        {"glow", &ElementParams::glow},
     };
     return slots;
 }

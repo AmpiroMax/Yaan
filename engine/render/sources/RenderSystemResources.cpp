@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 23:08:2026 - 17:59:57
+Last updated: 23:08:2026 - 18:11:16
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -80,6 +80,7 @@ UPD:
 - 22:08:2026 - 22:52:34: softness едет через кандидатов в PointLight (мягкость источника из сцены).
 - 23:08:2026 - 01:17:49: мерцание огня: модуляция цвета кандидата от времени сцены и фазы позиции (flicker из [light]).
 - 23:08:2026 - 17:59:57: бюджет светов: дверь DFN_LIGHT_BUDGET (дефолт 16, 8 = прежняя рука), сортировка по значимости d/r, растворение в той же шкале.
+- 23:08:2026 - 18:11:16: emissive переносится в HouseStreamGpu на заливке.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -429,7 +430,7 @@ void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
             house_streams_.push_back(
                 {h.id, house_tile_asset(renderer, st.surface, st.tone),
                  house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true),
-                 box});
+                 box, st.emissive});
         }
     }
     for (HouseDoor& d : doors) {

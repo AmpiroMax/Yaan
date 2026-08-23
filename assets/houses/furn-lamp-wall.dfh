@@ -49,8 +49,8 @@ line e6 v14 v15 style=- radius=0.018 form=square mat=0 tone=2 paint=6
 line e7 v16 v17 style=- radius=0.018 form=square mat=0 tone=2 paint=6
 line e8 v18 v19 style=- radius=0.018 form=square mat=0 tone=2 paint=6
 line e9 v20 v21 style=- radius=0.018 form=square mat=0 tone=2 paint=6
-surface e10 v22 v23 v24 v25 style=- closed=1 thickness=0.020 mat=5 tone=0 paint=2
-surface e11 v26 v27 v28 v29 style=- closed=1 thickness=0.020 mat=5 tone=0 paint=2
-surface e12 v30 v31 v32 v33 style=- closed=1 thickness=0.020 mat=5 tone=0 paint=2
-surface e13 v34 v35 v36 v37 style=- closed=1 thickness=0.020 mat=5 tone=0 paint=2
+surface e10 v22 v23 v24 v25 style=- closed=1 thickness=0.020 mat=5 tone=0 paint=2 glow=1
+surface e11 v26 v27 v28 v29 style=- closed=1 thickness=0.020 mat=5 tone=0 paint=2 glow=1
+surface e12 v30 v31 v32 v33 style=- closed=1 thickness=0.020 mat=5 tone=0 paint=2 glow=1
+surface e13 v34 v35 v36 v37 style=- closed=1 thickness=0.020 mat=5 tone=0 paint=2 glow=1
 surface e14 v38 v39 v40 v41 style=- closed=1 thickness=0.040 mat=0 tone=2 paint=6

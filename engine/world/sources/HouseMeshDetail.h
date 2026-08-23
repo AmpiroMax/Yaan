@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 23:08:2026 - 05:20:00
+Last updated: 23:08:2026 - 18:09:35
 Module: engine/world
 File: engine/world/sources/HouseMeshDetail.h
 
@@ -31,6 +31,7 @@ UPD:
 - 21:08:2026 - 14:35:00: MeshBuilder.collider_only - флаг проносится в
   MeshPart при flush_part (пандус лестниц: физика без картинки).
 - 23:08:2026 - 05:20:00: push_prism получил uv_shift (сдвиг фазы плитки в метрах; ноль —
+- 23:08:2026 - 18:09:35: MeshBuilder.glow — самосвечение элемента переносится в части.
   прежняя рамка бит-в-бит) — против «дощечек-клонов» (владелец 23.08).
 */
 
@@ -70,6 +71,8 @@ struct MeshBuilder {
     bool collider = true;
     /// ФИЗИКА БЕЗ КАРТИНКИ: часть уходит в parts с пометкой collider_only.
     bool collider_only = false;
+    /// САМОСВЕЧЕНИЕ ЭЛЕМЕНТА (glow=1): все его части эмиссивны.
+    bool glow = false;
 
     void begin_element(ElementId id) {
         part_element = id;
@@ -81,7 +84,7 @@ struct MeshBuilder {
         const std::uint32_t now = static_cast<std::uint32_t>(out->indices.size());
         if (part_element != NO_ELEMENT && now > part_begin) {
             out->parts.push_back({part_element, part_begin, now - part_begin, part_mat,
-                                  part_tone, collider_only});
+                                  part_tone, collider_only, glow});
         }
         part_begin = now;
     }

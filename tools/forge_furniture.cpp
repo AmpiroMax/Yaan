@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 13:20:00
-Last updated: 23:08:2026 - 00:20:00
+Last updated: 23:08:2026 - 18:13:32
 Module: tools
 File: tools/forge_furniture.cpp
 
@@ -234,6 +234,7 @@ UPD:
   сантиметры отвечали на неровность ЗЕМЛИ и промахнулись мимо неровности
   КРОМКИ; число записано в правило посадки рецепта.
 - 23:08:2026 - 00:20:00: ТОН БОРДЮРА ПОДТВЕРЖДЁН НА КАДРЕ — только запись
+- 23:08:2026 - 18:13:32: glow=1 у пламени (лепестки, угли) и стёкол фонарей — самосветные детали, горят на любом удалении (движковый путь эмиссии 24.08).
   замера, ни одного байта выпечки (все 110 .dfh те же).
   ЗАПИСЫВАЕТСЯ, ПОТОМУ ЧТО БЕЗ ЭТОГО СЛЕДУЮЩИЙ ЗАХОД ОТМЕНИТ ПРАВКУ. В шапке
   рецепта до сих пор стояло АЛЬБЕДО (плитка на краску) и ДОГАДКА про тёплый
@@ -260,6 +261,7 @@ UPD:
 
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
+#include "engine/world/sources/HouseMesh.h"
 
 #include <algorithm>
 #include <cmath>
@@ -286,6 +288,10 @@ using dfn::world::HouseGraph;
 using dfn::world::VertexId;
 
 using Params = std::initializer_list<std::pair<const char*, const char*>>;
+
+/// Рецепты, которым ОТКАЗАЛ судья связности. Список, а не флаг: оператору
+/// нужны имена всех, а не факт, что где-то плохо.
+std::vector<std::string> g_refused;
 
 /// Рука над графом: рецепт читается как список деталей, а не как API-вязь.
 struct Forge {
@@ -432,7 +438,17 @@ struct Forge {
         return id;
     }
 
+    /// СВЯЗНОСТЬ ПРОВЕРЯЕТСЯ ДО ЗАПИСИ, И ОТКАЗ НЕ ПИШЕТ ФАЙЛ — то же правило и
+    /// та же рука, что у кузницы домов (dfn::world::house_connect_refusal).
+    /// Предмет, распавшийся на острова, — это пламя, висящее над жаровней, или
+    /// полка, не касающаяся стойки.
     void save(const std::string& path) {
+        std::string why;
+        if (dfn::world::house_connect_refusal(g, why)) {
+            std::fprintf(stderr, "forge: ОТКАЗ %s — %s\n", path.c_str(), why.c_str());
+            g_refused.push_back(path);
+            return;
+        }
         const std::string text = dfn::world::write_house(g);
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f) {
@@ -757,7 +773,7 @@ void flame_petal(Forge& f, float cx, float cz, float y0, float H, float W,
     }
     (void)f.contour(std::move(ring),
                     {{"thickness", "0.02"}, {"mat", "5"}, {"tone", "0"},
-                     {"paint", paint}});
+                     {"paint", paint}, {"glow", "1"}});
 }
 
 /// ПУЧОК ПЛАМЕНИ: три наружных языка охрой и три внутренних белилами вполовину
@@ -783,7 +799,7 @@ void flame_cluster(Forge& f, float cx, float cz, float y0, float H, float W) {
 /// Пустая тёмная плита читается ямой, а не жаром (та же находка, что у грядки:
 /// «пустая коричневая плита читается лужей»).
 void ember_bed(Forge& f, float cx, float cz, float y_top, float r) {
-    f.disc8(cx, cz, r, y_top, 0.05f, "5", "0", {{"paint", "3"}});
+    f.disc8(cx, cz, r, y_top, 0.05f, "5", "0", {{"paint", "3"}, {"glow", "1"}});
     for (int k = 0; k < 4; ++k) {
         const float a = 1.5707963f * static_cast<float>(k) + 0.4f;
         const float rr = r * 0.45f;
@@ -791,7 +807,7 @@ void ember_bed(Forge& f, float cx, float cz, float y_top, float r) {
         const float ez = cz + rr * std::sin(a);
         const float s = r * (0.16f + 0.05f * static_cast<float>(k % 3));
         f.slab(ex - s, ez - s, ex + s, ez + s, y_top + 0.03f, 0.05f, "5", "0",
-               {{"paint", "2"}});
+               {{"paint", "2"}, {"glow", "1"}});
     }
 }
 
@@ -872,7 +888,12 @@ void forge_brazier_fire() {
               "0", "2", "square", iron);
     }
     ember_bed(f, cx, cz, POST + 0.12f, 0.22f);
-    flame_cluster(f, cx, cz, RIM + 0.02f, 0.62f, 0.17f);
+    // ПЛАМЯ РАСТЁТ ИЗ УГЛЕЙ, А НЕ НАД НИМИ. Прежняя подошва RIM + 0.02 = 2.30
+    // стояла на 0.075 выше верха углей (2.225): судья связности честно назвал
+    // пламя отдельным островом — костёр, висящий над жаровней. Подошва
+    // опущена на постель углей; верх пламени 2.82, и точка света раскладчика
+    // (2.75) по-прежнему внутри тела пламени, а не над ним.
+    flame_cluster(f, cx, cz, POST + 0.15f, 0.62f, 0.17f);
 
     f.save("assets/houses/furn-brazier-fire.dfh");
 }
@@ -1446,7 +1467,11 @@ float lantern_box(Forge& f, float cx, float cz, float y_bot, float s, float h) {
     const float y_top = y_bot + h;
     const float g0 = y_bot + 0.05f;  ///< низ стекла
     const float g1 = y_top - 0.03f;  ///< верх стекла
-    const Params glass = {{"paint", "2"}};
+    // glow=1 (24.08, владелец: «свет должен гореть всегда на любом
+    // удалении»): стекло — самосветная деталь, рисуется без освещения и
+    // горит со всех четырёх граней с любого расстояния, независимо от
+    // бюджета точечных светов (движковый путь MeshPart.emissive).
+    const Params glass = {{"paint", "2"}, {"glow", "1"}};
 
     // Поддон: короб без дна читается рамкой.
     f.slab(cx - s, cz - s, cx + s, cz + s, y_bot + 0.04f, 0.04f, "0", "2", iron);
@@ -1709,5 +1734,13 @@ int main() {
     forge_bench_arc("assets/houses/furn-bench-arc.dfh", 4.0f, 45.0f, 7);
     forge_planter("assets/houses/furn-planter.dfh", true);
     forge_planter("assets/houses/furn-planter-w.dfh", false);
+    if (!g_refused.empty()) {
+        std::fprintf(stderr, "forge: ОТКАЗАНО ПО СВЯЗНОСТИ, рецептов %zu:\n",
+                     g_refused.size());
+        for (const std::string& p : g_refused) {
+            std::fprintf(stderr, "  %s\n", p.c_str());
+        }
+        return 3;
+    }
     return 0;
 }

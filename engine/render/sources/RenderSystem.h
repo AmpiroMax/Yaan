@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 23:08:2026 - 01:17:49
+Last updated: 23:08:2026 - 18:11:16
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -176,6 +176,7 @@ UPD:
 - 22:08:2026 - 23:14:42: set_grass_lushness/grass_lushness_ — пышность травы за дверью DFN_GRASS_LUSH (0 = прежняя бит-в-бит).
 - 22:08:2026 - 23:49:20: set_path_mask — маска троп мира (износ+класс во фрагмент, круг 5 «шевроны»); ленивая заливка текстуры на кадре.
 - 23:08:2026 - 01:17:49: flicker у ExtraLight/PointLightCandidate — мерцание доезжает до модуляции цвета.
+- 23:08:2026 - 18:11:16: emissive у HouseStream/HouseStreamGpu — самосветные потоки построек.
   пересевает уже выращенное.
 */
 
@@ -683,6 +684,8 @@ public:
         MeshData mesh;
         std::uint32_t surface = 0; ///< PartSurface ordinal
         std::uint32_t tone = 1;    ///< PartTone ordinal
+        /// Самосветный поток (24.08): рисуется без освещения (пламя, стекло).
+        bool emissive = false;
     };
     /// ДВЕРЬ — СВОЙ ПОТОК С ПЕТЛЁЙ (заказ 19.08: стена со свойством «дверь»
     /// получает анимацию вокруг выбранной пары якорей). Рисуется той же
@@ -724,6 +727,7 @@ private:
         /// и отсекать было нечего. Пространственная нарезка потоков (см.
         /// AppHouse) возвращает отсечению предмет работы.
         math::Aabb bounds{};
+        bool emissive = false; ///< самосветный поток — DrawParams.emissive
     };
     struct HouseDoorGpu {
         uint32_t mesh_id = 0;

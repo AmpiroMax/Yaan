@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:06:00
-Last updated: 23:08:2026 - 17:59:57
+Last updated: 23:08:2026 - 18:10:03
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -108,6 +108,7 @@ UPD:
 - 22:08:2026 - 22:51:38: PointLight.softness — мягкость источника 0..1 (wrap-диффуз + пологое затухание, дробная часть w цвета в envParams; только добавление).
 - 22:08:2026 - 23:48:18: DrawParams.aux3_texture (стадия 6, маска троп) и RenderEnvironment.path_mask_* — тропа из фрагмента; только добавления.
 - 23:08:2026 - 17:59:57: MAX_POINT_LIGHTS 8 -> 16 — свет города горит на удалении (заказ владельца 24.08); слоты первых восьми прежние.
+- 23:08:2026 - 18:10:03: DrawParams.emissive — самосветный дро (кодируется отрицательным z у u_params); только добавление.
   света (свет принадлежит помещению, а не радиусу; гейт по AO оставлял течь
   6.9% на наружной кладке). Только добавление.
 */
@@ -217,6 +218,10 @@ inline constexpr uint32_t MAX_SHADOW_POINT_LIGHTS = 2;
 struct DrawParams {
     float fade = 1.0f;      // 1 = fully drawn; screen-door dither below that
     float highlight = 0.0f; // 0 = none; interaction hover and similar
+    /// САМОСВЕТНЫЙ дро (24.08): фрагмент выводит альбедо без освещения —
+    /// пламя и стекло фонаря горят с любого расстояния и с любой грани.
+    /// Едет отрицательным z в u_params (hover неотрицателен по контракту).
+    bool emissive = false;
     float aux0 = 0.0f;      // reserved, meaning is the program's
     float aux1 = 0.0f;
     // False for STAND-IN geometry that disagrees with the fine world by
