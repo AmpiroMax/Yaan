@@ -189,7 +189,7 @@ surface e40 v40 v41 v42 v43 style=- closed=1 thickness=0.1 fill=6 open=1 mat=1 t
 line e41 v44 v45 style=- radius=0.12 mat=0 tone=2
 line e42 v46 v47 style=- radius=0.12 mat=0 tone=2
 line e43 v48 v49 style=- radius=0.09 form=square mat=0 tone=2
-surface e44 v50 v51 v52 v53 style=- closed=1 thickness=0.12 mat=1 tone=2 fill=7 wear=0.65 roof=1 unsupported=1
+surface e44 v50 v51 v52 v53 style=- closed=1 thickness=0.12 mat=1 tone=1 fill=7 wear=0.65 roof=1 unsupported=1
 surface e45 v54 v13 style=- height=1.2 thickness=0.3 mat=3 tone=1 fill=3 wear=0.8
 surface e46 v19 v55 style=- height=1.2 thickness=0.3 mat=3 tone=1 fill=3 wear=0.8
 surface e47 v56 v54 style=- height=1.2 thickness=0.3 mat=3 tone=1 fill=3 wear=0.8

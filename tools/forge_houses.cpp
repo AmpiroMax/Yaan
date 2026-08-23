@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 24:08:2026 - 03:10:00
+Last updated: 23:08:2026 - 03:05:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -430,6 +430,27 @@ UPD:
   (4) Уклон разведён по рецептам: домик 1.5 -> 2.2 м конька (24 -> 33 гр.),
   усадьба 2.7 -> 2.4 (35 -> 32); труба домика поднята за коньком тем же
   числом. Перепечены 16 .dfh из 149, остальные 133 БИТ В БИТ (shasum).
+- 23:08:2026 - 03:05:00: НАСТИЛ ПОД ДРАНКОЙ ПЕРЕСТАЁТ ЧЕРНИТЬ СКАТ (короткий
+  хвост закрытой волны кровель). Прошлый заход выжег tone=2 у СКАТОВ, но
+  настилы ПОД рядами дранки остались Dark, и это было незаметно ровно до тех
+  пор, пока ряды лежали в одной плоскости: настила не было видно вообще.
+  После подъёма рядов по номеру (HouseRoof.cpp, волна 23.08) настил
+  проглядывает МЕЖДУ рядами и полосой у карниза — и скат снова читался чёрным
+  пятном. Семь настилов (навесы city-shop/-old, city-house-l/-old,
+  city-manor/-old и портик city-temple — ВСЕ поверхности fill=7 с tone=2 в
+  дереве, у city-keep настил и так был Mid) переведены в tone=1.
+  ЗАМЕР: одна поза, ОДИН бинарник, один кадр до и после — портик храма и газон
+  перед ним в одном кадре (DFN_TIME=0.45,
+  DFN_EDITOR_CAM_REL="89.0,6.5,121.5,0.0,-0.40", houses/whiterun). Коробки —
+  ГЕОМЕТРИЯ, одни и те же пиксели в обеих руках (правило measure_aerial):
+  скат 950,630 700x70; газон 800,1130 800x160. ДРАНКА 65.47 -> 111.30 люмы
+  при ГАЗОНЕ 89.13 -> 89.13 — контрольная величина не двинулась ни на сотую,
+  значит меряли правку, а не погоду. Порог приёмки «люма кровли > люма газона»
+  у дранки ВЫПОЛНЕН (111.3 > 89.1); прошлый замер 79.4 против 96.5 его не
+  проходил и был снят ДО движковых правок печки (47942d6). Перепечено 7 .dfh
+  из 149, остальные 142 БИТ В БИТ (shasum). Полный записанный прогон
+  генератора: assets/scenes/whiterun.scene вышла БАЙТ В БАЙТ прежней — тон
+  настила не двигает ни одной посадки.
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -2511,7 +2532,7 @@ static void forge_shop(Aging age) {
         const VertexId d = f.v(-0.3f, 2.35f, D + 2.4f);
         const ElementId s = f.contour({a, b, c, d},
                                       {{"thickness", "0.12"}, {"mat", "1"},
-                                       {"tone", "2"}, {"fill", "7"},
+                                       {"tone", "1"}, {"fill", "7"},
                                        {"wear", age.w(0.4f)}});
         (void)f.g.set_param(s, "roof", "1");
         (void)f.g.set_param(s, "unsupported", "1");
@@ -2701,7 +2722,7 @@ static void forge_temple() {
         const VertexId d = f.v(W * 0.5f - 3.3f, 3.35f, D + 2.6f);
         const ElementId s = f.contour({a, b, c, d},
                                       {{"thickness", "0.15"}, {"mat", "1"},
-                                       {"tone", "2"}, {"fill", "7"},
+                                       {"tone", "1"}, {"fill", "7"},
                                        {"wear", "0.35"}});
         (void)f.g.set_param(s, "roof", "1");
         (void)f.g.set_param(s, "unsupported", "1");
@@ -3505,7 +3526,7 @@ static void forge_house_large(Aging age) {
         const VertexId d = f.v(7.3f, Y1 + 2.35f, D + 1.6f);
         const ElementId s = f.contour({a, b, c, d},
                                       {{"thickness", "0.12"}, {"mat", "1"},
-                                       {"tone", "2"}, {"fill", "7"},
+                                       {"tone", "1"}, {"fill", "7"},
                                        {"wear", age.w(0.4f)}});
         (void)f.g.set_param(s, "roof", "1");
         (void)f.g.set_param(s, "unsupported", "1");
@@ -3637,7 +3658,7 @@ static void forge_manor(Aging age) {
         const VertexId d = f.v(11.0f, 2.65f, 9.6f);
         const ElementId s = f.contour({a, b, c, d},
                                       {{"thickness", "0.12"}, {"mat", "1"},
-                                       {"tone", "2"}, {"fill", "7"},
+                                       {"tone", "1"}, {"fill", "7"},
                                        {"wear", age.w(0.35f)}});
         (void)f.g.set_param(s, "roof", "1");
         (void)f.g.set_param(s, "unsupported", "1");
