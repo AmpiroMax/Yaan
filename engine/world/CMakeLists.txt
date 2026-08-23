@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 21:08:2026 - 00:40:00
+# Last updated: 23:08:2026 - 18:05:00
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -100,6 +100,10 @@
 #   каких треугольников это сделано». Раскладка проверяется числами БЕЗ окна, и
 #   она не знает ни про вершины, ни про нормали.
 # - 21:08:2026 - 00:40:00: HouseMesh.cpp разрезан на модули по файлу на алгоритм (решение пользователя).
+# - 23:08:2026 - 18:05:00: HouseConnect.cpp — связность постройки: граф контактов тел
+#   коллайдера и его компоненты (заказ владельца «верхние яруса не присоединены
+#   к башне»). Отдельным файлом по тому же правилу: это ПРАВИЛО-СУДЬЯ, а не
+#   построитель, и вызывается оно кузницей, а не сборкой меша.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -108,6 +112,7 @@ add_library(dfn_world STATIC
     sources/LayoutLoad.cpp
     sources/ReliefLayer.cpp
     sources/SaveDelta.cpp
+    sources/HouseConnect.cpp
     sources/HouseFile.cpp
     sources/HouseBodies.cpp
     sources/HouseGeom.cpp

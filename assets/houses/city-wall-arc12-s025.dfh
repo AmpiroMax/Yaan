@@ -23,24 +23,36 @@ vertex v21 free 6.8313 4.3000 -2.0049
 vertex v22 free 8.4936 4.3000 -2.0445
 vertex v23 free 10.1544 4.3000 -2.1236
 vertex v24 free 11.8128 4.3000 -2.2422
-vertex v25 free 11.9043 4.3000 -1.1460
-vertex v26 free 10.2198 4.3000 -1.0256
-vertex v27 free 8.5328 4.3000 -0.9452
-vertex v28 free 6.8444 4.3000 -0.9050
-vertex v29 free 5.1556 4.3000 -0.9050
-vertex v30 free 3.4672 4.3000 -0.9452
-vertex v31 free 1.7802 4.3000 -1.0256
-vertex v32 free 0.0957 4.3000 -1.1460
-vertex v33 free 0.4790 6.0000 0.0384
-vertex v34 free 1.3768 6.0000 0.1017
-vertex v35 free 2.8774 6.0000 0.1824
-vertex v36 free 3.7767 6.0000 0.2157
-vertex v37 free 5.2792 6.0000 0.2464
-vertex v38 free 6.1792 6.0000 0.2498
-vertex v39 free 7.6818 6.0000 0.2304
-vertex v40 free 8.5814 6.0000 0.2038
-vertex v41 free 10.0825 6.0000 0.1344
-vertex v42 free 10.9808 6.0000 0.0778
+vertex v25 free 12.0000 4.3000 0.0000
+vertex v26 free 10.2881 4.3000 0.1224
+vertex v27 free 8.5739 4.3000 0.2041
+vertex v28 free 6.8581 4.3000 0.2449
+vertex v29 free 5.1419 4.3000 0.2449
+vertex v30 free 3.4261 4.3000 0.2041
+vertex v31 free 1.7119 4.3000 0.1224
+vertex v32 free 0.0000 4.3000 0.0000
+vertex v33 free 0.0000 3.5500 0.0000
+vertex v34 free 0.1664 4.1600 -1.9931
+vertex v35 free 2.3973 3.5500 0.1600
+vertex v36 free 2.4972 4.1600 -1.8375
+vertex v37 free 4.7987 3.5500 0.2400
+vertex v38 free 4.8320 4.1600 -1.7597
+vertex v39 free 7.2013 3.5500 0.2400
+vertex v40 free 7.1680 4.1600 -1.7597
+vertex v41 free 9.6027 3.5500 0.1600
+vertex v42 free 9.5028 4.1600 -1.8375
+vertex v43 free 12.0000 3.5500 0.0000
+vertex v44 free 11.8336 4.1600 -1.9931
+vertex v45 free 0.4790 6.0000 0.0384
+vertex v46 free 1.3768 6.0000 0.1017
+vertex v47 free 2.8774 6.0000 0.1824
+vertex v48 free 3.7767 6.0000 0.2157
+vertex v49 free 5.2792 6.0000 0.2464
+vertex v50 free 6.1792 6.0000 0.2498
+vertex v51 free 7.6818 6.0000 0.2304
+vertex v52 free 8.5814 6.0000 0.2038
+vertex v53 free 10.0825 6.0000 0.1344
+vertex v54 free 10.9808 6.0000 0.0778
 surface e1 v1 v2 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
 surface e2 v3 v4 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
 surface e3 v5 v6 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
@@ -50,8 +62,14 @@ surface e6 v11 v12 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0
 surface e7 v13 v14 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
 surface e8 v15 v16 style=- height=6.00 thickness=1.20 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
 surface e9 v17 v18 v19 v20 v21 v22 v23 v24 v25 v26 v27 v28 v29 v30 v31 v32 style=- closed=1 thickness=0.2 mat=1 tone=2 unsupported=1
-surface e10 v33 v34 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
-surface e11 v35 v36 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
-surface e12 v37 v38 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
-surface e13 v39 v40 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
-surface e14 v41 v42 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+line e10 v33 v34 style=- radius=0.09 form=square mat=0 tone=2 wear=0.55
+line e11 v35 v36 style=- radius=0.09 form=square mat=0 tone=2 wear=0.55
+line e12 v37 v38 style=- radius=0.09 form=square mat=0 tone=2 wear=0.55
+line e13 v39 v40 style=- radius=0.09 form=square mat=0 tone=2 wear=0.55
+line e14 v41 v42 style=- radius=0.09 form=square mat=0 tone=2 wear=0.55
+line e15 v43 v44 style=- radius=0.09 form=square mat=0 tone=2 wear=0.55
+surface e16 v45 v46 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e17 v47 v48 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e18 v49 v50 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e19 v51 v52 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1
+surface e20 v53 v54 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.55 unsupported=1

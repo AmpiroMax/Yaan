@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 23:08:2026 - 03:05:00
+Last updated: 23:08:2026 - 18:45:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -451,10 +451,44 @@ UPD:
   из 149, остальные 142 БИТ В БИТ (shasum). Полный записанный прогон
   генератора: assets/scenes/whiterun.scene вышла БАЙТ В БАЙТ прежней — тон
   настила не двигает ни одной посадки.
+- 23:08:2026 - 18:45:00: СВЯЗНОСТЬ ПОСТРОЙКИ — судья в кузне и шесть починок по его
+  находкам (заказ владельца 23.08: «башни кривые, их верхние яруса не
+  присоединены к башне; ты проверял алгоритмами связности?»).
+  СУДЬЯ. Forge::save зовёт house_connect_refusal ДО записи: постройка,
+  распавшаяся на острова, НЕ ПИШЕТСЯ, имена копятся в g_refused, main
+  возвращает 3. Отказ не останавливает прогон на первом рецепте нарочно —
+  кузница перепекает всю полку разом, и остановка показала бы ровно один
+  дефект за прогон. Вторая рука того же бинарника: `dfn_houses --check`
+  судит ГОТОВЫЕ .dfh (149 из 149 OK, допуск 0.020 м).
+  ЧТО ОН НАШЁЛ — 24 постройки, и главная причина ОДНА: контур растёт от своей
+  высоты В ОБЕ СТОРОНЫ, значит верх плиты на y — это y + толщина/2, а рецепты
+  ставили следующий ярус на y + толщина. Башня вывешивала парапет с шатром на
+  0.125 (0.25/2), донжон — двенадцать зубцов на 0.150 (0.3/2), башенки замка —
+  шатрики на 0.047 по нормали ската (0.2/2 по вертикали). Починено отсчётом
+  P = H + полтолщины; заодно ось зубца отодвинута внутрь на полтолщины (лицо
+  зубца встаёт заподлицо со стволом, а не свисает половиной наружу), а шатёр
+  башни сел на ЧЕТЫРЕ УГЛОВЫЕ СТОЙКИ с площадки — прежде вся кровля висела на
+  волосяном касании со срезом зубца (пересчёт: 4.5 мм).
+  БОЕВОЙ ХОД НЕ КАСАЛСЯ СТЕНЫ НИЧЕМ. Полка начиналась в 0.55 м от лица
+  (crenellated_run и crenellated_arc — семнадцать прогонов стены и ворота): по
+  такому «настилу» нельзя идти, между ним и стеной полметра пустоты. Ближняя
+  кромка уведена НА ОСЬ стены (правило «всё крепится к осям»), дальняя осталась
+  на месте — ходибельная полка стала 1.65 вместо 1.10 и НАЧИНАЕТСЯ ОТ СТЕНЫ;
+  под ней встали кронштейны шагом ~2.4 м.
+  КОЛОДЕЦ: столбы кончались на 2.2, а кровля начиналась с 2.5 — крыша висела
+  отдельным островом. Столбы доведены до 2.50 (это (карниз + подъём) − 0.30,
+  куда gable_roof сажает головы стропил) и связаны ПРОГОНОМ по той же оси.
+  РИГЕЛЬ ЛЕСТНИЧНОГО ПРОЁМА у city-house-l — вторая половина заказа (§12
+  HOUSES.md): балки перекрытия, дошедшие до кромки проёма, обрывались в воздух.
+  ПЕРЕПЕЧЕНО 23 .dfh из 149, остальные 126 БИТ В БИТ (shasum до и после).
+  Сцена города НЕ перегенерировалась: посадки от геометрии домов не зависят, и
+  контрольный прогон gen_whiterun.py это подтвердил (check_floors 26 из 26,
+  мебель 205 из 205).
 */
 
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
+#include "engine/world/sources/HouseMesh.h"
 
 #include <algorithm>
 #include <cmath>
@@ -465,7 +499,9 @@ UPD:
 #include <glm/geometric.hpp>
 #include <glm/vec2.hpp>
 #include <deque>
+#include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <initializer_list>
 #include <string>
@@ -482,6 +518,10 @@ using dfn::world::HouseGraph;
 using dfn::world::VertexId;
 
 using Params = std::initializer_list<std::pair<const char*, const char*>>;
+
+/// Рецепты, которым ОТКАЗАНО судьёй связности. Список, а не флаг: оператору
+/// нужны имена всех, а не факт, что где-то плохо.
+std::vector<std::string> g_refused;
 
 /// Рука над графом: рецепты читаются как список деталей, а не как API-вязь.
 struct Forge {
@@ -812,7 +852,22 @@ struct Forge {
                        {"tone", "1"}});
     }
 
+    /// СВЯЗНОСТЬ ПРОВЕРЯЕТСЯ ДО ЗАПИСИ, И ОТКАЗ НЕ ПИШЕТ ФАЙЛ. Постройка,
+    /// распавшаяся на острова, — это ярус, висящий в воздухе; записать его
+    /// значило бы разослать по городу копиями (то же соображение, что у
+    /// dfn_assemble с --require-solid, HOUSES.md §1).
+    ///
+    /// ПОЧЕМУ НЕ exit(3) НА ПЕРВОМ ЖЕ: кузница перепекает всю полку одним
+    /// прогоном, и остановка на первом плохом рецепте показала бы ровно один
+    /// дефект за прогон. Плохие файлы пропускаются, счёт копится, main
+    /// возвращает 3 — оператор видит ВСЕ находки сразу.
     void save(const std::string& path) {
+        std::string why;
+        if (dfn::world::house_connect_refusal(g, why)) {
+            std::fprintf(stderr, "forge: ОТКАЗ %s — %s\n", path.c_str(), why.c_str());
+            g_refused.push_back(path);
+            return;
+        }
         const std::string text = dfn::world::write_house(g);
         std::ofstream f(path, std::ios::binary | std::ios::trunc);
         if (!f) {
@@ -1371,18 +1426,44 @@ static void crenellated_run(Forge& f, glm::vec3 a, glm::vec3 b, float h,
                   {"unsupported", "1"}});
     // Боевой ход: полка изнутри на 2/3 высоты (лицо стены — наружу, изнанка
     // внутрь города; полка кладётся к изнанке).
+    //
+    // ПОЛКА НАЧИНАЛАСЬ В 0.55 М ОТ ЛИЦА СТЕНЫ — ТО ЕСТЬ В ВОЗДУХЕ. Судья
+    // связности нашёл её отдельным островом на ВСЕХ семнадцати прогонах стены и
+    // на воротах: настил боевого хода не касался стены ничем, и по нему нельзя
+    // было идти — между стеной и доской полметра пустоты, ровно в рост
+    // проваливающейся капсулы. Ближний край уведён НА ОСЬ стены (правило
+    // HouseMesh.h: «всё крепится к осям, стена входит в тело»), дальний остался
+    // там же — ходибельная полка стала 1.65 вместо 1.10 и НАЧИНАЕТСЯ ОТ СТЕНЫ.
     const glm::vec3 d = glm::normalize(b - a);
     const glm::vec3 inw = glm::normalize(glm::cross(glm::vec3{0, 1, 0}, d));
-    const glm::vec3 wa = a + inw * (th * 0.5f + 0.55f) + glm::vec3{0, h - 1.7f, 0};
-    const glm::vec3 wb = b + inw * (th * 0.5f + 0.55f) + glm::vec3{0, h - 1.7f, 0};
+    const float walk_out = th * 0.5f + 1.65f;  // дальний край, прежний
+    const glm::vec3 wa = a + glm::vec3{0, h - 1.7f, 0};
+    const glm::vec3 wb = b + glm::vec3{0, h - 1.7f, 0};
     {
         const VertexId p1 = f.v(wa.x, wa.y, wa.z);
-        const VertexId p2 = f.v(wa.x + inw.x * 1.1f, wa.y, wa.z + inw.z * 1.1f);
-        const VertexId p3 = f.v(wb.x + inw.x * 1.1f, wb.y, wb.z + inw.z * 1.1f);
+        const VertexId p2 = f.v(wa.x + inw.x * walk_out, wa.y, wa.z + inw.z * walk_out);
+        const VertexId p3 = f.v(wb.x + inw.x * walk_out, wb.y, wb.z + inw.z * walk_out);
         const VertexId p4 = f.v(wb.x, wb.y, wb.z);
         (void)f.contour({p1, p2, p3, p4},
                         {{"thickness", "0.2"}, {"mat", "1"}, {"tone", "2"},
                          {"unsupported", "1"}});
+    }
+    // КРОНШТЕЙНЫ ПОД ПОЛКОЙ. Полка вылетает из стены на 1.65 м, и «держится
+    // врезкой в стену» — это ответ судьи, а не глаза: консоль такой длины без
+    // подкосов читается доской, приклеенной к камню. Подкос идёт ОТ ОСИ стены
+    // (та же врезка) под изнанку дальнего края, шаг ~2.4 м.
+    {
+        const float run = glm::length(b - a);
+        const int brackets = std::max(2, static_cast<int>(run / 2.4f));
+        for (int k = 0; k <= brackets; ++k) {
+            const float u = run * static_cast<float>(k) / static_cast<float>(brackets);
+            const glm::vec3 root = a + d * u + glm::vec3{0, h - 1.7f - 0.75f, 0};
+            const glm::vec3 tip = a + d * u + inw * (walk_out - 0.25f)
+                                + glm::vec3{0, h - 1.7f - 0.14f, 0};
+            (void)f.beam(f.v(root.x, root.y, root.z), f.v(tip.x, tip.y, tip.z),
+                         {{"radius", "0.09"}, {"form", "square"}, {"mat", "0"},
+                          {"tone", "2"}, {"wear", wear}});
+        }
     }
     // Зубцы: короткие стенки поверх кромки с шагом ~2 м.
     const float len = glm::length(b - a);
@@ -1418,6 +1499,14 @@ static void forge_tower() {
     wall_q(0.0f, 0.0f, 0.0f, S);  // запад
     wall_q(0.0f, S, S, S);        // юг
     // Площадка и парапет.
+    //
+    // ВЕРХ ПЛОЩАДКИ — H + ПОЛТОЛЩИНЫ, А НЕ H + ТОЛЩИНА (заказ владельца 23.08:
+    // «башни кривые — их верхние яруса не присоединены к башне»). Контур растёт
+    // от своей высоты В ОБЕ СТОРОНЫ (HousePlate.cpp: «толщина симметрична»),
+    // поэтому плита на H толщиной 0.25 кончается на H + 0.125, а парапет
+    // ставился на H + 0.25 — ровно полтолщины воздуха под каждым зубцом. Судья
+    // связности мерил 0.125 м, и это ровно 0.25/2.
+    const float PLATE_T = 0.25f;
     {
         const VertexId a = f.v(-0.3f, H, -0.3f);
         const VertexId b = f.v(-0.3f, H, S + 0.3f);
@@ -1427,16 +1516,22 @@ static void forge_tower() {
                         {{"thickness", "0.25"}, {"mat", "3"}, {"tone", "1"},
                          {"unsupported", "1"}});
     }
-    const float P = H + 0.25f;
+    const float P = H + PLATE_T * 0.5f;
+    // ЗУБЕЦ СТОИТ НА ПЛИТЕ ЦЕЛИКОМ. Ось стены — середина её толщины, значит
+    // ось на кромке плиты вывешивала наружу половину зубца (0.175 из 0.35).
+    // Ось отодвинута внутрь на полтолщины: наружное лицо зубца встаёт заподлицо
+    // с лицом ствола, как ему и положено у крепости.
+    const float MERLON_T = 0.35f;
+    const float mi = MERLON_T * 0.5f;
     for (int side = 0; side < 4; ++side) {
         for (int t = 0; t < 3; ++t) {
             const float u0 = -0.3f + (S + 0.6f) * (0.08f + 0.3f * t);
             const float u1 = u0 + 0.75f;
             glm::vec3 pa, pb;
-            if (side == 0) { pa = {u1, P, -0.3f}; pb = {u0, P, -0.3f}; }
-            else if (side == 1) { pa = {S + 0.3f, P, u1}; pb = {S + 0.3f, P, u0}; }
-            else if (side == 2) { pa = {u0, P, S + 0.3f}; pb = {u1, P, S + 0.3f}; }
-            else { pa = {-0.3f, P, u0}; pb = {-0.3f, P, u1}; }
+            if (side == 0) { pa = {u1, P, -0.3f + mi}; pb = {u0, P, -0.3f + mi}; }
+            else if (side == 1) { pa = {S + 0.3f - mi, P, u1}; pb = {S + 0.3f - mi, P, u0}; }
+            else if (side == 2) { pa = {u0, P, S + 0.3f - mi}; pb = {u1, P, S + 0.3f - mi}; }
+            else { pa = {-0.3f + mi, P, u0}; pb = {-0.3f + mi, P, u1}; }
             const VertexId q1 = f.v(pa.x, pa.y, pa.z);
             const VertexId q2 = f.v(pb.x, pb.y, pb.z);
             (void)f.wall(q1, q2,
@@ -1446,7 +1541,12 @@ static void forge_tower() {
         }
     }
     // Шатёр: четыре треугольных ската к центру, дранка.
-    const float R = P + 1.0f;
+    //
+    // ШАТЁР ДЕРЖАТ ЧЕТЫРЕ СТОЙКИ С ПЛОЩАДКИ, А НЕ ЗУБЦЫ. Прежде вся кровля
+    // висела на касании со срезом зубца — а зубцы отстоят от карниза шатра, и
+    // касание выходило волосяным (пересчёт: 4.5 мм на скате 39°). Стойка в
+    // каждом углу площадки — это и есть то, чем ярус «садится на ствол».
+    const float R = P + 0.95f;
     const float apex = R + 1.8f;
     const glm::vec3 cx{S * 0.5f, apex, S * 0.5f};
     const glm::vec3 corners[4] = {{-0.4f, R, -0.4f}, {S + 0.4f, R, -0.4f},
@@ -1461,6 +1561,21 @@ static void forge_tower() {
                                       {{"thickness", "0.12"}, {"mat", "1"},
                                        {"tone", "1"}, {"unsupported", "1"}});
         (void)f.g.set_param(s, "roof", "1");
+    }
+    // ВЫСОТА ШАТРА В ТОЧКЕ ВЫВЕДЕНА, А НЕ ПОДОБРАНА: у пирамиды с квадратным
+    // основанием полупролёта B и подъёмом rise поверхность идёт
+    // y = R + rise * (1 − max(|dx|,|dz|) / B). Стойка кончается на 0.05 ВЫШЕ
+    // этой поверхности — тогда она входит в настил телом, а не касается его
+    // краем, и «ярус садится», а не «ярус рядом».
+    const float B = S * 0.5f + 0.4f;
+    for (const float px : {0.5f, S - 0.5f}) {
+        for (const float pz : {0.5f, S - 0.5f}) {
+            const float m = std::max(std::abs(px - S * 0.5f), std::abs(pz - S * 0.5f));
+            const float top = R + 1.8f * (1.0f - m / B) + 0.05f;
+            (void)f.beam(f.v(px, P, pz), f.v(px, top, pz),
+                         {{"radius", "0.09"}, {"form", "square"}, {"mat", "0"},
+                          {"tone", "2"}});
+        }
     }
     // Дверь внизу южной стены.
     f.door_leaf(S * 0.5f, 0.0f, S);
@@ -1495,16 +1610,20 @@ static void forge_tower_tall() {
                         {{"thickness", "0.3"}, {"mat", "3"}, {"tone", "1"},
                          {"unsupported", "1"}});
     }
-    const float P = H + 0.3f;
+    // ТА ЖЕ ПОПРАВКА, ЧТО У БАШНИ: верх плиты — H + полтолщины (контур растёт в
+    // обе стороны), а не H + толщина. Здесь висело 0.15 м, и каждый из
+    // двенадцати зубцов был СВОИМ островом — судья связности насчитал 13.
+    const float P = H + 0.15f;
+    const float mi = 0.2f;  // полтолщины зубца: ось внутрь, лицо заподлицо
     for (int side = 0; side < 4; ++side) {
         for (int t = 0; t < 3; ++t) {
             const float u0 = -0.35f + (S + 0.7f) * (0.08f + 0.3f * t);
             const float u1 = u0 + 0.9f;
             glm::vec3 pa, pb;
-            if (side == 0) { pa = {u1, P, -0.35f}; pb = {u0, P, -0.35f}; }
-            else if (side == 1) { pa = {S + 0.35f, P, u1}; pb = {S + 0.35f, P, u0}; }
-            else if (side == 2) { pa = {u0, P, S + 0.35f}; pb = {u1, P, S + 0.35f}; }
-            else { pa = {-0.35f, P, u0}; pb = {-0.35f, P, u1}; }
+            if (side == 0) { pa = {u1, P, -0.35f + mi}; pb = {u0, P, -0.35f + mi}; }
+            else if (side == 1) { pa = {S + 0.35f - mi, P, u1}; pb = {S + 0.35f - mi, P, u0}; }
+            else if (side == 2) { pa = {u0, P, S + 0.35f - mi}; pb = {u1, P, S + 0.35f - mi}; }
+            else { pa = {-0.35f + mi, P, u0}; pb = {-0.35f + mi, P, u1}; }
             const VertexId q1 = f.v(pa.x, pa.y, pa.z);
             const VertexId q2 = f.v(pb.x, pb.y, pb.z);
             (void)f.wall(q1, q2,
@@ -1695,14 +1814,17 @@ static void crenellated_arc(Forge& f, const WallArcGeom& a, float h, float th,
                       {"unsupported", "1"}});
     }
 
-    // 3. БОЕВОЙ ХОД: полка изнутри на h - 1.7, вылет 1.1, отступ от лица оси
-    // half + 0.55 — числа crenellated_run. У дуги это плоское кольцевое
-    // полотно: обход тот же (дальняя кромка от начала к концу, ближняя
-    // обратно), иначе полка ляжет лицом вниз.
+    // 3. БОЕВОЙ ХОД: полка изнутри на h - 1.7 — числа crenellated_run. У дуги
+    // это плоское кольцевое полотно: обход тот же (дальняя кромка от начала к
+    // концу, ближняя обратно), иначе полка ляжет лицом вниз.
+    //
+    // БЛИЖНЯЯ КРОМКА — НА ОСИ, а не в 0.55 м от лица (та же поправка, что у
+    // прямого прогона: судья связности назвал полку отдельным островом на всех
+    // пятнадцати дугах). Дальняя кромка осталась ровно там же.
     {
         const float y = h - 1.7f;
-        const float d_near = half + 0.55f;
-        const float d_far = d_near + 1.1f;
+        const float d_near = 0.0f;
+        const float d_far = half + 1.65f;
         std::vector<VertexId> ring;
         if (a.R <= 0.0f) {
             ring = {f.v(0.0f, y, -d_far), f.v(a.L, y, -d_far),
@@ -1721,6 +1843,27 @@ static void crenellated_arc(Forge& f, const WallArcGeom& a, float h, float th,
         }
         (void)f.contour(ring, {{"thickness", "0.2"}, {"mat", "1"}, {"tone", "2"},
                                {"unsupported", "1"}});
+        // КРОНШТЕЙНЫ — как у прямого прогона: подкос от оси полотна под
+        // изнанку дальнего края, шаг ~2.4 м по дуге. Консоль в 1.65 м без них
+        // читается доской, приклеенной к камню.
+        const int brackets = std::max(2, static_cast<int>(a.arc_len / 2.4f));
+        for (int k = 0; k <= brackets; ++k) {
+            const float u = static_cast<float>(k) / static_cast<float>(brackets);
+            glm::vec3 root, tip;
+            if (a.R <= 0.0f) {
+                root = {a.L * u, y - 0.75f, 0.0f};
+                tip = {a.L * u, y - 0.14f, -(d_far - 0.25f)};
+            } else {
+                const float t = -a.alpha + 2.0f * a.alpha * u;
+                root = a.inset(t, 0.0f);
+                tip = a.inset(t, d_far - 0.25f);
+                root.y = y - 0.75f;
+                tip.y = y - 0.14f;
+            }
+            (void)f.beam(f.v(root.x, root.y, root.z), f.v(tip.x, tip.y, tip.z),
+                         {{"radius", "0.09"}, {"form", "square"}, {"mat", "0"},
+                          {"tone", "2"}, {"wear", wear}});
+        }
     }
 
     // 4. ЗУБЦЫ: шаг и ширина — те же, что у прямого прогона (len/2.2, зуб 0.9,
@@ -2607,11 +2750,21 @@ static void forge_well() {
                      {{"height", "0.9"}, {"thickness", "0.28"}, {"mat", "3"},
                       {"tone", "1"}, {"fill", "3"}, {"wear", "0.55"}});
     }
+    // СТОЙКИ ДОРАСТАЮТ ДО ПРОГОНА, А ПРОГОН ДЕРЖИТ СТРОПИЛА. Прежде столбы
+    // кончались на 2.2, а вся кровля начиналась с 2.5 (головы стропил) — крыша
+    // колодца висела в воздухе отдельным островом, ближайшее её тело в 0.21 м
+    // от макушки столба. Число 2.5 не выбрано: gable_roof ставит головы стропил
+    // ровно на (карниз + подъём) − 0.30 = 2.1 + 0.7 − 0.30, и прогон кладётся
+    // на ту же ось, поэтому касается и стропил, и столбов телом.
+    const float PURLIN_Y = 2.1f + 0.7f - 0.30f;
     for (const float x : {0.2f, S - 0.2f}) {
         const VertexId lo = f.v(x, 0.0f, S * 0.5f);
-        const VertexId hi = f.v(x, 2.2f, S * 0.5f);
+        const VertexId hi = f.v(x, PURLIN_Y, S * 0.5f);
         (void)f.beam(lo, hi, {{"radius", "0.08"}, {"mat", "0"}, {"tone", "2"}});
     }
+    (void)f.beam(f.v(-0.15f, PURLIN_Y, S * 0.5f), f.v(S + 0.15f, PURLIN_Y, S * 0.5f),
+                 {{"radius", "0.09"}, {"form", "square"}, {"mat", "0"},
+                  {"tone", "2"}});
     f.gable_roof(-0.15f, S * 0.5f - 0.8f, S + 0.15f, S * 0.5f + 0.8f, 2.1f, 0.7f,
                  "1", "2", "7", "0.5");
     f.save("assets/houses/city-well.dfh");
@@ -2847,7 +3000,11 @@ static void forge_keep() {
                              {"wear", wear}, {"unsupported", "1"}});
         }
         // Шатрик: четыре треугольника к вершине (рука башни/донжона).
-        const float base = h + 0.2f;
+        // БАЗА — h + ПОЛТОЛЩИНЫ плиты (0.2/2), а не h + толщина: контур растёт
+        // в обе стороны от своей высоты, и прежние h + 0.2 вешали шатрик над
+        // площадкой. Судья связности мерил 0.047 м по нормали ската — это те
+        // же 0.1 по вертикали, посчитанные вдоль наклонной плоскости.
+        const float base = h + 0.1f;
         const glm::vec3 corners[4] = {{x0 - o, base, z0 - o},
                                       {x1 + o, base, z0 - o},
                                       {x1 + o, base, z1 + o},
@@ -3476,6 +3633,15 @@ static void forge_house_large(Aging age) {
                         {{"thickness", "0.12"}, {"mat", "1"}, {"tone", "1"},
                          {"beams", "1"}});
     }
+    // РИГЕЛЬ ЛЕСТНИЧНОГО ПРОЁМА. Балки перекрытия идут вдоль X и на кромке
+    // проёма (x = 8, от z = 3 до южной стены) обрываются в воздух: у настоящего
+    // наката там стоит ригель, в который они врубаются, и без него четыре
+    // балки читаются обломанными. Сечение и высота — ровно балочные
+    // (Y2 − 0.185 ± 0.125), поэтому ригель ловит их торцы телом, а верхом
+    // упирается в изнанку настила.
+    (void)f.beam(f.v(8.0f, Y2 - 0.185f, 3.0f), f.v(8.0f, Y2 - 0.185f, D),
+                 {{"radius", "0.125"}, {"form", "square"}, {"mat", "0"},
+                  {"tone", "2"}, {"wear", age.w(0.3f)}});
     // Марш вдоль восточной стены на север: 4.4 м хода на 2.9 подъёма (33°).
     {
         const VertexId a = f.v(8.3f, Y1, 7.6f);
@@ -3825,9 +3991,64 @@ static void forge_barn(Aging age) {
     f.save(age.file);
 }
 
+/// ПРОГОН СУДЬИ ПО ВСЕЙ ПОЛКЕ (dfn_houses --check). Читает готовые .dfh — те
+/// самые файлы, что лежат в git и грузятся картой, — а не пересобирает рецепты:
+/// правило обязано судить АРТЕФАКТ, иначе оно проверяет только те постройки,
+/// которые печёт эта кузница, и утварь с чужими файлами остаётся без присмотра.
+int check_library(const char* dir) {
+    std::vector<std::string> files;
+    for (const auto& it : std::filesystem::directory_iterator(dir)) {
+        if (it.path().extension() == ".dfh") {
+            files.push_back(it.path().string());
+        }
+    }
+    std::sort(files.begin(), files.end());
+    int ok = 0;
+    for (const std::string& path : files) {
+        std::ifstream in(path, std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(in)),
+                               std::istreambuf_iterator<char>());
+        dfn::world::HouseGraph g;
+        const auto r = dfn::world::read_house(text, g);
+        if (!r.ok) {
+            std::printf("СВЯЗНОСТЬ: %s — НЕ ПРОЧЁЛСЯ: %s (строка %d)\n", path.c_str(),
+                        r.why.c_str(), r.line);
+            continue;
+        }
+        const dfn::world::HouseMesh mesh = dfn::world::build_house_mesh(g);
+        const dfn::world::HouseConnectivity c = dfn::world::check_house_connectivity(mesh);
+        if (c.ok()) {
+            ++ok;
+            continue;
+        }
+        std::printf("СВЯЗНОСТЬ: %s — ОСТРОВОВ %zu (тел %zu)\n", path.c_str(),
+                    c.islands.size(), c.bodies);
+        for (const dfn::world::HouseIsland& is : c.islands) {
+            std::printf("    %-9s %-40s тел %4zu  y %8.3f..%8.3f",
+                        is.grounded ? "земля" : "ВИСИТ",
+                        dfn::world::island_name(is).c_str(), is.bodies,
+                        static_cast<double>(is.y_lo), static_cast<double>(is.y_hi));
+            if (!is.grounded && is.nearest_element != dfn::world::NO_ELEMENT) {
+                std::printf("  зазор %.3f м до e%u", static_cast<double>(is.nearest_gap),
+                            is.nearest_element);
+            }
+            std::printf("\n");
+        }
+    }
+    std::printf("СВЯЗНОСТЬ: %d/%zu OK (допуск %.3f м)\n", ok, files.size(),
+                static_cast<double>(dfn::world::HOUSE_CONTACT_TOL_M));
+    return ok == static_cast<int>(files.size()) ? 0 : 3;
+}
+
 } // namespace
 
-int main() {
+int main(int argc, char** argv) {
+    // ДВЕ РУКИ ОДНОГО БИНАРНИКА: печь и судить. Судья отдельным исполняемым
+    // файлом стоил бы второй цели сборки ради двухсот строк, а рецепты и
+    // правило всё равно живут вместе.
+    if (argc > 1 && std::string(argv[1]) == "--check") {
+        return check_library(argc > 2 ? argv[2] : "assets/houses");
+    }
     forge_log();
     forge_frame();
     forge_stone();
@@ -3993,5 +4214,13 @@ int main() {
     forge_barn(tended("assets/houses/city-barn.dfh"));
     // Амбар и в уходе стоит грязнее жилья — у ветхого пол полосы выше.
     forge_barn(derelict("assets/houses/city-barn-old.dfh", 0.72f));
+    if (!g_refused.empty()) {
+        std::fprintf(stderr, "forge: ОТКАЗАНО ПО СВЯЗНОСТИ, рецептов %zu:\n",
+                     g_refused.size());
+        for (const std::string& p : g_refused) {
+            std::fprintf(stderr, "  %s\n", p.c_str());
+        }
+        return 3;
+    }
     return 0;
 }

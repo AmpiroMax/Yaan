@@ -1,32 +1,50 @@
 # dfh 1
 vertex v1 free 0.0000 0.0000 0.0000
 vertex v2 free 4.0000 0.0000 0.0000
-vertex v3 free 0.0000 5.3000 -1.2500
+vertex v3 free 0.0000 5.3000 0.0000
 vertex v4 free 0.0000 5.3000 -2.3500
 vertex v5 free 4.0000 5.3000 -2.3500
-vertex v6 free 4.0000 5.3000 -1.2500
-vertex v7 free 0.4000 7.0000 0.0000
-vertex v8 free 1.3000 7.0000 0.0000
-vertex v9 free 2.4000 7.0000 0.0000
-vertex v10 free 3.3000 7.0000 0.0000
-vertex v11 free 8.0000 0.0000 0.0000
-vertex v12 free 12.0000 0.0000 0.0000
-vertex v13 free 8.0000 5.3000 -1.2500
-vertex v14 free 8.0000 5.3000 -2.3500
-vertex v15 free 12.0000 5.3000 -2.3500
-vertex v16 free 12.0000 5.3000 -1.2500
-vertex v17 free 8.4000 7.0000 0.0000
-vertex v18 free 9.3000 7.0000 0.0000
-vertex v19 free 10.4000 7.0000 0.0000
-vertex v20 free 11.3000 7.0000 0.0000
-vertex v21 free 4.0000 4.6000 0.0000
-vertex v22 free 8.0000 4.6000 0.0000
+vertex v6 free 4.0000 5.3000 0.0000
+vertex v7 free 0.0000 4.5500 0.0000
+vertex v8 free 0.0000 5.1600 -2.1000
+vertex v9 free 2.0000 4.5500 0.0000
+vertex v10 free 2.0000 5.1600 -2.1000
+vertex v11 free 4.0000 4.5500 0.0000
+vertex v12 free 4.0000 5.1600 -2.1000
+vertex v13 free 0.4000 7.0000 0.0000
+vertex v14 free 1.3000 7.0000 0.0000
+vertex v15 free 2.4000 7.0000 0.0000
+vertex v16 free 3.3000 7.0000 0.0000
+vertex v17 free 8.0000 0.0000 0.0000
+vertex v18 free 12.0000 0.0000 0.0000
+vertex v19 free 8.0000 5.3000 0.0000
+vertex v20 free 8.0000 5.3000 -2.3500
+vertex v21 free 12.0000 5.3000 -2.3500
+vertex v22 free 12.0000 5.3000 0.0000
+vertex v23 free 8.0000 4.5500 0.0000
+vertex v24 free 8.0000 5.1600 -2.1000
+vertex v25 free 10.0000 4.5500 0.0000
+vertex v26 free 10.0000 5.1600 -2.1000
+vertex v27 free 12.0000 4.5500 0.0000
+vertex v28 free 12.0000 5.1600 -2.1000
+vertex v29 free 8.4000 7.0000 0.0000
+vertex v30 free 9.3000 7.0000 0.0000
+vertex v31 free 10.4000 7.0000 0.0000
+vertex v32 free 11.3000 7.0000 0.0000
+vertex v33 free 4.0000 4.6000 0.0000
+vertex v34 free 8.0000 4.6000 0.0000
 surface e1 v1 v2 style=- height=7.00 thickness=1.40 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
 surface e2 v3 v4 v5 v6 style=- closed=1 thickness=0.2 mat=1 tone=2 unsupported=1
-surface e3 v7 v8 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
-surface e4 v9 v10 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
-surface e5 v11 v12 style=- height=7.00 thickness=1.40 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
-surface e6 v13 v14 v15 v16 style=- closed=1 thickness=0.2 mat=1 tone=2 unsupported=1
-surface e7 v17 v18 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
-surface e8 v19 v20 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
-surface e9 v21 v22 style=- height=2.4 thickness=1.4 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
+line e3 v7 v8 style=- radius=0.09 form=square mat=0 tone=2 wear=0.5
+line e4 v9 v10 style=- radius=0.09 form=square mat=0 tone=2 wear=0.5
+line e5 v11 v12 style=- radius=0.09 form=square mat=0 tone=2 wear=0.5
+surface e6 v13 v14 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
+surface e7 v15 v16 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
+surface e8 v17 v18 style=- height=7.00 thickness=1.40 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
+surface e9 v19 v20 v21 v22 style=- closed=1 thickness=0.2 mat=1 tone=2 unsupported=1
+line e10 v23 v24 style=- radius=0.09 form=square mat=0 tone=2 wear=0.5
+line e11 v25 v26 style=- radius=0.09 form=square mat=0 tone=2 wear=0.5
+line e12 v27 v28 style=- radius=0.09 form=square mat=0 tone=2 wear=0.5
+surface e13 v29 v30 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
+surface e14 v31 v32 style=- height=0.8 thickness=0.5 mat=3 tone=1 fill=3 wear=0.5 unsupported=1
+surface e15 v33 v34 style=- height=2.4 thickness=1.4 mat=3 tone=1 fill=3 wear=0.5 unsupported=1

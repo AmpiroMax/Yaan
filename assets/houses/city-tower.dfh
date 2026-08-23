@@ -7,37 +7,45 @@ vertex v5 free -0.3000 9.0000 -0.3000
 vertex v6 free -0.3000 9.0000 3.9000
 vertex v7 free 3.9000 9.0000 3.9000
 vertex v8 free 3.9000 9.0000 -0.3000
-vertex v9 free 0.7860 9.2500 -0.3000
-vertex v10 free 0.0360 9.2500 -0.3000
-vertex v11 free 2.0460 9.2500 -0.3000
-vertex v12 free 1.2960 9.2500 -0.3000
-vertex v13 free 3.3060 9.2500 -0.3000
-vertex v14 free 2.5560 9.2500 -0.3000
-vertex v15 free 3.9000 9.2500 0.7860
-vertex v16 free 3.9000 9.2500 0.0360
-vertex v17 free 3.9000 9.2500 2.0460
-vertex v18 free 3.9000 9.2500 1.2960
-vertex v19 free 3.9000 9.2500 3.3060
-vertex v20 free 3.9000 9.2500 2.5560
-vertex v21 free 0.0360 9.2500 3.9000
-vertex v22 free 0.7860 9.2500 3.9000
-vertex v23 free 1.2960 9.2500 3.9000
-vertex v24 free 2.0460 9.2500 3.9000
-vertex v25 free 2.5560 9.2500 3.9000
-vertex v26 free 3.3060 9.2500 3.9000
-vertex v27 free -0.3000 9.2500 0.0360
-vertex v28 free -0.3000 9.2500 0.7860
-vertex v29 free -0.3000 9.2500 1.2960
-vertex v30 free -0.3000 9.2500 2.0460
-vertex v31 free -0.3000 9.2500 2.5560
-vertex v32 free -0.3000 9.2500 3.3060
-vertex v33 free -0.4000 10.2500 -0.4000
-vertex v34 free 4.0000 10.2500 -0.4000
-vertex v35 free 1.8000 12.0500 1.8000
-vertex v36 free 4.0000 10.2500 4.0000
-vertex v37 free -0.4000 10.2500 4.0000
-vertex v38 free 1.3000 0.0000 3.6000
-vertex v39 free 2.3000 0.0000 3.6000
+vertex v9 free 0.7860 9.1250 -0.1250
+vertex v10 free 0.0360 9.1250 -0.1250
+vertex v11 free 2.0460 9.1250 -0.1250
+vertex v12 free 1.2960 9.1250 -0.1250
+vertex v13 free 3.3060 9.1250 -0.1250
+vertex v14 free 2.5560 9.1250 -0.1250
+vertex v15 free 3.7250 9.1250 0.7860
+vertex v16 free 3.7250 9.1250 0.0360
+vertex v17 free 3.7250 9.1250 2.0460
+vertex v18 free 3.7250 9.1250 1.2960
+vertex v19 free 3.7250 9.1250 3.3060
+vertex v20 free 3.7250 9.1250 2.5560
+vertex v21 free 0.0360 9.1250 3.7250
+vertex v22 free 0.7860 9.1250 3.7250
+vertex v23 free 1.2960 9.1250 3.7250
+vertex v24 free 2.0460 9.1250 3.7250
+vertex v25 free 2.5560 9.1250 3.7250
+vertex v26 free 3.3060 9.1250 3.7250
+vertex v27 free -0.1250 9.1250 0.0360
+vertex v28 free -0.1250 9.1250 0.7860
+vertex v29 free -0.1250 9.1250 1.2960
+vertex v30 free -0.1250 9.1250 2.0460
+vertex v31 free -0.1250 9.1250 2.5560
+vertex v32 free -0.1250 9.1250 3.3060
+vertex v33 free -0.4000 10.0750 -0.4000
+vertex v34 free 4.0000 10.0750 -0.4000
+vertex v35 free 1.8000 11.8750 1.8000
+vertex v36 free 4.0000 10.0750 4.0000
+vertex v37 free -0.4000 10.0750 4.0000
+vertex v38 free 0.5000 9.1250 0.5000
+vertex v39 free 0.5000 10.8614 0.5000
+vertex v40 free 0.5000 9.1250 3.1000
+vertex v41 free 0.5000 10.8614 3.1000
+vertex v42 free 3.1000 9.1250 0.5000
+vertex v43 free 3.1000 10.8614 0.5000
+vertex v44 free 3.1000 9.1250 3.1000
+vertex v45 free 3.1000 10.8614 3.1000
+vertex v46 free 1.3000 0.0000 3.6000
+vertex v47 free 2.3000 0.0000 3.6000
 surface e1 v1 v2 style=- height=9 thickness=0.6 mat=3 tone=1 fill=3 wear=0.5
 surface e2 v3 v1 style=- height=9 thickness=0.6 mat=3 tone=1 fill=3 wear=0.5
 surface e3 v2 v4 style=- height=9 thickness=0.6 mat=3 tone=1 fill=3 wear=0.5
@@ -59,4 +67,8 @@ surface e18 v33 v34 v35 style=- closed=1 thickness=0.12 mat=1 tone=1 unsupported
 surface e19 v34 v36 v35 style=- closed=1 thickness=0.12 mat=1 tone=1 unsupported=1 roof=1
 surface e20 v36 v37 v35 style=- closed=1 thickness=0.12 mat=1 tone=1 unsupported=1 roof=1
 surface e21 v37 v33 v35 style=- closed=1 thickness=0.12 mat=1 tone=1 unsupported=1 roof=1
-surface e22 v38 v39 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
+line e22 v38 v39 style=- radius=0.09 form=square mat=0 tone=2
+line e23 v40 v41 style=- radius=0.09 form=square mat=0 tone=2
+line e24 v42 v43 style=- radius=0.09 form=square mat=0 tone=2
+line e25 v44 v45 style=- radius=0.09 form=square mat=0 tone=2
+surface e26 v46 v47 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
