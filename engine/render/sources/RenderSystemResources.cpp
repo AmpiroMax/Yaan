@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 23:08:2026 - 18:11:16
+Last updated: 24:08:2026 - 01:30:00
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -81,6 +81,10 @@ UPD:
 - 23:08:2026 - 01:17:49: мерцание огня: модуляция цвета кандидата от времени сцены и фазы позиции (flicker из [light]).
 - 23:08:2026 - 17:59:57: бюджет светов: дверь DFN_LIGHT_BUDGET (дефолт 16, 8 = прежняя рука), сортировка по значимости d/r, растворение в той же шкале.
 - 23:08:2026 - 18:11:16: emissive переносится в HouseStreamGpu на заливке.
+- 24:08:2026 - 01:30:00: fill_house_slot — общее тело set_house_mesh и нового
+  set_interior_mesh (И15). Два похожих тела разошлись бы в первой же правке
+  материала, и разошлись бы молча: картинка города и картинка комнаты
+  собираются одним построителем (правило 39).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -401,20 +405,26 @@ void RenderSystem::set_ghost_mesh(platform::IRenderer& renderer,
     }
 }
 
-void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
-                                  std::vector<HouseStream> streams,
-                                  std::vector<HouseDoor> doors) {
+// ЗАЛИВКА ОДНОГО СЛОТА ПОСТРОЕК. Общая для городского слота и для
+// интерьерного (И15): два одинаковых тела разошлись бы в первой же правке
+// материала, и разошлись бы МОЛЧА — картинка города и картинка комнаты
+// собираются одним и тем же построителем (правило 39).
+void RenderSystem::fill_house_slot(platform::IRenderer& renderer,
+                                   std::vector<HouseStream> streams,
+                                   std::vector<HouseDoor> doors,
+                                   std::vector<HouseStreamGpu>& out_streams,
+                                   std::vector<HouseDoorGpu>& out_doors) {
     // Заливается по изменению, а не по кадру; старые меши уничтожаются здесь —
     // слот держит РОВНО ОДНУ постройку, и вторая заливка без освобождения
     // утекала бы буфером на каждую правку.
-    for (const HouseStreamGpu& st : house_streams_) {
+    for (const HouseStreamGpu& st : out_streams) {
         renderer.destroy_mesh(platform::MeshHandle{st.mesh_id});
     }
-    house_streams_.clear();
-    for (const HouseDoorGpu& d : house_doors_) {
+    out_streams.clear();
+    for (const HouseDoorGpu& d : out_doors) {
         renderer.destroy_mesh(platform::MeshHandle{d.mesh_id});
     }
-    house_doors_.clear();
+    out_doors.clear();
     for (HouseStream& st : streams) {
         if (st.mesh.vertices.empty() || st.mesh.indices.empty()) {
             continue;
@@ -427,7 +437,7 @@ void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
             for (const platform::Vertex& v : st.mesh.vertices) {
                 box.expand(v.position);
             }
-            house_streams_.push_back(
+            out_streams.push_back(
                 {h.id, house_tile_asset(renderer, st.surface, st.tone),
                  house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true),
                  box, st.emissive});
@@ -439,12 +449,26 @@ void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
         }
         const platform::MeshHandle h = renderer.create_mesh(d.mesh.vertices, d.mesh.indices);
         if (h.valid()) {
-            house_doors_.push_back({h.id, house_tile_asset(renderer, d.surface, d.tone),
+            out_doors.push_back({h.id, house_tile_asset(renderer, d.surface, d.tone),
                                     house_tile_asset(renderer, d.surface, d.tone,
                                                      /*normal=*/true),
-                                    d.hinge_a, d.hinge_b, d.demo_swing});
+                                 d.hinge_a, d.hinge_b, d.demo_swing});
         }
     }
+}
+
+void RenderSystem::set_house_mesh(platform::IRenderer& renderer,
+                                  std::vector<HouseStream> streams,
+                                  std::vector<HouseDoor> doors) {
+    fill_house_slot(renderer, std::move(streams), std::move(doors),
+                    house_streams_, house_doors_);
+}
+
+void RenderSystem::set_interior_mesh(platform::IRenderer& renderer,
+                                     std::vector<HouseStream> streams,
+                                     std::vector<HouseDoor> doors) {
+    fill_house_slot(renderer, std::move(streams), std::move(doors),
+                    interior_streams_, interior_doors_);
 }
 
 void RenderSystem::set_transient_lights(std::vector<ExtraLight> lights) {

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 20:08:2026 - 23:59:00
+Last updated: 24:08:2026 - 01:30:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -143,6 +143,11 @@ UPD:
 - 20:08:2026 - 15:30:00: PlacedHouse + load_scene_houses (готовые постройки карты); дверь DFN_RECORD_EVERY (лента прохода).
 - 20:08:2026 - 22:40:00: PlacedHouse.scene_index — распаковка брала соседний дом при нечитаемом файле (аудит #3, находка 1).
 - 20:08:2026 - 23:59:00: Указатели инструментов постройки для «стиль в заготовку».
+- 24:08:2026 - 01:30:00: И15 волна А — состав интерьера-локации: карман, второй
+  слот с телом и страховочной плитой, снятые на время локации лампы и небо
+  города, переходы как вещи мира, экран загрузки, замеры входа и выхода.
+  upload_house_mesh получил interior_only: вход в дом не имеет права
+  перестраивать город (1087 построек Вайтрана — 18.9 с против отпущенных 0.5).
 */
 
 #pragma once
@@ -171,6 +176,7 @@ UPD:
 #include "engine/core/time/sources/FixedTimestep.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/gameplay/sources/InteractableMesh.h"
+#include "engine/gameplay/sources/Interior.h"
 #include "engine/gameplay/sources/PlaytestBot.h"
 #include "engine/gameplay/sources/StepAudio.h"
 #include "engine/platform/audio/interfaces/IAudio.h"
@@ -178,6 +184,7 @@ UPD:
 #include "engine/render/sources/FirstPersonCamera.h"
 #include "engine/render/sources/FloraFireflies.h"
 #include "engine/render/sources/ObjectRegistry.h"
+#include "engine/render/sources/LoadingScreen.h"
 #include "engine/render/sources/RenderSystem.h"
 #include "engine/render/sources/Tour.h"
 #include "engine/world/sources/ChunkManager.h"
@@ -385,7 +392,10 @@ private:
     /// Отсечки сетки вокруг прицела (только когда сетка включена).
     void draw_editor_grid(const ToolAim& aim);
     /// Пересчитать тело постройки и отдать его в отрисовку.
-    void upload_house_mesh();
+    /// `interior_only` — перезалить ТОЛЬКО интерьерный слот (И15): вход в
+    /// дом не имеет права перестраивать город, а 1087 построек Вайтрана —
+    /// это секунды против полусекунды, отпущенной своду на вход.
+    void upload_house_mesh(bool interior_only = false);
     /// ГОТОВЫЕ ПОСТРОЙКИ КАРТЫ: секция [house] сцены — граф из .dfh + место.
     /// Читаются на входе в мир, вливаются в те же потоки и коллайдер, что и
     /// строящийся дом (одна история для картинки и физики).
@@ -400,6 +410,86 @@ private:
         std::size_t scene_index = 0;
     };
     std::vector<PlacedHouse> placed_houses_;
+
+    // ---- И15: ИНТЕРЬЕРЫ-ЛОКАЦИИ (docs/plans/INTERIORS_I15.md, волна А) ----
+    // Город НЕ выгружается на входе в дом: он подвешивается (render не рисует
+    // экстерьер, chunks_.update заморожен, его тела не трогаются), а интерьер
+    // строится в КАРМАНЕ на километр ниже. Карман по Y, а не по XZ, потому
+    // что ключ ячейки пакетирования различает XZ лишь в полосе -256..1792 м.
+
+    /// Постройки открытой локации (обычно одна: тот же .dfh, что снаружи).
+    std::vector<PlacedHouse> interior_houses_;
+    /// Вершины интерьерного коллайдера. Поле по той же причине, что и у
+    /// house_positions_: дескриптор физики берёт их СПАНОМ.
+    std::vector<glm::vec3> interior_positions_;
+    platform::PhysicsBodyHandle interior_body_{};
+    /// СТРАХОВОЧНАЯ ПЛИТА под карманом: пол интерьера — обычная геометрия, а
+    /// дырка в ней при -1000 м означала бы падение без дна и без диагноза.
+    platform::PhysicsBodyHandle interior_plate_{};
+    /// Композиция открытой локации (её [air], [light], [spawn], [portal]).
+    world::SceneDoc interior_doc_;
+    /// Какая локация СЕЙЧАС ЗАЛИТА в слот. Не то же самое, что «где игрок»:
+    /// на выходе геометрия остаётся резидентной, и повторный вход в тот же
+    /// дом стоит переключения флага. Ради этого выход укладывается в 0.05 с.
+    std::string interior_resident_;
+    /// Начало кармана (centre_x, -1000, centre_z).
+    glm::vec3 interior_pocket_{0.0f, -1000.0f, 0.0f};
+    /// Лампы ГОРОДА, снятые на время интерьера и возвращаемые на выходе.
+    std::vector<render::RenderSystem::ExtraLight> city_lights_;
+    bool city_lights_saved_ = false;
+    /// Солнце и ambient города — та же пара «снять и вернуть».
+    glm::vec3 city_sun_color_{0.0f};
+    glm::vec3 city_ambient_{0.0f};
+    bool city_sky_saved_ = false;
+    /// Переход как ВЕЩЬ МИРА: сущность-взаимодействие на каждый [portal].
+    struct PortalLink {
+        std::uint64_t action = 0;   ///< хеш действия Usable
+        std::size_t index = 0;      ///< номер в portals текущей композиции
+        bool interior = false;      ///< портал принадлежит локации, не городу
+        ecs::EntityId entity{};
+    };
+    std::vector<PortalLink> portals_;
+    events::SubscriptionId used_sub_{};
+    /// ЗАЯВКА НА ПЕРЕХОД, поданная обработчиком Used и исполняемая ПОСЛЕ
+    /// раздачи событий. Переход сносит сущности и телепортирует игрока —
+    /// изнутри обработчика это правка контейнеров, по которым шина идёт.
+    /// 0 — заявки нет.
+    std::uint64_t pending_portal_ = 0;
+    /// Исполняет заявку (если она есть) и гасит её.
+    void take_portal();
+    /// ЧЕРЕЗ СКОЛЬКО КАДРОВ ВЫЙТИ НАРУЖУ (DFN_INTERIOR_EXIT). 0 — не выходить.
+    /// Дверь заведена потому, что выход умеет только рука на клавише, и без
+    /// неё время выхода — единственное число свода И15, которое не может
+    /// назвать ни один автоматический прогон.
+    std::uint64_t interior_exit_frames_ = 0;
+    std::uint64_t interior_exit_seen_ = 0;
+    /// Экран загрузки. Один на приложение: у него нет ресурсов, а очистка
+    /// между загрузками — это begin().
+    render::LoadingScreen loading_;
+    /// Длительность экрана в секундах (DFN_INTERIOR_FADE; 0 — мгновенно,
+    /// и тогда кадры двух прогонов сравнимы побитово).
+    float interior_fade_s_ = 0.15f;
+    /// Замеры последнего перехода, миллисекунды. Отдельные поля, а не одно:
+    /// у входа и выхода РАЗНЫЕ цели свода (0.5 с против 0.05 с).
+    double interior_enter_ms_ = 0.0;
+    double interior_leave_ms_ = 0.0;
+
+    /// Заливает тело интерьерного коллайдера и страховочную плиту.
+    void upload_interior_body(const std::vector<std::uint32_t>& indices);
+    /// Вход в локацию. `spawn_name` — имя [spawn] целевой сцены; пусто —
+    /// заголовочный spawn. Возвращает false и НЕ трогает мир, если сцену
+    /// прочитать не удалось: полпути внутрь хуже, чем закрытая дверь.
+    [[nodiscard]] bool enter_interior(const std::string& scene_path,
+                                      const std::string& spawn_name);
+    /// Выход наружу по верхней ступени стека.
+    void leave_interior();
+    /// Заводит сущности переходов по [portal] текущей композиции.
+    void spawn_scene_portals(const world::SceneDoc& doc, bool interior);
+    /// Снимает сущности переходов (обе стороны — город и локация).
+    void clear_scene_portals(bool interior);
+    /// Показывает один кадр экрана загрузки (тот же путь, что у меню:
+    /// CPU-холст блитом поверх кадра; ImGui здесь не бывает).
+    void present_loading_frame();
     /// Заготовки инструментов постройки — для «стиль в заготовку» Библиотеки.
     /// Сырые указатели: владеет ящик инструментов, живут с ним.
     HouseLineTool* house_line_tool_ = nullptr;

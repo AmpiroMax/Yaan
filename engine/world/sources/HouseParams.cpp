@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 23:08:2026 - 18:09:35
+Last updated: 24:08:2026 - 00:30:00
 Module: engine/world
 File: engine/world/sources/HouseParams.cpp
 
@@ -26,6 +26,8 @@ AI Agents Notice (must follow):
 UPD:
 - 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
 - 23:08:2026 - 18:09:35: ключ glow в таблице параметров (самосвечение детали).
+- 24:08:2026 - 00:30:00: ключ portal в списке чужих свойств (И15): створка с
+  portal=1 входит в коллайдер построек, геометрию не меняет.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -162,8 +164,13 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
             // геометрию они не меняют, и построитель их не знает ПО ПРАВУ.
             // Ругаться на них значило бы печатать «неизвестное свойство» на
             // каждую дверь — и приучить всех не читать находки вовсе.
+            // `portal` — ключ ПЕРЕХОДА (И15): створка с portal=1 входит в
+            // коллайдер, то есть запечатывает оболочку. Читает его App при
+            // заливке, как и door/hinge; геометрию он не меняет, и
+            // построитель не знает его ПО ПРАВУ.
             const bool foreign = key == "mat" || key == "tone" || key == "door"
-                              || key == "hinge" || key == "paint";
+                              || key == "hinge" || key == "paint"
+                              || key == "portal";
             if (!foreign) {
                 issues->push_back({std::string(tok), "неизвестное свойство"});
             }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 18:11:16
+Last updated: 24:08:2026 - 01:30:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -180,6 +180,12 @@ UPD:
 - 22:08:2026 - 23:49:20: ленивая заливка маски троп + привязка aux3 чанкам и LOD-кольцу.
 - 23:08:2026 - 00:25:12: сев пучков фильтруется полотном троп (PathClassField::covered, усадка 0.35 м) — трава не растёт сквозь мостовую.
 - 23:08:2026 - 18:11:16: DrawParams.emissive у самосветных потоков построек.
+- 24:08:2026 - 01:30:00: ПОДВЕС ЭКСТЕРЬЕРА (И15 волна А): в подвесе кадр рисует
+  ИНТЕРЬЕРНЫЙ слот вместо городского, а земля, дальний рельеф, тропы, трава,
+  рассев, вода, светляки и самосветная геометрия пропускаются по условию
+  СВОЕГО цикла. Гейт в условиях, а не обёрткой: обёртка сдвинула бы двести
+  строк чужого кода и утопила бы в отступах diff. Дозой 0 (подвес выключен)
+  кадр прежний — добавлено одно `false ||` на цикл.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -994,8 +1000,16 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         it != texture_cache_.end()) {
         terrain_params.aux3_texture.id = it->second;
     }
+    // ПОДВЕС ГОРОДА (И15). Внутри локации экстерьер не рисуется вовсе: ни
+    // земля, ни дальний рельеф, ни трава, ни рассев, ни вода, ни потоки
+    // построек. Город при этом НЕ выгружен — он ждёт на месте, и выход из
+    // локации стоит переключения флага, а не второй загрузки карты. Гейт
+    // стоит в УСЛОВИЯХ существующих циклов, а не оборачивает их: обёртка
+    // сдвинула бы двести строк чужого кода и утопила бы в отступах diff,
+    // по которому эту правку будут читать.
+    const bool suspended = world_suspended_;
     for (const auto& [coord, res] : terrain_meshes_) {
-        if (!visible_or_casting(frustum, res.bounds, cull_eye)) {
+        if (suspended || !visible_or_casting(frustum, res.bounds, cull_eye)) {
             continue;
         }
         renderer.submit(platform::MeshHandle{res.mesh_id}, terrain, identity, atlas,
@@ -1007,8 +1021,10 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // submitted AFTER the chunk terrain so that in the one case the two can
     // overlap (a streamed rectangle not aligned to the 128 m node grid) the
     // near, finer surface has already written depth.
-    lod_.draw(renderer, frustum, terrain, atlas, terrain_params.aux_texture,
-              terrain_params.aux2_texture, terrain_params.aux3_texture);
+    if (!suspended) {
+        lod_.draw(renderer, frustum, terrain, atlas, terrain_params.aux_texture,
+                  terrain_params.aux2_texture, terrain_params.aux3_texture);
+    }
 
     // The §8.1 PATH SURFACE, drawn after the ground it lies on. Depth alone
     // would resolve the order (the tread sits PATH_GROOVE_DEPTH proud of the
@@ -1030,7 +1046,7 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // submit stays behind a door rather than being deleted: it is the CONTROL
     // ARM out of one binary (Rule 47) for anyone who wants to see the old
     // defect, and the pieces are still built, so nothing else changes with it.
-    if (path_ribbon_on() && !path_meshes_.empty()) {
+    if (path_ribbon_on() && !path_meshes_.empty() && !suspended) {
         const platform::ProgramHandle path{path_program_};
         platform::TextureHandle path_atlas{};
         if (const auto it = texture_cache_.find(path_atlas_asset_);
@@ -1063,12 +1079,16 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // choice is the anti-shimmer one). No frustum test: the whole layer lives
     // inside a 12 m ball around the eye, so the cull would cost more than the
     // draw it saves, and the shadow pass wants it anyway.
-    refresh_ground_tufts(renderer, eye);
+    if (!suspended) {
+        refresh_ground_tufts(renderer, eye);
+    }
     // FLORA DETAIL BANDING. Sits beside the tuft refresh because it is the same
     // kind of thing — geometry re-grown around the eye — and because both must
     // see the eye of the frame being drawn, not the one before it.
-    refresh_scatter_lod(renderer, eye);
-    if (tuft_mesh_id_ != 0) {
+    if (!suspended) {
+        refresh_scatter_lod(renderer, eye);
+    }
+    if (tuft_mesh_id_ != 0 && !suspended) {
         renderer.submit(platform::MeshHandle{tuft_mesh_id_}, prop, identity);
     }
     const auto micro_range = static_cast<float>(config::GRASS_VIEW_DISTANCE);
@@ -1088,7 +1108,7 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     }
     for (const auto& [coord, scatter] : scatter_meshes_) {
         const bool chunk_visible =
-            visible_or_casting(frustum, scatter.bounds, cull_eye);
+            !suspended && visible_or_casting(frustum, scatter.bounds, cull_eye);
         if (chunk_visible && scatter.trees_mesh_id != 0) {
             renderer.submit(platform::MeshHandle{scatter.trees_mesh_id}, prop,
                             identity);
@@ -1116,11 +1136,11 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // THE SWARM, unlit and last among the world's geometry: the motes ARE
     // light, so shading them by the sun would put them out at exactly the hour
     // they exist for.
-    if (emissive_mesh_id_ != 0 && unlit_program_ != 0) {
+    if (emissive_mesh_id_ != 0 && unlit_program_ != 0 && !suspended) {
         renderer.submit(platform::MeshHandle{emissive_mesh_id_},
                         platform::ProgramHandle{unlit_program_}, identity);
     }
-    if (firefly_mesh_id_ != 0 && unlit_program_ != 0) {
+    if (firefly_mesh_id_ != 0 && unlit_program_ != 0 && !suspended) {
         renderer.submit(platform::MeshHandle{firefly_mesh_id_},
                         platform::ProgramHandle{unlit_program_}, identity);
     }
@@ -1144,7 +1164,11 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             }
             return t;
         };
-        for (const HouseStreamGpu& st : house_streams_) {
+        // ВТОРОЙ СЛОТ ОТРИСОВКИ (И15): в подвесе рисуется интерьер, а не
+        // город. Один цикл на оба, а не два похожих: два цикла разошлись бы
+        // в первой же правке материала (правило 39).
+        for (const HouseStreamGpu& st : (suspended ? interior_streams_
+                                                   : house_streams_)) {
             // ОТСЕЧЕНИЕ ПОТОКОВ ПОСТРОЕК (22.08). Профиль 59905 кадров: при
             // потоках «материал на весь город» кадр слал 1.91 млн
             // треугольников с разбросом 1% независимо от направления взгляда.
@@ -1170,7 +1194,8 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         // «открыто/закрыто» будет состоянием симуляции, а не синусом.
         house_door_phase_ += 0.008f;
         const float swing = (1.0f - std::cos(house_door_phase_)) * 0.5f * 1.48f;
-        for (const HouseDoorGpu& d : house_doors_) {
+        for (const HouseDoorGpu& d : (suspended ? interior_doors_
+                                                 : house_doors_)) {
             const glm::vec3 axis_v = d.hinge_b - d.hinge_a;
             const float axis_len = glm::length(axis_v);
             glm::mat4 xform(1.0f);
@@ -1297,13 +1322,13 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     for (const WaterBucket& bucket : water_body_meshes_) {
         // Water never casts a sun shadow (transparent programs skip the depth
         // pass), so this is a plain frustum test with no caster exemption.
-        if (!frustum.visible(bucket.bounds)) {
+        if (suspended || !frustum.visible(bucket.bounds)) {
             continue;
         }
         renderer.submit(platform::MeshHandle{bucket.mesh_id}, water, identity,
                         water_tex);
     }
-    if (water_mesh_ != 0) { // debug fallback plane (set_water / DFN_WATER)
+    if (water_mesh_ != 0 && !suspended) { // debug plane (set_water / DFN_WATER)
         renderer.submit(platform::MeshHandle{water_mesh_}, water, identity,
                         water_tex);
     }

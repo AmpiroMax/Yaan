@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 20:08:2026 - 02:12:49
+# Last updated: 23:08:2026 - 22:55:00
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -60,6 +60,8 @@
 # - 20:08:2026 - 02:12:49: render_flame_phase — фаза мерцания факела (сеялась от размера пула
 #   кандидатов) и ревизия листа в ключе кэша плитки набора. У обоих случаев
 #   контроль — дофиксная формула, выписанная дословно (правило 39).
+# - 23:08:2026 - 22:55:00: render_loading_screen — экран загрузки И15: модель этапов
+#   и разность против контрольной руки, рисующей тот же экран без слов.
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)
@@ -98,3 +100,7 @@ add_dfn_test(render_sign_forge render/SignForgeTests.cpp dfn_render dfn_core)
 # случаев контроль — дофиксная формула, выписанная дословно (правило 39).
 add_dfn_test(render_flame_phase render/FlamePhaseTests.cpp
     dfn_render dfn_platform_render dfn_core)
+
+# ЭКРАН ЗАГРУЗКИ (И15 волна А): модель этапов и разность против контрольной
+# руки, рисующей тот же экран без слов (правило 47).
+add_dfn_test(render_loading_screen render/LoadingScreenTests.cpp dfn_render)

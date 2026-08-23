@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 22:08:2026 - 16:50:00
+Last updated: 24:08:2026 - 01:30:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -578,6 +578,12 @@ UPD:
   совпадали до 0.0001 мс — обе 1/120 с) и три колонки prev_draws/prev_tris/
   prev_backend_draws в DFN_FRAME_LOG — счётчики ПОСЛЕДНЕГО ЗАВЕРШЁННОГО
   кадра, названы prev_* чтобы тихий сплайс со сдвигом был невозможен.
+- 24:08:2026 - 01:30:00: И15 волна А: поток чанков заморожен в подвесе, часы неба
+  не переписывают свет локации каждым кадром, переход исполняется ПОСЛЕ раздачи
+  событий (take_portal), дверь DFN_INTERIOR_EXIT. И ОДНА СТАРАЯ ОШИБКА: полоса
+  запекания ассетов рисовалась в hud() с 18.08 и НИ РАЗУ не показывалась —
+  set_hud_visible выставляет только run(), который во время запекания ещё не
+  начался. Та же ошибка на том же пути найдена при заведении экрана загрузки.
 */
 
 #include "engine/app/sources/App.h"
@@ -830,6 +836,10 @@ App::~App() = default;
 // THE PREPARATION SCREEN. Deliberately the plainest thing in the engine: one
 // line of what is happening, one bar, one count. A first launch that shows a
 // black window for a minute is indistinguishable from one that hung.
+// ЭКРАН, КОТОРОГО НИКТО НЕ ВИДЕЛ. Полоса запекания рисовалась в hud() с
+// 18.08 и НИ РАЗУ не показалась: render гейтит блит на hud_visible_, а его
+// выставляет только run(), который во время запекания ещё не начался.
+// Найдено при заведении экрана загрузки (И15) — та же ошибка на том же пути.
 void App::draw_bake_progress(std::size_t done, std::size_t total,
                              const std::string& what) {
     if (renderer_ == nullptr || total == 0) {
@@ -870,6 +880,7 @@ void App::draw_bake_progress(std::size_t done, std::size_t total,
     if (window_ != nullptr) {
         window_->poll_events();
     }
+    render_system_.set_hud_visible(true); // без этого холст рисуется в никуда
     render_system_.render(world_, *renderer_, camera_, 0.0f);
 }
 
@@ -1195,6 +1206,9 @@ bool App::init(const AppConfig& config) {
     // REFUSES A ZERO OUT LOUD, like its neighbour above and for the reason that
     // neighbour records: a door that silently does nothing produces a run that
     // is indistinguishable from a run where the feature is broken.
+    if (const char* xe = door_value("DFN_INTERIOR_EXIT"); xe != nullptr) {
+        interior_exit_frames_ = std::strtoull(xe, nullptr, 10);
+    }
     if (const char* sf = door_value("DFN_SHOT_AFTER"); sf != nullptr) {
         shot_after_frames_ = std::strtoull(sf, nullptr, 10);
         if (shot_after_frames_ == 0) {
@@ -3415,6 +3429,16 @@ int App::run() {
         // machine, which is the defect DFN_CAPTURE_AFTER_FRAMES was added for.
         // Fires once, then closes the app, so the run's artifacts are complete
         // when it exits: the .png, the chat line and the flushed trace.
+        // ВЫХОД ИЗ ЛОКАЦИИ ПО СЧЁТУ КАДРОВ (И15). Кадры, а не секунды, по той
+        // же причине, что у соседей: два прогона одного рецепта обязаны выйти
+        // на одном и том же кадре независимо от загрузки машины.
+        if (interior_exit_frames_ > 0) {
+            ++interior_exit_seen_;
+            if (interior_exit_seen_ >= interior_exit_frames_) {
+                interior_exit_frames_ = 0;
+                leave_interior();
+            }
+        }
         if (shot_after_frames_ > 0) {
             ++shot_after_frames_seen_;
             if (shot_after_frames_seen_ >= shot_after_frames_) {
@@ -3629,7 +3653,14 @@ int App::run() {
         // vampires and lunar magic will depend on it).
         const double lunar = days / static_cast<double>(config::LUNAR_MONTH_DAYS);
         const float lunar_phase = static_cast<float>(lunar - std::floor(lunar));
-        render::apply_sky_time(render_system_.environment(), day_fraction, lunar_phase);
+        // У ЛОКАЦИИ НЕТ НЕБА. Часы суток идут (время в игре не стоит), но
+        // солнце и ambient интерьера выставлены входом, и apply_sky_time
+        // возвращала бы их к уличным КАЖДЫЙ КАДР — то есть свет комнаты
+        // существовал бы ровно один кадр после входа (И15).
+        if (!render_system_.world_suspended()) {
+            render::apply_sky_time(render_system_.environment(), day_fraction,
+                                   lunar_phase);
+        }
         // THE SKY HAD TWO CLOCKS. The sun and the moon have run off the frame
         // counter for days -- that is what the `game_seconds_ += SIM_DT` above
         // is for -- but the cloud drift and the wind envelope kept reading the
@@ -3648,7 +3679,8 @@ int App::run() {
         // approximation redefined "cave" as "low ground" and would have kept
         // the whole switchback tunnel lit, since its portal is 15 m away
         // through stone but 60 m away on foot.
-        if (const auto* t = world_.get<components::Transform>(player_)) {
+        if (const auto* t = world_.get<components::Transform>(player_);
+            t != nullptr && !render_system_.world_suspended()) {
             render_system_.environment().ambient_darkness = chunks_.darkness_at(t->position);
         }
 
@@ -3764,7 +3796,14 @@ int App::run() {
             } else if (const auto* t = world_.get<components::Transform>(player_)) {
                 focus = t->position;
             }
-            chunks_.update(focus, world_, bus_);
+            // ПОДВЕС ГОРОДА (И15): поток чанков ЗАМОРОЖЕН, пока игрок в
+            // локации. Фокус в кармане на километр ниже выгрузил бы весь
+            // город и загрузил бы пустоту вокруг кармана — то есть выход
+            // наружу стоил бы полной загрузки карты вместо переключения
+            // флага. Город стоит там, где стоял.
+            if (!render_system_.world_suspended()) {
+                chunks_.update(focus, world_, bus_);
+            }
             bus_.pump();
         }
 
@@ -3909,6 +3948,11 @@ int App::run() {
                 // tick is in hand this tick rather than next.
                 gameplay::update_view_model(world_);
                 bus_.pump(); // deliver the interaction events published above
+                // ПЕРЕХОД В ЛОКАЦИЮ — ПОСЛЕ РАЗДАЧИ СОБЫТИЙ, НЕ ВНУТРИ НЕЁ.
+                // Вход сносит сущности переходов и телепортирует игрока;
+                // сделать это из обработчика значило бы править контейнеры,
+                // по которым шина сейчас идёт (И15).
+                take_portal();
                 // ENTITIES QUEUED FOR DESTRUCTION ACTUALLY DIE HERE. World.h
                 // says this belongs to the app loop, "once per simulation tick,
                 // after all systems have run" -- and nothing called it, so every

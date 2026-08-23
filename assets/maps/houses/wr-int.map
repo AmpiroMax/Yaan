@@ -1,0 +1,9 @@
+name = Вайтран: пилот интерьера (И15)
+zone = houses
+size_chunks = 1
+# Вайтран v5 — построен по чертежу docs/WHITERUN_PLAN.html (см. JSON).
+source = stand:Gallery
+scene = assets/scenes/wr-int.scene
+objects = assets/objects/parts;assets/objects/signs;assets/objects/trees;assets/objects/glade
+description = ПИЛОТ И15 (волна А): копия боевого Вайтрана, у дома у рынка есть внутренность. Город по плану: река от горного истока рвом вдоль стены, мост у Восточных ворот, рынок, Гилдергрин, замок; дуб-поляна на юго-западе.
+built_commit =

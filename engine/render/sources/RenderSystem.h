@@ -165,6 +165,11 @@ UPD:
 - 22:08:2026 - 18:40:00: HouseStreamGpu.bounds — мировой габарит потока построек для
   отсечения (профиль 22.08: 1.91 млн треугольников в кадре независимо от
   взгляда — пятно меша было размером с карту).
+- 23:08:2026 - 23:10:00: set_interior_mesh + set_world_suspended — второй слот отрисовки и
+  подвес экстерьера (И15 волна А). Город не выгружается: в подвесе кадр рисует
+  интерьерный слот вместо городского, а всё остальное экстерьерное
+  пропускается по условию СВОЕГО цикла. Дозой 0 (подвес выключен) кадр
+  бит-в-бит прежний — гейт добавляет одно `false ||` на цикл.
 - 22:08:2026 - 20:10:00: set_air_override принимает стартовую облачность карты — пишется
   один раз (расписание погоды и DFN_CLOUD выигрывают).
 - 22:08:2026 - 21:00:00: interior у ExtraLight/PointLightCandidate — флаг доезжает до PointLight.
@@ -641,6 +646,12 @@ public:
     /// until the next one. A composition of a hundred lamps is legal — only
     /// eight are ever lit, and which eight is the budget's business.
     void set_scene_lights(std::vector<ExtraLight> lights);
+    /// Лампы, которые СЕЙЧАС считаются лампами карты. Читается на входе в
+    /// интерьер, чтобы вернуть их на выходе: пересобрать их заново значило бы
+    /// завести ВТОРОЕ место, где из [light] делается ExtraLight (правило 39).
+    [[nodiscard]] const std::vector<ExtraLight>& scene_lights() const {
+        return scene_lights_;
+    }
     /// THE SWARM'S BILLBOARDS for this frame. Uploaded as one small mesh and
     /// drawn UNLIT: a firefly is its own light source, and a mote that the
     /// canopy shades goes dark exactly where it is wanted. An empty mesh is
@@ -707,6 +718,23 @@ public:
     void set_house_mesh(platform::IRenderer& renderer, std::vector<HouseStream> streams,
                         std::vector<HouseDoor> doors);
 
+    /// ВТОРОЙ СЛОТ ПОСТРОЕК — ИНТЕРЬЕР-ЛОКАЦИЯ (И15). Тот же вид геометрии,
+    /// та же программа, свой набор буферов. Отдельный слот, а не повторный
+    /// set_house_mesh, ровно потому, что город обязан ПЕРЕЖИТЬ вход в дом:
+    /// перезалив слота построек стоил бы на выходе второй загрузки города,
+    /// а выход по своду обязан укладываться в 0.05 с.
+    void set_interior_mesh(platform::IRenderer& renderer,
+                           std::vector<HouseStream> streams,
+                           std::vector<HouseDoor> doors);
+
+    /// ПОДВЕС ЭКСТЕРЬЕРА. true — кадр рисует ТОЛЬКО интерьерный слот (и всё,
+    /// что не является миром: тело игрока, предмет в руке, HUD); земля,
+    /// дальний рельеф, трава, рассев, вода и потоки городских построек
+    /// пропускаются. Город при этом остаётся резидентным — ни один буфер не
+    /// освобождается, ни один чанк не выгружается.
+    void set_world_suspended(bool suspended) { world_suspended_ = suspended; }
+    [[nodiscard]] bool world_suspended() const { return world_suspended_; }
+
     /// Lights that live for ONE frame (the firefly swarm). Replaced every
     /// frame; an empty list is the normal daytime state, not an error.
     void set_transient_lights(std::vector<ExtraLight> lights);
@@ -737,8 +765,20 @@ private:
         glm::vec3 hinge_b{0.0f};
         bool demo_swing = false;
     };
+    /// Заливка ОДНОГО слота построек — общее тело set_house_mesh и
+    /// set_interior_mesh. Объявлена ЗДЕСЬ, а не рядом с ними: её параметры
+    /// названы типами, которые определены строкой выше.
+    void fill_house_slot(platform::IRenderer& renderer,
+                         std::vector<HouseStream> streams,
+                         std::vector<HouseDoor> doors,
+                         std::vector<HouseStreamGpu>& out_streams,
+                         std::vector<HouseDoorGpu>& out_doors);
     std::vector<HouseStreamGpu> house_streams_;
     std::vector<HouseDoorGpu> house_doors_;
+    /// Второй слот — интерьер-локация (И15). Живёт независимо от городского.
+    std::vector<HouseStreamGpu> interior_streams_;
+    std::vector<HouseDoorGpu> interior_doors_;
+    bool world_suspended_ = false;
     float house_door_phase_ = 0.0f; // демонстрационный ход двери
     /// Плитка материала набора, ленивo и с кэшем (см. set_house_mesh).
     /// `normal` = true — лист НОРМАЛЕЙ той же плитки: рельеф стен и столбов

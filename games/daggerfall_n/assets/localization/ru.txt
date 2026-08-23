@@ -12,6 +12,8 @@ prompt.take=Взять
 prompt.open=Открыть
 prompt.use=Использовать
 prompt.look=Осмотреть
+prompt.enter=Войти
+prompt.leave=Выйти
 
 item.tool.torch.name=Факел
 

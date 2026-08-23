@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 22:08:2026 - 17:45:00
+Last updated: 24:08:2026 - 01:20:00
 Module: tests/app
 File: tests/app/DoorsTests.cpp
 
@@ -36,6 +36,8 @@ UPD:
 - 20:08:2026 - 16:40:00: Безлюдных дверей 14 — прибавилась DFN_PLAYTEST_ARRIVE.
 - 22:08:2026 - 14:30:00: Безлюдных дверей 15 — прибавилась DFN_PLAYTEST_GLANCE.
 - 22:08:2026 - 17:45:00: AppHouse.cpp в списке сканируемых (читает DFN_HOUSE_AO через door_value).
+- 24:08:2026 - 01:20:00: AppInterior.cpp в списке файлов; безлюдных дверей 17
+  (DFN_INTERIOR, DFN_INTERIOR_EXIT — И15 волна А).
 */
 
 #include <doctest/doctest.h>
@@ -76,6 +78,9 @@ const std::vector<std::string>& app_sources() {
         // AppHouse.cpp дописан 22.08: DFN_HOUSE_AO читается там (через
         // door_value, как и всё), и список обязан это видеть.
         "engine/app/sources/AppHouse.cpp",
+        // AppInterior.cpp дописан 24.08 (И15): DFN_LOAD_LOG читается и там —
+        // экран загрузки ведёт тот же список этапов, что и прибор.
+        "engine/app/sources/AppInterior.cpp",
     };
     return v;
 }
@@ -241,7 +246,10 @@ TEST_CASE("whether a run is unattended is the table's column, door by door") {
     // 14 с 20.08: DFN_PLAYTEST_ARRIVE — спутница DFN_PLAYTEST_ROUTE, руками
     // её не выставляют. 15 с 22.08: DFN_PLAYTEST_GLANCE — тоже спутница
     // маршрута (ровный взгляд операторской ленты).
-    CHECK(unattended_doors == 15);
+    // 17 с 24.08 (И15): DFN_INTERIOR (открыть карту сразу внутри локации) и
+    // DFN_INTERIOR_EXIT (выйти через N кадров) — обе существуют ровно затем,
+    // чтобы вход и выход мог снять автомат: руками они не выставляются.
+    CHECK(unattended_doors == 17);
 
     // PRESENCE, NOT TRUTH. `DFN_TOUR=0` still means a tour is being run by a
     // script -- every door here is opened by being set at all, and a door that

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 20:08:2026 - 02:02:41
+# Last updated: 23:08:2026 - 23:50:00
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -97,6 +97,7 @@ if(DFN_APP_READY)
         sources/AppHouse.cpp
         sources/AppHud.cpp
         sources/AppInput.cpp
+        sources/AppInterior.cpp
     sources/AppSettings.cpp
     sources/AppWorld.cpp
         sources/AssetBake.cpp
@@ -153,4 +154,7 @@ endif()
 # - 19:08:2026 - 02:05:30: AppHouse.cpp — знание App о постройке в одном файле (второй аудит, долг 1).
 # - 20:08:2026 - 02:02:41: AppEditorWiring.cpp — wire_editor_panels() целиком (разрез А
 #   третьего аудита). Перенос без изменения тела: объявление осталось в App.h.
+# - 23:08:2026 - 23:50:00: AppInterior.cpp — переход в интерьер-локацию и обратно
+#                          (И15 волна А): карман, подвес, второй слот, портал,
+#                          экран загрузки, точка возврата.
 

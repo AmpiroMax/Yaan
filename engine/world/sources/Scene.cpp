@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 23:08:2026 - 22:10:00
+Last updated: 23:08:2026 - 23:40:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -91,6 +91,7 @@ UPD:
   непредставимым: секция — одно значение, присваивается один раз. Рука дозы 0
   (правило 47) в tests/core/SceneTests.cpp: боевой Вайтран читается без единого
   портала и без единого interior=, а два прохода записи сходятся побайтово.
+- 23:08:2026 - 23:40:00: ключ ambient в [air] — общий свет локации (И15 шаг 4).
 */
 
 #include "engine/world/sources/Scene.h"
@@ -291,6 +292,10 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                 }
             } else if (key == "cloud") {
                 if (!number(A.cloud_cover)) {
+                    return false;
+                }
+            } else if (key == "ambient") {
+                if (!number(A.ambient)) {
                     return false;
                 }
             }
@@ -642,6 +647,9 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
             << "fog_end = " << doc.air.fog_end_m << "\n";
         if (doc.air.cloud_cover >= 0.0f) {
             out << "cloud = " << doc.air.cloud_cover << "\n";
+        }
+        if (doc.air.ambient >= 0.0f) {
+            out << "ambient = " << doc.air.ambient << "\n";
         }
     }
     const std::string text = out.str();

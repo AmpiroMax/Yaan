@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 23:08:2026 - 20:42:20
+Last updated: 24:08:2026 - 01:30:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -51,6 +51,10 @@ UPD:
 - 23:08:2026 - 01:17:49: паром SceneLight.flicker с дозой DFN_LIGHT_FLICKER (0 = ровный свет бит-в-бит).
 - 23:08:2026 - 02:00:26: маска троп несёт альфу 255 по всему полю — тексели с альфой 0 включали мип-эвристику листвы, и мип усреднял канал класса (лоскуты классов, которых нет в файле).
 - 23:08:2026 - 20:42:20: И0 — прибор времени загрузки (DFN_LOAD_LOG): этапы enter_world с миллисекундами; «24 с на 437 домов» в репо не существовало, теперь величина измерима.
+- 24:08:2026 - 01:30:00: И15 волна А: этапы загрузки ведёт render::LoadingScreen —
+  ОДИН список на прибор DFN_LOAD_LOG и на глаз игрока (формат строки прибора
+  не сдвинут); [portal] карты становятся вещами мира; DFN_INTERIOR открывает
+  карту сразу внутри локации; unload_world снимает локацию вместе с картой.
 */
 
 #include "engine/app/sources/App.h"
@@ -154,6 +158,34 @@ void App::unload_world() {
     // Готовые постройки принадлежат карте: следующая карта прочитает свои.
     // Само тело house_body_ пересоберёт первый же upload_house_mesh.
     placed_houses_.clear();
+    // ---- И15: локация уходит вместе с картой ----
+    // Иначе второй вход в мир нашёл бы залитой комнату из ПРЕДЫДУЩЕГО города,
+    // а стек возвратов указывал бы на сцену, которой больше нет.
+    if (physics_ != nullptr) {
+        if (interior_body_.valid()) {
+            physics_->destroy_body(interior_body_);
+            interior_body_ = {};
+        }
+        if (interior_plate_.valid()) {
+            physics_->destroy_body(interior_plate_);
+            interior_plate_ = {};
+        }
+    }
+    portals_.clear();
+    interior_houses_.clear();
+    interior_positions_.clear();
+    interior_doc_ = {};
+    interior_resident_.clear();
+    city_lights_.clear();
+    city_lights_saved_ = false;
+    city_sky_saved_ = false;
+    render_system_.set_world_suspended(false);
+    if (renderer_ != nullptr) {
+        render_system_.set_interior_mesh(*renderer_, {}, {});
+    }
+    if (world_.has_resource<gameplay::InteriorState>()) {
+        world_.resource<gameplay::InteriorState>() = gameplay::InteriorState{};
+    }
     // ТЕЛА ПЕРЕПРАВЫ — ДО ВЫГРУЗКИ ЧАНКОВ, в том же порядке, в каком это делал
     // shutdown(): обработчик ChunkUnloaded ищет их в той же карте, и пустая
     // карта для него — законное состояние.
@@ -183,9 +215,12 @@ void App::unload_world() {
     bus_.unsubscribe(chunk_loaded_sub_);
     bus_.unsubscribe(chunk_unloaded_sub_);
     bus_.unsubscribe(landed_sub_);
+    bus_.unsubscribe(used_sub_);
     chunk_loaded_sub_ = {};
     chunk_unloaded_sub_ = {};
     landed_sub_ = {};
+    used_sub_ = {};
+    pending_portal_ = 0;
     if (physics_ != nullptr) {
         for (platform::PhysicsBodyHandle& w : world_edge_) {
             if (w.valid()) {
@@ -238,23 +273,33 @@ bool App::enter_world(uint32_t stand) {
     // загрузки в репо не было, а масштабировать неизмеренную величину
     // нельзя. DFN_LOAD_LOG=1 — печать этапов с миллисекундами; выключенный
     // прибор не стоит ничего и кадра не касается вовсе.
+    //
+    // И15: ЭТОТ ЖЕ СПИСОК ЭТАПОВ ВИДИТ ИГРОК. Экран загрузки не заводит
+    // второго перечня — он ведёт ТОТ ЖЕ (render::LoadingScreen), и печать
+    // прибора идёт из него же, тем же форматом до пробела. Два списка
+    // разошлись бы в первый же день, и экран показывал бы загрузку, которой
+    // прибор не мерил (правило 39).
     const auto load_t0 = std::chrono::steady_clock::now();
     static const bool load_log = [] {
         const char* e = door_value("DFN_LOAD_LOG");
         return e != nullptr && *e != '\0' && *e != '0';
     }();
-    auto load_mark = [&, last = load_t0](const char* what) mutable {
-        if (!load_log) {
-            return;
+    // ДЛИТЕЛЬНОСТЬ ЭКРАНА (DFN_INTERIOR_FADE). 0 — экран не показывается
+    // вовсе, и два прогона дают побитово сравнимые кадры: беспилотный кадр
+    // комнаты не имеет права зависеть от того, сколько кадров прожил экран.
+    static const float fade = [] {
+        const char* e = door_value("DFN_INTERIOR_FADE");
+        if (e == nullptr || *e == '\0') {
+            return 0.15f;
         }
-        const auto now_t = std::chrono::steady_clock::now();
-        const auto ms = [](auto d) {
-            return std::chrono::duration<double, std::milli>(d).count();
-        };
-        std::fprintf(stderr, "[load] %-28s %8.1f ms  (итого %8.1f)\n", what,
-                     ms(now_t - last), ms(now_t - load_t0));
-        last = now_t;
-    };
+        return std::max(0.0f, std::strtof(e, nullptr));
+    }();
+    interior_fade_s_ = fade;
+    loading_.set_log(load_log);
+    loading_.begin("Загрузка карты", gallery_scene_.empty() ? std::string("мир")
+                                                            : gallery_scene_);
+    loading_.set_expected(6); // снос, тропы, свет, мир, постройки, готово
+    auto load_mark = [&](const char* what) { loading_.stage(what); };
     // ПЕРВОЙ СТРОКОЙ — СНОС ТОГО, ЧТО УЖЕ СТОИТ (см. unload_world выше).
     unload_world();
     load_mark("снос прежнего мира");
@@ -1437,6 +1482,16 @@ bool App::enter_world(uint32_t stand) {
     landed_sub_ = bus_.subscribe<gameplay::Landed>([this](const gameplay::Landed& e) {
         anim::note_landed(world_, e.walker, e.impact_speed);
     });
+    // ПЕРЕХОД В ЛОКАЦИЮ (И15). Обработчик НИЧЕГО не делает, кроме заявки:
+    // сам переход исполняется после раздачи событий (см. take_portal).
+    used_sub_ = bus_.subscribe<gameplay::Used>([this](const gameplay::Used& e) {
+        for (const PortalLink& link : portals_) {
+            if (link.action == e.action) {
+                pending_portal_ = e.action;
+                return;
+            }
+        }
+    });
 
     // MIRROR PUPPET (grill v11). DFN_MIRROR=1: the double stands 3 m ahead and
     // mirrors you. DFN_SHOWCASE=1: it floats and cycles the clip reel instead.
@@ -1866,13 +1921,28 @@ bool App::enter_world(uint32_t stand) {
     if (traj_rec_arm_ && !traj_rec_.active()) {
         traj_rec_.begin(active_stand_, 1u);
     }
+    // ПЕРЕХОДЫ КАРТЫ ([portal], И15). Пусто на каждой сцене без порталов, и
+    // тогда всё ниже — прежний мир до последнего бита (доза 0, правило 47).
+    spawn_scene_portals(scene_doc_, /*interior=*/false);
+
     load_mark("мир готов");
+    loading_.finish();
     if (load_log) {
-        const auto total = std::chrono::duration<double, std::milli>(
-                               std::chrono::steady_clock::now() - load_t0)
-                               .count();
-        std::fprintf(stderr, "[load] ГОРОД ЗАГРУЖЕН за %.1f ms\n", total);
+        std::fprintf(stderr, "[load] ГОРОД ЗАГРУЖЕН за %.1f ms\n",
+                     loading_.elapsed_ms());
     }
+    // ДВЕРЬ БЕСПИЛОТНОГО КАДРА КОМНАТЫ: открыть карту сразу ВНУТРИ локации.
+    // Войти в дом иначе умеет только рука на клавише, и ни один автомат не
+    // мог бы снять интерьер.
+    if (const char* inside = door_value("DFN_INTERIOR");
+        inside != nullptr && *inside != '\0') {
+        if (!enter_interior(inside, std::string{})) {
+            std::fprintf(stderr, "[интерьер] DFN_INTERIOR=%s — вход не удался\n",
+                         inside);
+        }
+    }
+    loading_.hide();
+    (void)load_t0;
     return true;
 }
 

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 14:46:25
+# Last updated: 23:08:2026 - 22:40:00
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -64,6 +64,9 @@
 # - 17:08:2026 - 13:21:37: sources/PartForgeRoofs.cpp — семья крыш (5 покрытий, вальма, дымник).
 # - 17:08:2026 - 14:29:43: sources/PartsAtlas.cpp — СВОЙ ЛИСТ НАБОРА (колонка = поверхность,
 # - 17:08:2026 - 14:46:25: sources/SignForge.cpp — таблички с текстом (работа 4 заказа 17.08).
+# - 23:08:2026 - 22:40:00: sources/LoadingScreen.cpp — ЭКРАН ЗАГРУЗКИ как предмет
+#                          движка (И15 волна А; владелец 24.08: не шторка, а экран
+#                          с холстом и статусом загрузки).
 #   ряд = тон/износ): текстуры деталям, работа 3 заказа 17.08.
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
@@ -78,6 +81,7 @@ add_library(dfn_render STATIC
     sources/FloraSpecies.cpp
     sources/FloraWeber.cpp
     sources/GroundTufts.cpp
+    sources/LoadingScreen.cpp
     sources/LodTerrain.cpp
     sources/MapScreen.cpp
     sources/ObjectRegistry.cpp

@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 23:08:2026 - 18:11:50
+Last updated: 24:08:2026 - 01:30:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -60,6 +60,11 @@ UPD:
 - 23:08:2026 - 07:20:00: пятна построек для травы собираются при заливке (габарит по вершинам,
 - 23:08:2026 - 18:11:50: самосветные части (glow) уходят отдельными потоками с DrawParams.emissive; дверь DFN_HOUSE_GLOW (0 = прежние освещённые потоки бит-в-бит).
   усадка 0.45 — габарит несёт свес, трава у стены снаружи законна).
+- 24:08:2026 - 01:30:00: И15 волна А — ДВА СЛОТА, ОДИН ПОСТРОИТЕЛЬ: приёмник
+  append_graph переключается указателями, и интерьер-локация собирается тем же
+  кодом, что и город. Плюс ИНВЕРСИЯ КОЛЛАЙДЕРА ДВЕРИ (ключ элемента portal=1):
+  створка запечатанного дома входит в коллайдер, иначе игрок прошёл бы сквозь
+  оболочку мимо всей механики. Дверь без флага — как была, до треугольника.
 */
 
 #include "engine/app/sources/App.h"
@@ -475,7 +480,7 @@ std::uint64_t App::house_wall_example(int variant, int px) {
     return tex;
 }
 
-void App::upload_house_mesh() {
+void App::upload_house_mesh(bool interior_only) {
     if (renderer_ == nullptr) {
         return;
     }
@@ -488,10 +493,29 @@ void App::upload_house_mesh() {
     // СЮДА ЖЕ ВЛИВАЮТСЯ ГОТОВЫЕ ПОСТРОЙКИ КАРТЫ (20.08, секция [house]):
     // один набор потоков и ОДИН коллайдер на всё построенное — у картинки и
     // физики нет второй истории, которая могла бы разъехаться.
-    std::map<std::uint64_t, render::RenderSystem::HouseStream> streams;
-    std::vector<render::RenderSystem::HouseDoor> doors;
-    std::vector<std::uint32_t> collider_indices;
-    house_positions_.clear();
+    // ДВА СЛОТА, ОДИН ПОСТРОИТЕЛЬ (И15). Город и интерьер-локация собираются
+    // ОДНИМ И ТЕМ ЖЕ append_graph: два похожих построителя разошлись бы в
+    // первой же правке материала, и разошлись бы молча — комната перестала бы
+    // быть тем же домом, что снаружи (правило 39). Приёмник переключается
+    // указателями, поэтому тело построителя не знает, на кого работает.
+    std::map<std::uint64_t, render::RenderSystem::HouseStream> city_streams;
+    std::map<std::uint64_t, render::RenderSystem::HouseStream> int_streams;
+    std::vector<render::RenderSystem::HouseDoor> city_doors;
+    std::vector<render::RenderSystem::HouseDoor> int_doors;
+    std::vector<std::uint32_t> city_indices;
+    std::vector<std::uint32_t> int_indices;
+    if (!interior_only) {
+        house_positions_.clear();
+    }
+    interior_positions_.clear();
+    auto* streams = &city_streams;
+    auto* doors = &city_doors;
+    auto* collider_indices = &city_indices;
+    auto* positions = &house_positions_;
+    // ПЯТНА ПОД ТРАВУ СОБИРАЮТСЯ ТОЛЬКО У ГОРОДА. Карман интерьера лежит под
+    // городом по той же XZ, и его пятна выкосили бы траву НАВЕРХУ — под домом,
+    // которого там нет.
+    bool collect_exclusions = true;
 
     // КЭШ НЕБЕСНОЙ ВИДИМОСТИ ПО ОТПЕЧАТКУ МЕША. 434 постройки города — это
     // ~20-30 уникальных .dfh: печь AO на каждый ЭКЗЕМПЛЯР значило бы платить
@@ -542,7 +566,7 @@ void App::upload_house_mesh() {
                 hi = glm::max(hi, {wp.x, wp.z});
             }
             const glm::vec2 half = (hi - lo) * 0.5f - glm::vec2{0.45f};
-            if (half.x > 0.5f && half.y > 0.5f) {
+            if (collect_exclusions && half.x > 0.5f && half.y > 0.5f) {
                 const glm::vec2 c = (lo + hi) * 0.5f;
                 ground_exclusions.push_back({c.x, c.y, half.x, half.y});
             }
@@ -721,22 +745,31 @@ void App::upload_house_mesh() {
             if (part.collider_only) {
                 for (std::uint32_t i = 0; i < part.index_count; ++i) {
                     const std::uint32_t vi = built.indices[part.index_begin + i];
-                    collider_indices.push_back(
-                        static_cast<std::uint32_t>(house_positions_.size()));
-                    house_positions_.push_back(to_world(built.vertices[vi].pos));
+                    collider_indices->push_back(
+                        static_cast<std::uint32_t>(positions->size()));
+                    positions->push_back(to_world(built.vertices[vi].pos));
                 }
                 continue;
             }
+            // ИНВЕРСИЯ КОЛЛАЙДЕРА ДВЕРИ (И15, ключ элемента portal=1). Створка
+            // намеренно НЕ входит в коллайдер: она качается, и статичное тело в
+            // проёме держало бы человека в пустом проходе. Но у ЗАПЕЧАТАННОГО
+            // дома проём перестаёт быть законным сквозным просветом — внутрь
+            // ведёт не он, а переход, — и тогда створка обязана быть стеной,
+            // иначе игрок пройдёт сквозь оболочку мимо всей механики.
+            // Дверь БЕЗ флага — как была, до последнего треугольника.
+            const bool portal_leaf =
+                is_door && graph.param(e->id, "portal") == "1";
             render::MeshData* into = nullptr;
             if (is_door) {
-                doors.emplace_back();
-                doors.back().surface = surface;
-                doors.back().tone = tone;
+                doors->emplace_back();
+                doors->back().surface = surface;
+                doors->back().tone = tone;
                 // Качается только дверь, ВЫБРАННАЯ в сессии редактирования —
                 // показать петлю; остальные (и все двери готовых домов)
                 // стоят закрытыми.
-                doors.back().demo_swing = (&graph == &house_.graph())
-                                       && house_.selected_element() == e->id;
+                doors->back().demo_swing = (&graph == &house_.graph())
+                                        && house_.selected_element() == e->id;
                 // ПЕТЛЯ — ВЫБРАННАЯ ПАРА СОСЕДНИХ ЯКОРЕЙ (param hinge — номер
                 // ребра обхода, по кругу). Ось идёт через их мировые точки.
                 const std::size_t n = e->refs.size();
@@ -744,10 +777,10 @@ void App::upload_house_mesh() {
                 if (const std::string h = graph.param(e->id, "hinge"); !h.empty()) {
                     hinge = static_cast<std::size_t>(std::atoi(h.c_str())) % n;
                 }
-                doors.back().hinge_a = to_world(graph.resolved_local(e->refs[hinge]));
-                doors.back().hinge_b =
+                doors->back().hinge_a = to_world(graph.resolved_local(e->refs[hinge]));
+                doors->back().hinge_b =
                     to_world(graph.resolved_local(e->refs[(hinge + 1) % n]));
-                into = &doors.back().mesh;
+                into = &doors->back().mesh;
             } else {
                 // ПРОСТРАНСТВЕННАЯ ЧАСТЬ КЛЮЧА (22.08). Ключ «материал|тон»
                 // сливал все 462 постройки города в ~15 мешей размером с
@@ -781,7 +814,7 @@ void App::upload_house_mesh() {
                         || std::strtof(e, nullptr) > 0.5f;
                 }();
                 const bool part_glow = glow_on && part.emissive;
-                auto& st = streams[(cell_key << 16)
+                auto& st = (*streams)[(cell_key << 16)
                                    | (static_cast<std::uint64_t>(surface) << 8)
                                    | (part_glow ? (1ull << 15) : 0ull) | tone];
                 st.surface = surface;
@@ -799,13 +832,14 @@ void App::upload_house_mesh() {
                 }
                 into->indices.push_back(remap[vi]);
             }
-            if (!is_door) {
-                // Коллайдер — из тех же треугольников, дверные исключены.
+            if (!is_door || portal_leaf) {
+                // Коллайдер — из тех же треугольников; дверные исключены, кроме
+                // створок портала (см. выше).
                 for (std::uint32_t i = 0; i < part.index_count; ++i) {
                     const std::uint32_t vi = built.indices[part.index_begin + i];
-                    collider_indices.push_back(
-                        static_cast<std::uint32_t>(house_positions_.size()));
-                    house_positions_.push_back(to_world(built.vertices[vi].pos));
+                    collider_indices->push_back(
+                        static_cast<std::uint32_t>(positions->size()));
+                    positions->push_back(to_world(built.vertices[vi].pos));
                 }
             }
         }
@@ -815,6 +849,9 @@ void App::upload_house_mesh() {
         }
     };
 
+    // ТОЛЬКО ИНТЕРЬЕР (И15): вход в дом не имеет права перестраивать город.
+    // 1087 построек Вайтрана — это секунды, а свод даёт на вход полсекунды.
+    if (!interior_only) {
     append_graph(house_.graph(),
                  [&](glm::vec3 local) { return house_.to_world(local); });
     for (const PlacedHouse& ph : placed_houses_) {
@@ -826,28 +863,58 @@ void App::upload_house_mesh() {
             return ph.pos + glm::vec3{l.x * c + l.z * sn, l.y, -l.x * sn + l.z * c};
         });
     }
-
-    std::vector<render::RenderSystem::HouseStream> stream_list;
-    for (auto& [key, st] : streams) {
-        stream_list.push_back(std::move(st));
     }
-    const std::size_t n_streams = stream_list.size();
-    const std::size_t n_doors = doors.size();
-    render_system_.set_house_mesh(*renderer_, std::move(stream_list), std::move(doors));
-    render_system_.set_ground_exclusions(std::move(ground_exclusions));
+
+    // ВТОРОЙ ПРОХОД — ИНТЕРЬЕР-ЛОКАЦИЯ (И15). Тот же построитель, другой
+    // приёмник. Пусто на каждой карте, у которой никто не входил в дом, и
+    // тогда всё ниже — прежний город до последнего байта (доза 0, правило 47).
+    streams = &int_streams;
+    doors = &int_doors;
+    collider_indices = &int_indices;
+    positions = &interior_positions_;
+    collect_exclusions = false;
+    for (const PlacedHouse& ph : interior_houses_) {
+        const float c = std::cos(ph.yaw);
+        const float sn = std::sin(ph.yaw);
+        append_graph(ph.graph, [&, c, sn](glm::vec3 l) {
+            return ph.pos + glm::vec3{l.x * c + l.z * sn, l.y, -l.x * sn + l.z * c};
+        });
+    }
+
+    std::size_t n_streams = 0;
+    std::size_t n_doors = 0;
+    if (!interior_only) {
+        std::vector<render::RenderSystem::HouseStream> stream_list;
+        for (auto& [key, st] : city_streams) {
+            stream_list.push_back(std::move(st));
+        }
+        n_streams = stream_list.size();
+        n_doors = city_doors.size();
+        render_system_.set_house_mesh(*renderer_, std::move(stream_list),
+                                      std::move(city_doors));
+        render_system_.set_ground_exclusions(std::move(ground_exclusions));
+    }
+
+    std::vector<render::RenderSystem::HouseStream> int_list;
+    for (auto& [key, st] : int_streams) {
+        int_list.push_back(std::move(st));
+    }
+    render_system_.set_interior_mesh(*renderer_, std::move(int_list),
+                                     std::move(int_doors));
+    upload_interior_body(int_indices);
 
     // СКВОЗЬ ДОМ ХОДИТЬ НЕЛЬЗЯ (кроме дверей — они качаются). Коллайдер из тех
     // же треугольников, что и картинка: два описания одного дома разъезжаются в
     // день, когда правят одно из них.
-    if (physics_ != nullptr) {
+    if (physics_ != nullptr && !interior_only) {
         if (house_body_.valid()) {
             physics_->destroy_body(house_body_);
             house_body_ = {};
         }
-        if (!house_positions_.empty() && !collider_indices.empty()) {
+        if (!house_positions_.empty() && !city_indices.empty()) {
             platform::TerrainMeshDesc desc;
             desc.positions = house_positions_;
-            desc.indices = collider_indices;
+            desc.indices = city_indices;
             desc.layer = physics::LAYER_STATIC;
             house_body_ = physics_->create_terrain_mesh(desc);
             if (!house_body_.valid()) {
@@ -921,8 +988,11 @@ void App::upload_house_mesh() {
             }
         }
     }
-    std::fprintf(stderr, "[постройка] тело: потоков %zu, дверей %zu (готовых домов %zu)\n",
-                 n_streams, n_doors, placed_houses_.size());
+    if (!interior_only) {
+        std::fprintf(stderr,
+                     "[постройка] тело: потоков %zu, дверей %zu (готовых домов %zu)\n",
+                     n_streams, n_doors, placed_houses_.size());
+    }
 }
 
 void App::load_scene_houses() {
