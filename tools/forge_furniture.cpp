@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 13:20:00
-Last updated: 23:08:2026 - 18:13:32
+Last updated: 23:08:2026 - 21:40:00
 Module: tools
 File: tools/forge_furniture.cpp
 
@@ -21,10 +21,19 @@ Key items:
 - curb: бордюрный камень двух длин, из них набирается кромка тропы.
 - lamp_post/lamp_wall: уличные фонари; ТОЧКА СВЕТА объявлена рецептом.
 - bench_arc/planter: сквер у Гилдергрина — дуга скамьи и цветник.
+- pack_furn: СЕКЦИЯ РЕЕСТРА пакета furn; свой предмет города заводят своей
+  секцией и зовут её в furniture_recipes().
+
+Usage:
+    dfn_furniture                 испечь весь пакет и переписать манифест
+    dfn_furniture --only <маска>  испечь только совпавшие (* и ?)
+    dfn_furniture --list          перечислить реестр и остановиться
 
 Dependencies:
-- Uses: engine/world (HouseGraph, HouseFile).
-- Used by: цель dfn_furniture; артефакты читают сцена и редактор.
+- Uses: engine/world (HouseGraph, HouseFile), tools/recipe_book.h (реестр,
+  ключи), tools/house_manifest.h (манифест полки).
+- Used by: цель dfn_furniture; артефакты читают сцена и редактор; манифест
+  assets/houses/INDEX.txt читает генератор города.
 
 Notes:
 - ЧЕЛОВЕЧЕСКИЕ ЧИСЛА (docs/INTERIOR_CATALOG.md §9, обмеры по росту 1.8 м):
@@ -257,16 +266,27 @@ UPD:
   не сделать: PATH_MIN_FADE_M равен шагу сетки высот, ниже поле становится 0/1
   и возвращается лесенка. Это зона world, а не рецепт; у раскладчика записано
   честным остатком в шапке генератора.
+- 23:08:2026 - 21:40:00: РЕЕСТР РЕЦЕПТОВ, КЛЮЧ --only И МАНИФЕСТ ПОЛКИ (волны
+  И2/И3 эпохи «12 городов»). Прямой список вызовов в main() стал таблицей
+  «имя -> пакет -> рука» (pack_furn), путь артефакта ВЫВОДИТСЯ ИЗ ИМЕНИ —
+  шестнадцать рук, писавших литерал пути внутри, принимают файл входом.
+  --only <маска> печёт совпавшие и не трогает остальные файлы полки, --list
+  перечисляет реестр. После выпечки кузница пишет assets/houses/INDEX.txt —
+  тот же манифест, что и кузница домов, и всегда ПО ВСЕЙ ПОЛКЕ: он замеряет
+  файлы, а не то, что пеклось этим прогоном.
+  Все 30 предметов после рефактора БАЙТ-В-БАЙТ (shasum до и после).
 */
 
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
 #include "engine/world/sources/HouseMesh.h"
+#include "tools/recipe_book.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 
 #include <glm/geometric.hpp>
 #include <glm/vec3.hpp>
@@ -467,7 +487,7 @@ struct Forge {
 //    Н-проножка внизу: без неё четыре палки под плитой читаются «карточкой»
 //    (та же находка, что у прилавка рынка, приёмка 21.08).
 // ---------------------------------------------------------------------------
-void forge_table() {
+void forge_table(const char* file) {
     Forge f;
     const float W = 1.8f;
     const float D = 0.9f;
@@ -497,14 +517,14 @@ void forge_table() {
     f.bar({xs[1], y_str, zs[0]}, {xs[1], y_str, zs[1]}, 0.035f, "0", "2");
     f.bar({xs[0], y_str, D * 0.5f}, {xs[1], y_str, D * 0.5f}, 0.035f, "0", "2");
 
-    f.save("assets/houses/furn-table.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
 // 2. ЛАВКА 1.6 x 0.35, сиденье на 0.45 (каталог §9: скамья без спинки
 //    1.6x0.35x0.45). Доска на двух опорах-щеках, между щеками — проножка.
 // ---------------------------------------------------------------------------
-void forge_bench() {
+void forge_bench(const char* file) {
     Forge f;
     const float W = 1.6f;
     const float D = 0.35f;
@@ -522,7 +542,7 @@ void forge_bench() {
     // Проножка на уровне 0.15 — она и держит щёки от расшатывания.
     f.bar({0.22f, 0.15f, D * 0.5f}, {W - 0.22f, 0.15f, D * 0.5f}, 0.035f, "0", "2");
 
-    f.save("assets/houses/furn-bench.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -530,7 +550,7 @@ void forge_bench() {
 //    изголовье-щит с навершиями (каталог §9: односпальная 1.9x0.85, рама
 //    0.4, спинки со столбиками 0.9 и пирамидными навершиями).
 // ---------------------------------------------------------------------------
-void forge_bed() {
+void forge_bed(const char* file) {
     Forge f;
     const float W = 1.0f;  // ширина, восток-запад
     const float L = 2.0f;  // длина, север-юг; изголовье на севере (z=0)
@@ -568,7 +588,7 @@ void forge_bed() {
                "0", "2");
     }
 
-    f.save("assets/houses/furn-bed.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -576,7 +596,7 @@ void forge_bed() {
 //    (каталог §9: открытый стеллаж 1.0x0.35x1.5, шаг полок ~0.45).
 //    Ставится задней кромкой (z = D) к стене.
 // ---------------------------------------------------------------------------
-void forge_shelf() {
+void forge_shelf(const char* file) {
     Forge f;
     const float W = 1.2f;
     const float D = 0.35f;
@@ -596,7 +616,7 @@ void forge_shelf() {
     f.bar({sx0, H - 0.05f, D - 0.04f}, {sx1, H - 0.05f, D - 0.04f}, 0.03f, "0", "2");
     f.bar({sx0, 0.12f, D - 0.04f}, {sx1, 0.12f, D - 0.04f}, 0.03f, "0", "2");
 
-    f.save("assets/houses/furn-shelf.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -663,7 +683,7 @@ bool hearth_moss() {
     return on;
 }
 
-void forge_hearth() {
+void forge_hearth(const char* file) {
     Forge f;
     const float S = 1.4f;
     const float base_top = 0.14f;
@@ -702,7 +722,7 @@ void forge_hearth() {
            hearth_moss() ? Params{{"wear", w_pan}}
                          : Params{{"wear", w_pan}, {"paint", "6"}});
 
-    f.save("assets/houses/furn-hearth.dfh");
+    f.save(file);
 }
 
 
@@ -820,7 +840,7 @@ void ember_bed(Forge& f, float cx, float cz, float y_top, float r) {
 //     дерево (краска-дёготь) под пламенем и есть то, что говорит «горит», а не
 //     «светится». Износа у них НОЛЬ — см. разбор зелёной лужи выше.
 // ---------------------------------------------------------------------------
-void forge_fire() {
+void forge_fire(const char* file) {
     Forge f;
     const float cx = 0.30f;
     const float cz = 0.30f;
@@ -839,7 +859,7 @@ void forge_fire() {
     ember_bed(f, cx, cz, 0.06f, 0.26f);
     flame_cluster(f, cx, cz, 0.16f, 0.62f, 0.19f);
 
-    f.save("assets/houses/furn-fire.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -855,7 +875,7 @@ void forge_fire() {
 //     Кромка корзины здесь на 2.28, пламя от 2.30 до 2.92 — свет 2.75 попадает
 //     В ТЕЛО пламени, а не в пустоту над ним, и переставлять его не придётся.
 // ---------------------------------------------------------------------------
-void forge_brazier_fire() {
+void forge_brazier_fire(const char* file) {
     Forge f;
     const float cx = 0.36f;
     const float cz = 0.36f;
@@ -895,7 +915,7 @@ void forge_brazier_fire() {
     // (2.75) по-прежнему внутри тела пламени, а не над ним.
     flame_cluster(f, cx, cz, POST + 0.15f, 0.62f, 0.17f);
 
-    f.save("assets/houses/furn-brazier-fire.dfh");
+    f.save(file);
 }
 
 
@@ -911,7 +931,7 @@ void forge_brazier_fire() {
 //    четыре жерди, жерди ПО ОЧЕРЕДИ спереди и сзади кольев — этот перевив и
 //    отличает плетень от четырёх параллельных палок.
 // ---------------------------------------------------------------------------
-void forge_fence2() {
+void forge_fence2(const char* file) {
     Forge f;
     const float L = 2.0f;
     const float H = 1.4f;
@@ -929,7 +949,7 @@ void forge_fence2() {
               {{"wear", "0.5"}});
     }
 
-    f.save("assets/houses/furn-fence2.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -939,7 +959,7 @@ void forge_fence2() {
 //    Полотно закрытое, но со ЩЕЛЬЮ 0.13 у восточного кола: створка висит на
 //    петлях, а не врезана в столб.
 // ---------------------------------------------------------------------------
-void forge_fence_gate() {
+void forge_fence_gate(const char* file) {
     Forge f;
     const float W = 1.0f;
     const float H = 1.6f;
@@ -965,7 +985,7 @@ void forge_fence_gate() {
     f.bar({x0, y0 + 0.15f, zf}, {x1, y1 - 0.12f, zf}, 0.035f, "0", "2", "square",
           {{"wear", "0.45"}});
 
-    f.save("assets/houses/furn-fence-gate.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -975,7 +995,7 @@ void forge_fence_gate() {
 //    дровами; джиттер ДЕТЕРМИНИРОВАННЫЙ (номер, не случай), иначе две сборки
 //    дадут два разных файла.
 // ---------------------------------------------------------------------------
-void forge_woodpile() {
+void forge_woodpile(const char* file) {
     Forge f;
     const float xa = 0.08f;         // торцы поленьев
     const float xb = 1.48f;         // длина полена ровно 1.4
@@ -998,7 +1018,7 @@ void forge_woodpile() {
         }
     }
 
-    f.save("assets/houses/furn-woodpile.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -1008,7 +1028,7 @@ void forge_woodpile() {
 //     внутрь получается ведро, а бочку от ведра отличает именно пузо.
 //     Обручей нет — тонкое кольцо прямой не собрать (заказ дословно).
 // ---------------------------------------------------------------------------
-void forge_barrel() {
+void forge_barrel(const char* file) {
     Forge f;
     const float cx = 0.35f;
     const float cz = 0.35f;
@@ -1033,7 +1053,7 @@ void forge_barrel() {
     f.disc8(cx, cz, r_lo - 0.02f, 0.07f, 0.05f, "1", "1", {{"wear", "0.5"}});
     f.disc8(cx, cz, r_hi + 0.02f, H + 0.04f, 0.05f, "1", "1", {{"wear", "0.5"}});
 
-    f.save("assets/houses/furn-barrel.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -1042,7 +1062,7 @@ void forge_barrel() {
 //     гребня-рядка: пустая коричневая плита читается лужей, а рядки сразу
 //     говорят «здесь копали».
 // ---------------------------------------------------------------------------
-void forge_bed_garden() {
+void forge_bed_garden(const char* file) {
     Forge f;
     const float W = 1.0f;
     const float L = 2.4f;
@@ -1066,7 +1086,7 @@ void forge_bed_garden() {
                {{"wear", "0.9"}});
     }
 
-    f.save("assets/houses/furn-bed-garden.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -1082,7 +1102,7 @@ void forge_bed_garden() {
 //     Бордюр — panel(), а не bar(): у бруска сечение 0.12 x 0.14, а brus у
 //     bar() квадратный по построению (radius — одно число).
 // ---------------------------------------------------------------------------
-void forge_walk2() {
+void forge_walk2(const char* file) {
     Forge f;
     const float L = 2.0f;        // длина сегмента, восток-запад
     const float D = 1.2f;        // ширина дорожки, север-юг
@@ -1101,7 +1121,7 @@ void forge_walk2() {
                 {{"fill", "3"}, {"wear", "0.35"}});
     }
 
-    f.save("assets/houses/furn-walk2.dfh");
+    f.save(file);
 }
 
 
@@ -1130,7 +1150,7 @@ void forge_walk2() {
 //     вытяжке: она забирает половину силуэта и связывает тумбу с трубой,
 //     которая у ветхой лавки уже стоит на крыше.
 // ---------------------------------------------------------------------------
-void forge_forge_hearth() {
+void forge_forge_hearth(const char* file) {
     Forge f;
     const float W = 1.60f;      // вдоль стены
     const float D = 1.00f;      // от стены
@@ -1190,7 +1210,7 @@ void forge_forge_hearth() {
     // которую раскладка уже ставит на кровле ветхой лавки.
     f.bar({fx, HOOD_HI - 0.04f, fz}, {fx, 2.60f, fz}, 0.30f, "3", "1", "square");
 
-    f.save("assets/houses/furn-forge-hearth.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -1199,7 +1219,7 @@ void forge_forge_hearth() {
 //     КОЛОДА, А НЕ НОЖКИ: наковальня в жизни стоит на цельном чурбаке, и
 //     четыре палки под ней читались бы табуретом.
 // ---------------------------------------------------------------------------
-void forge_anvil() {
+void forge_anvil(const char* file) {
     Forge f;
     // Ось смещена так, чтобы РОГ (он выходит за подошву на 0.30) уместился в
     // пятно без отрицательных координат: начало — угол пятна, как у всех.
@@ -1247,7 +1267,7 @@ void forge_anvil() {
     f.bar({cx - 0.14f, FACE + 0.05f, cz - 0.03f},
           {cx - 0.05f, FACE + 0.05f, cz - 0.02f}, 0.05f, "0", "2", "square", iron);
 
-    f.save("assets/houses/furn-anvil.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -1258,7 +1278,7 @@ void forge_anvil() {
 //     кольцо прямой не собрать»): здесь обруч набран ВОСЕМЬЮ хордами по тем же
 //     точкам, что и клёпки, — кольца по-прежнему нет, а восьмиугольник есть.
 // ---------------------------------------------------------------------------
-void forge_quench() {
+void forge_quench(const char* file) {
     Forge f;
     const float cx = 0.331f;
     const float cz = 0.331f;
@@ -1296,7 +1316,7 @@ void forge_quench() {
     f.bar({cx - 0.04f, H + 0.03f, cz - 0.22f}, {cx + 0.02f, H + 0.03f, cz + 0.30f},
           0.022f, "0", "2", "round", {{"paint", "6"}});
 
-    f.save("assets/houses/furn-quench.dfh");
+    f.save(file);
 }
 
 
@@ -1684,32 +1704,51 @@ void forge_planter(const char* file, bool stone) {
     f.save(file);
 }
 
-} // namespace
+// ---------------------------------------------------------------------------
+// РЕЕСТР РЕЦЕПТОВ (волна И3 эпохи «12 городов»)
+//
+// Та же таблица «имя -> пакет -> рука», что у кузницы домов, и тот же разбор
+// ключей: --only печёт по маске, --list перечисляет, манифест полки
+// переписывается после выпечки. Путь артефакта выводится из имени.
+// ---------------------------------------------------------------------------
 
-int main() {
-    forge_table();
-    forge_bench();
-    forge_bed();
-    forge_shelf();
-    forge_column_h(2.6f, "assets/houses/furn-column.dfh");
+using dfn::forge::add_recipe;
+using dfn::forge::Recipe;
+
+/// ПАКЕТ furn — обстановка дома и двора: ею обставляются ВСЕ города.
+/// Собственный предмет города заводят своей секцией (см. furniture_recipes).
+void pack_furn(std::vector<Recipe>& b) {
+    add_recipe(b, "furn", "furn-table", [](const char* f) { forge_table(f); });
+    add_recipe(b, "furn", "furn-bench", [](const char* f) { forge_bench(f); });
+    add_recipe(b, "furn", "furn-bed", [](const char* f) { forge_bed(f); });
+    add_recipe(b, "furn", "furn-shelf", [](const char* f) { forge_shelf(f); });
     // ДЛИНЫ ПОД БАЛКИ ПРИНЯТЫХ ИНТЕРЬЕРОВ (заказ раскладчика 22.08, замер низа
     // балки снят у него с .dfh, длина считается от ВЕРХА половой плиты):
     // city-longhall 3.410, city-keep-s 2.805, city-house-l 2.720.
-    forge_column_h(3.410f, "assets/houses/furn-column-h341.dfh");
-    forge_column_h(2.805f, "assets/houses/furn-column-h281.dfh");
-    forge_column_h(2.720f, "assets/houses/furn-column-h272.dfh");
-    forge_hearth();
-    forge_fire();
-    forge_brazier_fire();
-    forge_fence2();
-    forge_fence_gate();
-    forge_woodpile();
-    forge_barrel();
-    forge_bed_garden();
-    forge_walk2();
-    forge_forge_hearth();
-    forge_anvil();
-    forge_quench();
+    // ЭТО ПАРАМЕТР, А НЕ ВТОРОЙ РЕЦЕПТ — тот же довод, что у Aging у домов.
+    for (const auto& c : {std::pair<const char*, float>{"furn-column", 2.6f},
+                          {"furn-column-h341", 3.410f},
+                          {"furn-column-h281", 2.805f},
+                          {"furn-column-h272", 2.720f}}) {
+        const float h = c.second;
+        add_recipe(b, "furn", c.first, [h](const char* f) { forge_column_h(h, f); });
+    }
+    add_recipe(b, "furn", "furn-hearth", [](const char* f) { forge_hearth(f); });
+    add_recipe(b, "furn", "furn-fire", [](const char* f) { forge_fire(f); });
+    add_recipe(b, "furn", "furn-brazier-fire",
+               [](const char* f) { forge_brazier_fire(f); });
+    add_recipe(b, "furn", "furn-fence2", [](const char* f) { forge_fence2(f); });
+    add_recipe(b, "furn", "furn-fence-gate",
+               [](const char* f) { forge_fence_gate(f); });
+    add_recipe(b, "furn", "furn-woodpile", [](const char* f) { forge_woodpile(f); });
+    add_recipe(b, "furn", "furn-barrel", [](const char* f) { forge_barrel(f); });
+    add_recipe(b, "furn", "furn-bed-garden",
+               [](const char* f) { forge_bed_garden(f); });
+    add_recipe(b, "furn", "furn-walk2", [](const char* f) { forge_walk2(f); });
+    add_recipe(b, "furn", "furn-forge-hearth",
+               [](const char* f) { forge_forge_hearth(f); });
+    add_recipe(b, "furn", "furn-anvil", [](const char* f) { forge_anvil(f); });
+    add_recipe(b, "furn", "furn-quench", [](const char* f) { forge_quench(f); });
     // УЛИЧНОЕ УБРАНСТВО (заказ владельца 22.08).
     // БОРДЮР: две длины, и у каждой два тона. Вариация — ТОНОМ АТЛАСА, а не
     // износом: износ на куске мельче 1.4 м зовёт мох (см. шапку набора).
@@ -1719,28 +1758,49 @@ int main() {
     // атласа: голая плитка садилась на 0.45..0.55 при земле 0.41, и яркость
     // читалась «красно-кирпичной лентой» на тёплом свету. Пара под известью:
     // 0.351 (тёсаный камень с точностью 0.012) и 0.429 на ступень светлее.
-    forge_curb("assets/houses/furn-curb06.dfh", 0.6f, "1", "7");
-    forge_curb("assets/houses/furn-curb06b.dfh", 0.6f, "0", "7");
-    forge_curb("assets/houses/furn-curb12.dfh", 1.2f, "1", "7");
-    forge_curb("assets/houses/furn-curb12b.dfh", 1.2f, "0", "7");
+    struct Curb {
+        const char* name;
+        float len;
+        const char* tone;
+    };
+    for (const Curb& c : {Curb{"furn-curb06", 0.6f, "1"}, Curb{"furn-curb06b", 0.6f, "0"},
+                          Curb{"furn-curb12", 1.2f, "1"}, Curb{"furn-curb12b", 1.2f, "0"}}) {
+        const float len = c.len;
+        const char* tone = c.tone;
+        add_recipe(b, "furn", c.name,
+                   [len, tone](const char* f) { forge_curb(f, len, tone, "7"); });
+    }
     // ФОНАРИ: столб на перекрёсток, малый столб в переулок, настенный к двери.
-    forge_lamp_post("assets/houses/furn-lamp-post.dfh", 2.85f, 0.13f, 0.38f,
-                    0.48f, 2.30f);
-    forge_lamp_post("assets/houses/furn-lamp-post-s.dfh", 2.60f, 0.10f, 0.30f,
-                    0.42f, 2.04f);
-    forge_lamp_wall("assets/houses/furn-lamp-wall.dfh");
+    add_recipe(b, "furn", "furn-lamp-post", [](const char* f) {
+        forge_lamp_post(f, 2.85f, 0.13f, 0.38f, 0.48f, 2.30f);
+    });
+    add_recipe(b, "furn", "furn-lamp-post-s", [](const char* f) {
+        forge_lamp_post(f, 2.60f, 0.10f, 0.30f, 0.42f, 2.04f);
+    });
+    add_recipe(b, "furn", "furn-lamp-wall",
+               [](const char* f) { forge_lamp_wall(f); });
     // СКВЕР: восьмая часть кольца радиусом 4.0 (восемь сегментов — полное
     // кольцо; генератор ставит шесть-семь и оставляет вход).
-    forge_bench_arc("assets/houses/furn-bench-arc.dfh", 4.0f, 45.0f, 7);
-    forge_planter("assets/houses/furn-planter.dfh", true);
-    forge_planter("assets/houses/furn-planter-w.dfh", false);
-    if (!g_refused.empty()) {
-        std::fprintf(stderr, "forge: ОТКАЗАНО ПО СВЯЗНОСТИ, рецептов %zu:\n",
-                     g_refused.size());
-        for (const std::string& p : g_refused) {
-            std::fprintf(stderr, "  %s\n", p.c_str());
-        }
-        return 3;
-    }
-    return 0;
+    add_recipe(b, "furn", "furn-bench-arc",
+               [](const char* f) { forge_bench_arc(f, 4.0f, 45.0f, 7); });
+    add_recipe(b, "furn", "furn-planter",
+               [](const char* f) { forge_planter(f, true); });
+    add_recipe(b, "furn", "furn-planter-w",
+               [](const char* f) { forge_planter(f, false); });
+}
+
+/// ВЕСЬ РЕЕСТР ОБСТАНОВКИ. Свой предмет города заводят секцией
+/// pack_<город>_furn(b) с именами «<город>-...» и зовут её здесь: общий пакет
+/// furn остаётся общим, а --only '<город>-*' печёт ровно его.
+std::vector<Recipe> furniture_recipes() {
+    std::vector<Recipe> b;
+    pack_furn(b);
+    return b;
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    return dfn::forge::run_forge(argc, argv, "furniture", furniture_recipes(),
+                                 g_refused, {});
 }

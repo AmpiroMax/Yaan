@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 23:08:2026 - 18:45:00
+Last updated: 23:08:2026 - 21:40:00
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -11,13 +11,23 @@ Responsibility:
   каноническим write_house в assets/houses/*.dfh — тем же текстом, который
   читает редактор, загрузка карты и тест проходимости.
 
+Usage:
+    dfn_houses                    испечь ВСЮ полку и переписать манифест
+    dfn_houses --only <маска>     испечь только совпавшие (* и ?), чужого не тронуть
+    dfn_houses --list [--only м]  перечислить реестр и остановиться
+    dfn_houses --check [<полка>]  судья связности по всей полке
+
 Key items:
 - Forge: рука над графом (вершины, цепочки, контуры, балки).
 - log/frame/stone replica + l_house + u_house: рецепты домов.
+- pack_demo / pack_city: СЕКЦИИ РЕЕСТРА по пакетам; городской пакет будущего
+  города добавляет свою и зовёт её в house_recipes().
 
 Dependencies:
-- Uses: engine/world (HouseGraph, HouseFile, HouseMesh — константы двери).
-- Used by: цель dfn_houses; артефакты читают сцена build.scene и тесты.
+- Uses: engine/world (HouseGraph, HouseFile, HouseMesh — константы двери),
+  tools/recipe_book.h (реестр, ключи), tools/house_manifest.h (INDEX.txt).
+- Used by: цель dfn_houses; артефакты читают сцена build.scene и тесты;
+  манифест assets/houses/INDEX.txt читает генератор города.
 
 Notes:
 - ЛОКАЛЬНЫЕ КООРДИНАТЫ: начало — северо-западный угол, дверь смотрит на +Z
@@ -484,17 +494,37 @@ UPD:
   Сцена города НЕ перегенерировалась: посадки от геометрии домов не зависят, и
   контрольный прогон gen_whiterun.py это подтвердил (check_floors 26 из 26,
   мебель 205 из 205).
+- 23:08:2026 - 21:40:00: РЕЕСТР РЕЦЕПТОВ И КЛЮЧ --only (волна И3 эпохи «12
+  городов»). В main() стоял прямой список вызовов с СОРОКА ЧЕТЫРЬМЯ ЛИТЕРАЛАМИ
+  ПУТЕЙ, и это была единственная точка схватки двенадцати городов, которые
+  пекут на одну полку: два города, добавивших по рецепту, правили одну функцию.
+  Теперь рецепт — строка таблицы (имя -> пакет -> рука), пакет — своя секция
+  (pack_demo, pack_city, дальше pack_<город>), а ПУТЬ ВЫВОДИТСЯ ИЗ ИМЕНИ и в
+  коде не повторяется: двадцать одна рука, писавшая свой литерал внутри,
+  принимает файл входом. --only <маска> печёт совпавшие и НЕ ТРОГАЕТ остальные
+  файлы; --list перечисляет реестр; --check по-прежнему судит всю полку.
+  ВСЕ 149 .dfh ПОСЛЕ РЕФАКТОРА БАЙТ-В-БАЙТ (shasum до и после: 0 расхождений;
+  git status по assets/houses чист, кроме нового INDEX.txt).
+- 23:08:2026 - 21:40:00: МАНИФЕСТ ПОЛКИ (волна И2): после выпечки кузница зовёт
+  write_house_manifest и пишет assets/houses/INDEX.txt — замер КАЖДОГО файла
+  полки, а не только испечённого этим прогоном (потому и после --only манифест
+  остаётся полным). Габарит графа, габарит построенного меша, верх тела, пятно
+  стен, дверь, балки, пол. Это единственный источник габаритов для генератора
+  города: python-разборщика .dfh (шесть функций в gen_whiterun.py) больше нет,
+  и второго разборщика формата не заводить — они разойдутся молча.
 */
 
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
 #include "engine/world/sources/HouseMesh.h"
+#include "tools/recipe_book.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 
 #include <glm/geometric.hpp>
 #include <glm/vec2.hpp>
@@ -944,7 +974,7 @@ struct Aging {
 // ---------------------------------------------------------------------------
 // ПОВТОР 1: одноэтажный сруб 6x4 под соломой (демка: log).
 // ---------------------------------------------------------------------------
-void forge_log() {
+void forge_log(const char* file) {
     Forge f;
     const float W = 6.0f;
     const float D = 4.0f;
@@ -978,13 +1008,13 @@ void forge_log() {
                   {"porch", "1"}, {"wear", "0.35"}});
     f.door_leaf(W * 0.5f, 0.0f, D);
     f.gable_roof(0.0f, 0.0f, W, D, H, 1.4f, "6", "1", "", "0.35"); // солома
-    f.save("assets/houses/log-replica.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
 // ПОВТОР 2: полутораэтажный фахверк 9x4 (демка: frame) — марш на антресоль.
 // ---------------------------------------------------------------------------
-void forge_frame() {
+void forge_frame(const char* file) {
     Forge f;
     const float W = 9.0f;
     const float D = 4.0f;
@@ -1046,13 +1076,13 @@ void forge_frame() {
                          {"tone", "1"}});
     }
     f.gable_roof(0.0f, 0.0f, W, D, H, 1.6f, "1", "1", "7", "0.25"); // дранка рядами
-    f.save("assets/houses/frame-replica.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
 // ПОВТОР 3: двухэтажный камень+фахверк 9x4 под черепицей (демка: stone).
 // ---------------------------------------------------------------------------
-void forge_stone() {
+void forge_stone(const char* file) {
     Forge f;
     const float W = 9.0f;
     const float D = 4.0f;
@@ -1128,14 +1158,14 @@ void forge_stone() {
                          {"tone", "1"}});
     }
     f.gable_roof(0.0f, 0.0f, W, D, 2.0f * H, 1.6f, "4", "1", "8", "0.4"); // черепица рядами
-    f.save("assets/houses/stone-replica.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
 // НОВЫЙ 1: Г-образный одноэтажный. Западное крыло 4x8 + северный бар 8x4,
 // две комнаты, межкомнатная дверь, вход с юга, два ската по крыльям.
 // ---------------------------------------------------------------------------
-void forge_l_house() {
+void forge_l_house(const char* file) {
     Forge f;
     const float H = 2.8f; // 16 ступеней по 0.175 ровно — и человеку не давит
     // ПОЛ — Г-контур (против часовой сверху), паркет по всей площади.
@@ -1225,7 +1255,7 @@ void forge_l_house() {
     wedge(0.0f, 0.0f, 4.0f, 0.0f, H - 0.05f, H + 0.85f, H + 0.85f); // север крыла
     wedge(0.0f, 0.0f, 0.0f, 4.0f, H - 0.05f, H + 0.85f, H + 0.1f);  // запад бара
     wedge(4.0f, 0.0f, 4.0f, 4.0f, H - 0.05f, H + 0.85f, H + 0.1f);  // угол Г изнутри
-    f.save("assets/houses/l-house.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -1233,7 +1263,7 @@ void forge_l_house() {
 // севере, двор 6x6 открыт на юг. Два марша (по крылу), раздельные комнаты,
 // двери между всеми, дверь из бара во двор, крыша из ЧЕТЫРЁХ частей-навесов.
 // ---------------------------------------------------------------------------
-void forge_u_house() {
+void forge_u_house(const char* file) {
     Forge f;
     const float H = 2.8f;
     const float H2 = 5.6f;
@@ -1402,7 +1432,7 @@ void forge_u_house() {
         (void)f.beam(f.v(x_e, H2 + 0.05f, 9.6f), f.v(x_e, H2 - 0.35f, 10.75f),
                      {{"radius", "0.07"}, {"mat", "0"}, {"tone", "2"}});
     }
-    f.save("assets/houses/u-house.dfh");
+    f.save(file);
 }
 
 
@@ -1483,7 +1513,7 @@ static void crenellated_run(Forge& f, glm::vec3 a, glm::vec3 b, float h,
 }
 
 /// БАШНЯ смотровая: квадратный ствол, площадка, парапет с зубцами, шатёр.
-static void forge_tower() {
+static void forge_tower(const char* file) {
     Forge f;
     const float S = 3.6f;
     const float H = 9.0f;
@@ -1579,13 +1609,13 @@ static void forge_tower() {
     }
     // Дверь внизу южной стены.
     f.door_leaf(S * 0.5f, 0.0f, S);
-    f.save("assets/houses/city-tower.dfh");
+    f.save(file);
 }
 
 /// ДОНЖОН: та же башня, но 14 м — замковая вертикаль (приёмка №2:
 /// «замок не доминирует, сарай»). Отдельный рецепт, а не параметр: полка
 /// построек живёт файлами.
-static void forge_tower_tall() {
+static void forge_tower_tall(const char* file) {
     Forge f;
     const float S = 4.4f;
     const float H = 14.0f;
@@ -1633,11 +1663,11 @@ static void forge_tower_tall() {
         }
     }
     f.door_leaf(S * 0.5f, 0.0f, S);
-    f.save("assets/houses/city-donjon.dfh");
+    f.save(file);
 }
 
 /// КОЛЬЦО ГИЛДЕРГРИНА: приподнятый восьмигранный бортик вокруг ствола.
-static void forge_tree_ring() {
+static void forge_tree_ring(const char* file) {
     Forge f;
     const float R = 2.6f;
     const int N = 8;
@@ -1650,14 +1680,14 @@ static void forge_tree_ring() {
                      {{"height", "0.5"}, {"thickness", "0.35"}, {"mat", "3"},
                       {"tone", "1"}, {"fill", "3"}, {"wear", "0.5"}});
     }
-    f.save("assets/houses/city-treering.dfh");
+    f.save(file);
 }
 
 /// СЕГМЕНТ СТЕНЫ 12 м с зубцами и боевым ходом.
-static void forge_wall12() {
+static void forge_wall12(const char* file) {
     Forge f;
     crenellated_run(f, {0.0f, 0.0f, 0.0f}, {12.0f, 0.0f, 0.0f}, 6.0f, 1.2f, "0.55");
-    f.save("assets/houses/city-wall12.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -1886,30 +1916,26 @@ static void crenellated_arc(Forge& f, const WallArcGeom& a, float h, float th,
 
 /// СЕМЕЙСТВО ГНУТЫХ ПРОГОНОВ: хорды 8/12/16, стрелы 0/0.25/0.5/1/2.
 /// Профиль тот же, что у city-wall12 (высота 6.0, толщина 1.2, износ 0.55).
-static void forge_wall_arc(float L, float s) {
+static void forge_wall_arc(const char* file, float L, float s) {
     Forge f;
     const WallArcGeom a = wall_arc_geom(L, s);
     crenellated_arc(f, a, 6.0f, 1.2f, "0.55");
-    char name[96];
-    std::snprintf(name, sizeof(name), "assets/houses/city-wall-arc%g-s%03d.dfh",
-                  static_cast<double>(L),
-                  static_cast<int>(std::lround(s * 100.0f)));
     // ПАСПОРТ ПРОГОНА В ЖУРНАЛ ВЫПЕЧКИ: раскладчику нужен поворот касательной
     // (2*alpha) и длина оси, а не только имя файла.
     std::fprintf(stderr,
                  "forge: дуга %s — R %.3f, поворот %.2f гр., ось %.3f м, "
                  "звеньев %d по %.3f м, касательная на торце %.2f гр.\n",
-                 name, static_cast<double>(a.R),
+                 file, static_cast<double>(a.R),
                  static_cast<double>(2.0f * a.alpha * 57.29578f),
                  static_cast<double>(a.arc_len),
                  (a.R > 0.0f ? a.n + 1 : 1),
                  static_cast<double>(a.seg),
                  static_cast<double>(a.alpha * 57.29578f));
-    f.save(name);
+    f.save(file);
 }
 
 /// ВОРОТА: две щеки, надвратная перемычка, проём 4 м.
-static void forge_gate() {
+static void forge_gate(const char* file) {
     Forge f;
     crenellated_run(f, {0.0f, 0.0f, 0.0f}, {4.0f, 0.0f, 0.0f}, 7.0f, 1.4f, "0.5");
     crenellated_run(f, {8.0f, 0.0f, 0.0f}, {12.0f, 0.0f, 0.0f}, 7.0f, 1.4f, "0.5");
@@ -1922,12 +1948,12 @@ static void forge_gate() {
                       {"tone", "1"}, {"fill", "3"}, {"wear", "0.5"},
                       {"unsupported", "1"}});
     }
-    f.save("assets/houses/city-gate.dfh");
+    f.save(file);
 }
 
 /// УЛИЧНАЯ ЛЕСТНИЦА-6: один марш на ПОЛНЫЙ подъём террасы (стык двух
 /// маршей дважды ловил бота в щель — класс проблемы снят одним телом).
-static void forge_street_stairs6() {
+static void forge_street_stairs6(const char* file) {
     Forge f;
     const VertexId a = f.v(0.0f, 0.0f, 12.0f);
     const VertexId b = f.v(4.0f, 0.0f, 12.0f);
@@ -1936,11 +1962,11 @@ static void forge_street_stairs6() {
     (void)f.contour({a, b, c, d},
                     {{"thickness", "0.15"}, {"fill", "6"}, {"open", "2"},
                      {"mat", "3"}, {"tone", "1"}, {"wear", "0.45"}});
-    f.save("assets/houses/city-stairs6.dfh");
+    f.save(file);
 }
 
 /// УЛИЧНАЯ ЛЕСТНИЦА: каменный марш 4 м шириной, подъём 3 м, блоками.
-static void forge_street_stairs() {
+static void forge_street_stairs(const char* file) {
     Forge f;
     const VertexId a = f.v(0.0f, 0.0f, 6.0f);
     const VertexId b = f.v(4.0f, 0.0f, 6.0f);
@@ -1949,7 +1975,7 @@ static void forge_street_stairs() {
     (void)f.contour({a, b, c, d},
                     {{"thickness", "0.15"}, {"fill", "6"}, {"open", "2"},
                      {"mat", "3"}, {"tone", "1"}, {"wear", "0.45"}});
-    f.save("assets/houses/city-stairs.dfh");
+    f.save(file);
 }
 
 /// ПЛАЗА: мощёная плита с бордюром-секциями.
@@ -2225,7 +2251,7 @@ static void forge_stoop(const char* file, float rise) {
 }
 
 /// МОСТ через городской рукав: плита с бордюрами на двух опорах.
-static void forge_bridge() {
+static void forge_bridge(const char* file) {
     Forge f;
     // Опоры в русле.
     for (const float x : {1.2f, 6.8f}) {
@@ -2272,7 +2298,7 @@ static void forge_bridge() {
                       {"tone", "1"}, {"fill", "3"}, {"wear", "0.6"},
                       {"unsupported", "1"}});
     }
-    f.save("assets/houses/city-bridge.dfh");
+    f.save(file);
 }
 
 // ---------------------------------------------------------------------------
@@ -2358,7 +2384,7 @@ struct BridgeArc {
     }
 };
 
-static void forge_bridge_arc() {
+static void forge_bridge_arc(const char* file) {
     Forge f;
     const BridgeArc B;
 
@@ -2553,7 +2579,7 @@ static void forge_bridge_arc() {
                  static_cast<double>(BRIDGE_ARC_CX + B.curve_half),
                  static_cast<double>(SPR_X1 - SPR_X0),
                  static_cast<double>(VAULT_RISE), static_cast<double>(v_R));
-    f.save("assets/houses/city-bridge-arc.dfh");
+    f.save(file);
 }
 
 /// МАЛЫЙ ДОМ 4.5x6: фахверк под дранкой, полный набор деталей.
@@ -2693,7 +2719,7 @@ static void forge_shop(Aging age) {
 }
 
 /// ПРИЛАВОК РЫНКА: стойка + столбы + тент-навес.
-static void forge_stall() {
+static void forge_stall(const char* file) {
     Forge f;
     {
         const VertexId a = f.v(0.0f, 0.85f, 0.0f);
@@ -2735,11 +2761,11 @@ static void forge_stall() {
         (void)f.g.set_param(s, "paint", "3"); // тент — красная фалу
         (void)f.g.set_param(s, "roof", "1");
     }
-    f.save("assets/houses/city-stall.dfh");
+    f.save(file);
 }
 
 /// КОЛОДЕЦ: каменное кольцо, столбы, мини-двускат.
-static void forge_well() {
+static void forge_well(const char* file) {
     Forge f;
     const float S = 1.7f;
     const glm::vec3 pts[5] = {{0, 0, 0}, {S, 0, 0}, {S, 0, S}, {0, 0, S}, {0, 0, 0}};
@@ -2767,11 +2793,11 @@ static void forge_well() {
                   {"tone", "2"}});
     f.gable_roof(-0.15f, S * 0.5f - 0.8f, S + 0.15f, S * 0.5f + 0.8f, 2.1f, 0.7f,
                  "1", "2", "7", "0.5");
-    f.save("assets/houses/city-well.dfh");
+    f.save(file);
 }
 
 /// ДЛИННЫЙ ЗАЛ (Йоррваскр): 16x8, торцевой вход, огромные свесы.
-static void forge_longhall() {
+static void forge_longhall(const char* file) {
     Forge f;
     const float W = 16.0f;
     const float D = 8.0f;
@@ -2826,11 +2852,11 @@ static void forge_longhall() {
         f.chimney(8.0f, 4.0f, ridge_y - 0.45f, ridge_y + 0.85f, 0.50f, true, "0",
                   "2", "0.5");
     }
-    f.save("assets/houses/city-longhall.dfh");
+    f.save(file);
 }
 
 /// ХРАМ: каменный зал с портиком.
-static void forge_temple() {
+static void forge_temple(const char* file) {
     Forge f;
     const float W = 12.0f;
     const float D = 8.0f;
@@ -2883,7 +2909,7 @@ static void forge_temple() {
     // НОРДСКАЯ ПАЛИТРА (приёмка №2: красная черепица — «чужеродно сильнее
     // всего»): тёмный гонт, как у всего города.
     f.gable_roof(0.0f, 0.0f, W, D, H, 2.2f, "4", "0", "8", "0.35");
-    f.save("assets/houses/city-temple.dfh");
+    f.save(file);
 }
 
 /// ЯРУС ЧЕТЫРЁХ СТЕН — ОБЩАЯ РУКА (была лямбдой внутри forge_keep; вынесена
@@ -2947,7 +2973,7 @@ static void keep_tier(Forge& f, float y, float h, float x0, float z0, float x1,
 /// ПОЧЕМУ ЯРУСЫ, А НЕ ПРОСТО ВЫШЕ КОНЁК: один скат от 9.8 до 18.8 дал бы
 /// 60-градусную стену гонта в пол-силуэта — доминанта читается ступенями,
 /// каждая уже нижней (CITY_DESIGN_GUIDE.md §8).
-static void forge_keep() {
+static void forge_keep(const char* file) {
     Forge f;
     const float W = 26.0f;    // зал по фасаду
     const float D = 14.0f;    // глубина зала
@@ -3231,7 +3257,7 @@ static void forge_keep() {
         f.gable_roof(wx, 2.0f, wx + 8.0f, 12.0f, 4.6f, 2.2f, "1", "0", "7",
                      "0.45");
     }
-    f.save("assets/houses/city-keep.dfh");
+    f.save(file);
 }
 
 /// ВОДЯНАЯ МЕЛЬНИЦА 7x7 (docs/WHITERUN_PLAN.json, houses[kind=mill]: 7x7 у
@@ -3243,7 +3269,7 @@ static void forge_keep() {
 /// -1.5 и уходит под срез берега. Колесо в плане идёт ВОСЬМИГРАННИКОМ (рука
 /// forge_well/tree_ring): круг из прямых брусьев — то же решение, что у
 /// колодезного кольца, а гнутого обода в графе нет.
-static void forge_mill() {
+static void forge_mill(const char* file) {
     Forge f;
     const float W = 7.0f;
     const float D = 7.0f;
@@ -3330,7 +3356,7 @@ static void forge_mill() {
                      {{"radius", "0.09"}, {"form", "square"}, {"mat", "0"},
                       {"tone", "2"}});
     }
-    f.save("assets/houses/city-mill.dfh");
+    f.save(file);
 }
 
 /// КОМПАКТНЫЙ ЗАМОК ПО СХЕМЕ (docs/WHITERUN_PLAN.json: houses[kind=keep] —
@@ -3343,7 +3369,7 @@ static void forge_mill() {
 /// с коньком 13.8 — доминанта читается ступенями, каждая уже нижней
 /// (CITY_DESIGN_GUIDE.md §8). Крылья вдвое ниже корпуса: крыло — подножие,
 /// а не сосед.
-static void forge_keep_small() {
+static void forge_keep_small(const char* file) {
     Forge f;
     const float W = 15.0f;     // корпус по фасаду
     const float D = 8.0f;      // глубина корпуса
@@ -3540,7 +3566,7 @@ static void forge_keep_small() {
         parquet_floor(f, wx, WZ0, wx + WW, WZ1, YS);
         f.gable_roof(wx, WZ0, wx + WW, WZ1, WE, 1.8f, "1", "0", "7", "0.35");
     }
-    f.save("assets/houses/city-keep-s.dfh");
+    f.save(file);
 }
 
 /// БОЛЬШОЙ ЖИЛОЙ ДОМ 10x8, два этажа: каменный цоколь и первый этаж, фахверк
@@ -4040,24 +4066,39 @@ int check_library(const char* dir) {
     return ok == static_cast<int>(files.size()) ? 0 : 3;
 }
 
-} // namespace
+// ---------------------------------------------------------------------------
+// РЕЕСТР РЕЦЕПТОВ (волна И3 эпохи «12 городов»)
+//
+// ЗДЕСЬ БЫЛ ПРЯМОЙ СПИСОК ВЫЗОВОВ с сорока четырьмя литералами путей — и это
+// была ЕДИНСТВЕННАЯ ТОЧКА СХВАТКИ двенадцати городов, которые пекут на одну
+// полку: два города, добавивших по рецепту, правили одну и ту же функцию.
+// Теперь рецепт — СТРОКА ТАБЛИЦЫ (имя -> пакет -> рука), пакет — своя секция,
+// а путь выводится из имени и в коде больше не повторяется.
+// ---------------------------------------------------------------------------
 
-int main(int argc, char** argv) {
-    // ДВЕ РУКИ ОДНОГО БИНАРНИКА: печь и судить. Судья отдельным исполняемым
-    // файлом стоил бы второй цели сборки ради двухсот строк, а рецепты и
-    // правило всё равно живут вместе.
-    if (argc > 1 && std::string(argv[1]) == "--check") {
-        return check_library(argc > 2 ? argv[2] : "assets/houses");
-    }
-    forge_log();
-    forge_frame();
-    forge_stone();
-    forge_l_house();
-    forge_u_house();
-    forge_tower();
-    forge_tower_tall();
-    forge_tree_ring();
-    forge_wall12();
+using dfn::forge::add_recipe;
+using dfn::forge::Recipe;
+
+/// ПАКЕТ demo — пять повторов домиков демки (заказ 20.08): сруб, фахверк,
+/// камень, Г-образный и П-образный. Городам они не нужны, но полка их держит:
+/// на них стоят сцена build.scene и тесты проходимости.
+void pack_demo(std::vector<Recipe>& b) {
+    add_recipe(b, "demo", "log-replica", [](const char* f) { forge_log(f); });
+    add_recipe(b, "demo", "frame-replica", [](const char* f) { forge_frame(f); });
+    add_recipe(b, "demo", "stone-replica", [](const char* f) { forge_stone(f); });
+    add_recipe(b, "demo", "l-house", [](const char* f) { forge_l_house(f); });
+    add_recipe(b, "demo", "u-house", [](const char* f) { forge_u_house(f); });
+}
+
+/// ПАКЕТ city — ОБЩИЕ городские рецепты: стены, ворота, лестницы, мощение,
+/// фундаменты, мосты и жилые тела. Ими пекутся ВСЕ двенадцать городов, поэтому
+/// правка здесь — правка у всех сразу; собственные постройки города заводят
+/// своей секцией (см. house_recipes ниже), а не дописыванием в этот пакет.
+void pack_city(std::vector<Recipe>& b) {
+    add_recipe(b, "city", "city-tower", [](const char* f) { forge_tower(f); });
+    add_recipe(b, "city", "city-donjon", [](const char* f) { forge_tower_tall(f); });
+    add_recipe(b, "city", "city-treering", [](const char* f) { forge_tree_ring(f); });
+    add_recipe(b, "city", "city-wall12", [](const char* f) { forge_wall12(f); });
     // ГНУТЫЕ ПРОГОНЫ. Хорды 8/12/16 — те же, которыми раскладчик уже режет
     // грани кольца; стрелы 0 (прямой с касательными торцами), 0.25, 0.5, 1, 2.
     // 0.25 — НЕ ДЛЯ СИММЕТРИИ, А ПО ЗАМЕРУ: кольцо чертежа поворачивает на
@@ -4066,25 +4107,40 @@ int main(int argc, char** argv) {
     // гр. на те же 12 м и замкнула бы кольцо за 226 м вместо 316.
     for (const float chord : {8.0f, 12.0f, 16.0f}) {
         for (const float sag : {0.0f, 0.25f, 0.5f, 1.0f, 2.0f}) {
-            forge_wall_arc(chord, sag);
+            char name[64];
+            std::snprintf(name, sizeof(name), "city-wall-arc%g-s%03d",
+                          static_cast<double>(chord),
+                          static_cast<int>(std::lround(sag * 100.0f)));
+            add_recipe(b, "city", name, [chord, sag](const char* f) {
+                forge_wall_arc(f, chord, sag);
+            });
         }
     }
-    forge_gate();
-    forge_street_stairs();
-    forge_street_stairs6();
-    forge_plaza("assets/houses/city-plaza12.dfh", 12.0f, 12.0f);
-    forge_plaza("assets/houses/city-plaza20.dfh", 20.0f, 20.0f);
+    add_recipe(b, "city", "city-gate", [](const char* f) { forge_gate(f); });
+    add_recipe(b, "city", "city-stairs6",
+               [](const char* f) { forge_street_stairs6(f); });
+    add_recipe(b, "city", "city-stairs",
+               [](const char* f) { forge_street_stairs(f); });
+    add_recipe(b, "city", "city-plaza12",
+               [](const char* f) { forge_plaza(f, 12.0f, 12.0f); });
+    add_recipe(b, "city", "city-plaza20",
+               [](const char* f) { forge_plaza(f, 20.0f, 20.0f); });
     // МОЩЕНИЕ УЛИЦ. Ширина 6 м у главной — норматив улицы города; 4 м —
     // второстепенный проход. Длина 24 м — участок, которым мостят прогон;
     // 8x6 — короткая вставка на поворот и стык с площадью.
-    forge_cobble("assets/houses/city-cobble24x6.dfh", 24.0f, 6.0f, 2.0f, "1", 0.35f);
+    //
     // КОРОТКИЕ УЧАСТКИ — не роскошь, а требование трассы: главная улица города
     // ломаная, между изломами 10-14 м, и плита 24 м на изломе даёт веер с
     // клиньями травы между соседками. 12 ложится по прямым, 8 и 6 — на изломы
     // и на подход к воротам (запрос раскладчика, замерено по чертежу).
-    forge_cobble("assets/houses/city-cobble12x6.dfh", 12.0f, 6.0f, 2.0f, "1", 0.35f);
-    forge_cobble("assets/houses/city-cobble8x6.dfh", 8.0f, 6.0f, 2.0f, "1", 0.35f);
-    forge_cobble("assets/houses/city-cobble6x6.dfh", 6.0f, 6.0f, 2.0f, "1", 0.35f);
+    for (const auto& c : {std::pair<const char*, float>{"city-cobble24x6", 24.0f},
+                          {"city-cobble12x6", 12.0f},
+                          {"city-cobble8x6", 8.0f},
+                          {"city-cobble6x6", 6.0f}}) {
+        const float w = c.second;
+        add_recipe(b, "city", c.first,
+                   [w](const char* f) { forge_cobble(f, w, 6.0f, 2.0f, "1", 0.35f); });
+    }
     // НАКЛОННЫЕ КУСКИ ПОД ПОДЪЁМ К ЗАМКУ (замер раскладчика: 8.3% на 108 м).
     // Шаг 2% выбран по остатку: раскладка берёт ближайший уклон, промах не
     // больше 1%, и на шестиметровом куске это 6 см — вчетверо ниже её же
@@ -4101,29 +4157,39 @@ int main(int argc, char** argv) {
                           {"06", 0.06f}, {"08", 0.08f}, {"10", 0.10f},
                           {"12", 0.12f}, {"14", 0.14f}, {"16", 0.16f},
                           {"18", 0.18f}, {"20", 0.20f}}) {
-        forge_cobble((std::string("assets/houses/city-cobble6x6-s") + s.first
-                      + ".dfh").c_str(), 6.0f, 6.0f, 2.0f, "1", 0.35f, s.second);
-        if (s.second <= 0.145f) {
-            forge_cobble((std::string("assets/houses/city-cobble8x6-s") + s.first
-                          + ".dfh").c_str(), 8.0f, 6.0f, 2.0f, "1", 0.35f, s.second);
+        const float slope = s.second;
+        add_recipe(b, "city", std::string("city-cobble6x6-s") + s.first,
+                   [slope](const char* f) {
+                       forge_cobble(f, 6.0f, 6.0f, 2.0f, "1", 0.35f, slope);
+                   });
+        if (slope <= 0.145f) {
+            add_recipe(b, "city", std::string("city-cobble8x6-s") + s.first,
+                       [slope](const char* f) {
+                           forge_cobble(f, 8.0f, 6.0f, 2.0f, "1", 0.35f, slope);
+                       });
         }
     }
     // ВТОРОСТЕПЕННЫЙ ПРОХОД — тот же приём, другая одежда: камень МЕЛЬЧЕ
     // (1.7 против 2.0), тон ТЁМНЫЙ и износ выше порога 0.7, на котором
     // отрисовка уводит деталь в выветренный ряд атласа. Разница читается
     // фактурой и тоном, а не вторым рецептом.
-    forge_cobble("assets/houses/city-cobble24x4.dfh", 24.0f, 4.0f, 1.7f, "2", 0.62f);
+    add_recipe(b, "city", "city-cobble24x4",
+               [](const char* f) { forge_cobble(f, 24.0f, 4.0f, 1.7f, "2", 0.62f); });
     // РЫНОЧНЫЙ КВАДРАТ: plaza12 мала под ряды и носит тот самый бордюр-стену,
     // на который взбирается капсула. 16x16 с проходимой фаской — и 14x11 ПО
     // ФАКТИЧЕСКОМУ РЫНКУ чертежа: жёсткую плиту раскладкой не режут, лишние
     // два на пять метров ушли бы под соседние постройки.
-    forge_cobble("assets/houses/city-cobble16.dfh", 16.0f, 16.0f, 2.0f, "1", 0.4f);
-    forge_cobble("assets/houses/city-cobble14x11.dfh", 14.0f, 11.0f, 2.0f, "1", 0.4f);
+    add_recipe(b, "city", "city-cobble16",
+               [](const char* f) { forge_cobble(f, 16.0f, 16.0f, 2.0f, "1", 0.4f); });
+    add_recipe(b, "city", "city-cobble14x11",
+               [](const char* f) { forge_cobble(f, 14.0f, 11.0f, 2.0f, "1", 0.4f); });
     // МАРШ И ПОДПОРНАЯ КРОМКА под южную грань рынка (замер раскладчика: клин
     // 1.30 м на западном конце до нуля у x=122, тринадцать метров).
     // Подступенок 0.20, проступь 0.35 — отсюда вылет 2.10 при 1.20 и 1.40 при 0.80.
-    forge_street_steps("assets/houses/city-steps6-h12.dfh", 1.20f, 2.10f);
-    forge_street_steps("assets/houses/city-steps6-h08.dfh", 0.80f, 1.40f);
+    add_recipe(b, "city", "city-steps6-h12",
+               [](const char* f) { forge_street_steps(f, 1.20f, 2.10f); });
+    add_recipe(b, "city", "city-steps6-h08",
+               [](const char* f) { forge_street_steps(f, 0.80f, 1.40f); });
     // ВЫЛЕТ МАРША — ЦЕЛОЕ ЧИСЛО МЕТРОВ (правило раскладчика по замеру). Ниша
     // под маршем режется в поле высот, а поле — сетка с шагом 1 м. Кромка,
     // попавшая МЕЖДУ строк, представлена быть не может: билинейная выборка
@@ -4132,7 +4198,8 @@ int main(int argc, char** argv) {
     // верхних углов -0.051 при заданных -0.020. Замер раскладчика сошёлся с
     // расчётом (доля_строки * уклон * шаг = 0.9*0.571*1.0) до миллиметра.
     // 2.000 кладёт обе кромки на целые строки, квантование исчезает.
-    forge_street_steps("assets/houses/city-steps6-h12r2.dfh", 1.20f, 2.00f);
+    add_recipe(b, "city", "city-steps6-h12r2",
+               [](const char* f) { forge_street_steps(f, 1.20f, 2.00f); });
     // h14r2 — под ВЫРОСШИЙ перепад кромки террасы (1.23 -> 1.35: мостовую рынка
     // посадили заподлицо, +0.147 -> +0.030, а улица осталась). h12r2 давал бы
     // остаток 0.175, то есть по 0.087 под ногой на входе и выходе — под порогом
@@ -4140,7 +4207,8 @@ int main(int argc, char** argv) {
     // Подъём 1.400 при вылете 2.000 попадает в сетку ЛУЧШЕ прочих: 1.400/0.175
     // ровно 8, значит подступенок выходит канонический 0.175 без остатка, а
     // проступь 0.250 даёт 2R+T = 0.600 — низ удобной полосы.
-    forge_street_steps("assets/houses/city-steps6-h14r2.dfh", 1.40f, 2.00f);
+    add_recipe(b, "city", "city-steps6-h14r2",
+               [](const char* f) { forge_street_steps(f, 1.40f, 2.00f); });
     // ШАГ ВЫСОТ 0.2, А НЕ 0.4. Раскладчик берёт ближайшую высоту, значит промах
     // — половина шага. При шаге 0.4 это 0.20 ровно, то есть ТОЧНО порог ступени,
     // по которому он же и бракует; запас должен быть под порогом, а не на нём.
@@ -4149,8 +4217,9 @@ int main(int argc, char** argv) {
     for (const auto& k : {std::pair<const char*, float>{"02", 0.2f},
                           {"04", 0.4f}, {"06", 0.6f}, {"08", 0.8f},
                           {"10", 1.0f}, {"12", 1.2f}}) {
-        forge_kerb((std::string("assets/houses/city-kerb2-h") + k.first
-                    + ".dfh").c_str(), k.second);
+        const float h = k.second;
+        add_recipe(b, "city", std::string("city-kerb2-h") + k.first,
+                   [h](const char* f) { forge_kerb(f, h); });
     }
     // ФУНДАМЕНТ И КРЫЛЬЦО КАЖДОМУ ДОМУ (заказ владельца 23.08).
     // ШАГ ВЫСОТ ЛЕНТЫ 0.2, тот же и по той же причине, что у city-kerb2:
@@ -4161,8 +4230,9 @@ int main(int argc, char** argv) {
     // в метре от стены; ленте нужен этот перепад плюс запас 0.3.
     for (int dm = 2; dm <= 40; dm += 2) {
         char name[64];
-        std::snprintf(name, sizeof(name), "assets/houses/city-foot2-h%02d.dfh", dm);
-        forge_footing(name, static_cast<float>(dm) * 0.1f);
+        std::snprintf(name, sizeof(name), "city-foot2-h%02d", dm);
+        const float h = static_cast<float>(dm) * 0.1f;
+        add_recipe(b, "city", name, [h](const char* f) { forge_footing(f, h); });
     }
     // ШАГ ВЫСОТ КРЫЛЬЦА 0.1, ВДВОЕ МЕЛЬЧЕ ЛЕНТЫ. Промах ленты прячется в
     // грунте, промах крыльца стоит НА ВХОДЕ В ДОМ: половина шага 0.2 — это
@@ -4170,57 +4240,79 @@ int main(int argc, char** argv) {
     // ступени 0.20 и втрое ниже подступенка, то есть неразличимо на ходу.
     for (int dm = 2; dm <= 20; ++dm) {
         char name[64];
-        std::snprintf(name, sizeof(name), "assets/houses/city-stoop16-h%02d.dfh", dm);
-        forge_stoop(name, static_cast<float>(dm) * 0.1f);
+        std::snprintf(name, sizeof(name), "city-stoop16-h%02d", dm);
+        const float rise = static_cast<float>(dm) * 0.1f;
+        add_recipe(b, "city", name, [rise](const char* f) { forge_stoop(f, rise); });
     }
-    forge_bridge();
-    forge_bridge_arc();
-    forge_stall();
-    forge_well();
-    forge_longhall();
-    forge_temple();
-    forge_keep();
-    forge_keep_small();
-    forge_mill();
+    add_recipe(b, "city", "city-bridge", [](const char* f) { forge_bridge(f); });
+    add_recipe(b, "city", "city-bridge-arc",
+               [](const char* f) { forge_bridge_arc(f); });
+    add_recipe(b, "city", "city-stall", [](const char* f) { forge_stall(f); });
+    add_recipe(b, "city", "city-well", [](const char* f) { forge_well(f); });
+    add_recipe(b, "city", "city-longhall", [](const char* f) { forge_longhall(f); });
+    add_recipe(b, "city", "city-temple", [](const char* f) { forge_temple(f); });
+    add_recipe(b, "city", "city-keep", [](const char* f) { forge_keep(f); });
+    add_recipe(b, "city", "city-keep-s", [](const char* f) { forge_keep_small(f); });
+    add_recipe(b, "city", "city-mill", [](const char* f) { forge_mill(f); });
     // ЖИЛЫЕ ПОСТРОЙКИ ПЕЧАТАЮТСЯ ДВАЖДЫ — ухоженной и запущенной. Улица из
     // одинаково потрёпанных домов читается одной текстурой; разброс износа
     // между соседями и есть то, из чего глаз собирает возраст города.
-    const auto tended = [](const char* file) {
-        Aging a;
-        a.file = file;
-        return a;
-    };
+    //
     // ВЕТХИЙ: +0.28 к собственному износу каждой детали, зажатые в полосу
     // заказа. Порог 0.7 не косметический — на нём отрисовка уводит деталь в
     // ВЫВЕТРЕННЫЙ ряд атласа (серость и лишайник там нарисованы), поэтому
     // нижняя граница взята выше него у всего, что не цоколь.
-    const auto derelict = [](const char* file, float lo) {
-        Aging a;
-        a.file = file;
-        a.shift = 0.28f;
-        a.lo = lo;
-        a.hi = 0.8f;
-        a.kept = false;
-        return a;
-    };
-    forge_small_house(tended("assets/houses/city-house-s.dfh"));
-    forge_small_house(derelict("assets/houses/city-house-s-old.dfh", 0.65f));
-    forge_shop(tended("assets/houses/city-shop.dfh"));
-    forge_shop(derelict("assets/houses/city-shop-old.dfh", 0.65f));
-    forge_house_large(tended("assets/houses/city-house-l.dfh"));
-    forge_house_large(derelict("assets/houses/city-house-l-old.dfh", 0.65f));
-    forge_manor(tended("assets/houses/city-manor.dfh"));
-    forge_manor(derelict("assets/houses/city-manor-old.dfh", 0.65f));
-    forge_barn(tended("assets/houses/city-barn.dfh"));
     // Амбар и в уходе стоит грязнее жилья — у ветхого пол полосы выше.
-    forge_barn(derelict("assets/houses/city-barn-old.dfh", 0.72f));
-    if (!g_refused.empty()) {
-        std::fprintf(stderr, "forge: ОТКАЗАНО ПО СВЯЗНОСТИ, рецептов %zu:\n",
-                     g_refused.size());
-        for (const std::string& p : g_refused) {
-            std::fprintf(stderr, "  %s\n", p.c_str());
-        }
-        return 3;
+    struct Dwelling {
+        const char* name;
+        void (*forge)(Aging);
+        float derelict_lo;
+    };
+    for (const Dwelling& d : {Dwelling{"city-house-s", &forge_small_house, 0.65f},
+                              Dwelling{"city-shop", &forge_shop, 0.65f},
+                              Dwelling{"city-house-l", &forge_house_large, 0.65f},
+                              Dwelling{"city-manor", &forge_manor, 0.65f},
+                              Dwelling{"city-barn", &forge_barn, 0.72f}}) {
+        auto forge = d.forge;
+        const float lo = d.derelict_lo;
+        add_recipe(b, "city", d.name, [forge](const char* f) {
+            Aging a;
+            a.file = f;
+            forge(std::move(a));
+        });
+        add_recipe(b, "city", std::string(d.name) + "-old", [forge, lo](const char* f) {
+            Aging a;
+            a.file = f;
+            a.shift = 0.28f;
+            a.lo = lo;
+            a.hi = 0.8f;
+            a.kept = false;
+            forge(std::move(a));
+        });
     }
-    return 0;
+}
+
+/// ВЕСЬ РЕЕСТР. ГОРОДСКОЙ ПАКЕТ БУДУЩЕГО ГОРОДА ДОБАВЛЯЮТ СЮДА СВОЕЙ СТРОКОЙ:
+/// пишут pack_<город>(std::vector<Recipe>&) со своими add_recipe(b, "<город>",
+/// "<город>-<рецепт>", ...) и зовут её здесь. Имена файлов получат префикс
+/// города, манифест — семейство с его именем (префикс имени до дефиса), а
+/// ключ --only '<город>-*' испечёт ровно его пакет, не тронув ничего чужого.
+std::vector<Recipe> house_recipes() {
+    std::vector<Recipe> b;
+    pack_demo(b);
+    pack_city(b);
+    // pack_solitude(b);
+    // pack_markarth(b);
+    return b;
+}
+
+} // namespace
+
+int main(int argc, char** argv) {
+    // ДВЕ РУКИ ОДНОГО БИНАРНИКА: печь и судить. Судья отдельным исполняемым
+    // файлом стоил бы второй цели сборки ради двухсот строк, а рецепты и
+    // правило всё равно живут вместе.
+    return dfn::forge::run_forge(
+        argc, argv, "houses", house_recipes(), g_refused,
+        [](const char* dir) { return check_library(dir); });
 }
