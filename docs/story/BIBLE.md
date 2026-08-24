@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 09:08:2026 - 19:47:45
+Last updated: 25:08:2026 - 02:31:23
 -->
 <!--
 UPD:
@@ -16,6 +16,7 @@ UPD:
 - 09:08:2026 - 19:36:28: Steps section completed from design's 19:34:15 pass: story ruled SEVEN landings (one per station of the naming rite - the name's "seven" lives in the stations, not the steps, so the name gets a diegetic anchor without counting; LR_ASCENT_LANDINGS now story-coupled), recorded the binding disrepair rule (visual and routing, never impassable - caused by this bible's own "forbidding it would have been an admission" line) and the symmetric two-different-climbs warning: built temple stair (act 2) vs unbuilt worn watchmen's path up Ravenscar (act 1).
 - 09:08:2026 - 19:39:32: LR_ASCENT_LANDINGS pinned at 7; recorded design's metric check and its authoring consequence - seven landings give 171-257 m segments (57-86 s at WALK_SPEED, inside the valley's POI_TRAVEL_TIME band) and ~40 m of relief each, so the climb speaks the valley's own exploration cadence seven times and the view changes between stations. The seven recitations must escalate across that rhythm, never repeat.
 - 09:08:2026 - 19:47:45: Pre-cleared design's barrow relocation forced by the crag raise (52 -> 115 m): primary couloir move accepted (costs a bearing only; a grave in a fold suits the arc), fallback high-shoulder entrance accepted with its sentence inversion (grave over seat; "a house that cannot get out from under its own grave"), and one hard condition recorded — the mouth must never read from Vaelmere, since occlude-and-reveal is load-bearing for MQ1 and for a crime nobody finishes the sentence about.
+- 25:08:2026 - 02:31:23: Two world-map canon amendments from the approved Yaan atlas package (owner-confirmed lore session, coordinator sign-off): (1) the garrison drain is now TWO causes — the succession quarrel took money and attention, the southern war against the Seferid Sultanate takes the men (in addition to, never instead of, the quarrel; every existing quarrel line stays true); (2) the lone ~2600 m peak near the Harrowmere marker on the atlas (docs/design/worldmap/) recorded as CANDIDATE High Temple mountain — candidate only, awaiting the owner's word.
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -100,6 +101,11 @@ record, is beyond any king's power to strike out. The **Seven Thousand
 Steps** are its pilgrim stair — a staged climb of 5–7 landings, ~8 minutes
 up.
 
+**Atlas siting — CANDIDATE, not canon (25.08, awaiting the owner's word):**
+on the world atlas (`docs/design/worldmap/`), the lone ~2600 m peak near the
+Harrowmere marker is marked as the candidate canonical High Temple mountain.
+Nothing downstream may depend on the siting until the owner confirms.
+
 Why this matters to the arc rather than being scenery: the Backward Rite
 stripped the murdered of standing precisely so they could never testify
 (Reckoning law 4). The High Temple is the one place in Ealdmarch where that
@@ -156,8 +162,18 @@ deliberately distinct on sight so no frame can confuse them.
 **Ninety-six years of quiet.** The wards held because the shrinewardens kept
 tending them, the crown kept the record buried, and nobody said the word
 "feast" out loud. All three conditions are now failing at once: the wardens'
-line is thin and poor, the realm's succession quarrel has stripped the
-garrisons that guarded the old sites, and the barrow's seal has broken.
+line is thin and poor, the garrisons that guarded the old sites are gone, and
+the barrow's seal has broken.
+
+**Why the garrisons are gone — two drains, not one** (world-map canon,
+25.08, approved by the coordinator *in addition to*, never instead of, the
+quarrel): the realm's **succession quarrel** took the money and the
+attention; the **southern war** — the Empire's campaign against the Seferid
+Sultanate on the Midday Sea (fought in alliance with Westmark; theatre at
+Saltcliff/Tuzlan) — is now draining the *men*, sucking garrison after
+garrison down the Volkhona to the front. Every existing line about the
+quarrel stripping a garrison stays true; the war explains why nothing has
+been sent back.
 
 ## 3. The Reckoning — the dark force
 

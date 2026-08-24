@@ -1,0 +1,1662 @@
+{
+  "renames": {
+    "cultures": [
+      {
+        "was": "Skarnfolk",
+        "now": "Skjolds",
+        "belt": "norse",
+        "u": 0.688,
+        "v": 0.412
+      },
+      {
+        "was": "Havnord",
+        "now": "West Skjolds",
+        "belt": "norse",
+        "u": 0.335,
+        "v": 0.412
+      },
+      {
+        "was": "Isfjord",
+        "now": "Ice Skjolds",
+        "belt": "norse",
+        "u": 0.672,
+        "v": 0.268
+      },
+      {
+        "was": "Yaanor",
+        "now": "Veneds",
+        "belt": "ruth",
+        "u": 0.517,
+        "v": 0.506
+      },
+      {
+        "was": "Zavolod",
+        "now": "East Veneds",
+        "belt": "ruth",
+        "u": 0.738,
+        "v": 0.515
+      },
+      {
+        "was": "Polevy",
+        "now": "Field Veneds",
+        "belt": "ruth",
+        "u": 0.361,
+        "v": 0.553
+      },
+      {
+        "was": "Markish",
+        "now": "Markians",
+        "belt": "germ",
+        "u": 0.191,
+        "v": 0.428
+      },
+      {
+        "was": "Ostmark",
+        "now": "South Markians",
+        "belt": "germ",
+        "u": 0.221,
+        "v": 0.557
+      },
+      {
+        "was": "Denizar",
+        "now": "Aigerots",
+        "belt": "deniz",
+        "u": 0.647,
+        "v": 0.573
+      },
+      {
+        "was": "Kyrbey",
+        "now": "Kaisaks",
+        "belt": "deniz",
+        "u": 0.798,
+        "v": 0.607
+      },
+      {
+        "was": "Osmirid",
+        "now": "East Seferids",
+        "belt": "turk",
+        "u": 0.672,
+        "v": 0.801
+      },
+      {
+        "was": "Karabey",
+        "now": "Seferids",
+        "belt": "turk",
+        "u": 0.316,
+        "v": 0.799
+      }
+    ],
+    "states": [
+      {
+        "key": "yaan",
+        "was": "Yaan",
+        "wasFull": "Empire of Yaan",
+        "now": "Yaan",
+        "nowFull": "Empire of Yaan",
+        "ru": "\u0418\u043c\u043f\u0435\u0440\u0438\u044f \u042f\u0430\u043d",
+        "culture": "Veneds"
+      },
+      {
+        "key": "osman",
+        "was": "Ayaya",
+        "wasFull": "Ayaya Empire",
+        "now": "Seferid",
+        "nowFull": "Seferid Sultanate",
+        "ru": "\u0421\u0435\u0444\u0435\u0440\u0438\u0434\u0441\u043a\u0438\u0439 \u0441\u0443\u043b\u0442\u0430\u043d\u0430\u0442",
+        "culture": "East Seferids"
+      },
+      {
+        "key": "west",
+        "was": "Witin",
+        "wasFull": "Kingdom of Witin",
+        "now": "Westmark",
+        "nowFull": "Kingdom of Westmark",
+        "ru": "\u041a\u043e\u0440\u043e\u043b\u0435\u0432\u0441\u0442\u0432\u043e \u0412\u0435\u0441\u0442\u043c\u0430\u0440\u043a",
+        "culture": "Markians"
+      },
+      {
+        "key": "konwest",
+        "was": "Sorland",
+        "wasFull": "Sorland Konungdom",
+        "now": "Vestrskjold",
+        "nowFull": "Vestrskjold Konungdom",
+        "ru": "\u0417\u0430\u043f\u0430\u0434\u043d\u043e\u0435 \u0421\u043a\u0435\u043b\u044c\u0434\u0441\u043a\u043e\u0435 \u043a\u043e\u043d\u0443\u043d\u0433\u0441\u0442\u0432\u043e",
+        "culture": "Ice Skjolds"
+      },
+      {
+        "key": "koneast",
+        "was": "Susavik",
+        "wasFull": "Susavik Konungdom",
+        "now": "Austrskjold",
+        "nowFull": "Austrskjold Konungdom",
+        "ru": "\u0412\u043e\u0441\u0442\u043e\u0447\u043d\u043e\u0435 \u0421\u043a\u0435\u043b\u044c\u0434\u0441\u043a\u043e\u0435 \u043a\u043e\u043d\u0443\u043d\u0433\u0441\u0442\u0432\u043e",
+        "culture": "Ice Skjolds"
+      },
+      {
+        "key": "freeport",
+        "was": "Kardedie",
+        "wasFull": "Free City of Kardedie",
+        "now": "Gandvig",
+        "nowFull": "Free City of Gandvig",
+        "ru": "\u0412\u043e\u043b\u044c\u043d\u044b\u0439 \u0433\u043e\u0440\u043e\u0434 \u0413\u0430\u043d\u0434\u0432\u0438\u0433",
+        "culture": "Kaisaks"
+      },
+      {
+        "key": "princ",
+        "was": "Sedernau",
+        "wasFull": "Principality of Sedernau",
+        "now": "Oberfels",
+        "nowFull": "Principality of Oberfels",
+        "ru": "\u041a\u043d\u044f\u0436\u0435\u0441\u0442\u0432\u043e \u041e\u0431\u0435\u0440\u0444\u0435\u043b\u044c\u0441",
+        "culture": "Markians"
+      },
+      {
+        "key": "khan",
+        "was": "Gayazbey",
+        "wasFull": "Gayazbey Khanate",
+        "now": "Kaisak",
+        "nowFull": "Kaisak Horde",
+        "ru": "\u041a\u0430\u0439\u0441\u0430\u0446\u043a\u0430\u044f \u043e\u0440\u0434\u0430",
+        "culture": "Kaisaks"
+      },
+      {
+        "key": "isles",
+        "was": "Erenkano",
+        "wasFull": "Erenkano Thalassocracy",
+        "now": "Aigeros",
+        "nowFull": "Archonate of Aigeros",
+        "ru": "\u0410\u0440\u0445\u043e\u043d\u0442\u0441\u0442\u0432\u043e \u042d\u0433\u0435\u0440\u043e\u0441",
+        "culture": "Aigerots"
+      }
+    ],
+    "rivers": [
+      {
+        "was": "Norod",
+        "now": "Volkhona",
+        "why": "the great river: the northern plain to the Midday Sea at Saltcliff",
+        "discharge": 2406
+      },
+      {
+        "was": "Frienbachal",
+        "now": "Yaren",
+        "why": "the short northern sister: the Portage to the Crownhaven gulf",
+        "discharge": 85
+      },
+      {
+        "was": "Vatin",
+        "now": "Slavitsa",
+        "why": "the main river of the steppe",
+        "discharge": 336
+      },
+      {
+        "was": "Watchbury",
+        "now": "Dunsfield",
+        "kind": "river",
+        "discharge": 67
+      },
+      {
+        "was": "Dachstetlin",
+        "now": "Enzheim",
+        "kind": "river",
+        "discharge": 138
+      },
+      {
+        "was": "Honigsburg",
+        "now": "Kusburg",
+        "kind": "river",
+        "discharge": 125
+      },
+      {
+        "was": "Dachsbach",
+        "now": "Alrobern",
+        "kind": "river",
+        "discharge": 135
+      },
+      {
+        "was": "Lopsbernes",
+        "now": "Neloyrar",
+        "kind": "river",
+        "discharge": 112
+      },
+      {
+        "was": "Ulvskif",
+        "now": "Sodoker",
+        "kind": "river",
+        "discharge": 228
+      }
+    ],
+    "lakes": [
+      {
+        "was": "Penev",
+        "now": "Solonets",
+        "why": "the salt pan of Barrowstep"
+      },
+      {
+        "was": "Hafenmuns",
+        "now": "Harrowmere",
+        "why": "the lake of the Harrowmere valley"
+      }
+    ],
+    "burgs": [
+      {
+        "was": "Vyshvostsa",
+        "now": "Zhimerni",
+        "kind": "burg"
+      },
+      {
+        "was": "Drestvin",
+        "now": "Muryedin",
+        "kind": "burg"
+      },
+      {
+        "was": "Nordtter",
+        "now": "Waldsheim",
+        "kind": "burg"
+      }
+    ],
+    "waters": [
+      {
+        "was": "(unnamed in FMG)",
+        "now": "Frostsea",
+        "ru": "\u0421\u0442\u0443\u0434\u0451\u043d\u043e\u0435 \u043c\u043e\u0440\u0435",
+        "placed": true,
+        "u": 0.469,
+        "v": 0.157,
+        "depth": -3
+      },
+      {
+        "was": "(unnamed in FMG)",
+        "now": "Midday Sea",
+        "ru": "\u041f\u043e\u043b\u0443\u0434\u0435\u043d\u043d\u043e\u0435 \u043c\u043e\u0440\u0435",
+        "placed": true,
+        "u": 0.499,
+        "v": 0.673,
+        "depth": -3
+      },
+      {
+        "was": "(unnamed in FMG)",
+        "now": "Seferid Throat",
+        "ru": "\u0421\u0435\u0444\u0435\u0440\u043e\u0432\u043e \u0413\u043e\u0440\u043b\u043e",
+        "placed": true,
+        "u": 0.749,
+        "v": 0.659,
+        "depth": -2
+      },
+      {
+        "was": "(unnamed in FMG)",
+        "now": "The Great Ocean",
+        "ru": "\u0412\u0435\u043b\u0438\u043a\u0438\u0439 \u043e\u043a\u0435\u0430\u043d",
+        "placed": true,
+        "u": 0.376,
+        "v": 0.883,
+        "depth": -2
+      }
+    ]
+  },
+  "settle": {
+    "cities": 12,
+    "seats": 8,
+    "villages": 218,
+    "portsCleared": 53,
+    "wallsCleared": 59,
+    "citadelsCleared": 42,
+    "regrouped": {
+      "city": 7,
+      "capital": 30,
+      "village": 68,
+      "town": 120,
+      "fort": 1
+    },
+    "walledCities": 12
+  },
+  "gibberishSeen": {
+    "burgs": 3,
+    "rivers": 6,
+    "lakes": 0
+  },
+  "frameCheck": {
+    "north": 0.137,
+    "south": 0.135,
+    "west": 0.126,
+    "east": 0.091,
+    "ok": true
+  },
+  "icePct": 9.8,
+  "glacierSouthV": 0.526,
+  "landmasses": [
+    {
+      "feature": 2,
+      "type": "continent",
+      "cells": 4078,
+      "share": 94.4,
+      "u": 0.494,
+      "v": 0.52
+    },
+    {
+      "feature": 3,
+      "type": "island",
+      "cells": 186,
+      "share": 4.3,
+      "u": 0.657,
+      "v": 0.221
+    },
+    {
+      "feature": 7,
+      "type": "island",
+      "cells": 28,
+      "share": 0.6,
+      "u": 0.323,
+      "v": 0.655
+    },
+    {
+      "feature": 4,
+      "type": "island",
+      "cells": 27,
+      "share": 0.6,
+      "u": 0.349,
+      "v": 0.213
+    }
+  ],
+  "capitalCheck": {
+    "ok": true,
+    "seatIn": "Empire of Yaan",
+    "first": "Empire of Yaan",
+    "firstShare": 31.3
+  },
+  "log": [
+    "culture belts: {\"norse\":3,\"ruth\":3,\"germ\":2,\"deniz\":2,\"turk\":2}",
+    "FMG grew 26 states -> yaan 8, osman 10, west 1, konwest 1, koneast 1, freeport 1, princ 1, khan 2, isles 1",
+    "ocean features: [{\"id\":1,\"v\":0.524,\"n\":1710}]",
+    "Seferid Sultanate capital: Sersu",
+    "Kingdom of Westmark capital: Schrafenter",
+    "Vestrskjold Konungdom capital: Lahrbach",
+    "Austrskjold Konungdom capital: Vikholla",
+    "Free City of Gandvig capital: Trinenbach",
+    "Principality of Oberfels capital: Strau",
+    "Kaisak Horde capital: Ayruzyura",
+    "Archonate of Aigeros capital: Ayan",
+    "Harrowmere valley marker at u=0.477 v=0.464 tier 1; biome Grassland / h36 (relief +1) / harbour, no river, lake<3 rings, glacier<3 rings, temp 2C, prec 10; belt ruth",
+    "lone mountain at u=0.484 v=0.421; h95 = ~2487 m; biome Glacier / h95 (relief +60) / inland, no river, lake<3 rings, glacier<3 rings, temp -13C, prec 0; belt norse; state neutral",
+    "lakes: 3 total; barrowlake YES (freshwater, 3 cells, 0.012 away); harrowmere YES (freshwater, 3 cells, 0.007 away)",
+    "VOLKHONA: discharge 2406, length 1028, 58 cells, mouth 1.6 cells (92 km) from Saltcliff; largest on the map: true (next: Gutosch 1077)",
+    "YAREN: Crownhaven's own cell carries the river (fl 85)",
+    "CITIES ON THE VOLKHONA: Oakwatch(0.8c, fl 29), Fenholm(0c, fl 1904), Tollgard(0.5c, fl 39)",
+    "MARKERS: 58 generated scaled to 16 px, 2 authored kept at 27 px",
+    "SETTLEMENTS: 12 cities, 8 small-state seats (big villages), 218 villages; cleared 53 ports, 59 sets of walls, 42 citadels",
+    "RENAMES: 12 cultures, 9 states, 4 waters, 9 rivers (6 swept), 2 lakes (0 swept), 3 burgs swept",
+    "THE TSAR'S PORTAGE: 247 km (4.4 cells) at u=0.592 v=0.459, over a saddle of h 30 between beds of h 28 and h 24",
+    "OCEAN FRAME (nearest land cell to each border, map widths): {\"north\":0.137,\"south\":0.135,\"west\":0.126,\"east\":0.091,\"ok\":true}",
+    "DECLARED: Yaan is the first power and its seat is inside it \u2014 yes (31.3% of the land)",
+    "ICE: glacier 9.8% of land (424 cells), tundra 10.0%, glacier reaches south to v=0.526",
+    "landmasses: 94.4% (continent) at v0.52, 4.3% (island) at v0.221"
+  ],
+  "verdicts": [
+    {
+      "name": "Crownhaven",
+      "ok": false,
+      "tier": 1,
+      "cell": 2445,
+      "u": 0.644,
+      "v": 0.443,
+      "belt": "norse",
+      "beltWanted": "norse",
+      "beltOk": true,
+      "culture": "Markians",
+      "namesbase": "German",
+      "state": "Empire of Yaan",
+      "dist": 0.021,
+      "pass": "in the empire, near anchor",
+      "line": "Crownhaven: biome Taiga / h20 (relief +0) / harbour, river fl=85, temp 2C, prec 24 = passport tier 1 (RELAXED); belt norse = wanted; culture Markians/German; state Empire of Yaan; 0.021 from anchor (in the empire, near anchor); added"
+    },
+    {
+      "name": "Rimehold",
+      "ok": true,
+      "tier": 0,
+      "cell": 841,
+      "u": 0.314,
+      "v": 0.258,
+      "belt": "norse",
+      "beltWanted": "norse",
+      "beltOk": true,
+      "culture": "Wildlands",
+      "namesbase": "English",
+      "state": "Vestrskjold Konungdom",
+      "dist": 0.006,
+      "pass": "near anchor",
+      "line": "Rimehold: biome Tundra / h39 (relief +19) / harbour, no river, glacier<3 rings, temp -5C, prec 10 = passport tier 0 (EXACT); belt norse = wanted; culture Wildlands/English; state Vestrskjold Konungdom; 0.006 from anchor (near anchor); added"
+    },
+    {
+      "name": "Highbarrow",
+      "ok": true,
+      "tier": 0,
+      "cell": 3004,
+      "u": 0.552,
+      "v": 0.515,
+      "belt": "ruth",
+      "beltWanted": "ruth",
+      "beltOk": true,
+      "culture": "Veneds",
+      "namesbase": "Ruthenian",
+      "state": "Empire of Yaan",
+      "dist": 0.016,
+      "pass": "near anchor",
+      "line": "Highbarrow: biome Grassland / h35 (relief +12) / inland, no river, glacier<3 rings, temp 4C, prec 0 = passport tier 0 (EXACT); belt ruth = wanted; culture Veneds/Ruthenian; state Empire of Yaan; 0.016 from anchor (near anchor); added"
+    },
+    {
+      "name": "Cornhall",
+      "ok": true,
+      "tier": 0,
+      "cell": 2998,
+      "u": 0.491,
+      "v": 0.514,
+      "belt": "ruth",
+      "beltWanted": "ruth",
+      "beltOk": true,
+      "culture": "Veneds",
+      "namesbase": "Ruthenian",
+      "state": "Empire of Yaan",
+      "dist": 0.035,
+      "pass": "near anchor",
+      "line": "Cornhall: biome Grassland / h30 (relief +4) / inland, no river, temp 4C, prec 1 = passport tier 0 (EXACT); belt ruth = wanted; culture Veneds/Ruthenian; state Empire of Yaan; 0.035 from anchor (near anchor); added"
+    },
+    {
+      "name": "Stoneford",
+      "ok": true,
+      "tier": 0,
+      "cell": 3071,
+      "u": 0.412,
+      "v": 0.522,
+      "belt": "ruth",
+      "beltWanted": "ruth",
+      "beltOk": true,
+      "culture": "Field Veneds",
+      "namesbase": "Ruthenian",
+      "state": "Empire of Yaan",
+      "dist": 0.045,
+      "pass": "near anchor",
+      "line": "Stoneford: biome Temperate deciduous forest / h26 (relief +0) / inland, river fl=249, temp 5C, prec 4 = passport tier 0 (EXACT); belt ruth = wanted; culture Field Veneds/Ruthenian; state Empire of Yaan; 0.045 from anchor (near anchor); added"
+    },
+    {
+      "name": "Oakwatch",
+      "ok": true,
+      "tier": 0,
+      "cell": 2496,
+      "u": 0.328,
+      "v": 0.458,
+      "belt": "ruth",
+      "beltWanted": "ruth",
+      "beltOk": true,
+      "culture": "Markians",
+      "namesbase": "German",
+      "state": "Principality of Oberfels",
+      "dist": 0.076,
+      "pass": "near anchor",
+      "line": "Oakwatch: biome Temperate deciduous forest / h28 (relief +0) / inland, no river, glacier<3 rings, temp 3C, prec 6 = passport tier 0 (EXACT); belt ruth = wanted; culture Markians/German; state Principality of Oberfels; 0.076 from anchor (near anchor); added"
+    },
+    {
+      "name": "Fenholm",
+      "ok": true,
+      "tier": 0,
+      "cell": 2265,
+      "u": 0.545,
+      "v": 0.427,
+      "belt": "ruth",
+      "beltWanted": "ruth",
+      "beltOk": true,
+      "culture": "Veneds",
+      "namesbase": "Ruthenian",
+      "state": "Empire of Yaan",
+      "dist": 0.098,
+      "pass": "near anchor",
+      "line": "Fenholm: biome Wetland / h25 (relief +1) / inland, river fl=1904, temp 2C, prec 2 = passport tier 0 (EXACT); belt ruth = wanted; culture Veneds/Ruthenian; state Empire of Yaan; 0.098 from anchor (near anchor); added"
+    },
+    {
+      "name": "Tollgard",
+      "ok": true,
+      "tier": 0,
+      "cell": 2576,
+      "u": 0.291,
+      "v": 0.468,
+      "belt": "germ",
+      "beltWanted": "germ",
+      "beltOk": true,
+      "culture": "Markians",
+      "namesbase": "German",
+      "state": "Principality of Oberfels",
+      "dist": 0.018,
+      "pass": "near anchor",
+      "line": "Tollgard: biome Taiga / h29 (relief +1) / inland, no river, temp 3C, prec 13 = passport tier 0 (EXACT); belt germ = wanted; culture Markians/German; state Principality of Oberfels; 0.018 from anchor (near anchor); added"
+    },
+    {
+      "name": "Irondelve",
+      "ok": true,
+      "tier": 0,
+      "cell": 2071,
+      "u": 0.284,
+      "v": 0.405,
+      "belt": "germ",
+      "beltWanted": "germ",
+      "beltOk": true,
+      "culture": "Markians",
+      "namesbase": "German",
+      "state": "Kingdom of Westmark",
+      "dist": 0.089,
+      "pass": "near anchor",
+      "line": "Irondelve: biome Taiga / h55 (relief +24) / inland, no river, glacier<3 rings, temp -3C, prec 31 = passport tier 0 (EXACT); belt germ = wanted; culture Markians/German; state Kingdom of Westmark; 0.089 from anchor (near anchor); added"
+    },
+    {
+      "name": "Saltcliff",
+      "ok": true,
+      "tier": 0,
+      "cell": 3459,
+      "u": 0.677,
+      "v": 0.564,
+      "belt": "deniz",
+      "beltWanted": "deniz",
+      "beltOk": true,
+      "culture": "Veneds",
+      "namesbase": "Ruthenian",
+      "state": "Empire of Yaan",
+      "dist": 0.055,
+      "pass": "near anchor",
+      "line": "Saltcliff: biome Grassland / h35 (relief +12) / harbour, no river, temp 5C, prec 3 = passport tier 0 (EXACT); belt deniz = wanted; culture Veneds/Ruthenian; state Empire of Yaan; 0.055 from anchor (near anchor); added"
+    },
+    {
+      "name": "Barrowstep",
+      "ok": true,
+      "tier": 0,
+      "cell": 2948,
+      "u": 0.784,
+      "v": 0.504,
+      "belt": "ruth",
+      "beltWanted": "ruth",
+      "beltOk": true,
+      "culture": "East Veneds",
+      "namesbase": "Ruthenian",
+      "state": "Kaisak Horde",
+      "dist": 0.031,
+      "pass": "near anchor",
+      "line": "Barrowstep: biome Cold desert / h32 (relief +1) / inland, no river, lake<3 rings, temp 3C, prec 0 = passport tier 0 (EXACT); belt ruth = wanted; culture East Veneds/Ruthenian; state Kaisak Horde; 0.031 from anchor (near anchor); added"
+    },
+    {
+      "name": "Cliftspan",
+      "ok": false,
+      "tier": 2,
+      "cell": 3236,
+      "u": 0.383,
+      "v": 0.547,
+      "belt": "ruth",
+      "beltWanted": "ruth",
+      "beltOk": true,
+      "culture": "Field Veneds",
+      "namesbase": "Ruthenian",
+      "state": "Empire of Yaan",
+      "dist": 0.058,
+      "pass": "near anchor",
+      "line": "Cliftspan: biome Temperate deciduous forest / h31 (relief +4) / inland, river fl=126, temp 5C, prec 6 = passport tier 2 (RELAXED); belt ruth = wanted; culture Field Veneds/Ruthenian; state Empire of Yaan; 0.058 from anchor (near anchor); added"
+    }
+  ],
+  "markerNote": "Harrowmere valley marker at u=0.477 v=0.464 tier 1; biome Grassland / h36 (relief +1) / harbour, no river, lake<3 rings, glacier<3 rings, temp 2C, prec 10; belt ruth",
+  "templeNote": "lone mountain at u=0.484 v=0.421; h95 = ~2487 m; biome Glacier / h95 (relief +60) / inland, no river, lake<3 rings, glacier<3 rings, temp -13C, prec 0; belt norse; state neutral",
+  "mountains": [
+    {
+      "key": "massifcrown",
+      "h": 100,
+      "m": 2785,
+      "u": 0.785,
+      "v": 0.413,
+      "biome": "Glacier"
+    },
+    {
+      "key": "steppemount",
+      "h": 100,
+      "m": 2785,
+      "u": 0.574,
+      "v": 0.516,
+      "biome": "Glacier"
+    }
+  ],
+  "stats": [
+    {
+      "power": "yaan",
+      "name": "Yaan",
+      "full": "Empire of Yaan",
+      "form": "Empire",
+      "cells": 1350,
+      "share": 31.3,
+      "burgs": 110,
+      "capital": "Crownhaven",
+      "culture": "Veneds",
+      "namesbase": "Ruthenian",
+      "belt": "ruth"
+    },
+    {
+      "power": "osman",
+      "name": "Seferid",
+      "full": "Seferid Sultanate",
+      "form": "Sultanate",
+      "cells": 694,
+      "share": 16.1,
+      "burgs": 53,
+      "capital": "Sersu",
+      "culture": "East Seferids",
+      "namesbase": "Turkish",
+      "belt": "turk"
+    },
+    {
+      "power": "west",
+      "name": "Westmark",
+      "full": "Kingdom of Westmark",
+      "form": "Kingdom",
+      "cells": 391,
+      "share": 9.1,
+      "burgs": 12,
+      "capital": "Schrafenter",
+      "culture": "Markians",
+      "namesbase": "German",
+      "belt": "germ"
+    },
+    {
+      "power": "konwest",
+      "name": "Vestrskjold",
+      "full": "Vestrskjold Konungdom",
+      "form": "Konungdom",
+      "cells": 361,
+      "share": 8.4,
+      "burgs": 12,
+      "capital": "Lahrbach",
+      "culture": "Ice Skjolds",
+      "namesbase": "Nordic",
+      "belt": "norse"
+    },
+    {
+      "power": "koneast",
+      "name": "Austrskjold",
+      "full": "Austrskjold Konungdom",
+      "form": "Konungdom",
+      "cells": 351,
+      "share": 8.1,
+      "burgs": 5,
+      "capital": "Vikholla",
+      "culture": "Ice Skjolds",
+      "namesbase": "Nordic",
+      "belt": "norse"
+    },
+    {
+      "power": "khan",
+      "name": "Kaisak",
+      "full": "Kaisak Horde",
+      "form": "Horde",
+      "cells": 231,
+      "share": 5.3,
+      "burgs": 21,
+      "capital": "Ayruzyura",
+      "culture": "Kaisaks",
+      "namesbase": "Turkish",
+      "belt": "deniz"
+    },
+    {
+      "power": "princ",
+      "name": "Oberfels",
+      "full": "Principality of Oberfels",
+      "form": "Principality",
+      "cells": 165,
+      "share": 3.8,
+      "burgs": 6,
+      "capital": "Strau",
+      "culture": "Markians",
+      "namesbase": "German",
+      "belt": "germ"
+    },
+    {
+      "power": "isles",
+      "name": "Aigeros",
+      "full": "Archonate of Aigeros",
+      "form": "Archonate",
+      "cells": 133,
+      "share": 3.1,
+      "burgs": 14,
+      "capital": "Ayan",
+      "culture": "Aigerots",
+      "namesbase": "Turkish",
+      "belt": "deniz"
+    },
+    {
+      "power": "freeport",
+      "name": "Gandvig",
+      "full": "Free City of Gandvig",
+      "form": "Free City",
+      "cells": 30,
+      "share": 0.7,
+      "burgs": 5,
+      "capital": "Trinenbach",
+      "culture": "Kaisaks",
+      "namesbase": "Turkish",
+      "belt": "deniz"
+    }
+  ],
+  "cultureStats": [
+    {
+      "name": "Skjolds",
+      "base": "Nordic",
+      "belt": "norse",
+      "cells": 95,
+      "u": 0.688,
+      "v": 0.412
+    },
+    {
+      "name": "West Skjolds",
+      "base": "Nordic",
+      "belt": "norse",
+      "cells": 2,
+      "u": 0.335,
+      "v": 0.412
+    },
+    {
+      "name": "Ice Skjolds",
+      "base": "Nordic",
+      "belt": "norse",
+      "cells": 281,
+      "u": 0.672,
+      "v": 0.268
+    },
+    {
+      "name": "Veneds",
+      "base": "Ruthenian",
+      "belt": "ruth",
+      "cells": 517,
+      "u": 0.517,
+      "v": 0.506
+    },
+    {
+      "name": "East Veneds",
+      "base": "Ruthenian",
+      "belt": "ruth",
+      "cells": 304,
+      "u": 0.738,
+      "v": 0.515
+    },
+    {
+      "name": "Field Veneds",
+      "base": "Ruthenian",
+      "belt": "ruth",
+      "cells": 65,
+      "u": 0.361,
+      "v": 0.553
+    },
+    {
+      "name": "Markians",
+      "base": "German",
+      "belt": "germ",
+      "cells": 920,
+      "u": 0.191,
+      "v": 0.428
+    },
+    {
+      "name": "South Markians",
+      "base": "German",
+      "belt": "germ",
+      "cells": 394,
+      "u": 0.221,
+      "v": 0.557
+    },
+    {
+      "name": "Aigerots",
+      "base": "Turkish",
+      "belt": "deniz",
+      "cells": 0,
+      "u": 0.647,
+      "v": 0.573
+    },
+    {
+      "name": "Kaisaks",
+      "base": "Turkish",
+      "belt": "deniz",
+      "cells": 133,
+      "u": 0.798,
+      "v": 0.607
+    },
+    {
+      "name": "East Seferids",
+      "base": "Turkish",
+      "belt": "turk",
+      "cells": 490,
+      "u": 0.672,
+      "v": 0.801
+    },
+    {
+      "name": "Seferids",
+      "base": "Turkish",
+      "belt": "turk",
+      "cells": 424,
+      "u": 0.316,
+      "v": 0.799
+    }
+  ],
+  "disputes": [
+    {
+      "key": "inner-isles",
+      "name": "Islands of the inner sea",
+      "u": 0.4252,
+      "v": 0.676,
+      "r": 0.085,
+      "landCells": 153,
+      "held": {
+        "Empire of Yaan": 10,
+        "Archonate of Aigeros": 114,
+        "Seferid Sultanate": 29
+      },
+      "powers": [
+        "Archonate of Aigeros",
+        "Seferid Sultanate",
+        "Empire of Yaan"
+      ],
+      "disputed": true,
+      "line": "Islands of the inner sea: 153 land cells; Archonate of Aigeros 114 | Seferid Sultanate 29 | Empire of Yaan 10 -> DISPUTED (3 powers)"
+    },
+    {
+      "key": "south-horn",
+      "name": "The southern peninsula (Saltcliff's war)",
+      "u": 0.636,
+      "v": 0.706,
+      "r": 0.064,
+      "landCells": 118,
+      "held": {
+        "Empire of Yaan": 61,
+        "Seferid Sultanate": 57
+      },
+      "powers": [
+        "Empire of Yaan",
+        "Seferid Sultanate"
+      ],
+      "disputed": true,
+      "line": "The southern peninsula (Saltcliff's war): 118 land cells; Empire of Yaan 61 | Seferid Sultanate 57 -> DISPUTED (2 powers)"
+    },
+    {
+      "key": "north-cape",
+      "name": "The northern cape",
+      "u": 0.4184,
+      "v": 0.322,
+      "r": 0.07,
+      "landCells": 146,
+      "held": {
+        "Vestrskjold Konungdom": 128,
+        "neutral": 1,
+        "Principality of Oberfels": 17
+      },
+      "powers": [
+        "Vestrskjold Konungdom",
+        "Principality of Oberfels"
+      ],
+      "disputed": true,
+      "line": "The northern cape: 146 land cells; Vestrskjold Konungdom 128 | Principality of Oberfels 17 | neutral 1 -> DISPUTED (2 powers)"
+    },
+    {
+      "key": "polar-isle",
+      "name": "The polar island",
+      "u": 0.67,
+      "v": 0.244,
+      "r": 0.085,
+      "landCells": 175,
+      "held": {
+        "neutral": 93,
+        "Austrskjold Konungdom": 82
+      },
+      "powers": [
+        "Austrskjold Konungdom"
+      ],
+      "disputed": false,
+      "line": "The polar island: 175 land cells; Austrskjold Konungdom 82 | neutral 93 -> single owner"
+    },
+    {
+      "key": "pass-enclave",
+      "name": "The enclave at the western pass",
+      "u": 0.3181,
+      "v": 0.494,
+      "r": 0.07,
+      "landCells": 152,
+      "held": {
+        "neutral": 6,
+        "Principality of Oberfels": 87,
+        "Empire of Yaan": 49,
+        "Kingdom of Westmark": 7,
+        "Free City of Gandvig": 3
+      },
+      "powers": [
+        "Principality of Oberfels",
+        "Empire of Yaan",
+        "Kingdom of Westmark",
+        "Free City of Gandvig"
+      ],
+      "disputed": true,
+      "line": "The enclave at the western pass: 152 land cells; Principality of Oberfels 87 | Empire of Yaan 49 | Kingdom of Westmark 7 | Free City of Gandvig 3 | neutral 6 -> DISPUTED (4 powers)"
+    },
+    {
+      "key": "east-march",
+      "name": "The south-eastern steppe march",
+      "u": 0.7771,
+      "v": 0.578,
+      "r": 0.08,
+      "landCells": 138,
+      "held": {
+        "Kaisak Horde": 82,
+        "Empire of Yaan": 56
+      },
+      "powers": [
+        "Kaisak Horde",
+        "Empire of Yaan"
+      ],
+      "disputed": true,
+      "line": "The south-eastern steppe march: 138 land cells; Kaisak Horde 82 | Empire of Yaan 56 -> DISPUTED (2 powers)"
+    }
+  ],
+  "sharedIslands": [],
+  "lakes": [
+    {
+      "i": 5,
+      "name": "Harrowmere",
+      "group": "freshwater",
+      "cells": 3,
+      "height": 34.9,
+      "u": 0.465,
+      "v": 0.459
+    },
+    {
+      "i": 6,
+      "name": "Solonets",
+      "group": "freshwater",
+      "cells": 3,
+      "height": 30.9,
+      "u": 0.761,
+      "v": 0.509
+    },
+    {
+      "i": 8,
+      "name": "Sobesk",
+      "group": "freshwater",
+      "cells": 1,
+      "height": 19.9,
+      "u": 0.586,
+      "v": 0.659
+    }
+  ],
+  "lakeChecks": [
+    {
+      "key": "barrowlake",
+      "found": true,
+      "dist": 0.012,
+      "i": 6,
+      "name": "Solonets",
+      "group": "freshwater",
+      "cells": 3
+    },
+    {
+      "key": "harrowmere",
+      "found": true,
+      "dist": 0.007,
+      "i": 5,
+      "name": "Harrowmere",
+      "group": "freshwater",
+      "cells": 3
+    }
+  ],
+  "powers": [
+    {
+      "key": "yaan",
+      "present": true,
+      "name": "Empire of Yaan"
+    },
+    {
+      "key": "osman",
+      "present": true,
+      "name": "Seferid Sultanate"
+    },
+    {
+      "key": "west",
+      "present": true,
+      "name": "Kingdom of Westmark"
+    },
+    {
+      "key": "konwest",
+      "present": true,
+      "name": "Vestrskjold Konungdom"
+    },
+    {
+      "key": "koneast",
+      "present": true,
+      "name": "Austrskjold Konungdom"
+    },
+    {
+      "key": "freeport",
+      "present": true,
+      "name": "Free City of Gandvig"
+    },
+    {
+      "key": "princ",
+      "present": true,
+      "name": "Principality of Oberfels"
+    },
+    {
+      "key": "khan",
+      "present": true,
+      "name": "Kaisak Horde"
+    },
+    {
+      "key": "isles",
+      "present": true,
+      "name": "Archonate of Aigeros"
+    }
+  ],
+  "seed": "yaan3-1618",
+  "mapId": 1787613415994,
+  "mapCoordinates": {
+    "latT": 50.4,
+    "latN": 77,
+    "latS": 26.6,
+    "lonT": 50.4,
+    "lonW": -25.2,
+    "lonE": 25.2
+  },
+  "heightmapStat": {
+    "bendMax": 0.0667,
+    "bendMean": 0.0268,
+    "warpMax": 0.044,
+    "warpMean": 0.0202,
+    "frameMin": {
+      "w": 0.1165,
+      "e": 0.0924,
+      "n": 0.0961,
+      "s": 0.089
+    },
+    "squeeze": {
+      "mx": 0.075,
+      "sx": 0.85
+    },
+    "blobs": 20,
+    "lobes": 4,
+    "peaks": 3,
+    "horns": 3,
+    "caps": 4,
+    "channels": [
+      {
+        "name": "Volkhona",
+        "cells": 197,
+        "nonMonotonic": 0,
+        "meanCut": 6.72,
+        "maxCut": 25.96
+      },
+      {
+        "name": "Volkhona-centre",
+        "cells": 72,
+        "nonMonotonic": 0,
+        "meanCut": 3.74,
+        "maxCut": 19.93
+      },
+      {
+        "name": "Volkhona-east",
+        "cells": 16,
+        "nonMonotonic": 0,
+        "meanCut": 7.88,
+        "maxCut": 16.61
+      },
+      {
+        "name": "Yaren",
+        "cells": 14,
+        "nonMonotonic": 0,
+        "meanCut": 3.95,
+        "maxCut": 13.96
+      }
+    ],
+    "A": 1
+  },
+  "lakeElevationLimit": "6",
+  "graph": {
+    "w": 1600,
+    "h": 1600,
+    "cells": 6036,
+    "gridCells": 10000,
+    "landCells": 4319
+  },
+  "features": {
+    "oceans": 1,
+    "lakes": 3,
+    "islands": 4
+  },
+  "lakeTypes": [
+    "freshwater:3",
+    "freshwater:3",
+    "freshwater:1"
+  ],
+  "rivers": {
+    "cellWidth": 0.01,
+    "volkhona": {
+      "was": "Norod",
+      "discharge": 2406,
+      "length": 1028,
+      "widthKm": 1.13,
+      "cells": 58,
+      "sourceU": 0.229,
+      "sourceV": 0.452,
+      "mouthU": 0.66,
+      "mouthV": 0.565,
+      "toSaltcliff": 0.0164,
+      "toSaltcliffCells": 1.6,
+      "toSaltcliffKm": 92,
+      "biggestOnMap": true,
+      "runnerUp": "Gutosch 1077"
+    },
+    "yaren": {
+      "was": "Frienbachal",
+      "discharge": 85,
+      "length": 21,
+      "cells": 3,
+      "onCityCell": true,
+      "sourceU": 0.638,
+      "sourceV": 0.448,
+      "mouthU": 0.644,
+      "mouthV": 0.443,
+      "toCrownhaven": 0,
+      "toCrownhavenCells": 0
+    },
+    "previousHolders": [],
+    "top": [
+      {
+        "name": "Volkhona",
+        "discharge": 2406,
+        "length": 1028,
+        "mouthU": 0.66,
+        "mouthV": 0.565
+      },
+      {
+        "name": "Gutosch",
+        "discharge": 1077,
+        "length": 302,
+        "mouthU": 0.147,
+        "mouthV": 0.365
+      },
+      {
+        "name": "Gopodisch",
+        "discharge": 633,
+        "length": 225,
+        "mouthU": 0.307,
+        "mouthV": 0.565
+      },
+      {
+        "name": "Nestad",
+        "discharge": 614,
+        "length": 191,
+        "mouthU": 0.708,
+        "mouthV": 0.374
+      },
+      {
+        "name": "Djugar",
+        "discharge": 464,
+        "length": 118,
+        "mouthU": 0.837,
+        "mouthV": 0.282
+      },
+      {
+        "name": "Rothbury",
+        "discharge": 453,
+        "length": 234,
+        "mouthU": 0.189,
+        "mouthV": 0.239
+      },
+      {
+        "name": "Enzburg",
+        "discharge": 421,
+        "length": 133,
+        "mouthU": 0.162,
+        "mouthV": 0.447
+      },
+      {
+        "name": "Cliford",
+        "discharge": 393,
+        "length": 152,
+        "mouthU": 0.417,
+        "mouthV": 0.259
+      },
+      {
+        "name": "Slavitsa",
+        "discharge": 336,
+        "length": 292,
+        "mouthU": 0.503,
+        "mouthV": 0.551
+      },
+      {
+        "name": "Orbach",
+        "discharge": 328,
+        "length": 105,
+        "mouthU": 0.14,
+        "mouthV": 0.542
+      }
+    ],
+    "citiesOnVolkhona": [
+      {
+        "name": "Crownhaven",
+        "onIt": false,
+        "riverOnCell": true,
+        "fl": 85,
+        "distCells": 6.1
+      },
+      {
+        "name": "Rimehold",
+        "onIt": false,
+        "riverOnCell": false,
+        "fl": 10,
+        "distCells": 16
+      },
+      {
+        "name": "Highbarrow",
+        "onIt": false,
+        "riverOnCell": false,
+        "fl": 0,
+        "distCells": 3.9
+      },
+      {
+        "name": "Cornhall",
+        "onIt": false,
+        "riverOnCell": false,
+        "fl": 1,
+        "distCells": 5.9
+      },
+      {
+        "name": "Stoneford",
+        "onIt": false,
+        "riverOnCell": true,
+        "fl": 249,
+        "distCells": 6.6
+      },
+      {
+        "name": "Oakwatch",
+        "onIt": false,
+        "riverOnCell": false,
+        "fl": 29,
+        "distCells": 0.8
+      },
+      {
+        "name": "Fenholm",
+        "onIt": true,
+        "riverOnCell": true,
+        "fl": 1904,
+        "distCells": 0
+      },
+      {
+        "name": "Tollgard",
+        "onIt": false,
+        "riverOnCell": false,
+        "fl": 39,
+        "distCells": 0.5
+      },
+      {
+        "name": "Irondelve",
+        "onIt": false,
+        "riverOnCell": false,
+        "fl": 31,
+        "distCells": 4.2
+      },
+      {
+        "name": "Saltcliff",
+        "onIt": false,
+        "riverOnCell": false,
+        "fl": 3,
+        "distCells": 1.6
+      },
+      {
+        "name": "Barrowstep",
+        "onIt": false,
+        "riverOnCell": false,
+        "fl": 0,
+        "distCells": 6.5
+      },
+      {
+        "name": "Cliftspan",
+        "onIt": false,
+        "riverOnCell": true,
+        "fl": 126,
+        "distCells": 7.9
+      }
+    ]
+  },
+  "portage": {
+    "placed": true,
+    "saddleH": 30,
+    "yarenBedH": 28,
+    "volkhonaBedH": 24,
+    "profile": [
+      28,
+      28,
+      30,
+      30,
+      30,
+      30,
+      30,
+      30,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      29,
+      25,
+      25,
+      25,
+      24,
+      24,
+      24
+    ],
+    "fromU": 0.596,
+    "fromV": 0.461,
+    "toU": 0.555,
+    "toV": 0.446,
+    "lengthMapWidths": 0.044,
+    "lengthKm": 247,
+    "lengthCells": 4.4,
+    "u": 0.592,
+    "v": 0.459,
+    "marker": true
+  },
+  "channels": [
+    {
+      "name": "Volkhona",
+      "cells": 197,
+      "nonMonotonic": 0,
+      "meanCut": 6.72,
+      "maxCut": 25.96
+    },
+    {
+      "name": "Volkhona-centre",
+      "cells": 72,
+      "nonMonotonic": 0,
+      "meanCut": 3.74,
+      "maxCut": 19.93
+    },
+    {
+      "name": "Volkhona-east",
+      "cells": 16,
+      "nonMonotonic": 0,
+      "meanCut": 7.88,
+      "maxCut": 16.61
+    },
+    {
+      "name": "Yaren",
+      "cells": 14,
+      "nonMonotonic": 0,
+      "meanCut": 3.95,
+      "maxCut": 13.96
+    }
+  ],
+  "oceanRank": [
+    {
+      "id": 1,
+      "v": 0.524,
+      "n": 1710
+    }
+  ],
+  "bigRivers": [
+    {
+      "name": "Volkhona",
+      "discharge": 2406,
+      "length": 1028,
+      "mouthV": 0.565
+    },
+    {
+      "name": "Gutosch",
+      "discharge": 1077,
+      "length": 302,
+      "mouthV": 0.365
+    },
+    {
+      "name": "Gopodisch",
+      "discharge": 633,
+      "length": 225,
+      "mouthV": 0.565
+    },
+    {
+      "name": "Nestad",
+      "discharge": 614,
+      "length": 191,
+      "mouthV": 0.374
+    },
+    {
+      "name": "Djugar",
+      "discharge": 464,
+      "length": 118,
+      "mouthV": 0.282
+    },
+    {
+      "name": "Rothbury",
+      "discharge": 453,
+      "length": 234,
+      "mouthV": 0.239
+    },
+    {
+      "name": "Enzburg",
+      "discharge": 421,
+      "length": 133,
+      "mouthV": 0.447
+    },
+    {
+      "name": "Cliford",
+      "discharge": 393,
+      "length": 152,
+      "mouthV": 0.259
+    }
+  ],
+  "biomeTally": {
+    "Glacier": 424,
+    "Tundra": 431,
+    "Taiga": 1084,
+    "Wetland": 261,
+    "Grassland": 696,
+    "Cold desert": 124,
+    "Temperate deciduous forest": 786,
+    "Temperate rainforest": 513
+  },
+  "beltBiomes": {
+    "polar": [
+      "Tundra 363",
+      "Glacier 322",
+      "Taiga 175",
+      "Wetland 7"
+    ],
+    "north": [
+      "Taiga 470",
+      "Glacier 63",
+      "Wetland 62",
+      "Tundra 40"
+    ],
+    "centre": [
+      "Taiga 367",
+      "Grassland 336",
+      "Cold desert 109",
+      "Temperate deciduous forest 84"
+    ],
+    "steppe": [
+      "Grassland 235",
+      "Temperate deciduous forest 121",
+      "Temperate rainforest 82",
+      "Cold desert 40"
+    ],
+    "southland": [
+      "Temperate deciduous forest 305",
+      "Grassland 262",
+      "Temperate rainforest 165",
+      "Wetland 41"
+    ]
+  },
+  "burgsTotal": 238,
+  "labelFit": [
+    "Yaan: path 590 text 71 -> 149 (ratio 0.25), shrunk 11x to 337%",
+    "Oberfels: path 290 text 121 -> 170 (ratio 0.59), shrunk 5x to 224%",
+    "Kaisak: path 105 text 81 -> 81 (ratio 0.77)",
+    "Seferid: path 270 text 102 -> 163 (ratio 0.60), shrunk 7x to 257%",
+    "Vestrskjold: path 350 text 158 -> 208 (ratio 0.59), shrunk 4x to 210%",
+    "Gandvig: path 82 text 61 -> 61 (ratio 0.75)",
+    "Aigeros: path 185 text 111 -> 111 (ratio 0.60)",
+    "Westmark: path 190 text 142 -> 142 (ratio 0.75)",
+    "Austrskjold: path 255 text 164 -> 164 (ratio 0.64)"
+  ],
+  "labelNudge": [
+    "burg label collisions: 3 of 12 city labels moved",
+    "Highbarrow: moved 24 px down off a bigger label",
+    "Oakwatch: COLLIDES and no offset up to 60 px clears it",
+    "Tollgard: moved 60 px down off a bigger label",
+    "Irondelve: moved 15 px up off a bigger label"
+  ],
+  "labelsDrawn": [
+    "Crownhaven=yes",
+    "Rimehold=yes",
+    "Highbarrow=yes",
+    "Cornhall=yes",
+    "Stoneford=yes",
+    "Oakwatch=yes",
+    "Fenholm=yes",
+    "Tollgard=yes",
+    "Irondelve=yes",
+    "Saltcliff=yes",
+    "Barrowstep=yes",
+    "Cliftspan=yes"
+  ],
+  "cultureLabels": [
+    "Skjolds at 1196,587 (95 cells)",
+    "West Skjolds at 537,659 (2 cells)",
+    "Ice Skjolds at 1241,487 (281 cells)",
+    "Veneds at 838,886 (517 cells)",
+    "East Veneds at 1269,804 (304 cells)",
+    "Field Veneds at 602,924 (65 cells)",
+    "Markians at 570,642 (920 cells)",
+    "South Markians at 312,1084 (394 cells)",
+    "Aigerots: no land cells, no label",
+    "Kaisaks at 1368,1014 (133 cells)",
+    "East Seferids at 1081,1219 (490 cells)",
+    "Seferids at 588,1209 (424 cells)"
+  ],
+  "mapFile": {
+    "lines": 52,
+    "header": "1.148.3|File can be loaded in azgaar.git",
+    "addedLabels": 5,
+    "addedTexts": [
+      "Frostsea",
+      "Midday Sea",
+      "Seferid Throat",
+      "The Great Ocean",
+      "The Tsar's Portage"
+    ]
+  },
+  "coastlineCheck": "grid            10000 cells (100x100), spacing 16 px\nLAND/WATER      cells that changed side: 0 <- COASTLINE IDENTICAL\nHEIGHTS         259 cells lowered (deepest cut 26), 0 raised \nland cells      3828 in both\nPRECIPITATION   199 of 10000 grid cells changed; largest change 15 (at u=0.300 v=0.460)\nBarrowstep pan  cells 42; changed heights: NONE",
+  "iter5Compare": {
+    "states": [
+      {
+        "power": "yaan",
+        "iter5": 1060,
+        "iter6": 1350
+      },
+      {
+        "power": "osman",
+        "iter5": 930,
+        "iter6": 694
+      },
+      {
+        "power": "west",
+        "iter5": 646,
+        "iter6": 391
+      },
+      {
+        "power": "konwest",
+        "iter5": 252,
+        "iter6": 361
+      },
+      {
+        "power": "koneast",
+        "iter5": 324,
+        "iter6": 351
+      },
+      {
+        "power": "khan",
+        "iter5": 413,
+        "iter6": 231
+      },
+      {
+        "power": "princ",
+        "iter5": 8,
+        "iter6": 165
+      },
+      {
+        "power": "isles",
+        "iter5": 32,
+        "iter6": 133
+      },
+      {
+        "power": "freeport",
+        "iter5": 26,
+        "iter6": 30
+      }
+    ],
+    "graph5": {
+      "w": 1600,
+      "h": 1600,
+      "cells": 6036,
+      "gridCells": 10000,
+      "landCells": 4319
+    },
+    "graph6": {
+      "w": 1600,
+      "h": 1600,
+      "cells": 6036,
+      "gridCells": 10000,
+      "landCells": 4319
+    },
+    "bigRivers5": [
+      {
+        "name": "Schengenberg",
+        "discharge": 1720,
+        "length": 467,
+        "mouthV": 0.365
+      },
+      {
+        "name": "Volkhona",
+        "discharge": 867,
+        "length": 501,
+        "mouthV": 0.551
+      },
+      {
+        "name": "Luzhyenets",
+        "discharge": 710,
+        "length": 202,
+        "mouthV": 0.565
+      },
+      {
+        "name": "Mostad",
+        "discharge": 614,
+        "length": 191,
+        "mouthV": 0.374
+      },
+      {
+        "name": "Launin",
+        "discharge": 587,
+        "length": 241,
+        "mouthV": 0.32
+      },
+      {
+        "name": "Stokholtbo",
+        "discharge": 464,
+        "length": 118,
+        "mouthV": 0.282
+      },
+      {
+        "name": "Nostedbury",
+        "discharge": 453,
+        "length": 234,
+        "mouthV": 0.239
+      },
+      {
+        "name": "Enzburg",
+        "discharge": 421,
+        "length": 133,
+        "mouthV": 0.447
+      }
+    ]
+  }
+}

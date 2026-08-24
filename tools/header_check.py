@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 20:08:2026 - 15:50:00
+# Last updated: 25:08:2026 - 02:35:21
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -60,6 +60,7 @@
 # - 17:08:2026 - 17:53:25: README.md исключён — это входная дверь для постороннего, а не исходник;
 #   шапка контракта агентов была бы первым, что он прочтёт, и ему она ничего не говорит.
 # - 20:08:2026 - 15:50:00: assets/houses/ в SKIP_PATH_RES — библиотека построек (.dfh), пишется побайтово-детерминированным write_house.
+# - 25:08:2026 - 02:35:21: docs/design/worldmap/ в SKIP_PATH_RES — архив атласа Яан: final.map — FMG-сейв строгого формата, .txt — дословные архивы с шапкой-преамбулой; контракт в WORLD_MAP.md 9.11.
 
 from __future__ import annotations
 
@@ -127,6 +128,12 @@ SKIP_PATH_RES = (
     # A hand-stamped timestamp header would break the determinism the tests
     # stand on; the contract lives in HouseFile.h and tools/forge_houses.cpp.
     re.compile(r"^assets/houses/"),
+    # docs/design/worldmap/ is the ARCHIVED WORLD ATLAS (Yaan, lore session's
+    # final): final.map is an FMG save with a strict line format — a header
+    # would break loading it back into the tool — and the .txt bodies are
+    # verbatim archived artefacts (their own headers were prepended where the
+    # format allows). Contract: docs/design/WORLD_MAP.md 9.11.
+    re.compile(r"^docs/design/worldmap/"),
 )
 # Extensions excluded because the format cannot carry a leading source-header comment
 # (binary, strict JSON, model weights) or is generated output.

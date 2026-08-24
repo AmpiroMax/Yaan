@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 21:58:31
-Last updated: 10:08:2026 - 22:21:48
+Last updated: 25:08:2026 - 02:31:23
 -->
 <!--
 UPD:
@@ -9,6 +9,7 @@ UPD:
 - 10:08:2026 - 22:08:45: AMENDED — the user moved to Azgaar's Fantasy Map Generator, so FMG becomes the AUTHORING TOOL and we consume its export (§9). Measured from source, not assumed: licence is MIT with an explicit commercial-derivatives expansion (blocker cleared); height is (h-18)**heightExponent metres, so our whole 0-400 m range is FMG h in [20,38] — NINETEEN steps, quantum 5 m at the coast and 41 m at the ceiling — and the ruling is that h is NEVER our elevation, only a land/water mask and a mountain region, which is the same ruling that rejected Amit's elevation model; cell spacing is sqrt(map_area / cellsDesired) and therefore SCALE-FREE, giving the configuration instruction 30x30 to 69x69 km at 10k cells, against a continental default of ~40 km cells at which our entire target world is 1/16 of ONE CELL. Crop chosen by him via a DFN_ORIGIN marker, missing or duplicated is a hard error. Three NEW Rule 39 shadow copies from FMG's settlement/route/biome layers, each ruled FMG-owns-the-graph / we-own-the-geometry. §2.1-2.5 and §2.8's sketch compiler SUPERSEDED as the authoring path and kept with a note, because their reasoning is the importer's specification — §9.6 re-targets every ruling line by line, including the two-tier split-by-cause rule, whose heir (an unmapped biome id is an ERROR, never a nearest match) is the most likely place for a silently-nearby world under FMG. §1, §2.6 and §5 survive untouched. WORLDGEN_SEA_LEVEL stays and does NOT become an FMG mapping constant (Rule 43).
 - 10:08:2026 - 22:17:38: §9.8 revised on story's Seremarch findings, §9.9 and §9.10 added. CLOSED: FMG CAN hold land at every border — Mask with a NEGATIVE fraction inverts and lowers the map centre, so border ocean is a DEFAULT, not a constraint. Story's evidence argument accepted and recorded rather than waived: a mechanism settles the general case and one seed cannot, though the grade is documentation-derived, neither source-derived nor frame-verified. REPLACED BY THE SHARPER QUESTION: do FMG's downstream modules assume an ocean exists — ports, the Marine biome, and the temperature/precipitation passes that key off distance-to-water? The risk relocated from the map to the import. NEW FORMAT REQUIREMENT (§9.9): lake type is CLIMATE-DERIVED via Penman evaporation against river flux, so latitude is a load-bearing authoring input and any map whose fiction leans on a salt or dry lake must state it — generalised to the rule that FMG derives more than it draws, so the settings that produce a fact belong in the map's requirements. LF-11's synthetic-control flag LIFTED: FMG's native `dry lake` type is the real rejected instance Rule 45 asked for. §9.10: the water half of h is 19 hyperbolic steps to -950 m, ample and irrelevant for the same reason as the land half — h is not our elevation on either side.
 - 10:08:2026 - 22:21:48: §5 GAINED INSTRUMENT D (§5.3a) and §5.0 gained its second axis — story's finding, and a gap I could not have found by re-reading my own section (Rule 46: I checked §5 against the model I used, that the world is a mask, and the model was what was incomplete). A, B and C all measure the MASK; port status, lake type, biome and population are DERIVED and were instrumented by nothing — yet four of the six maps put their why-here on harbours. A green A/B/C would have certified a boundary and silently certified nothing about settlements while looking like one verdict, on the first map we build. D checks each declared derived assertion against the export: exact aggregation, denominator = the map's own count of assertions, and ZERO IS A FAILURE (Rule 30a — a test that cannot fail). Two distinct failure modes: contradiction, and UNEXPRESSIBLE, the second catching an unfalsifiable assertion sitting in a map's requirements (Rule 45's tell aimed at fiction). Control is free and real, not synthetic: Seremarch re-exported at a cool wet latitude returns a fresh lake and must fail D while passing A/B/C unchanged. Worked example shows story's neck sentence decomposing into a mask claim, a derived claim and a labelled inference — a map's fiction need not be all-checkable, it must say which parts are.
+- 25:08:2026 - 02:31:23: §9.11 added — the Yaan world atlas (docs/design/worldmap/, owner-approved) is ATLAS-regime (~56 km cells): importer must reject it, DFN_ORIGIN deliberately absent, reference-not-geometry; two-exports-vs-grow-the-world deferred to the map-joining epoch.
 -->
 
 # WORLD_MAP.md — the drawn world map
@@ -1199,3 +1200,20 @@ any basin, and **irrelevant for the same reason the land half is: `h` is not our
 elevation on the water side either.** Lake beds are cut by §3.1's carve from the
 reach level, which is the one authority for where water is. FMG's water `h` gives
 us the mask and nothing else.
+
+
+### 9.11 THE ATLAS REGIME — the Yaan world atlas is a REFERENCE, not an import
+
+**Ruling (25.08, coordinator).** The owner-approved world atlas (six iterations,
+built in FMG by the lore session; the final lives at `docs/design/worldmap/` —
+`final.map` loads in FMG itself, `final-notes.txt` carries every measurement)
+is an **ATLAS-regime map: ~56 km per cell against the REGION regime's
+300–693 m.** Per §9.3 an importer MUST reject it, and **no DFN_ORIGIN marker
+was placed on it — deliberately**, so the file cannot pretend to be
+importable. The atlas is the lorno-geographic reference (which power is
+where, climate belts, river directions, the twelve cities' mutual positions)
+and never a source of game geometry. The twelve cities remain twelve separate
+maps (owner's ruling); the choice between "two exports of one fiction" and
+"grow the world" is DEFERRED to the map-joining epoch — that work is ordered
+explicitly, never implied. Everything iteration 1's README argues about the
+two regimes stands.

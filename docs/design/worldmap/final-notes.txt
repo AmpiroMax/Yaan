@@ -1,0 +1,316 @@
+Created: 25:08:2026 - 02:33:32
+Last updated: 25:08:2026 - 02:33:32
+
+ARCHIVED ARTEFACT of the lore session's worldmap pipeline (iteration 6, the
+approved final). Copied verbatim from the lore session's scratchpad; the body
+below is theirs and is not edited here. See docs/design/WORLD_MAP.md 9.11.
+
+UPD:
+- 25:08:2026 - 02:33:32: Archived into the repo unchanged (the scratchpad is session-lived).
+
+==============================================================================
+
+YAAN — ITERATION 6, THE FINAL MAP: THE VOLKHONA
+==============================================================================
+
+Iteration 5's map with ONE geometric edit and nothing else: a great river carved into the
+heightmap, its short northern sister, and the watershed between them.
+
+  Volkhona   Волхона   the great river — the largest on the map by a factor of 2.2
+  Yaren      Ярень     the short river of the capital, on Crownhaven's own cell
+  The Tsar's Portage / Государев волок — the carry between the two heads
+
+FILES
+------------------------------------------------------------------------------
+  final.png            political — the map
+  final-relief.png     pure heightmap: this is where the river valley is visible
+  final-biomes.png     biome belts
+  final-cultures.png   culture regions with the culture names
+  final.map            FMG save; loads in azgaar.github.io/Fantasy-Map-Generator
+  final-report.json    every measurement here, machine-readable
+  world6.js            the heightmap: iteration 4's world4.js + the channel carve
+  variants6.js         the four channels — the route, as polylines with a thalweg profile
+  gen6.mjs             the driver (node gen6.mjs --port 5203)
+  preview6.mjs         both fields rasterised without FMG, and the four checks (12 s)
+  coastcheck.py        the coastline check on FMG's own grid, iteration 5 vs iteration 6
+  loadtest.mjs         boots a clean FMG, loads final.map, reads the rivers back
+  loadtest.log/png     what it read back / what the loaded file looks like
+  run6.log             the driver's own log for the run that made these files
+
+  Re-run:  cd ../../fmg && npm run dev -- --port 5203 &
+           cd ../worldmap/iter6 && node preview6.mjs && node gen6.mjs --port 5203
+           node loadtest.mjs --port 5203 && python3 mknotes6.py
+
+
+THE HARD CONSTRAINT FIRST: THE COASTLINE DID NOT MOVE
+==============================================================================
+
+The carve is written so that it CANNOT move a coast, and then it is measured anyway.
+
+  BY CONSTRUCTION.  h_new = min(h, max(target, 21)).  It runs only inside the land branch of
+  the heightmap builder, it can only LOWER a cell, and it can never take one below 21 while
+  FMG's land threshold is 20. So the set {h >= 20} is untouched whatever the route does.
+
+  BY MEASUREMENT.  iteration 5's .map and iteration 6's .map are saves of the SAME 100x100
+  grid graph, so grid.cells.h can be compared cell for cell — and if no cell crosses 20, the
+  pack graph FMG builds from that grid is identical too, and with it every coastline, island
+  and lake shore. That is stronger than comparing two pictures:
+
+    grid            10000 cells (100x100), spacing 16 px
+    LAND/WATER      cells that changed side: 0 <- COASTLINE IDENTICAL
+    HEIGHTS         259 cells lowered (deepest cut 26), 0 raised 
+    land cells      3828 in both
+    PRECIPITATION   199 of 10000 grid cells changed; largest change 15 (at u=0.300 v=0.460)
+    Barrowstep pan  cells 42; changed heights: NONE
+
+  and the pack graph came back the same size: 6036 cells, 4319 of them land — iteration 5's own
+  numbers (6036 / 4319).
+  The ocean frame is unchanged too: nearest land to a border north 0.137 south 0.135 west 0.126
+  east 0.091 map widths, against iteration 5's 0.137 / 0.135 / 0.126 / 0.091.
+
+
+THE VOLKHONA
+==============================================================================
+
+  discharge          2406 m3/s   — THE LARGEST RIVER ON THE MAP (next: Gutosch 1077)
+  length             1028 px = 3598 km at 3.5 km/px — also the longest
+  width at the mouth 1.13 km
+  cells              58
+  source             u=0.229 v=0.452 — the Tollgard pass, in the western marches
+  mouth              u=0.660 v=0.565 — the Midday Sea, 1.6 cells (92 km) from Saltcliff
+
+  THE ROUTE, source -> mouth (the four carved channels of variants6.js, in screen u,v):
+
+    the Tollgard pass          u .240 v .452   through the one gap in the western wall
+    the western marches        u .345 v .470   Fenholm's wet plain, prec 19-31
+    the northern plain         u .430 v .400 -> u .548 v .426   h 31-33, flat, 700 km of it
+    + the Venedian arm         u .386 v .517 -> u .554 v .450   Stoneford, Cliftspan,
+                                               crossing the Yaan divide in a water gap at
+                                               u .535 where the crest falls to h 41
+    the water gap              u .646 v .509   the divide crossed a second time, crest h 48
+    + the steppe tributary     u .706 v .534 -> u .660 v .557   the corridor east of Saltcliff
+    the mouth                  u .661 v .579   beside Saltcliff
+
+  WHY THIS ROUTE AND NOT A STRAIGHT ONE. Crownhaven (u .663 v .443) and Saltcliff
+  (u .660 v .565) stand almost on the same meridian, 0.12 map widths apart, with the Yaan
+  divide between them: a river joining that pair directly is 400 km long and drains nothing.
+  The water is in the WEST — the interior is arid (prec 0-5 over the whole Venedian centre
+  against 19-31 in the western marches), so a river's size here is decided by WHICH cells it
+  drains and not by how many. And Saltcliff cannot be reached from the west along the coast:
+  between u .61 and u .65 the shore of the Midday Sea rises to v .555 and a bay bites in at
+  u .625, so any axis there stands one or two cells from open water and the river simply
+  leaves. Measured three times, from three different lines. Hence: gather the water in the
+  west, carry it east down the northern plain, and come at Saltcliff from due north.
+
+  WHICH OF THE TWELVE STAND ON IT (distance from the city's cell to the Volkhona system,
+  in cells; a cell is 56 km here):
+
+    Crownhaven     6.1 cells  its own river, fl 85
+    Rimehold        16 cells  no river
+    Highbarrow     3.9 cells  no river
+    Cornhall       5.9 cells  no river
+    Stoneford      6.6 cells  its own river, fl 249
+    Oakwatch       0.8 cells  no river
+    Fenholm          0 cells  ON IT, fl 1904
+    Tollgard       0.5 cells  no river
+    Irondelve      4.2 cells  no river
+    Saltcliff      1.6 cells  no river
+    Barrowstep     6.5 cells  no river
+    Cliftspan      7.9 cells  its own river, fl 126
+
+  STONEFORD — THE ONE THING THAT WAS ASKED FOR AND DID NOT COME OFF. Its passport is 'the
+  bend of a big navigable river' and the owner asked for the Volkhona to be taken through it
+  if it could be. The Venedian arm IS carved through Stoneford and Stoneford does stand on a
+  big river (fl 249, passport tier 0), but that river is the Slavitsa and not the Volkhona:
+  the arm captures the northern half of the Venedian plain and the southern half still goes
+  out of the old mouth at u .503. The reason is measured, not guessed. The Venedian plain
+  lies at h 26-28 and the Midday Sea is TWO CELLS south of it, so its outlet sits at h 20-22
+  within two cells of any axis one could carve there; a channel that captured the whole plain
+  would have to run below the sea it is trying to avoid. Iteration 5's central river came out
+  at discharge 867; it is now 336, so 531 of it did change sides.
+
+
+THE YAREN, AND THE DEFECT IT WAS ASKED TO FIX
+==============================================================================
+
+  The owner's complaint: 'the capital has no river, and the present Yaren hangs off somebody
+  else's mouth 290 km away'. Iteration 5's own notes say the same thing in its own words —
+  Crownhaven came out passport tier 2, a harbour with no river, and the name Yaren went to
+  the river whose mouth was NEAREST, 0.052 map widths off.
+
+  Now:  Crownhaven's OWN CELL carries the Yaren, flux 85.
+        source u=0.638 v=0.448, mouth u=0.644 v=0.443, 3 cells, length 21 px (74 km)
+        Crownhaven's passport goes from tier 2 to tier 1 — harbour + northern water + river;
+        it misses tier 0 only on 'local relief >= 6', because the mouth cell is a flat
+        h-20 shore cell. The city MOVED 0.021 map widths (about 2 cells, 120 km) onto that
+        mouth: the driver looks for the nearest cell that satisfies the passport and the
+        river mouth is now the best one near the anchor. It is still inside the Empire.
+
+
+THE TSAR'S PORTAGE / ГОСУДАРЕВ ВОЛОК
+==============================================================================
+
+  An ADDED LABEL and a MARKER at u=0.592 v=0.459 — FMG has no entity for a place that is not a
+  burg, so a named landform is an added label exactly as the four seas are.
+
+  Where 'between the two rivers' is is not a matter of taste, it is the WATERSHED, and a
+  watershed is measurable — but WHICH TWO POINTS to measure between is a decision, and the
+  obvious one is wrong. FMG draws a river only from the cell where flux first reaches 30, and
+  the Yaren drains five arid cells, so its drawn source is three cells from its own mouth, out
+  on the rim of the Crownhaven fjord; a straight line from there to the Volkhona crosses the
+  gulf's shoulder at h 48, and the first run duly reported a 322 km portage over seven hundred
+  metres of mountain. So the search is over the two CARVED VALLEYS instead: every pair of
+  points on the Yaren's channel and the Volkhona's trunk within 0.09 map widths of each other,
+  the line walked cell by cell, and the pair whose HIGHEST cell is lowest wins. It runs from
+  u=0.596 v=0.461 to u=0.555 v=0.446. The three numbers that are the whole claim:
+
+    Yaren's bed        h 28
+    the saddle         h 30
+    Volkhona's bed     h 24
+    the carry          247 km (4.4 cells) — the profile, cell by cell:
+      28 28 30 30 30 30 30 30 29 29 29 29 29 29 29 25 25 25 24 24 24
+
+  Two height units above the Yaren's bed and six above the Volkhona's — call it fifty to a
+  hundred metres over 247 km of flat watershed, which is the Volga-Don situation and is what a
+  state-run carry is for.
+
+  IT IS NOT CUT, AND THAT IS THE POINT. A portage a boat can float through is not a portage.
+  The two channels are carved to within 0.04 map widths of each other and the ground between
+  them is left exactly as iteration 4 built it — the saddle is iteration 4's own plain.
+  ONE CELL IS 56 km HERE, so the shortest carry this atlas can draw at all is about 170 km;
+  this one is 247.
+
+
+THE RIVER NAMES, AS A TABLE
+==============================================================================
+
+  name        was (this run's generated name)   discharge   what it is now
+  Volkhona    Norod                             2406        the great river: the northern plain to the Midday Sea at Saltcliff
+  Yaren       Frienbachal                       85          the short northern sister: the Portage to the Crownhaven gulf
+  Slavitsa    Vatin                             336         the main river of the steppe
+
+  WHAT MOVED, against iteration 5:
+    Volkhona   was the largest river of the Venedian centre (discharge 867, mouth v .551).
+               The name is now on the new great river (2406). The river that used to hold it
+               still exists, reduced to 336 by the capture, and it is now the SLAVITSA — the
+               owner's own second option, and the right one: its middle cell stands in the
+               steppe belt, which is what Slavitsa was for in iteration 5.
+    Yaren      was the river whose mouth was nearest Crownhaven, 291 km away. The name is now
+               on the river that reaches the capital's own cell. The old holder falls back to
+               a generated name (every generated name is re-rolled anyway: a heightmap edit
+               moves FMG's own RNG stream, so no name in this run is the same object as the
+               same name in iteration 5's).
+    Slavitsa   was the largest river of the steppe. It is now the beheaded Venedian river,
+               which is the largest river whose middle cell is in the steppe belt.
+
+  The consonant-cluster sweep of iteration 5 is unchanged and still runs: 6 river names,
+  3 burg names and 0 lake names were re-rolled this time.
+
+  The ten largest rivers on the map:
+    Volkhona       discharge  2406  length 1028  mouth u=0.660 v=0.565
+    Gutosch        discharge  1077  length  302  mouth u=0.147 v=0.365
+    Gopodisch      discharge   633  length  225  mouth u=0.307 v=0.565
+    Nestad         discharge   614  length  191  mouth u=0.708 v=0.374
+    Djugar         discharge   464  length  118  mouth u=0.837 v=0.282
+    Rothbury       discharge   453  length  234  mouth u=0.189 v=0.239
+    Enzburg        discharge   421  length  133  mouth u=0.162 v=0.447
+    Cliford        discharge   393  length  152  mouth u=0.417 v=0.259
+    Slavitsa       discharge   336  length  292  mouth u=0.503 v=0.551
+    Orbach         discharge   328  length  105  mouth u=0.140 v=0.542
+
+
+WHAT THE EDIT COST ELSEWHERE — REPORTED, NOT HIDDEN
+==============================================================================
+
+1. THE BORDERS MOVED, AND THEY WERE ALWAYS GOING TO. Iteration 4 wrote it down: 'FMG's state
+   expansion is chaotic in the heightmap — raising the Barrowstep pan by six height units
+   moved every political border on all three variants'. Iteration 6 lowers 259 grid cells.
+   The first run came back with the Empire on 42% of the land and the Kaisak Horde cut from
+   9.6% to 1.8%. The empire's expansionism was turned back down (4.2 -> 2.6, the same lever
+   iteration 4 used, applied BEFORE FMG grows anything, so not one cell is reassigned by hand)
+   and this is where it landed:
+
+     power                        iter 5           iter 6
+     Empire of Yaan              1060 (24.5%)    1350 (31.3%)  <-
+     Seferid Sultanate            930 (21.5%)     694 (16.1%)  <-
+     Kingdom of Westmark          646 (15.0%)     391 ( 9.1%)  <-
+     Vestrskjold Konungdom        252 ( 5.8%)     361 ( 8.4%)  <-
+     Austrskjold Konungdom        324 ( 7.5%)     351 ( 8.1%)  
+     Kaisak Horde                 413 ( 9.6%)     231 ( 5.3%)  <-
+     Principality of Oberfels       8 ( 0.2%)     165 ( 3.8%)  <-
+     Archonate of Aigeros          32 ( 0.7%)     133 ( 3.1%)  <-
+     Free City of Gandvig          26 ( 0.6%)      30 ( 0.7%)  
+
+
+   Yaan is still the first power by a wide margin and its seat is inside it (Empire of Yaan, 31.3% of the
+   land) — the thing the owner asked to be checked. 7 of the nine powers are marked <-, i.e.
+   outside two percentage points of iteration 5: the Kingdom of Westmark, the Kaisak Horde and
+   the Seferid Sultanate lost, the Principality of Oberfels, the Archonate of Aigeros, the
+   Vestrskjold Konungdom and the Empire itself gained. THIS IS THE ONE PLACE THE ITERATION
+   FAILS THE LETTER OF THE BRIEF, which asked for borders within a couple of cells; it is
+   reported rather than hidden, and the two conditions the brief made conditions — Yaan first,
+   the seat inside it — both hold. No border was drawn by hand in either iteration.
+
+2. THE BARROWSTEP SALT PAN WAS LOST ONCE AND PUT BACK. The owner ruled the pan out of bounds.
+   The first run came back with two lakes instead of three and coastcheck.py named the three
+   grid cells: 19 -> 31, exactly the pan. The cause is FMG's own rule at main.js:534 — a
+   depression becomes a lake only if it CANNOT pour to water through cells below its floor
+   plus 6. The pan floor is h 30-31 and its western rim only 37-40, so the steppe tributary,
+   whose head then reached u .728, opened a sub-36 path out of it four cells away and the
+   lake never formed. The head is now at u .706 with a narrower channel; the rim at u .72-.75
+   (h 49, 47, 44, 40) is untouched and the pan is back, 3 cells, in the same place. It is
+   still FRESHWATER, which is iteration 4's open item and unchanged by anything here.
+
+3. THE PASSPORTS. Ten of the twelve cities come out tier 0 (iteration 5: nine).
+     Crownhaven  tier 2 -> tier 1   it has a river now; misses tier 0 on local relief
+     Fenholm     tier 3 -> tier 0   the Volkhona's valley made it a wetland on a river
+     Cliftspan   tier 2 -> tier 2   unchanged
+   Every other city is tier 0 in both.
+
+4. PRECIPITATION MOVED A LITTLE, because FMG derives rain from orography and the carve lowers
+   ground: 199 of 10 000 grid cells changed, the largest change 15 (at the Tollgard pass,
+   which is exactly where the biggest cut through a ridge is). Biome belts and the glacier are
+   unchanged: glacier 9.8% of the land reaching south to v=0.526, against iteration 5's
+   9.8% and v=0.526.
+
+
+HOW THE CARVE WORKS, AND THE TWO THINGS IT COST TO LEARN
+==============================================================================
+
+A channel is a polyline in screen units carrying an explicit THALWEG PROFILE: one target
+height per vertex, interpolated by arclength, with a flat floor out to 0.32 of the half-width
+and a wall that climbs back to the ambient terrain by the lip. Three properties are
+structural: it can only lower land, never below 21; the profile is monotonic and the builder
+re-checks it; and the valley has WALLS, which is the only reason routing a river is possible
+at all — D8 drainage sees neighbours, not distant sea, so a river will follow a 3-unit trench
+past a coast that is five cells away and ten units lower.
+
+1. THE BANK NOISE WAS ON THE FLOOR. The roughness that keeps the trench from reading as a
+   ruled line was written with weight (1-w), which is 1 ON THE THALWEG. Heights are stored as
+   integers and the floor only falls 0.2 per vertex, so +-1.1 of noise turned a monotonic
+   thalweg into a chain of puddles and the Venedian arm's water went straight back out of the
+   old mouth. It is 4*w*(1-w) now — zero on the floor, zero at the lip, greatest half way up
+   the bank. The drainage trace in preview6.mjs is what caught it, not the eye.
+
+2. AN INTEGER HEIGHTMAP HAS NO GENTLE GRADIENTS. The whole system has six height units to
+   spend between the Venedian plain and the sea, over 0.45 map widths. Spread evenly that
+   rounds to flat runs ten cells long, and on a flat run FMG's own tiebreak (alterHeights
+   adds distance-from-coast/100) sends the water to the NEAREST coast, which is the one the
+   river was being routed away from. The floors are now chosen so that the ROUNDED sequence
+   steps down, and the steps are placed where they are needed rather than evenly.
+
+
+WHAT ITERATION 6 DOES NOT DO
+==============================================================================
+
+  * Stoneford is on the Slavitsa, not on the Volkhona (see above; the reason is measured).
+  * The Barrowstep pan is still FRESHWATER — iteration 4's open item, untouched by decision.
+  * SEVEN of the nine powers are outside two percentage points of iteration 5's shares — the
+    one place this iteration fails the letter of the brief. See the table above.
+  * Crownhaven is passport tier 1, not tier 0: it has its river, but the mouth cell is flat.
+  * The twelve cities keep their ENGLISH names — still the owner's undecided question.
+  * This is still an ATLAS-regime map: ~56 km cells against the REGION regime's 300-693 m,
+    so per docs/design/WORLD_MAP.md 9.3 an importer MUST reject it, and no DFN_ORIGIN marker
+    is placed. Everything iteration 1's README argues about the two regimes stands.
+  * Nothing here was written into the repository.
+
