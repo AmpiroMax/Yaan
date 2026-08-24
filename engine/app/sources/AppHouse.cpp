@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 24:08:2026 - 01:30:00
+Last updated: 24:08:2026 - 14:44:50
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -61,6 +61,8 @@ UPD:
 - 23:08:2026 - 18:11:50: самосветные части (glow) уходят отдельными потоками с DrawParams.emissive; дверь DFN_HOUSE_GLOW (0 = прежние освещённые потоки бит-в-бит).
   усадка 0.45 — габарит несёт свес, трава у стены снаружи законна).
 - 24:08:2026 - 01:30:00: И15 волна А — ДВА СЛОТА, ОДИН ПОСТРОИТЕЛЬ: приёмник
+- 24:08:2026 - 14:39:57: прибор состава сборки (DFN_LOAD_LOG): меш/AO/разнос/коллайдер копилками — одна строка «постройки залиты» не различала «дорого тело» против «дорого число тел».
+- 24:08:2026 - 14:44:50: И10 — кэш AO на диске (build_lead/ao_cache, артефакт сборки; дверь DFN_HOUSE_AO_DISK) + полный отпечаток вместо 64 вершин (коллизия параметрических семейств).
   append_graph переключается указателями, и интерьер-локация собирается тем же
   кодом, что и город. Плюс ИНВЕРСИЯ КОЛЛАЙДЕРА ДВЕРИ (ключ элемента portal=1):
   створка запечатанного дома входит в коллайдер, иначе игрок прошёл бы сквозь
@@ -85,6 +87,7 @@ UPD:
 #include <algorithm>
 #include <cmath>
 #include <fstream>
+#include <filesystem>
 #include <sstream>
 #include <map>
 #include <unordered_map>
@@ -524,7 +527,19 @@ void App::upload_house_mesh(bool interior_only) {
     // плюс FNV по первым вершинам; живёт от загрузки до загрузки карты.
     static std::unordered_map<std::uint64_t, std::vector<std::uint8_t>> ao_cache;
     ao_cache.clear();
-    const auto ao_of = [](const world::HouseMesh& built)
+    // ПРИБОР СОСТАВА СБОРКИ (24.08, эпоха: время сборки города росло x4.5 при
+    // геометрии x2.56, и одна строка лога не различала «дорого тело» против
+    // «дорого число тел»). Копилки секунд по стадиям; печать в конце под тем
+    // же DFN_LOAD_LOG. Выключенный прибор — четыре сложения на постройку.
+    struct BuildClock {
+        double mesh_s = 0.0, ao_s = 0.0, split_s = 0.0, collider_s = 0.0;
+        std::size_t meshes = 0, bakes = 0, cache_hits = 0;
+    } bclock;
+    const auto tick = [] { return std::chrono::steady_clock::now(); };
+    const auto sec = [](auto a, auto b) {
+        return std::chrono::duration<double>(b - a).count();
+    };
+    const auto ao_of = [&](const world::HouseMesh& built)
         -> const std::vector<std::uint8_t>& {
         std::uint64_t h = 1469598103934665603ull;
         const auto mix = [&h](std::uint64_t v) {
@@ -532,7 +547,12 @@ void App::upload_house_mesh(bool interior_only) {
         };
         mix(built.vertices.size());
         mix(built.indices.size());
-        const size_t n = std::min<size_t>(built.vertices.size(), 64);
+        // ПОЛНЫЙ ОТПЕЧАТОК (И10): обрез на 64 вершинах коллизиеопасен на
+        // параметрических семействах (city-foot2-h02..h40 делят первые
+        // вершины). Проход по всем вершинам стоит доли миллисекунды на тип
+        // (замер: 1085 сборок мешей = 0.1 s), а ложное совпадение стоило бы
+        // чужого AO молча.
+        const size_t n = built.vertices.size();
         for (size_t i = 0; i < n; ++i) {
             const auto& p = built.vertices[i].pos;
             mix(static_cast<std::uint64_t>(std::llround(p.x * 512.0f)));
@@ -541,7 +561,48 @@ void App::upload_house_mesh(bool interior_only) {
         }
         auto it = ao_cache.find(h);
         if (it == ao_cache.end()) {
-            it = ao_cache.emplace(h, world::bake_house_sky_visibility(built)).first;
+            // И10 — КЭШ AO НА ДИСКЕ (24.08): печка съедала 86.3 из 101.7 s
+            // загрузки Корнхолла при 59 печках — богатое кирпичное тело
+            // печётся ~1.5 s, и ЭТО повторялось каждую загрузку, хотя печка
+            // детерминирована по построению. Диск — артефакт сборки рядом с
+            // бинарём (build_lead/ao_cache/<hash>.ao: голые байты альфы,
+            // размер обязан совпасть с числом вершин — иначе файл битый и
+            // перепекается). DFN_HOUSE_AO_DISK=0 — выключить (обе руки).
+            static const bool disk_on = [] {
+                const char* e = door_value("DFN_HOUSE_AO_DISK");
+                return e == nullptr || *e == '\0' || *e != '0';
+            }();
+            static const std::string cache_dir = [] {
+                std::error_code ec;
+                std::filesystem::create_directories("build_lead/ao_cache", ec);
+                return std::string("build_lead/ao_cache/");
+            }();
+            std::vector<std::uint8_t> baked;
+            const std::string path = cache_dir + std::to_string(h) + ".ao";
+            if (disk_on) {
+                if (std::ifstream f{path, std::ios::binary}; f) {
+                    baked.assign(std::istreambuf_iterator<char>(f), {});
+                    if (baked.size() != built.vertices.size()) {
+                        baked.clear(); // битый или от другой геометрии
+                    }
+                }
+            }
+            if (baked.empty()) {
+                const auto t0 = tick();
+                baked = world::bake_house_sky_visibility(built);
+                bclock.ao_s += sec(t0, tick());
+                ++bclock.bakes;
+                if (disk_on) {
+                    std::ofstream f{path, std::ios::binary};
+                    f.write(reinterpret_cast<const char*>(baked.data()),
+                            static_cast<std::streamsize>(baked.size()));
+                }
+            } else {
+                ++bclock.cache_hits;
+            }
+            it = ao_cache.emplace(h, std::move(baked)).first;
+        } else {
+            ++bclock.cache_hits;
         }
         return it->second;
     };
@@ -554,8 +615,12 @@ void App::upload_house_mesh(bool interior_only) {
 
     const auto append_graph = [&](const world::HouseGraph& graph,
                                   const auto& to_world) {
+        const auto t_mesh = tick();
         const world::HouseMesh built = world::build_house_mesh(graph);
+        bclock.mesh_s += sec(t_mesh, tick());
+        ++bclock.meshes;
         const std::vector<std::uint8_t>& sky_vis = ao_of(built);
+        const auto t_split = tick();
         const glm::vec3 zero = to_world(glm::vec3{0.0f});
         {
             glm::vec2 lo{1e9f};
@@ -843,6 +908,7 @@ void App::upload_house_mesh(bool interior_only) {
                 }
             }
         }
+        bclock.split_s += sec(t_split, tick());
         for (const world::MeshFinding& f : built.findings) {
             std::fprintf(stderr, "[постройка] e%u: %s\n",
                          static_cast<unsigned>(f.element), f.what.c_str());
@@ -916,7 +982,9 @@ void App::upload_house_mesh(bool interior_only) {
             desc.positions = house_positions_;
             desc.indices = city_indices;
             desc.layer = physics::LAYER_STATIC;
+            const auto t_col = tick();
             house_body_ = physics_->create_terrain_mesh(desc);
+            bclock.collider_s += sec(t_col, tick());
             if (!house_body_.valid()) {
                 std::fprintf(stderr, "[постройка] коллайдер НЕ создан — сквозь дом "
                                      "можно пройти\n");
@@ -987,6 +1055,14 @@ void App::upload_house_mesh(bool interior_only) {
                 }
             }
         }
+    }
+    if (const char* ll = door_value("DFN_LOAD_LOG");
+        ll != nullptr && *ll != '\0' && *ll != '0') {
+        std::fprintf(stderr,
+                     "[load]   состав сборки: меш %.1f s (%zu сборок), AO %.1f s "
+                     "(%zu печек, %zu кэш), разнос %.1f s, коллайдер %.1f s\n",
+                     bclock.mesh_s, bclock.meshes, bclock.ao_s, bclock.bakes,
+                     bclock.cache_hits, bclock.split_s, bclock.collider_s);
     }
     if (!interior_only) {
         std::fprintf(stderr,

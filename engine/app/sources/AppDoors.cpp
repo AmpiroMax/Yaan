@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 24:08:2026 - 01:10:00
+Last updated: 24:08:2026 - 14:49:46
 Module: engine/app
 File: engine/app/sources/AppDoors.cpp
 
@@ -31,6 +31,7 @@ UPD:
   AppInterior/AppWorld). Первая — беспилотный кадр комнаты, безлюдная; вторая
   — длительность экрана загрузки, 0 даёт побитово сравнимые кадры.
 - 24:08:2026 - 01:10:00: DFN_INTERIOR_EXIT (72 -> 73, безлюдная): выход наружу
+- 24:08:2026 - 14:49:46: DFN_HOUSE_AO_DISK в таблице (73 -> 74, читает AppHouse).
   через N кадров. Без неё время выхода — единственное число свода И15, которое
   не может назвать ни один автоматический прогон.
 */
@@ -49,7 +50,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 73> TABLE{{
+constexpr std::array<Door, 74> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -209,6 +210,11 @@ constexpr std::array<Door, 73> TABLE{{
      "показывается вовсе, и два прогона дают побитово сравнимые кадры; "
      "штатное 0.15. НЕ шторка: экран — холст со статусом загрузки, тот же "
      "путь, что у игрового меню (владелец 24.08).",
+     DoorRead::Once, false},
+    {"DFN_HOUSE_AO_DISK",
+     "кэш запечённого AO построек на диске (build_lead/ao_cache, артефакт "
+     "сборки): тёплая загрузка Корнхолла 101.6 -> 16.4 s. 0 — печь всегда "
+     "(обе руки прибора состава сборки).",
      DoorRead::Once, false},
     {"DFN_HOUSE_GLOW",
      "доза самосветных деталей построек (glow=1 рецепта — пламя, стекло "
