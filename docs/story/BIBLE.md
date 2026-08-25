@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 14:56:53
-Last updated: 25:08:2026 - 02:31:23
+Last updated: 25:08:2026 - 12:17:51
 -->
 <!--
 UPD:
@@ -17,6 +17,7 @@ UPD:
 - 09:08:2026 - 19:39:32: LR_ASCENT_LANDINGS pinned at 7; recorded design's metric check and its authoring consequence - seven landings give 171-257 m segments (57-86 s at WALK_SPEED, inside the valley's POI_TRAVEL_TIME band) and ~40 m of relief each, so the climb speaks the valley's own exploration cadence seven times and the view changes between stations. The seven recitations must escalate across that rhythm, never repeat.
 - 09:08:2026 - 19:47:45: Pre-cleared design's barrow relocation forced by the crag raise (52 -> 115 m): primary couloir move accepted (costs a bearing only; a grave in a fold suits the arc), fallback high-shoulder entrance accepted with its sentence inversion (grave over seat; "a house that cannot get out from under its own grave"), and one hard condition recorded — the mouth must never read from Vaelmere, since occlude-and-reveal is load-bearing for MQ1 and for a crime nobody finishes the sentence about.
 - 25:08:2026 - 02:31:23: Two world-map canon amendments from the approved Yaan atlas package (owner-confirmed lore session, coordinator sign-off): (1) the garrison drain is now TWO causes — the succession quarrel took money and attention, the southern war against the Seferid Sultanate takes the men (in addition to, never instead of, the quarrel; every existing quarrel line stays true); (2) the lone ~2600 m peak near the Harrowmere marker on the atlas (docs/design/worldmap/) recorded as CANDIDATE High Temple mountain — candidate only, awaiting the owner's word.
+- 25:08:2026 - 12:17:51: High Temple mountain siting CONFIRMED BY THE OWNER — the ~2600 m peak near the Harrowmere marker on the Yaan atlas is canon, downstream work may depend on it.
 -->
 
 # BIBLE.md — Narrative Bible: The Debt of Harrowmere
@@ -101,10 +102,10 @@ record, is beyond any king's power to strike out. The **Seven Thousand
 Steps** are its pilgrim stair — a staged climb of 5–7 landings, ~8 minutes
 up.
 
-**Atlas siting — CANDIDATE, not canon (25.08, awaiting the owner's word):**
-on the world atlas (`docs/design/worldmap/`), the lone ~2600 m peak near the
-Harrowmere marker is marked as the candidate canonical High Temple mountain.
-Nothing downstream may depend on the siting until the owner confirms.
+**Atlas siting — CANON (owner confirmed, 25.08):** on the world atlas
+(`docs/design/worldmap/`), the lone ~2600 m peak near the Harrowmere marker
+IS the canonical High Temple mountain. Downstream work may depend on the
+siting.
 
 Why this matters to the arc rather than being scenery: the Backward Rite
 stripped the murdered of standing precisely so they could never testify
