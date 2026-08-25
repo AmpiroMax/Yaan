@@ -1,7 +1,7 @@
-name = Корнхолл: город на хлебной равнине
+name = Житнов: город на хлебной равнине
 zone = houses
 size_chunks = 2
-# Корнхолл — пилот эпохи «12 городов» (docs/CORNHALL_PLAN.html).
+# Житнов (в конвейере cornhall) — пилот эпохи «12 городов» (docs/CORNHALL_PLAN.html).
 source = stand:Gallery
 scene = assets/scenes/cornhall.scene
 objects = assets/objects/parts;assets/objects/signs;assets/objects/trees;assets/objects/glade
