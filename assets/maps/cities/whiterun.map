@@ -1,5 +1,5 @@
 name = Вайтран: город на холме
-zone = houses
+zone = cities
 size_chunks = 1
 # Вайтран v5 — построен по чертежу docs/WHITERUN_PLAN.html (см. JSON).
 source = stand:Gallery

@@ -1,5 +1,5 @@
 name = Житнов: город на хлебной равнине
-zone = houses
+zone = cities
 size_chunks = 2
 # Житнов (в конвейере cornhall) — пилот эпохи «12 городов» (docs/CORNHALL_PLAN.html).
 source = stand:Gallery

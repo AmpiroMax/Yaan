@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 24:08:2026 - 12:40:00
-# Last updated: 25:08:2026 - 12:39:09
+# Last updated: 25:08:2026 - 14:05:29
 # Module: tools
 # File: tools/gen_city.py
 #
@@ -329,6 +329,7 @@
 #   посадки, оставляя всё прочее; числа «линейка против живого» выше сняты ею,
 #   одним прибором на одном дереве.
 # - 25:08:2026 - 12:39:09: ЗЕМЛЯ ИСКАЛАСЬ, А НАШЛАСЬ ЗАСТАРЕЛОСТЬ ВЫПУСКА —
+# - 25:08:2026 - 14:05:29: путь манифеста карты — из MAP_ZONE паспорта (города переехали в assets/maps/cities, заказ владельца 25.08); прибор --check берёт зону оттуда же.
 #   И ЛЕЧИТСЯ НЕ ОНА, А ЕЁ НЕВИДИМОСТЬ (волна «хвосты Житнова», перезамер
 #   натуральной земли Корнхолла).
 #   ЧТО БЫЛО ЗАЯВЛЕНО: assets/scenes/cornhall.scene из HEAD не воспроизводится
@@ -699,7 +700,7 @@ def plan_ref(v):
 # начинает описывать город, которого уже нет. Поэтому имя выпуска — параметр:
 #     DFN_GEN_OUT=whiterun-dev python3 tools/gen_city.py whiterun
 # кладёт assets/scenes/whiterun-dev.scene(+.relief) и
-# assets/maps/houses/whiterun-dev.map; смотреть — DFN_OPEN_MAP=houses/whiterun-dev.
+# assets/maps/<MAP_ZONE>/whiterun-dev.map; смотреть — DFN_OPEN_MAP=cities/whiterun-dev.
 # Умолчание — ИМЯ ГОРОДА, и оно оставлено НАМЕРЕННО: боевая перегенерация не
 # должна требовать помнить лишнее слово, а вот черновая — должна называть себя.
 # Связывается в load_city().
@@ -6669,7 +6670,7 @@ def main(city="whiterun"):
     # притяжения уже расставлены: ореол вытоптанного считается от НИХ.
     paint_ground(PLAN_H)
     write_relief(f"assets/scenes/{OUT}.relief", PLAN_H, relief_paths)
-    write_map(f"assets/maps/houses/{OUT}.map")
+    write_map(f"assets/maps/{CITY.MAP_ZONE}/{OUT}.map")
     # --- ВТОРОЙ ПРОХОД ЗАМЫКАЕТСЯ ЗДЕСЬ, А НЕ ВНЕШНИМ ПРИБОРОМ --------------
     # Схема «gen -> dump_heights -> gen» описана в шапке с 21.08, но ПРИБОРА,
     # который пишет дамп высот, в дереве НЕ БЫЛО НИ ОДНОГО: дамп в /tmp остался
@@ -6736,10 +6737,11 @@ def check_release(city):
     сносится в любом случае, даже когда прогон упал."""
     tag = f"{city}-check{os.getpid()}"
     os.environ["DFN_GEN_OUT"] = tag
+    zone = importlib.import_module("cities." + city).MAP_ZONE
     made = [f"assets/scenes/{tag}.scene", f"assets/scenes/{tag}.relief",
-            f"assets/maps/houses/{tag}.map"]
+            f"assets/maps/{zone}/{tag}.map"]
     live = [f"assets/scenes/{city}.scene", f"assets/scenes/{city}.relief",
-            f"assets/maps/houses/{city}.map"]
+            f"assets/maps/{zone}/{city}.map"]
     try:
         main(city)
         bad = 0

@@ -1,21 +1,21 @@
 /*
 Created: 14:08:2026 - 16:50:36
-Last updated: 16:08:2026 - 21:50:43
+Last updated: 25:08:2026 - 12:56:00
 Module: engine/app
 File: engine/app/sources/MapCatalog.h
 
 Responsibility:
-- The editor/play map browser's data model: the fixed category list (folders)
-  and the .map manifests found in each (docs/MAP_LAYOUT.md, lead-owned
-  contract). Reads the transit `key = value` manifest; it does NOT extend the
-  format (that is the contract owner's, Rule 25/26).
+- The editor/play map browser's data model: the category folders that EXIST
+  under assets/maps and the .map manifests found in each (docs/MAP_LAYOUT.md,
+  lead-owned contract). Reads the transit `key = value` manifest; it does NOT
+  extend the format (that is the contract owner's, Rule 25/26).
 
 Key items:
 - MapManifest: one parsed .map (name / zone / source / description / size).
-- MapCategory: one folder (slug + its maps; may be empty).
-- MapCatalog: all categories in contract order + find() by "category/stem".
+- MapCategory: one folder (slug + its maps; never empty in a scanned catalog).
+- MapCatalog: categories sorted by slug + find() by "category/stem".
 - parse_map_manifest(): text -> MapManifest.
-- scan_map_catalog(): walk assets/maps for the fixed categories.
+- scan_map_catalog(): walk assets/maps for existing category folders.
 - split_map_source(): "stand:Testbed" -> ("stand", "Testbed"). The app maps the
   scheme to a StandId / .dfw itself, so this header pulls in no world types.
 
@@ -37,6 +37,10 @@ UPD:
   колосса живёт на своей карте, не тесня общую).
 - 16:08:2026 - 21:08:52: MapManifest::scene — карта называет свой файл композиции.
 - 16:08:2026 - 21:50:43: objects — список полок через ';', по порядку, побеждает первая.
+- 25:08:2026 - 12:56:00: Фиксированный список категорий снят — сканируются существующие папки,
+  пустые не листятся (код приведён к контракту MAP_LAYOUT.md от 14.08 «браузер сканирует то,
+  что ЕСТЬ»; владелец 25.08 увидел мёртвые слаги списка пустыми папками в меню). map_categories()
+  удалена; новая категория cities — боевые города (Вайтран, Житнов), демки houses/ сняты.
 */
 
 #pragma once
@@ -75,14 +79,14 @@ struct MapManifest {
     int size_chunks = 0;     // 'size_chunks'
 };
 
-// One category folder. Present even when empty: the browser shows empty
-// categories rather than hiding them (contract: "Пустые категории показывай").
+// One category folder that exists on disk and holds at least one .map —
+// empty folders are not listed (owner 25.08; MAP_LAYOUT.md ruling of 14.08).
 struct MapCategory {
-    std::string slug;              // folder name, matches map_categories()
-    std::vector<MapManifest> maps; // sorted by file_stem; may be empty
+    std::string slug;              // folder name under assets/maps
+    std::vector<MapManifest> maps; // sorted by file_stem; never empty
 };
 
-// The whole catalog, categories in the contract's fixed order.
+// The whole catalog, categories sorted by slug.
 struct MapCatalog {
     std::vector<MapCategory> categories;
 
@@ -90,10 +94,6 @@ struct MapCatalog {
     [[nodiscard]] const MapManifest* find(std::string_view category,
                                           std::string_view stem) const;
 };
-
-// The nine categories in docs/MAP_LAYOUT.md order (в40). New categories are the
-// lead's to add here and on disk.
-[[nodiscard]] const std::vector<std::string>& map_categories();
 
 // Parse a manifest's `key = value` text. Lines starting with '#' and blank
 // lines are ignored; unknown keys are ignored; `category` and `file_stem` are
@@ -104,9 +104,9 @@ struct MapCatalog {
 [[nodiscard]] bool split_map_source(std::string_view source, std::string& scheme,
                                     std::string& value);
 
-// Walk `root` (e.g. "assets/maps") for every category in map_categories(),
-// reading each ".map". Categories always appear, in contract order, empty or
-// not. A missing root yields all-empty categories rather than an error: the
+// Walk `root` (e.g. "assets/maps") for existing category folders, reading each
+// ".map". Folders with no .map are skipped; categories come out sorted by
+// slug. A missing root yields an empty catalog rather than an error: the
 // browser must still draw.
 [[nodiscard]] MapCatalog scan_map_catalog(const std::string& root);
 

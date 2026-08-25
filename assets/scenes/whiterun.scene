@@ -1,7 +1,7 @@
 # Daggerfall N scene — ВАЙТРАН v5 ПО ПЛАНУ (docs/WHITERUN_PLAN.json).
 # СГЕНЕРИРОВАНО tools/gen_whiterun.py; композицию править в чертеже
 # tools/gen_whiterun_plan.py и перегонять оба генератора.
-map = houses/whiterun
+map = cities/whiterun
 world_span_m = 256
 relief = whiterun.relief
 spawn = 113 0 248

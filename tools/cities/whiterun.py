@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 24:08:2026 - 12:40:00
-# Last updated: 24:08:2026 - 20:30:00
+# Last updated: 25:08:2026 - 14:04:08
 # Module: tools
 # File: tools/cities/whiterun.py
 #
@@ -25,6 +25,7 @@
 #   не изменено, критерий приёмки волны — whiterun.scene/.relief/.map
 #   байт-в-байт с git HEAD.
 # - 24:08:2026 - 20:30:00: ВОЛНА Г — УБРАНСТВО УШЛО ИЗ ПАСПОРТА В СВОЙСТВА
+# - 25:08:2026 - 14:04:08: MAP_ZONE houses -> cities (карта города в отдельной категории меню).
 #   РЕЦЕПТА (находка пилота Корнхолла №11). FURN (двести строк раскладки
 #   мебели) переехал в tools/recipes_props.py, FLOOR — в манифест полки
 #   (колонка floor, замер кузницы); поперечник куста BUSH_R туда же. Обе
@@ -74,7 +75,7 @@ SCENE_HEADER = (
 RELIEF_HEADER = "# Daggerfall N relief — Вайтран v5: высоты чертежа + тропы."
 
 MAP_TITLE = "Вайтран: город на холме"
-MAP_ZONE = "houses"
+MAP_ZONE = "cities"  # 25.08: города переехали в категорию cities (заказ владельца), демки houses/ сняты
 MAP_NOTE = "# Вайтран v5 — построен по чертежу docs/WHITERUN_PLAN.html (см. JSON)."
 MAP_SOURCE = "stand:Gallery"
 # ПОЛКА glade — озеленение и фонари города (кусты, цветы, фонарь-столб).

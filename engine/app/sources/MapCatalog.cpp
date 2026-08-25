@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 16:50:36
-Last updated: 16:08:2026 - 21:08:52
+Last updated: 25:08:2026 - 14:04:08
 Module: engine/app
 File: engine/app/sources/MapCatalog.cpp
 
@@ -15,6 +15,7 @@ UPD:
 - 14:08:2026 - 16:50:36: Created.
 - 15:08:2026 - 01:04:30: разбор ключа objects — карта выбирает свою полку реестра.
 - 16:08:2026 - 21:08:52: разбор ключа scene.
+- 25:08:2026 - 14:04:08: скан существующих папок вместо фиксированного списка, пустые категории не листятся (контракт MAP_LAYOUT.md 14.08; заказ владельца 25.08 — пустые папки из меню убрать); map_categories() удалена.
 */
 
 #include "engine/app/sources/MapCatalog.h"
@@ -46,13 +47,11 @@ std::string_view trim(std::string_view s) {
 
 } // namespace
 
-const std::vector<std::string>& map_categories() {
-    // The fixed list from docs/MAP_LAYOUT.md (в40). Order is the browser order.
-    static const std::vector<std::string> kCategories = {
-        "landscape", "trees", "bushes", "fallen-tree", "houses",
-        "light",     "water", "mountain", "caves"};
-    return kCategories;
-}
+// No fixed category list any more: docs/MAP_LAYOUT.md ruled on 14.08 that the
+// browser scans what EXISTS under assets/maps/ and zones create/delete their
+// own folders — the code kept a fixed list anyway, and the owner saw its dead
+// slugs (bushes, water, caves...) as empty folders in the map menu (25.08).
+// A category is listed only when it holds at least one .map.
 
 MapManifest parse_map_manifest(std::string_view text) {
     MapManifest m;
@@ -125,7 +124,20 @@ const MapManifest* MapCatalog::find(std::string_view category,
 MapCatalog scan_map_catalog(const std::string& root) {
     namespace fs = std::filesystem;
     MapCatalog catalog;
-    for (const std::string& slug : map_categories()) {
+    std::vector<std::string> slugs;
+    {
+        std::error_code ec;
+        for (const auto& entry : fs::directory_iterator(fs::path(root), ec)) {
+            if (ec) {
+                break;
+            }
+            if (entry.is_directory(ec)) {
+                slugs.push_back(entry.path().filename().string());
+            }
+        }
+    }
+    std::sort(slugs.begin(), slugs.end());
+    for (const std::string& slug : slugs) {
         MapCategory cat;
         cat.slug = slug;
         const fs::path dir = fs::path(root) / slug;
@@ -157,6 +169,11 @@ MapCatalog scan_map_catalog(const std::string& root) {
                 }
                 cat.maps.push_back(std::move(m));
             }
+        }
+        // A folder with no .map in it is not a category — listing it would put
+        // an empty entry in the menu, which is exactly what the owner removed.
+        if (cat.maps.empty()) {
+            continue;
         }
         std::sort(cat.maps.begin(), cat.maps.end(),
                   [](const MapManifest& a, const MapManifest& b) {
