@@ -34,6 +34,9 @@ UPD:
 - 24:08:2026 - 14:49:46: DFN_HOUSE_AO_DISK в таблице (73 -> 74, читает AppHouse).
   через N кадров. Без неё время выхода — единственное число свода И15, которое
   не может назвать ни один автоматический прогон.
+- 27:08:2026 - 01:40:00: DFN_MENU_DUST и DFN_SPLASH (74 -> 76): доза пылинок
+  стартового экрана (0 — побитово сравнимый кадр меню) и длительность кадра
+  студии. Строка DFN_MENU_PAGE переписана: страниц стало девять.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -50,7 +53,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 74> TABLE{{
+constexpr std::array<Door, 76> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -123,8 +126,18 @@ constexpr std::array<Door, 74> TABLE{{
      "показать (1) или пропустить (0) стартовое меню.",
      DoorRead::Once},
     {"DFN_MENU_PAGE",
-     "открыть меню сразу на названной странице (categories/category_maps/pause/calibrate/settings).",
+     "открыть меню сразу на названной странице (root/categories/category_maps/pause/calibrate/settings/credits/stub/splash).",
      DoorRead::Once},
+    {"DFN_MENU_DUST",
+     "доза пылинок стартового экрана: 0 — поле без них, и два прогона дают "
+     "побитово одинаковый кадр меню (иначе кадр приёмки несравним сам с собой); "
+     "1 (дефолт) — как в образце, редкие медленно плывущие точки.",
+     DoorRead::EachRead, false},
+    {"DFN_SPLASH",
+     "сколько секунд держать кадр студии при запуске; 0 — не показывать вовсе. "
+     "Беспилотные прогоны его не видят и без двери (см. unattended_run у App), "
+     "дверь нужна ЧЕЛОВЕКУ: снять сам кадр и проверить, что он не мешает.",
+     DoorRead::Once, false},
     {"DFN_MENU_SHOT",
      "снять один кадр показанной страницы меню и закрыться. МЕНЮ ПРИ ЭТОМ ПОКАЗЫВАЕТСЯ, хотя прогон и беспилотный, — см. предупреждение у unattended_run().",
      DoorRead::Once, true},

@@ -61,6 +61,14 @@
 # - 18:08:2026 - 17:36:58: AppAfterFrame.cpp — слой 4: хвост кадра. Решения, которые он
 #   принимает, лежат ЗАГОЛОВКОМ (AppAfterFrame.h, inline), чтобы рукав включал
 #   их и не тянул за собой ни цели, ни окна.
+# - 27:08:2026 - 02:20:00: PngImage.cpp и MenuArt.cpp — чтение .png (inflate +
+#   расфильтровка) и крупный шрифт/вписывание картинки для главного меню по
+#   образцу (заказ владельца 26.08). ПОЧЕМУ СВОЙ ДЕКОДЕР, А НЕ ТРЕТЬЯ СТОРОНА:
+#   единственный PNG-код в дереве — ПИСАТЕЛЬ внутри бэкенда bgfx (bimg), а
+#   dag_check не пускает третью сторону в engine/app и правильно делает. Тянуть
+#   ради одного экрана зависимость в слой, которому она запрещена, дороже, чем
+#   двести строк, проверенных против независимой реализации (tests/app/
+#   PngImageTests.cpp сверяет пять файлов брендинга с python zlib).
 set(DFN_APP_DEPS
     dfn_core
     dfn_world
@@ -113,6 +121,8 @@ if(DFN_APP_READY)
         sources/Localization.cpp
         sources/MapCatalog.cpp
         sources/Menu.cpp
+        sources/MenuArt.cpp
+        sources/PngImage.cpp
         sources/TrajectoryRecord.cpp)
     # dfn_editor: the editor's INTERFACE layer (Dear ImGui). It is a separate
     # target and not a few files here because docs/ARCHITECTURE.md names

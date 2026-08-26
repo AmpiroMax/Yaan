@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 18:08:2026 - 18:02:11
+# Last updated: 27:08:2026 - 02:25:00
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -112,6 +112,9 @@
 #   переворачивается порядком обхода ДО подтверждения, отказ на удаление
 #   называет держателей, зажим длины садится на 5.00 м вверх и на 2.00 м вниз
 #   при руке на 3.50 м, и отмена возвращает координату, а не только счётчик.
+# - 27:08:2026 - 02:25:00: app_png — свой читатель .png (герб и знак студии в меню);
+#   MenuArt.cpp и PngImage.cpp дописаны в app_menu: раскладка строк, по которой
+#   ходит и мышь, меряет ШИРИНУ КРУПНОГО текста, то есть тянет за собой шрифт.
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -129,8 +132,20 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Controls.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Menu.cpp
+        # MenuArt/PngImage: страницы меню рисуются крупным шрифтом и гербом
+        # (27.08), и раскладка строк — та же функция, что читает мышь.
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/MenuArt.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
+
+    # ЧТЕНИЕ .png — ОТДЕЛЬНЫЙ РУКАВ, потому что предмет отдельный: разжатие и
+    # расфильтровка не про меню, а про формат. Ожидаемые пиксели получены
+    # НЕЗАВИСИМОЙ реализацией (python zlib), а не этой же — иначе рукав
+    # подтверждал бы сам себя.
+    add_dfn_test(app_png app/PngImageTests.cpp)
+    target_sources(app_png PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp)
 
     # THE EDITOR'S OVERLAY BLOCK, and it is a layout suite rather than a text
     # one. The defect it was written for -- the readout and the editor banner

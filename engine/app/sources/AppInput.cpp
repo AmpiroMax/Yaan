@@ -65,6 +65,9 @@ UPD:
 - 19:08:2026 - 00:12:30: Enter в редакторе — подтверждение и постановка (тот же путь, что ЛКМ); быстрая заметка со снимком осталась только в теле.
 - 19:08:2026 - 00:48:20: Стрелка включает режим метки.
 - 19:08:2026 - 02:05:30: Обработчики клавиш постройки съехали в AppHouse.cpp; прогулка по таблице осталась здесь одна.
+- 27:08:2026 - 02:10:00: on_menu_pause больше НЕ рассказывает меню, редактирует ли
+  игрок: вызов set_editing снят вместе с самим флагом (заказ владельца 26.08).
+  Состав страницы паузы перестал быть функцией состояния игрока.
 */
 
 #include "engine/app/sources/App.h"
@@ -241,9 +244,15 @@ void App::on_menu_pause() {
         }
     }
     paused_from_ = mode_; // Resume returns here (Playing or Editor)
-    // The editor rows exist only while editing: a row that cannot do anything
-    // teaches the player that the menu lies.
-    menu_.set_editing(mode_ == AppMode::Editor);
+    // THE PAUSE PAGE NO LONGER ASKS WHAT THE PLAYER WAS DOING (owner, 26.08:
+    // «меню должно все свои кнопки одинаково всегда отображать в
+    // соответствующих режимах игры, вне зависимости от состояния игрока
+    // (редактирует или нет)»). A `menu_.set_editing(mode_ == AppMode::Editor)`
+    // stood here and handed the page two different row orders, so "press Down
+    // twice" meant Settings in the world and Settings-somewhere-else in the
+    // editor. The rows that used to appear and disappear (save, discard) are
+    // always there now and answer with a status line when they have nothing to
+    // act on -- which is the honest version of the same information.
     menu_.open(MenuPage::Pause);
     mode_ = AppMode::Menu;
     input_->set_cursor_captured(false);

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:26:39
-Last updated: 17:08:2026 - 16:35:20
+Last updated: 27:08:2026 - 01:05:40
 Module: engine/app
 File: engine/app/sources/Menu.h
 
@@ -59,6 +59,31 @@ UPD:
   редактируемым и не редактируется, хуже списка. Живёт внутри настроек, значит
   достижима и с паузы — не выходя из мира.
 - 17:08:2026 - 16:35:20: SaveMap/DiscardToRoot и set_editing — три выхода редактора по Esc (заказ 17.08).
+- 27:08:2026 - 01:05:40: ГЛАВНОЕ МЕНЮ ПО ОБРАЗЦУ SKYRIM И РАЗВЯЗКА ПАУЗЫ С РЕДАКТОРОМ
+  (заказ владельца 26.08, дословно: «сделать меню 1в1 как в скайриме… сделать
+  нормальное меню паузы — сейчас оно зависит от режима редактирования… меню должно
+  все свои кнопки одинаково всегда отображать в соответствующих режимах игры, вне
+  зависимости от состояния игрока»).
+  1. set_editing/editing() СНЯТЫ, а не выключены. Пока флаг существует, состав
+     страницы паузы остаётся представимым как «зависит от того, что в руке»: строки
+     появлялись и исчезали по одному вызову, и приложение решало, что показать. Теперь
+     страница паузы — ОДИН набор из шести строк, и вопроса «а в этом ли я режиме»
+     у неё нет вовсе (правило 32: чинится механизм, а не случай). «Сохранить карту»
+     вне редактора не прячется: она отвечает честной строкой статуса, а строка,
+     которая то есть, то нет, учит игрока, что меню врёт.
+  2. Корень стал списком образца: Продолжить / Новая игра / Загрузить / Настройки /
+     Редактор / Титры / Выход. Систем сохранений и титров у нас нет — пункт всё равно
+     рисуется и ведёт на ЗАГЛУШКУ с честной надписью (MenuPage::Stub), потому что
+     спрятанный пункт неотличим от несуществующего.
+  3. MenuPage::Splash — кадр студии при запуске; MenuPage::Credits — титры с
+     обязательной строкой лицензии герба.
+  4. RootRow/PauseRow названы в заголовке: до сих пор строки корня считались
+     нажатиями в тестах, и рост корня на одну строку молча уводил проверку на
+     соседний пункт (запись 14.08 в MenuTests об этом же).
+  5. menu_row_boxes()/menu_row_at() — раскладка строк ОДНА на отрисовку и на мышь.
+     Выбор мышью и стрелками нельзя было сделать двумя арифметиками: вторая копия
+     разъезжается с первой в первый же день, и попадание по пункту становится
+     «иногда».
 */
 
 #pragma once
@@ -67,6 +92,7 @@ UPD:
 
 #include <cstdint>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace dfn::render {
@@ -89,6 +115,39 @@ enum class MenuPage : uint8_t {
     Calibrate = 4,     // brightness calibration (Skyrim/Doom's first-run screen)
     Settings = 5,      // the settings.cfg rows, turnable without a text editor
     Controls = 6,      // the key list -- READ ONLY, drawn from the binding table
+    Splash = 7,        // the studio's launch frame; any key or a timer leaves it
+    Credits = 8,       // titles, and the emblem's licence line lives THERE
+    Stub = 9,          // "this does not exist yet", named out loud (see open_stub)
+};
+
+// THE START SCREEN'S ROWS, NAMED WHERE THEY ARE DEFINED. Everything that reaches
+// a row by pressing Down N times -- tests, doors, recipes -- has the root's shape
+// as a premise, and a premise nobody states fails somewhere else: when the root
+// grew "Редактор" in August the pause test's control silently started opening the
+// map browser and reported "settings are unreachable".
+enum class RootRow : size_t {
+    Continue = 0, // no save system yet -> the honest stub, never a hidden row
+    NewGame,      // the map browser, Play target
+    Load,         // no save system yet -> stub
+    Settings,
+    Editor,       // the map browser, Editor target (ours, not the reference's)
+    Credits,
+    Quit,
+    Count,
+};
+
+// THE PAUSE PAGE'S ROWS, and there is ONE set of them (owner, 26.08). Not one set
+// per mode, not one set per what the player is holding: six rows, always, in this
+// order. The two rows that cannot be taken back sit last, furthest from where the
+// cursor starts.
+enum class PauseRow : size_t {
+    Resume = 0,
+    SaveMap,   // answers with a status line when there is nothing to save
+    Settings,
+    ToRoot,
+    Discard,
+    Quit,
+    Count,
 };
 
 enum class MenuAction : uint8_t {
@@ -147,11 +206,31 @@ public:
     // outlive the model (App owns both).
     void set_catalog(const MapCatalog* catalog) { catalog_ = catalog; }
 
-    /// EDITING RIGHT NOW? The pause page grows its editor rows only then: a
-    /// player who paused mid-walk has nothing to save, and a "save map" row he
-    /// cannot use is a row that teaches him the menu lies.
-    void set_editing(bool editing) { editing_ = editing; }
-    [[nodiscard]] bool editing() const { return editing_; }
+    // THE CLOCK OF THE SCREENS, in seconds since the app started. The dust field
+    // and the splash fade are functions of it and of nothing else -- no particle
+    // state anywhere -- so the same second draws the same frame and a menu
+    // screenshot is reproducible (Rule 13). The app ticks it once per menu frame.
+    void tick(float dt_s) { time_ += dt_s; }
+    [[nodiscard]] float time() const { return time_; }
+
+    /// A PAGE THAT SAYS "NOT YET", BY NAME. The owner's rule for the start
+    /// screen (26.08): a row whose system does not exist is still DRAWN, and
+    /// pressing it lands here rather than doing nothing. A row that quietly
+    /// ignores Enter is indistinguishable from a broken menu; a row that is
+    /// hidden is indistinguishable from a feature nobody planned.
+    /// `message_key` is a localization key (Rule 5), stored as its hash.
+    void open_stub(std::string_view message_key);
+    [[nodiscard]] uint64_t stub_message() const { return stub_message_; }
+
+    // HOW LONG THE STUDIO FRAME STAYS UP. The app owns the number (it reads the
+    // DFN_SPLASH door and it owns the clock); the page owns the fade, which is
+    // computed from this and from time(). Zero is a legal value and means the
+    // frame is skipped -- every unattended run takes that path, so no recipe in
+    // the tree gets two extra seconds prepended to it.
+    void set_splash_seconds(float seconds) {
+        splash_seconds_ = seconds > 0.0f ? seconds : 0.0f;
+    }
+    [[nodiscard]] float splash_seconds() const { return splash_seconds_; }
 
     // Open the browser at its first level (categories). `target` is remembered
     // and returned by browse_target(), which is how the app knows whether the
@@ -183,6 +262,15 @@ public:
     // Selection wraps: at the bottom, down goes to the top. A menu that dead-ends
     // reads as broken input.
     void move(int delta);
+    /// Point AT a row -- what the mouse does. Out-of-range is ignored rather
+    /// than clamped: "the pointer is on nothing" is a real answer (see
+    /// menu_row_at), and clamping it would drag the selection to the last row
+    /// every time the hand left the column.
+    void set_selection(size_t row) {
+        if (row < item_count()) {
+            selection_ = row;
+        }
+    }
     [[nodiscard]] MenuAction activate();
     // Escape: from a sub-page it goes back, from the root it quits, from pause
     // it resumes. One key, no dead ends.
@@ -216,7 +304,14 @@ private:
     // The browser's data and where it is in it. catalog_ is borrowed (App owns
     // it); the two indices are only meaningful on the browser pages.
     const MapCatalog* catalog_ = nullptr;
-    bool editing_ = false;
+    // Seconds since the app started, ticked by the app on every menu frame. The
+    // only animation state the screens have; see tick() for why it is the only.
+    float time_ = 0.0f;
+    // Which "not yet" line the stub page shows, as a localization key hash.
+    uint64_t stub_message_ = 0;
+    // Long enough to read three words and see the mark, short enough that a
+    // player who has launched the game fifty times does not learn to hate it.
+    float splash_seconds_ = 2.2f;
     BrowseTarget target_ = BrowseTarget::Play;
     size_t chosen_category_ = 0;          // which category CategoryMaps lists
     const MapManifest* chosen_map_ = nullptr; // set on OpenMap
@@ -252,6 +347,37 @@ private:
 // One press of up/down. An eighth of a step: fine enough that the patch fades
 // rather than jumps, coarse enough to cross the whole range in sixteen presses.
 [[nodiscard]] float black_floor_adjust_step();
+
+/// Where one selectable row is on the canvas, in canvas pixels. The box is the
+/// CLICK TARGET, not the ink: it is padded to half the row gap, so the pointer
+/// never falls between two rows and the selection never flickers as it crosses.
+struct MenuRowBox {
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    [[nodiscard]] bool contains(int px, int py) const {
+        return px >= x && py >= y && px < x + w && py < y + h;
+    }
+};
+
+/// The boxes of the current page's rows, in draw order; empty on pages that have
+/// no list (splash, credits, the stub, the calibration dial, the key list).
+///
+/// ONE ARITHMETIC FOR THE EYE AND FOR THE POINTER. draw_menu() lays its rows out
+/// by calling this, and the app hit-tests the mouse against the same call. Two
+/// copies would agree on the day they were written and disagree on the first day
+/// a row changes size -- and the symptom of that is "the menu sometimes does not
+/// take my click", which reads as a broken mouse rather than as a layout bug
+/// (Rule 39).
+[[nodiscard]] std::vector<MenuRowBox> menu_row_boxes(int canvas_w, int canvas_h,
+                                                     const MenuModel& model);
+
+/// The row under a canvas point, or model.item_count() when the point is on no
+/// row at all -- which is a real answer and not a failure: hovering the
+/// background must not move the selection.
+[[nodiscard]] size_t menu_row_at(int canvas_w, int canvas_h, const MenuModel& model,
+                                 int x, int y);
 
 // Draws `model` into `canvas` (which the caller sized to the internal
 // resolution). Opaque for Root/Maps, dimmed-world overlay for Pause.

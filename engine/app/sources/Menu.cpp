@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 17:08:2026 - 16:59:23
+Last updated: 27:08:2026 - 01:22:15
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -71,6 +71,26 @@ UPD:
   отрисовки.
 - 17:08:2026 - 16:35:20: страница паузы растит строки редактора; «в главное меню» появилось и в ходьбе.
 - 17:08:2026 - 16:59:23: экран управления рисует вторую колонку, когда раскладка её просит.
+- 27:08:2026 - 01:22:15: ГЛАВНОЕ МЕНЮ ПО ОБРАЗЦУ (заказ владельца 26.08). Что было:
+  корень — четыре строки шрифтом 5×8 по центру чёрно-синего поля; на 1920×1080 это
+  буквы в 8 пикселей, то есть пятая часть высоты строки образца. Что стало:
+  * СПИСОК СПРАВА ВНИЗУ, выровненный по правому краю, первый пункт крупнее прочих,
+    без рамок и подложек; ГЕРБ ИМПЕРИИ ЯАН в центре-слева; поле — настоящий чёрный
+    с редкими медленно плывущими пылинками; знак студии мелко в углу.
+  * КРУПНЫЙ ШРИФТ — целочисленное увеличение того же растрового шрифта (MenuArt),
+    а не второй шрифт: 1-битная маска, растянутая с интерполяцией, даёт серую
+    бахрому, которая читается как размытый снимок, а не как крупная буква.
+  * ВЫБРАННЫЙ ПУНКТ ЯРЧЕ И ПОДЧЁРКНУТ, но НЕ КРУПНЕЕ — и это единственное место,
+    где я разошёлся с образцом сознательно: строка, растущая под курсором, съезжает
+    из-под него, соседняя строка прыгает следом, и мышью выбирается не то, на что
+    смотришь. Ярче + черта под текстом — тот же сигнал без этой ловушки.
+  * ЗАГЛУШКА ВМЕСТО СПРЯТАННОГО ПУНКТА: сохранений и титров у нас нет, «Продолжить»
+    и «Загрузить» ведут на страницу с честной надписью и возвратом.
+  * ПАУЗА РАЗВЯЗАНА С РЕДАКТОРОМ: шесть строк всегда, ветка по editing() снята —
+    подробности в UPD заголовка.
+  * menu_row_boxes() — раскладка строк, общая для отрисовки и для мыши.
+  * Дверь дозы DFN_MENU_DUST=0 — поле без пылинок: два прогона дают побитово
+    одинаковый кадр меню, и обе руки приёмки выходят из ОДНОЙ сборки (правило 47).
 */
 
 #include "engine/app/sources/Menu.h"
@@ -87,9 +107,12 @@ UPD:
 // For the shared text plate and its dose door. The pause page stands on the
 // SAME ground as the readout because it is the same decision, and a second copy
 // of a six-line getenv would be a shadow copy of a rule (Rule 39).
+#include "engine/app/sources/AppDoors.h"
 #include "engine/app/sources/Controls.h"
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/Localization.h"
+#include "engine/app/sources/MenuArt.h"
+#include "engine/app/sources/PngImage.h"
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/render/sources/BitmapFont.h"
 #include "engine/render/sources/PixelCanvas.h"
@@ -234,6 +257,144 @@ void draw_centered(render::PixelCanvas& canvas, int y, std::string_view text,
     render::draw_text(canvas, x, y, text, color, /*shadow=*/true);
 }
 
+// --- THE START SCREEN'S OWN PALETTE -----------------------------------------
+// The reference is BLACK, not the menu's blue-grey ground: the emblem is lit
+// stone on nothing, and any tint behind it turns the frame into a slide.
+constexpr render::Color SCREEN_BLACK{0, 0, 0};
+constexpr render::Color ITEM_DIM{150, 146, 138};      // an unselected row
+constexpr render::Color ITEM_BRIGHT{246, 240, 224};   // the selected one
+constexpr render::Color STUDIO_MARK{96, 104, 118};    // the corner signature
+
+// HOW MANY MOTES, AND WHY IT IS A DENSITY RATHER THAN A COUNT. The field has to
+// read the same at 320x180 and at 1920x1080; a fixed count is a blizzard at one
+// and an empty screen at the other.
+[[nodiscard]] int dust_count(int w, int h) {
+    // THE DOSE DOOR (Rule 47): with DFN_MENU_DUST=0 the field is empty and two
+    // runs produce a bit-identical menu frame, which is what makes an
+    // acceptance frame comparable at all. Both arms come out of ONE build.
+    if (const char* v = door_value("DFN_MENU_DUST"); v != nullptr && v[0] == '0') {
+        return 0;
+    }
+    return std::clamp(w * h / 26000, 12, 160);
+}
+
+// --- THE LIST OF THE REFERENCE ----------------------------------------------
+// One arithmetic, used by the drawing and by the mouse. Everything is derived
+// from the frame's HEIGHT: the screen has to hold together from 320x180 to
+// 1920x1080, and a layout in absolute pixels only holds at the size it was
+// eyeballed on.
+struct ListMetrics {
+    int base = 1;     // magnification of an ordinary row
+    int big = 2;      // magnification of the first row (CONTINUE, in the reference)
+    int tracking = 1; // extra pixels between glyph cells
+    int gap = 4;      // vertical air between rows
+    int edge = 0;     // the column's right edge (right-aligned pages)
+    int top = 0;      // y of the first row's ink
+    int total = 0;    // height of the whole block
+};
+
+[[nodiscard]] int row_scale(const ListMetrics& m, size_t i) {
+    return i == 0 ? m.big : m.base;
+}
+
+[[nodiscard]] ListMetrics list_metrics(int w, int h, size_t n) {
+    ListMetrics m;
+    // The reference's column stands a good way in from the edge -- far enough
+    // that the letters are not read against the bezel.
+    m.edge = w - std::max(6, w / 12);
+    const int rows = static_cast<int>(n);
+    // MEASURED AGAINST THE REFERENCE'S PROPORTION, not picked. A Skyrim menu
+    // item is about 4 % of the frame's height and its CONTINUE about 6 %; the
+    // font's ink is 8 px, so at the interface's design grid (360 rows, see
+    // RenderSystem::set_internal_resolution -- the HUD deliberately keeps its
+    // own grid while the world renders at full detail) that is a magnification
+    // of two and three. h/180 is the divisor that lands there and scales with
+    // any other grid.
+    m.base = std::max(1, h / 180); // 360 -> 2, 180 -> 1
+    for (;;) {
+        m.big = m.base + 1;
+        m.gap = std::max(2, m.base * 5);
+        m.tracking = m.base;
+        m.total = 0;
+        for (int i = 0; i < rows; ++i) {
+            m.total += text_height_scaled(i == 0 ? m.big : m.base) + m.gap;
+        }
+        m.total = std::max(0, m.total - m.gap); // no gap after the last row
+        // A BLOCK THAT DOES NOT FIT IS THE FAILURE THIS LOOP EXISTS FOR: the
+        // controls page shipped once with its last two rows off the bottom
+        // because its arithmetic lived inside the drawing and nothing could
+        // measure it. Shrink until it fits, and at scale 1 accept whatever we
+        // get -- there is nothing smaller to fall back to.
+        if (m.base == 1 || m.total <= h * 3 / 5) {
+            break;
+        }
+        --m.base;
+    }
+    const int bottom = h - std::max(4, h / 9);
+    m.top = std::max(h / 10, bottom - m.total);
+    return m;
+}
+
+// The label of one row of the current page. ONE READER, used by the layout, by
+// the drawing and by the plate that has to be sized for the text that is
+// actually drawn -- the mistake the pause plate was fixed for in August.
+struct Row {
+    std::string_view label;
+    std::string_view blurb;
+};
+
+[[nodiscard]] Row menu_row(const MenuModel& model, size_t i) {
+    switch (model.page()) {
+    case MenuPage::Root:
+        switch (static_cast<RootRow>(i)) {
+        case RootRow::Continue: return {loc("menu.root.continue"), {}};
+        case RootRow::NewGame:  return {loc("menu.root.new_game"), {}};
+        case RootRow::Load:     return {loc("menu.root.load"), {}};
+        case RootRow::Settings: return {loc("menu.root.settings"), {}};
+        case RootRow::Editor:   return {loc("menu.root.editor"), {}};
+        case RootRow::Credits:  return {loc("menu.root.credits"), {}};
+        default:                return {loc("menu.root.quit"), {}};
+        }
+    case MenuPage::Pause:
+        switch (static_cast<PauseRow>(i)) {
+        case PauseRow::Resume:   return {loc("menu.resume"), {}};
+        case PauseRow::SaveMap:  return {loc("menu.save_map"), {}};
+        case PauseRow::Settings: return {loc("menu.settings"), {}};
+        case PauseRow::ToRoot:   return {loc("menu.to_root"), {}};
+        case PauseRow::Discard:  return {loc("menu.discard"), {}};
+        default:                 return {loc("menu.quit"), {}};
+        }
+    case MenuPage::Categories: {
+        const MapCatalog* cat = model.catalog();
+        const size_t ncats = (cat != nullptr ? cat->categories.size() : 0);
+        if (i < ncats) {
+            // The label is localized ("map.category.<slug>"); the empty note is
+            // a stable loc string so an empty folder reads as deliberate.
+            const std::string key = "map.category." + cat->categories[i].slug;
+            const std::string_view blurb =
+                cat->categories[i].maps.empty() ? loc("map.empty") : std::string_view{};
+            return {loc(key), blurb};
+        }
+        return {loc("menu.back"), {}};
+    }
+    case MenuPage::CategoryMaps: {
+        const MapCatalog* cat = model.catalog();
+        if (cat != nullptr && model.chosen_category() < cat->categories.size()) {
+            const auto& maps = cat->categories[model.chosen_category()].maps;
+            if (i < maps.size()) {
+                // name and description come from the .map manifest (Rule 5);
+                // the strings outlive this call because the catalog outlives
+                // the model.
+                return {maps[i].name, maps[i].description};
+            }
+        }
+        return {loc("menu.back"), {}};
+    }
+    default:
+        return {};
+    }
+}
+
 } // namespace
 
 float black_floor_max() { return static_cast<float>(config::BLACK_FLOOR_MAX); }
@@ -270,6 +431,11 @@ void MenuModel::open_category(size_t category_index) {
     open(MenuPage::CategoryMaps);
 }
 
+void MenuModel::open_stub(std::string_view message_key) {
+    stub_message_ = serialization::fnv1a64(message_key);
+    open(MenuPage::Stub);
+}
+
 void MenuModel::open(MenuPage page) {
     page_ = page;
     selection_ = 0;
@@ -281,7 +447,11 @@ void MenuModel::open(MenuPage page) {
 size_t MenuModel::item_count() const {
     switch (page_) {
     case MenuPage::Root:
-        return 4; // play, editor, settings, quit
+        // Continue, New, Load, Settings, Editor, Credits, Quit -- see RootRow.
+        // Rows whose system does not exist yet are HERE, drawn, and land on the
+        // stub page; hiding them would make "not built yet" and "not planned"
+        // the same picture (owner, 26.08).
+        return static_cast<size_t>(RootRow::Count);
     case MenuPage::Categories:
         // Every category is shown (empty ones included, per the contract), plus
         // a Back row. Without a catalog it is just Back -- still navigable.
@@ -296,16 +466,22 @@ size_t MenuModel::item_count() const {
         return maps + 1;
     }
     case MenuPage::Pause:
-        // Playing: resume, settings, main menu, quit.
-        // Editing: the same plus save and discard, which only mean something
-        // when there is a composition open.
-        return editing_ ? 6 : 4;
+        // SIX ROWS, ALWAYS (owner, 26.08). This used to be `editing_ ? 6 : 4`,
+        // i.e. the composition of the page was a function of what the player
+        // happened to be doing -- which is the exact thing the order forbids.
+        // The two rows that used to appear and disappear (save, discard) now
+        // answer with a status line when they have nothing to act on.
+        return static_cast<size_t>(PauseRow::Count);
     case MenuPage::Calibrate:
         return 0; // no list: up/down turn the dial itself
     case MenuPage::Settings:
         return RowCount;
     case MenuPage::Controls:
         return 0; // nothing to select: it is a list to READ, Esc leaves
+    case MenuPage::Splash:
+    case MenuPage::Credits:
+    case MenuPage::Stub:
+        return 0; // one thing to read and one key to leave it with
     }
     return 0;
 }
@@ -366,26 +542,39 @@ void MenuModel::move(int delta) {
 MenuAction MenuModel::activate() {
     switch (page_) {
     case MenuPage::Root:
-        // BOTH buttons open the SAME browser (В39: play changes map through the
-        // same picker, editor flies it). The difference is only the target the
-        // app reads back -- neither jumps straight into a map, which was the
-        // first cut's named mistake (docs/MAP_LAYOUT.md).
-        if (selection_ == 0) {
+        switch (static_cast<RootRow>(selection_)) {
+        case RootRow::Continue:
+            // NO SAVE SYSTEM YET, AND THE ROW SAYS SO. The reference's first row
+            // loads the last save; we have nothing to load, so the row exists,
+            // is drawn largest as in the reference, and lands on a page that
+            // states the fact. A row that silently did nothing would read as a
+            // broken menu, and a hidden row as a feature nobody planned.
+            open_stub("menu.stub.no_saves");
+            return MenuAction::None;
+        case RootRow::NewGame:
+            // BOTH map buttons open the SAME browser (В39: play changes map
+            // through the same picker, editor flies it). Neither jumps straight
+            // into a map -- the first cut's named mistake (docs/MAP_LAYOUT.md).
             open_browser(BrowseTarget::Play);
             return MenuAction::None;
-        }
-        if (selection_ == 1) {
-            open_browser(BrowseTarget::Editor);
+        case RootRow::Load:
+            open_stub("menu.stub.no_saves");
             return MenuAction::None;
-        }
-        if (selection_ == 2) {
+        case RootRow::Settings:
             // SETTINGS. The dial did not move away from the player -- it is the
             // settings page's own row, one press further in.
             settings_return_ = MenuPage::Root;
             open(MenuPage::Settings);
             return MenuAction::None;
+        case RootRow::Editor:
+            open_browser(BrowseTarget::Editor);
+            return MenuAction::None;
+        case RootRow::Credits:
+            open(MenuPage::Credits);
+            return MenuAction::None;
+        default:
+            return MenuAction::Quit;
         }
-        return MenuAction::Quit;
     case MenuPage::Categories: {
         // A category row descends into its maps; the last row is Back to Root.
         const size_t ncats =
@@ -411,34 +600,22 @@ MenuAction MenuModel::activate() {
         open(MenuPage::Categories);
         return MenuAction::None;
     }
-    case MenuPage::Pause: {
+    case MenuPage::Pause:
         // ROW ORDER IS THE ANSWER TO "WHAT DID I PRESS BY ACCIDENT". Resume is
         // first because it is the common case; the two irreversible rows
         // (discard, quit) are last, furthest from where the cursor starts.
-        if (selection_ == 0) {
+        //
+        // AND THERE IS NO SECOND SHAPE OF THIS PAGE. The branch that used to
+        // stand here asked whether the player was editing and handed out two
+        // different row orders -- so the row under "press Down twice" was one
+        // thing in the world and another in the editor. Six rows, one order,
+        // named in PauseRow.
+        switch (static_cast<PauseRow>(selection_)) {
+        case PauseRow::Resume:
             return MenuAction::Resume;
-        }
-        if (editing_) {
-            if (selection_ == 1) {
-                return MenuAction::SaveMap; // writes and STAYS on the page
-            }
-            if (selection_ == 2) {
-                settings_return_ = MenuPage::Pause;
-                open(MenuPage::Settings);
-                return MenuAction::None;
-            }
-            if (selection_ == 3) {
-                return MenuAction::ToRoot;
-            }
-            if (selection_ == 4) {
-                return MenuAction::DiscardToRoot;
-            }
-            return MenuAction::Quit;
-        }
-        if (selection_ == 2) {
-            return MenuAction::ToRoot;
-        }
-        if (selection_ == 1) {
+        case PauseRow::SaveMap:
+            return MenuAction::SaveMap; // writes and STAYS on the page
+        case PauseRow::Settings:
             // SETTINGS ARE REACHABLE FROM THE PAUSE SCREEN, and that is not a
             // convenience. The one setting the player is most likely to want
             // MID-GAME is the brightness floor -- he learns he cannot see in
@@ -447,9 +624,13 @@ MenuAction MenuModel::activate() {
             settings_return_ = MenuPage::Pause;
             open(MenuPage::Settings);
             return MenuAction::None;
+        case PauseRow::ToRoot:
+            return MenuAction::ToRoot;
+        case PauseRow::Discard:
+            return MenuAction::DiscardToRoot;
+        default:
+            return MenuAction::Quit;
         }
-        return MenuAction::Quit;
-    }
     case MenuPage::Calibrate:
         // THE PAGE CLOSES ITSELF, and the action only asks the app to SAVE. A
         // page whose exit depends on the app handling a new action is a page
@@ -460,6 +641,15 @@ MenuAction MenuModel::activate() {
         return MenuAction::CalibrationDone;
     case MenuPage::Controls:
         open(MenuPage::Settings); // the only way in, so the only way out
+        return MenuAction::None;
+    case MenuPage::Splash:
+    case MenuPage::Credits:
+    case MenuPage::Stub:
+        // ONE KEY OUT, AND IT IS BOTH KEYS. These pages have nothing to select,
+        // so Enter and Escape must mean the same thing -- a page a player can be
+        // stuck on because he pressed the wrong one of two equally reasonable
+        // keys is the whole reason back() exists.
+        open(MenuPage::Root);
         return MenuAction::None;
     case MenuPage::Settings:
         if (selection_ == RowBrightness) {
@@ -510,6 +700,11 @@ MenuAction MenuModel::back() {
     case MenuPage::Controls:
         open(MenuPage::Settings);
         return MenuAction::None;
+    case MenuPage::Splash:
+    case MenuPage::Credits:
+    case MenuPage::Stub:
+        open(MenuPage::Root);
+        return MenuAction::None;
     case MenuPage::Settings:
         // And so does Escape here, for the same reason and with the same
         // guarantee: both exits from this page emit SettingsDone, so there is
@@ -518,6 +713,176 @@ MenuAction MenuModel::back() {
         return MenuAction::SettingsDone;
     }
     return MenuAction::None;
+}
+
+namespace {
+
+// --- WHERE EVERY ROW IS, ONCE -----------------------------------------------
+// The plan is the whole layout of a list page: metrics, the ink rectangle of
+// each label, and where its blurb goes. draw_* reads it; so does the mouse.
+
+struct ListPlan {
+    ListMetrics m;
+    std::vector<MenuRowBox> boxes; // ink rect of each label
+    std::vector<int> blurb_y;      // y of the blurb ink, or -1 when there is none
+    int blurb_scale = 1;
+    int title_y = 0;
+    bool right_aligned = false;
+};
+
+[[nodiscard]] bool page_is_right_aligned(MenuPage p) {
+    // THE REFERENCE'S SHAPE IS FOR THE TWO PAGES THE PLAYER MEETS AS "THE MENU":
+    // the start screen and the pause screen. The browser levels stay centred --
+    // they are a FILE PICKER, and a right-aligned column of map names read
+    // against the edge of the frame is a list you cannot scan.
+    return p == MenuPage::Root || p == MenuPage::Pause;
+}
+
+[[nodiscard]] ListPlan plan_list(int w, int h, const MenuModel& model) {
+    ListPlan p;
+    p.right_aligned = page_is_right_aligned(model.page());
+    const size_t n = model.item_count();
+    p.m = list_metrics(w, h, n);
+    // The first row is the largest on the two pages that have a "main" action
+    // (the reference's CONTINUE, our Продолжить); a picker has no such row and
+    // a list where one entry is bigger reads as that entry being special.
+    if (!p.right_aligned) {
+        p.m.big = p.m.base;
+    }
+    p.blurb_scale = std::max(1, p.m.base - 1);
+
+    const auto row_h = [&](size_t i) { return text_height_scaled(row_scale(p.m, i)); };
+    const auto blurb_h = [&](size_t i) {
+        return menu_row(model, i).blurb.empty()
+                   ? 0
+                   : text_height_scaled(p.blurb_scale) + p.m.gap / 2;
+    };
+
+    if (!p.right_aligned) {
+        // A CENTRED PAGE IS ANCHORED UNDER ITS TITLE and must fit ABOVE the
+        // bottom, blurbs included. The shrink loop is the same one list_metrics
+        // runs, redone here because the blurbs are what actually overflow: a
+        // category with twenty maps is a real page.
+        for (;;) {
+            p.blurb_scale = std::max(1, p.m.base - 1);
+            p.m.gap = std::max(2, p.m.base * 5);
+            p.m.tracking = p.m.base;
+            p.m.big = p.m.base;
+            int total = 0;
+            for (size_t i = 0; i < n; ++i) {
+                total += row_h(i) + blurb_h(i) + p.m.gap;
+            }
+            p.m.total = std::max(0, total - p.m.gap);
+            p.title_y = h / 8;
+            p.m.top = p.title_y + text_height_scaled(p.m.base + 1) + p.m.gap * 3;
+            if (p.m.base == 1 || p.m.top + p.m.total <= h - h / 8) {
+                break;
+            }
+            --p.m.base;
+        }
+    } else {
+        // The title (the pause word) stands above the block; the start screen
+        // has none, and draws its emblem instead.
+        p.title_y = std::max(h / 12, p.m.top - text_height_scaled(p.m.big) - p.m.gap * 2);
+    }
+
+    p.boxes.reserve(n);
+    p.blurb_y.reserve(n);
+    int y = p.m.top;
+    for (size_t i = 0; i < n; ++i) {
+        const int s = row_scale(p.m, i);
+        const Row r = menu_row(model, i);
+        const int lw = text_width_scaled(r.label, s, p.m.tracking);
+        MenuRowBox b;
+        b.x = p.right_aligned ? p.m.edge - lw : (w - lw) / 2;
+        b.y = y;
+        b.w = lw;
+        b.h = text_height_scaled(s);
+        p.boxes.push_back(b);
+        y += b.h;
+        if (r.blurb.empty()) {
+            p.blurb_y.push_back(-1);
+        } else {
+            y += p.m.gap / 2;
+            p.blurb_y.push_back(y);
+            y += text_height_scaled(p.blurb_scale);
+        }
+        y += p.m.gap;
+    }
+    return p;
+}
+
+// THE SETTINGS PAGE'S VERTICAL ARITHMETIC, named so the mouse can read it. The
+// page itself is a two-column table drawn at the small font; only the ROW BAND
+// is shared, because that is the only part a pointer needs.
+struct SettingsLayout {
+    int title_y = 0;
+    int first_y = 0;
+    int step = 0;
+    int gap_after_brightness = 0;
+};
+
+[[nodiscard]] SettingsLayout settings_layout(int h) {
+    SettingsLayout L;
+    L.title_y = h / 6;
+    L.first_y = L.title_y + render::FONT_CELL_H + 16;
+    L.step = render::FONT_CELL_H + 4;
+    L.gap_after_brightness = 4; // the two rows below the dial are verbs, not values
+    return L;
+}
+
+[[nodiscard]] int settings_row_y(const SettingsLayout& L, size_t i) {
+    int y = L.first_y + static_cast<int>(i) * L.step;
+    if (i > RowBrightness) {
+        y += L.gap_after_brightness;
+    }
+    return y;
+}
+
+} // namespace
+
+std::vector<MenuRowBox> menu_row_boxes(int canvas_w, int canvas_h,
+                                       const MenuModel& model) {
+    switch (model.page()) {
+    case MenuPage::Root:
+    case MenuPage::Pause:
+    case MenuPage::Categories:
+    case MenuPage::CategoryMaps:
+        return plan_list(canvas_w, canvas_h, model).boxes;
+    case MenuPage::Settings: {
+        // A BAND, NOT THE INK. The row is a PAIR (label left, value right) with
+        // a gap between them, so there is no single ink rectangle to click; the
+        // band is the middle half of the frame, which is where the block is
+        // centred.
+        const SettingsLayout L = settings_layout(canvas_h);
+        std::vector<MenuRowBox> out;
+        out.reserve(RowCount);
+        for (size_t i = 0; i < RowCount; ++i) {
+            out.push_back(MenuRowBox{canvas_w / 4, settings_row_y(L, i), canvas_w / 2,
+                                     render::FONT_INK_H});
+        }
+        return out;
+    }
+    default:
+        return {}; // pages with nothing to select
+    }
+}
+
+size_t menu_row_at(int canvas_w, int canvas_h, const MenuModel& model, int x, int y) {
+    const std::vector<MenuRowBox> boxes = menu_row_boxes(canvas_w, canvas_h, model);
+    for (size_t i = 0; i < boxes.size(); ++i) {
+        // PADDED FROM THE BOX ITSELF, never from a second copy of the layout: a
+        // pointer between two rows must land on one of them rather than on
+        // nothing, or the selection blinks off every time the hand moves.
+        const MenuRowBox& b = boxes[i];
+        const int pad_y = std::max(2, b.h / 2);
+        const int pad_x = std::max(2, b.h);
+        if (x >= b.x - pad_x && x < b.x + b.w + pad_x && y >= b.y - pad_y
+            && y < b.y + b.h + pad_y) {
+            return i;
+        }
+    }
+    return model.item_count();
 }
 
 // THE CALIBRATION PAGE (the user's request, and Skyrim's and Doom's first-run
@@ -649,12 +1014,15 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
     const int block = label_w + gap + value_w;
     const int x0 = (w - block) / 2;
 
-    const int title_y = h / 6;
-    draw_centered(canvas, title_y, loc("menu.settings.title"), TITLE);
-    canvas.fill_rect(w / 4, title_y + render::FONT_CELL_H + 4, w / 2, 1, RULE_LINE);
+    // THE ROW ARITHMETIC LIVES IN settings_layout() so the MOUSE can read the
+    // same numbers (menu_row_boxes). It used to be inline here, which is fine
+    // for one reader and a shadow copy the moment there are two (Rule 39).
+    const SettingsLayout L = settings_layout(h);
+    draw_centered(canvas, L.title_y, loc("menu.settings.title"), TITLE);
+    canvas.fill_rect(w / 4, L.title_y + render::FONT_CELL_H + 4, w / 2, 1, RULE_LINE);
 
-    int y = title_y + render::FONT_CELL_H + 16;
     for (size_t i = 0; i < RowCount; ++i) {
+        const int y = settings_row_y(L, i);
         const bool sel = (i == model.selection());
         const render::Color color = sel ? ITEM_SELECTED : ITEM;
         if (sel) {
@@ -665,10 +1033,6 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
         if (!rows[i].value.empty()) {
             render::draw_text(canvas, x0 + block - render::text_width_px(rows[i].value), y,
                               rows[i].value, color, /*shadow=*/true);
-        }
-        y += render::FONT_CELL_H + 4;
-        if (i == RowBrightness) {
-            y += 4; // the two rows below are verbs, not values
         }
     }
 
@@ -794,212 +1158,325 @@ void draw_controls(render::PixelCanvas& canvas) {
     }
 }
 
-void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
+namespace {
+
+// --- THE ITEM LIST OF THE REFERENCE -----------------------------------------
+// Right-aligned on the start and pause screens, centred in the map browser; the
+// selected row is BRIGHTER and UNDERSCORED. It is deliberately not BIGGER, and
+// that is the one place this screen departs from the reference on purpose: a
+// row that grows under the pointer slides out from under it and pushes its
+// neighbours, so the mouse selects a different row than the eye is on. The
+// first row is the largest at all times instead, which is where the
+// reference's emphasis actually lives.
+void draw_item_list(render::PixelCanvas& canvas, const MenuModel& model,
+                    const ListPlan& p) {
+    const size_t n = model.item_count();
+    for (size_t i = 0; i < n && i < p.boxes.size(); ++i) {
+        const MenuRowBox& b = p.boxes[i];
+        const bool sel = (i == model.selection());
+        const int scale = row_scale(p.m, i);
+        const Row r = menu_row(model, i);
+        draw_text_scaled(canvas, b.x, b.y, r.label, sel ? ITEM_BRIGHT : ITEM_DIM,
+                         scale, p.m.tracking, /*shadow=*/true);
+        if (sel) {
+            // THE RULE UNDER THE WORD is what carries the selection when the
+            // player is colour-blind or the monitor is uncalibrated -- the
+            // brightness difference between the two item colours is a couple of
+            // quantizer steps, which is the weakest signal this project has.
+            const int thick = std::max(1, scale / 2);
+            canvas.fill_rect(b.x, b.y + b.h + std::max(1, scale / 2), b.w, thick,
+                             ITEM_BRIGHT);
+        }
+        if (p.blurb_y[i] >= 0) {
+            const int bw = text_width_scaled(r.blurb, p.blurb_scale, p.m.tracking);
+            const int bx = p.right_aligned ? p.m.edge - bw
+                                           : (static_cast<int>(canvas.width()) - bw) / 2;
+            draw_text_scaled(canvas, bx, p.blurb_y[i], r.blurb, BLURB, p.blurb_scale,
+                             p.m.tracking, /*shadow=*/true);
+        }
+    }
+}
+
+// The bounding rectangle of everything draw_item_list will put on the canvas.
+// The pause page needs it to know what to lay a plate under, and a plate sized
+// from anything but the drawn text is the defect the pause screen was fixed for
+// in August.
+MenuRowBox list_bounds(const ListPlan& p) {
+    MenuRowBox out;
+    bool first = true;
+    for (const MenuRowBox& b : p.boxes) {
+        if (first) {
+            out = b;
+            first = false;
+            continue;
+        }
+        const int x1 = std::max(out.x + out.w, b.x + b.w);
+        const int y1 = std::max(out.y + out.h, b.y + b.h);
+        out.x = std::min(out.x, b.x);
+        out.y = std::min(out.y, b.y);
+        out.w = x1 - out.x;
+        out.h = y1 - out.y;
+    }
+    return out;
+}
+
+// The studio's signature, small, in the corner the reference leaves empty.
+void draw_studio_mark(render::PixelCanvas& canvas) {
+    const int h = static_cast<int>(canvas.height());
+    const int icon = std::max(8, h / 22);
+    const int margin = std::max(4, h / 36);
+    const int y = h - margin - icon;
+    draw_image_fit(canvas, cached_png(BRAND_SPIRAL_ICON_PNG), margin, y, icon, icon,
+                   0.55f);
+    const int scale = std::max(1, h / 400);
+    draw_text_scaled(canvas, margin + icon + std::max(3, icon / 4),
+                     y + (icon - text_height_scaled(scale)) / 2, loc("menu.studio"),
+                     STUDIO_MARK, scale, scale, /*shadow=*/true);
+}
+
+// The one line that says which keys work. Bottom right on the reference's
+// pages, so it does not collide with the studio mark in the other corner.
+void draw_keys_hint(render::PixelCanvas& canvas, bool plate) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
-    const bool pause = model.page() == MenuPage::Pause;
+    const int scale = std::max(1, h / 400);
+    const std::string_view hint =
+        fits(w / std::max(1, scale), loc("menu.hint.mouse"), loc("menu.hint.short"));
+    const int tw = text_width_scaled(hint, scale, scale);
+    const int x = w - std::max(6, w / 12) - tw;
+    const int y = h - std::max(4, h / 24);
+    if (plate) {
+        draw_text_plate(canvas, x, y, tw, text_height_scaled(scale));
+    }
+    draw_text_scaled(canvas, x, y, hint, BLURB, scale, scale, /*shadow=*/true);
+}
 
-    // One reader for the rows, used TWICE: once to measure the block and once
-    // to draw it. Two copies of this switch would be two chances for the plate
-    // to be sized for text that is not the text drawn.
-    struct Row {
-        std::string_view label;
-        std::string_view blurb;
-    };
-    const auto row_at = [&](size_t i) -> Row {
-        switch (model.page()) {
-        case MenuPage::Root:
-            switch (i) {
-            case 0:
-                return {loc("menu.play"), {}};
-            case 1:
-                return {loc("menu.editor"), {}};
-            case 2:
-                return {loc("menu.settings"), {}};
-            default:
-                return {loc("menu.quit"), {}};
-            }
-        case MenuPage::Categories: {
-            const MapCatalog* cat = model.catalog();
-            const size_t ncats = (cat != nullptr ? cat->categories.size() : 0);
-            if (i < ncats) {
-                // Category label is localized ("map.category.<slug>"); the empty
-                // note is a stable loc string so an empty folder still reads as
-                // deliberate rather than as a bug.
-                const std::string key = "map.category." + cat->categories[i].slug;
-                const std::string_view blurb =
-                    cat->categories[i].maps.empty() ? loc("map.empty") : std::string_view{};
-                return {loc(key), blurb};
-            }
-            return {loc("menu.back"), {}};
-        }
-        case MenuPage::CategoryMaps: {
-            const MapCatalog* cat = model.catalog();
-            if (cat != nullptr && model.chosen_category() < cat->categories.size()) {
-                const auto& maps = cat->categories[model.chosen_category()].maps;
-                if (i < maps.size()) {
-                    // name and description come straight from the .map manifest
-                    // (content, Rule 5); the std::strings outlive this call
-                    // because the catalog outlives the model.
-                    return {maps[i].name, maps[i].description};
-                }
-            }
-            return {loc("menu.back"), {}};
-        }
-        case MenuPage::Pause: {
-            if (i == 0) {
-                return {loc("menu.resume"), {}};
-            }
-            if (model.editing()) {
-                switch (i) {
-                case 1: return {loc("menu.save_map"), {}};
-                case 2: return {loc("menu.settings"), {}};
-                case 3: return {loc("menu.to_root"), {}};
-                case 4: return {loc("menu.discard"), {}};
-                default: return {loc("menu.quit"), {}};
-                }
-            }
-            switch (i) {
-            case 1: return {loc("menu.settings"), {}};
-            case 2: return {loc("menu.to_root"), {}};
-            default: return {loc("menu.quit"), {}};
-            }
-        }
-        case MenuPage::Calibrate:
-        case MenuPage::Settings:
-        case MenuPage::Controls:
-            return {}; // drawn by their own functions, which have their own layout
-        }
-        return {};
-    };
+// --- THE START SCREEN -------------------------------------------------------
+// The owner's reference is Skyrim SE's main menu: black with rare, slowly
+// drifting motes; a large emblem in the middle-left; a right-aligned column of
+// thin capitals low on the right, no frames and no button plates, the first
+// item larger than the rest. Ours puts the SEAL OF THE YAAN EMPIRE where the
+// reference puts the dragon sigil (assets/branding/README.txt, owner 26.08),
+// and the studio's mark in the opposite corner.
+void draw_root(render::PixelCanvas& canvas, const MenuModel& model) {
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+    canvas.clear(SCREEN_BLACK);
+    draw_dust(canvas, model.time(), dust_count(w, h));
 
-    canvas.resize(canvas.width(), canvas.height());
-    if (model.page() == MenuPage::Calibrate) {
-        draw_calibration(canvas, model);
-        return;
-    }
-    if (model.page() == MenuPage::Settings) {
-        draw_settings(canvas, model);
-        return;
-    }
-    if (model.page() == MenuPage::Controls) {
-        draw_controls(canvas);
-        return;
-    }
-    if (pause) {
-        // The pause screen sits OVER the world: a dim veil, not a wall, so the
-        // player can see where they left off.
-        canvas.clear_transparent();
-        for (int y = 0; y < h; ++y) {
-            if ((y & 1) == 0) {
-                canvas.fill_rect(0, y, w, 1, BACKGROUND);
-            }
+    // THE EMBLEM'S BOX IS A FRACTION OF THE HEIGHT, never of the width: a wide
+    // frame must move it sideways, not inflate it. Centre-left and above the
+    // middle, so the wordmark beneath it has its own air.
+    //
+    // AND IT IS COMPOSITED AT LESS THAN FULL OPACITY. The seal is a PARCHMENT
+    // disc -- nearly white -- and on true black at full strength it reads as a
+    // moon rather than as an emblem: the first frame of this screen had the
+    // brightest object on it be a background element, with the item column, the
+    // thing the player has to read, a good deal dimmer. Taking it down to 0.82
+    // puts it where the reference's sigil sits: present, large, and NOT the
+    // brightest thing in the frame.
+    const int box = h / 2;
+    const int cx = w * 17 / 50;
+    const int cy = h * 7 / 16;
+    draw_image_fit(canvas, cached_png(BRAND_SEAL_PNG), cx - box / 2, cy - box / 2, box,
+                   box, 0.82f);
+
+    // The game's name under the emblem, spaced out: it is a wordmark here, not
+    // a sentence, and the tracking is what makes five px letters read as one.
+    const int tscale = std::max(1, h / 180);
+    const std::string_view title = loc("app.title");
+    const int tw = text_width_scaled(title, tscale, tscale * 4);
+    draw_text_scaled(canvas, cx - tw / 2, cy + box / 2 + h / 24, title, TITLE, tscale,
+                     tscale * 4, /*shadow=*/true);
+
+    draw_item_list(canvas, model, plan_list(w, h, model));
+    draw_studio_mark(canvas);
+    draw_keys_hint(canvas, /*plate=*/false);
+}
+
+// --- THE PAUSE SCREEN -------------------------------------------------------
+// The same column, over the world instead of over black, and with the SAME SIX
+// ROWS whatever the player was doing when he pressed Escape (owner, 26.08).
+void draw_pause(render::PixelCanvas& canvas, const MenuModel& model) {
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+
+    // The veil is a HALF cover by construction -- every other scanline -- so the
+    // player can still see where he left off. It is not what the text stands on:
+    // measured on the archived playing frame, 81.0 % of the ink over bright
+    // background sat closer than two quantizer steps to what it covered. The
+    // plate below is what the text stands on.
+    canvas.clear_transparent();
+    for (int y = 0; y < h; ++y) {
+        if ((y & 1) == 0) {
+            canvas.fill_rect(0, y, w, 1, BACKGROUND);
         }
-    } else {
-        canvas.clear(BACKGROUND);
     }
 
-    const int title_y = pause ? h / 4 : h / 5;
-    const int rule_y = title_y + render::FONT_CELL_H + 4;
+    const ListPlan p = plan_list(w, h, model);
+    const MenuRowBox block = list_bounds(p);
+    const int scale = std::max(1, p.m.base);
+    const std::string_view title = loc("menu.paused");
+    const int title_w = text_width_scaled(title, scale, scale * 2);
+    const int title_x = p.m.edge - title_w;
 
-    // Items start below the rule; the blurb line under each map costs one row,
-    // so map rows are spaced two rows apart and plain rows one. Both browser
-    // levels carry blurbs (a category's empty note, a map's description).
-    const bool maps_page = model.page() == MenuPage::Categories
-                           || model.page() == MenuPage::CategoryMaps;
-    const int row = render::FONT_CELL_H + (maps_page ? 6 : 4);
-    const int first_item_y = title_y + render::FONT_CELL_H + 16;
-    const size_t n = model.item_count();
+    // ONE PLATE UNDER THE TITLE AND THE ROWS TOGETHER, sized from the rectangle
+    // the rows actually occupy plus the title above them.
+    const int plate_x = std::min(block.x, title_x);
+    const int plate_y = std::min(block.y, p.title_y);
+    draw_text_plate(canvas, plate_x, plate_y, p.m.edge - plate_x,
+                    block.y + block.h - plate_y, /*pad=*/std::max(4, p.m.gap));
 
-    // THE PAUSE PLATE. The veil is a HALF cover by construction -- it fills
-    // every other scanline -- so on the rows it does not fill, the words stand
-    // on the live world. Measured on the archived playing frame: 81.0 % of the
-    // ink over bright background sat closer than 2 * PALETTE_SHADE_STEP_REF to
-    // what it covered, and 80 glyph edges were lost outright. The veil keeps
-    // its job (you can see where you left off); it just stops being what the
-    // TEXT stands on. Only this page gets a plate: root and maps already clear
-    // opaque, so there the plate would be a frame drawn around nothing.
-    if (pause) {
-        int block_w = render::text_width_px(loc("menu.paused"));
-        for (size_t i = 0; i < n; ++i) {
-            // The caret hangs two cells to the left of the widest label, so it
-            // is part of the block whether or not this row is the selected one.
-            block_w = std::max(block_w,
-                               render::text_width_px(row_at(i).label)
-                                   + render::FONT_CELL_W * 4);
-        }
-        block_w = std::max(block_w, w / 2); // the rule under the title
-        int block_h = first_item_y - title_y;
-        for (size_t i = 0; i < n; ++i) {
-            block_h += row;
-        }
-        // A block of lines wants more air than a single line, which is the one
-        // thing the shared plate takes as an argument.
-        draw_text_plate(canvas, (w - block_w) / 2, title_y, block_w, block_h, /*pad=*/6);
-    }
+    draw_text_scaled(canvas, title_x, p.title_y, title, TITLE, scale, scale * 2,
+                     /*shadow=*/true);
+    draw_item_list(canvas, model, p);
+    draw_keys_hint(canvas, /*plate=*/true);
+}
 
-    // TITLE per page: the two browser levels name themselves (the picker, then
-    // the category), so the player always knows which of the two levels he is
-    // on. Everything else keeps the game title / pause word.
-    std::string_view title = loc("app.title");
-    std::string cat_title_key; // storage kept alive until draw_centered below
-    if (pause) {
-        title = loc("menu.paused");
-    } else if (model.page() == MenuPage::Categories) {
-        title = loc("map.browser.title");
-    } else if (model.page() == MenuPage::CategoryMaps) {
+// --- THE MAP BROWSER --------------------------------------------------------
+// Centred rather than right-aligned: this is a FILE PICKER, and its rows are
+// names of unpredictable length that have to be scanned rather than aimed at.
+void draw_browser(render::PixelCanvas& canvas, const MenuModel& model) {
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+    canvas.clear(SCREEN_BLACK);
+    draw_dust(canvas, model.time(), dust_count(w, h) / 2);
+
+    const ListPlan p = plan_list(w, h, model);
+    // The two levels NAME THEMSELVES, so the player always knows which of them
+    // he is on. cat_title_key outlives the draw below because it is a local
+    // string and loc() returns a view into the localization table, not into it.
+    std::string cat_title_key;
+    std::string_view title = loc("map.browser.title");
+    if (model.page() == MenuPage::CategoryMaps) {
         const MapCatalog* cat = model.catalog();
         if (cat != nullptr && model.chosen_category() < cat->categories.size()) {
             cat_title_key = "map.category." + cat->categories[model.chosen_category()].slug;
             title = loc(cat_title_key);
         }
     }
-    draw_centered(canvas, title_y, title, TITLE);
-    canvas.fill_rect(w / 4, rule_y, w / 2, 1, RULE_LINE);
+    const int tscale = p.m.base + 1;
+    const int tw = text_width_scaled(title, tscale, tscale);
+    draw_text_scaled(canvas, (w - tw) / 2, p.title_y, title, TITLE, tscale, tscale,
+                     /*shadow=*/true);
+    canvas.fill_rect(w / 4, p.title_y + text_height_scaled(tscale) + p.m.gap, w / 2,
+                     std::max(1, p.m.base / 2), RULE_LINE);
 
-    int y = first_item_y;
-    for (size_t i = 0; i < n; ++i) {
-        const bool sel = (i == model.selection());
-        const render::Color color = sel ? ITEM_SELECTED : ITEM;
-        const Row r = row_at(i);
-
-        // The caret is what makes the selection readable at 640x360 -- colour
-        // alone is a shade step, and a shade step is the weakest signal we have.
-        const int label_w = render::text_width_px(r.label);
-        const int x = (w - label_w) / 2;
-        if (sel) {
-            render::draw_text(canvas, x - render::FONT_CELL_W * 2, y, ">", ITEM_SELECTED,
-                              true);
-        }
-        render::draw_text(canvas, x, y, r.label, color, /*shadow=*/true);
-        y += render::FONT_CELL_H + 2;
-        if (!r.blurb.empty()) {
-            draw_centered(canvas, y, r.blurb, BLURB);
-            y += render::FONT_CELL_H;
-        }
-        y += row - render::FONT_CELL_H - 2;
-    }
+    draw_item_list(canvas, model, p);
 
     // BROWSER STATUS: a non-fatal message the app handed in, e.g. a map whose
-    // source is a .dfw the baker has not produced yet. Drawn above the hint, in
-    // the selected-item colour so it reads as a live notice rather than chrome.
-    // Honest-failure surface (docs/MAP_LAYOUT.md): a source that cannot open
-    // says so on screen instead of doing nothing.
+    // source is a .dfw the baker has not produced yet. Honest-failure surface
+    // (docs/MAP_LAYOUT.md): a source that cannot open says so on screen instead
+    // of doing nothing.
     if (!model.browser_status().empty()) {
-        draw_centered(canvas, h - render::FONT_CELL_H * 4,
-                      fits(w, model.browser_status(), model.browser_status()),
-                      ITEM_SELECTED);
+        const int s = std::max(1, p.m.base);
+        const int sw = text_width_scaled(model.browser_status(), s, s);
+        draw_text_scaled(canvas, (w - sw) / 2, h - std::max(4, h / 12), model.browser_status(),
+                         ITEM_SELECTED, s, s, /*shadow=*/true);
     }
+    draw_keys_hint(canvas, /*plate=*/false);
+}
 
-    // The control hint. On the pause page it stands on the world like the rest,
-    // so it gets the same treatment as the block above -- a plate its own size.
-    const std::string_view hint = fits(w, loc("menu.hint"), loc("menu.hint.short"));
-    const int hint_y = h - render::FONT_CELL_H * 2 - 4;
-    if (pause) {
-        const int hw = render::text_width_px(hint);
-        draw_text_plate(canvas, (w - hw) / 2, hint_y, hw, render::FONT_INK_H);
+// --- CREDITS ----------------------------------------------------------------
+// THE OAK LINE IS A LICENCE CONDITION, NOT A COURTESY. The emblem's silhouette
+// is "Quercus robur Silhouette" by oddsock, CC BY 2.0 (assets/branding/
+// README.txt), and CC BY requires the attribution to be shown wherever the work
+// is used. It is drawn from its own localization key so no translation can drop
+// it by shortening a paragraph.
+void draw_credits(render::PixelCanvas& canvas, const MenuModel& model) {
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+    canvas.clear(SCREEN_BLACK);
+    draw_dust(canvas, model.time(), dust_count(w, h));
+
+    const int base = std::max(1, h / 300);
+    const int gap = std::max(3, base * 6);
+    const int icon = std::max(10, h / 10);
+    draw_image_fit(canvas, cached_png(BRAND_SPIRAL_ICON_PNG), (w - icon) / 2, h / 10,
+                   icon, icon, 0.9f);
+
+    struct Line {
+        const char* key;
+        int scale;
+        render::Color color;
+    };
+    const Line lines[] = {
+        {"menu.credits.studio", base + 1, TITLE},
+        {"menu.credits.game", base, ITEM_DIM},
+        {"menu.credits.engine", base, BLURB},
+        {"menu.credits.art", base, BLURB},
+        // The mandatory one. Kept in the item colour rather than the blurb
+        // colour: an attribution nobody can read is an attribution nobody made.
+        {"menu.credits.oak", base, ITEM_DIM},
+    };
+    int y = h / 10 + icon + gap * 2;
+    for (const Line& l : lines) {
+        const std::string_view text = loc(l.key);
+        const int tw = text_width_scaled(text, l.scale, l.scale);
+        draw_text_scaled(canvas, (w - tw) / 2, y, text, l.color, l.scale, l.scale,
+                         /*shadow=*/true);
+        y += text_height_scaled(l.scale) + gap;
     }
-    draw_centered(canvas, hint_y, hint, BLURB);
+    draw_keys_hint(canvas, /*plate=*/false);
+}
+
+// --- THE "NOT YET" PAGE -----------------------------------------------------
+// Where a row whose system does not exist lands. It says WHICH thing is missing
+// and takes one key to leave. See MenuModel::open_stub for why the row is drawn
+// at all rather than hidden.
+void draw_stub(render::PixelCanvas& canvas, const MenuModel& model) {
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+    canvas.clear(SCREEN_BLACK);
+    draw_dust(canvas, model.time(), dust_count(w, h));
+
+    const int base = std::max(1, h / 260);
+    const std::string_view title = loc("menu.stub.title");
+    const int tw = text_width_scaled(title, base + 1, base + 1);
+    draw_text_scaled(canvas, (w - tw) / 2, h / 3, title, TITLE, base + 1, base + 1,
+                     /*shadow=*/true);
+
+    const std::string_view msg = localized(model.stub_message());
+    const int mw = text_width_scaled(msg, base, base);
+    draw_text_scaled(canvas, (w - mw) / 2, h / 2, msg, ITEM_DIM, base, base,
+                     /*shadow=*/true);
+    draw_keys_hint(canvas, /*plate=*/false);
+}
+
+} // namespace
+
+void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
+    canvas.resize(canvas.width(), canvas.height());
+    switch (model.page()) {
+    case MenuPage::Splash:
+        draw_studio_splash(canvas, model.time(), model.splash_seconds());
+        return;
+    case MenuPage::Root:
+        draw_root(canvas, model);
+        return;
+    case MenuPage::Pause:
+        draw_pause(canvas, model);
+        return;
+    case MenuPage::Categories:
+    case MenuPage::CategoryMaps:
+        draw_browser(canvas, model);
+        return;
+    case MenuPage::Credits:
+        draw_credits(canvas, model);
+        return;
+    case MenuPage::Stub:
+        draw_stub(canvas, model);
+        return;
+    case MenuPage::Calibrate:
+        draw_calibration(canvas, model);
+        return;
+    case MenuPage::Settings:
+        draw_settings(canvas, model);
+        return;
+    case MenuPage::Controls:
+        draw_controls(canvas);
+        return;
+    }
 }
 
 } // namespace dfn::app

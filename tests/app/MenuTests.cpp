@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:44:00
-Last updated: 17:08:2026 - 16:35:20
+Last updated: 27:08:2026 - 02:50:00
 Module: tests/app
 File: tests/app/MenuTests.cpp
 
@@ -49,11 +49,23 @@ UPD:
   строка «Управление» перед «Назад». Ровно тот дрейф индексов, который прошлая
   запись сделала видимым, — и на этот раз он всплыл сразу и у причины.
 - 17:08:2026 - 16:35:20: две руки страницы паузы — с редактором и без; отличаются одним вызовом set_editing.
+- 27:08:2026 - 02:50:00: ПАУЗА БОЛЬШЕ НЕ ИМЕЕТ ДВУХ РУК, и это не «тест подогнан
+  под код», а снятое свойство: владелец 26.08 потребовал, чтобы состав меню не
+  зависел от состояния игрока, и две руки прошлого случая были ровно этой
+  зависимостью. Случай переписан в утверждение противоположного: шесть строк,
+  один порядок, и КОНТРОЛЬ — что «Сохранить карту» и «Выйти без сохранения»
+  доступны на той же странице всегда (раньше их не было вовсе).
+  Корень вырос до семи строк (RootRow), и все они названы, а не отсчитаны.
+  Новые случаи: раскладка строк (menu_row_boxes) — внутри кадра, без наложений,
+  по одной коробке на пункт; и попадание мышью (menu_row_at) — в центр коробки
+  попадает её строка, а мимо списка не попадает ничего.
 */
 
 #include <doctest/doctest.h>
 
 #include "engine/app/sources/Menu.h"
+
+#include <utility>
 
 using dfn::app::BrowseTarget;
 using dfn::app::MenuAction;
@@ -83,11 +95,17 @@ MenuModel launched() {
 // pause case's CONTROL started pressing it, opened the map browser, and
 // reported itself as "settings are not reachable from the root" -- a true red
 // naming the wrong defect in the wrong file.
-constexpr int ROOT_PLAY = 0;
-constexpr int ROOT_EDITOR = 1;
-constexpr int ROOT_SETTINGS = 2;
-constexpr int ROOT_QUIT = 3;
-constexpr size_t ROOT_ROW_COUNT = 4;
+// НАЗВАНЫ В ЗАГОЛОВКЕ (RootRow), а не здесь: раньше эти константы жили в тесте,
+// и рост корня на строку означал молча уехавший индекс. Теперь имя одно на код и
+// на прибор, и «строка переехала» — это ошибка компиляции, а не тихий зелёный.
+constexpr int ROOT_CONTINUE = static_cast<int>(dfn::app::RootRow::Continue);
+constexpr int ROOT_NEW_GAME = static_cast<int>(dfn::app::RootRow::NewGame);
+constexpr int ROOT_LOAD = static_cast<int>(dfn::app::RootRow::Load);
+constexpr int ROOT_SETTINGS = static_cast<int>(dfn::app::RootRow::Settings);
+constexpr int ROOT_EDITOR = static_cast<int>(dfn::app::RootRow::Editor);
+constexpr int ROOT_CREDITS = static_cast<int>(dfn::app::RootRow::Credits);
+constexpr int ROOT_QUIT = static_cast<int>(dfn::app::RootRow::Quit);
+constexpr size_t ROOT_ROW_COUNT = static_cast<size_t>(dfn::app::RootRow::Count);
 
 // Rows, in the order the page draws them.
 constexpr int ROW_RESOLUTION = 0;
@@ -135,9 +153,21 @@ TEST_CASE("the root screen's rows are what the walk-in cases count on") {
     m.open(MenuPage::Root);
     CHECK(m.item_count() == ROOT_ROW_COUNT);
 
-    // Play and Editor open the SAME browser (docs/MAP_LAYOUT.md: neither jumps
-    // straight into a map); only the target the app reads back differs.
-    select_root(m, ROOT_PLAY);
+    // A ROW WHOSE SYSTEM DOES NOT EXIST IS STILL A ROW (owner, 26.08). Both of
+    // them land on the stub page rather than on nothing: a row that swallows
+    // Enter is indistinguishable from a broken menu.
+    select_root(m, ROOT_CONTINUE);
+    CHECK(m.activate() == MenuAction::None);
+    CHECK(m.page() == MenuPage::Stub);
+    CHECK(m.stub_message() != 0); // it says WHICH thing is missing
+
+    select_root(m, ROOT_LOAD);
+    CHECK(m.activate() == MenuAction::None);
+    CHECK(m.page() == MenuPage::Stub);
+
+    // New game and Editor open the SAME browser (docs/MAP_LAYOUT.md: neither
+    // jumps straight into a map); only the target the app reads back differs.
+    select_root(m, ROOT_NEW_GAME);
     CHECK(m.activate() == MenuAction::None);
     CHECK(m.page() == MenuPage::Categories);
     CHECK(m.browse_target() == BrowseTarget::Play);
@@ -151,9 +181,13 @@ TEST_CASE("the root screen's rows are what the walk-in cases count on") {
     CHECK(m.activate() == MenuAction::None);
     CHECK(m.page() == MenuPage::Settings);
 
+    select_root(m, ROOT_CREDITS);
+    CHECK(m.activate() == MenuAction::None);
+    CHECK(m.page() == MenuPage::Credits);
+
     // THE CONTROL: the last row opens no page at all. Every check above lands
     // ON a page, so all of them together still pass a root whose FINAL row --
-    // the one the player reads as "Выход" -- has quietly become something else.
+    // the one the player reads as "ВЫХОД" -- has quietly become something else.
     //
     // RUN, NOT ASSUMED. Three counterfactual roots were compiled against this
     // case: (A) the row count bumped alone, (B) editor and settings swapped,
@@ -164,6 +198,31 @@ TEST_CASE("the root screen's rows are what the walk-in cases count on") {
     // FALLTHROUGH, so a bare count bump walks straight past it.
     select_root(m, ROOT_QUIT);
     CHECK(m.activate() == MenuAction::Quit);
+}
+
+TEST_CASE("every page with nothing to select leaves by BOTH keys") {
+    // The splash, the credits and the stub have no rows, so Enter and Escape
+    // must mean the same thing there. A page that answers only one of two
+    // equally reasonable keys is a page a player gets stuck on.
+    for (const MenuPage page : {MenuPage::Splash, MenuPage::Credits, MenuPage::Stub}) {
+        CAPTURE(static_cast<int>(page));
+        MenuModel m;
+        m.open(page);
+        CHECK(m.item_count() == 0);
+        CHECK(m.activate() == MenuAction::None);
+        CHECK(m.page() == MenuPage::Root);
+
+        MenuModel e;
+        e.open(page);
+        CHECK(e.back() == MenuAction::None);
+        CHECK(e.page() == MenuPage::Root);
+    }
+    // THE CONTROL: a page that DOES have rows must not go home on Enter --
+    // otherwise the check above would pass a menu where every key exits.
+    MenuModel r;
+    r.set_settings(MenuSettings{});
+    r.open(MenuPage::Root);
+    CHECK(r.item_count() > 0);
 }
 
 TEST_CASE("settings rows land only on legal values, and wrap") {
@@ -300,8 +359,8 @@ TEST_CASE("settings are reachable from pause, and come back to pause") {
     MenuModel m;
     m.set_settings(MenuSettings{});
     m.open(MenuPage::Pause);
-    CHECK(m.item_count() == 4); // resume, settings, main menu, quit
-    m.move(1);
+    CHECK(m.item_count() == static_cast<size_t>(dfn::app::PauseRow::Count));
+    m.set_selection(static_cast<size_t>(dfn::app::PauseRow::Settings));
     CHECK(m.activate() == MenuAction::None);
     CHECK(m.page() == MenuPage::Settings);
     CHECK(m.back() == MenuAction::SettingsDone);
@@ -310,10 +369,10 @@ TEST_CASE("settings are reachable from pause, and come back to pause") {
     // And the pause page's other rows still do what they did.
     m.open(MenuPage::Pause);
     CHECK(m.activate() == MenuAction::Resume);
-    m.move(2);
+    m.set_selection(static_cast<size_t>(dfn::app::PauseRow::ToRoot));
     CHECK(m.activate() == MenuAction::ToRoot); // leaving does NOT close the game
     m.open(MenuPage::Pause);
-    m.move(3);
+    m.set_selection(static_cast<size_t>(dfn::app::PauseRow::Quit));
     CHECK(m.activate() == MenuAction::Quit);
 
     // THE CONTROL: entered from the root, it still returns to the root. The
@@ -329,43 +388,105 @@ TEST_CASE("settings are reachable from pause, and come back to pause") {
     CHECK(r.page() == MenuPage::Root);
 }
 
-TEST_CASE("pausing the editor offers save and discard; pausing the walk does not") {
-    // THE USER'S ORDER, 17.08: «в редактуре при esc сохранять карту, уходить без
-    // сохранения и выходить в главное меню а не закрывать всю игру». The two
-    // arms below differ by ONE call — set_editing — so a row that appeared in
-    // both modes, or in neither, fails here rather than on somebody's screen.
-    MenuModel editing;
-    editing.set_settings(MenuSettings{});
-    editing.set_editing(true);
-    editing.open(MenuPage::Pause);
-    REQUIRE(editing.item_count() == 6);
-    CHECK(editing.activate() == MenuAction::Resume);
-    editing.open(MenuPage::Pause);
-    editing.move(1);
-    CHECK(editing.activate() == MenuAction::SaveMap);
+TEST_CASE("the pause page is the same page whatever the player was doing") {
+    // THE OWNER'S ORDER, 26.08: «меню должно все свои кнопки одинаково всегда
+    // отображать в соответствующих режимах игры, вне зависимости от состояния
+    // игрока (редактирует или нет)».
+    //
+    // WHAT THIS REPLACED, and why the replacement is not "the test was adjusted
+    // to the code". The previous case built TWO models differing by one call --
+    // set_editing -- and asserted that they had DIFFERENT rows: six with the
+    // editor, four without, and "press Down twice" landing on Settings in one
+    // and somewhere else in the other. That difference was the defect. The
+    // property now held is that no such call exists to make: the model has one
+    // pause page, six rows, in one order.
+    MenuModel m;
+    m.set_settings(MenuSettings{});
+    m.open(MenuPage::Pause);
+    REQUIRE(m.item_count() == 6);
+
+    const MenuAction expected[] = {
+        MenuAction::Resume, MenuAction::SaveMap,        MenuAction::None,
+        MenuAction::ToRoot, MenuAction::DiscardToRoot,  MenuAction::Quit,
+    };
+    for (size_t row = 0; row < 6; ++row) {
+        CAPTURE(row);
+        m.open(MenuPage::Pause);
+        m.set_selection(row);
+        CHECK(m.selection() == row); // set_selection must actually point
+        CHECK(m.activate() == expected[row]);
+    }
+
     // SAVING STAYS ON THE PAGE. A save that navigated away would make a second
     // save impossible and hide its own answer.
-    CHECK(editing.page() == MenuPage::Pause);
-    editing.move(3); // rows 2..4: settings, main menu, discard
-    CHECK(editing.activate() == MenuAction::DiscardToRoot);
-    editing.open(MenuPage::Pause);
-    editing.move(3);
-    CHECK(editing.activate() == MenuAction::ToRoot);
-    editing.open(MenuPage::Pause);
-    editing.move(5);
-    CHECK(editing.activate() == MenuAction::Quit);
+    m.open(MenuPage::Pause);
+    m.set_selection(static_cast<size_t>(dfn::app::PauseRow::SaveMap));
+    CHECK(m.activate() == MenuAction::SaveMap);
+    CHECK(m.page() == MenuPage::Pause);
 
-    // THE CONTROL ARM: the same page while walking has neither row, and its
-    // irreversible row is still last.
-    MenuModel walking;
-    walking.set_settings(MenuSettings{});
-    walking.open(MenuPage::Pause);
-    REQUIRE(walking.item_count() == 4);
-    for (int row = 0; row < 4; ++row) {
-        walking.open(MenuPage::Pause);
-        walking.move(row);
-        const MenuAction a = walking.activate();
-        CHECK(a != MenuAction::SaveMap);
-        CHECK(a != MenuAction::DiscardToRoot);
+    // THE CONTROL: pointing at a row that does not exist changes nothing. Half
+    // the case above drives the page through set_selection, so a setter that
+    // clamped or wrapped would make every row above reachable by accident.
+    m.open(MenuPage::Pause);
+    m.set_selection(99);
+    CHECK(m.selection() == 0);
+}
+
+TEST_CASE("the rows are laid out inside the frame, one box each, without overlap") {
+    // THE LAYOUT IS THE MOUSE'S ONLY MAP. Nothing in a screenshot can show that
+    // a row's click box is off the bottom of the frame or on top of its
+    // neighbour -- the picture looks right either way, and only the pointer
+    // finds out.
+    MenuModel m;
+    m.set_settings(MenuSettings{});
+    // Both shipping extremes AND the chunky preset: the block is sized from the
+    // frame's height, so the case that fails is the SMALL one, where seven rows
+    // at four times the font would run off the screen.
+    for (const auto [w, h] : {std::pair{1920, 1080}, std::pair{640, 360}, std::pair{320, 180}}) {
+        CAPTURE(w);
+        CAPTURE(h);
+        for (const MenuPage page : {MenuPage::Root, MenuPage::Pause}) {
+            m.open(page);
+            const auto boxes = dfn::app::menu_row_boxes(w, h, m);
+            REQUIRE(boxes.size() == m.item_count());
+            for (size_t i = 0; i < boxes.size(); ++i) {
+                CAPTURE(i);
+                CHECK(boxes[i].x >= 0);
+                CHECK(boxes[i].y >= 0);
+                CHECK(boxes[i].w > 0);
+                CHECK(boxes[i].h > 0);
+                CHECK(boxes[i].x + boxes[i].w <= w);
+                CHECK(boxes[i].y + boxes[i].h <= h);
+                if (i > 0) {
+                    // Strictly below its predecessor, and not touching it.
+                    CHECK(boxes[i].y >= boxes[i - 1].y + boxes[i - 1].h);
+                }
+            }
+        }
     }
+}
+
+TEST_CASE("the pointer selects the row it is on, and nothing when it is not on one") {
+    MenuModel m;
+    m.set_settings(MenuSettings{});
+    m.open(MenuPage::Root);
+    const int w = 1920;
+    const int h = 1080;
+    const auto boxes = dfn::app::menu_row_boxes(w, h, m);
+    REQUIRE(boxes.size() == m.item_count());
+    for (size_t i = 0; i < boxes.size(); ++i) {
+        CAPTURE(i);
+        const int cx = boxes[i].x + boxes[i].w / 2;
+        const int cy = boxes[i].y + boxes[i].h / 2;
+        CHECK(dfn::app::menu_row_at(w, h, m, cx, cy) == i);
+    }
+
+    // THE CONTROL, and it is the half that matters: hovering the emblem, the
+    // corner or the space above the column must select NOTHING. A hit test that
+    // answered "the nearest row" would pass every check above and would drag
+    // the selection around the screen with the pointer.
+    CHECK(dfn::app::menu_row_at(w, h, m, 0, 0) == m.item_count());
+    CHECK(dfn::app::menu_row_at(w, h, m, w / 4, h / 2) == m.item_count());
+    CHECK(dfn::app::menu_row_at(w, h, m, -5, -5) == m.item_count());
+    CHECK(dfn::app::menu_row_at(w, h, m, w - 1, 0) == m.item_count());
 }

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300" viewBox="0 0 300 300">
+  <rect width="300" height="300" fill="#0c0e12"/>
+  <path d="M 76,196 L 76,48 L 224,48 L 224,196 L 120,196 L 120,92 L 180,92 L 180,152 L 150,152"
+        fill="none" stroke="#4a90d9" stroke-width="17" stroke-linecap="square"/>
+  <path d="M 76,196 L 76,48 L 224,48" fill="none" stroke="#f0f2f4" stroke-width="17" stroke-linecap="square"/>
+  <text x="150" y="248" text-anchor="middle" font-family="Futura, 'Avenir Next', Helvetica, sans-serif"
+        font-weight="700" font-size="30" letter-spacing="10" fill="#f0f2f4">SPIRAL</text>
+  <text x="152" y="272" text-anchor="middle" font-family="Futura, 'Avenir Next', Helvetica, sans-serif"
+        font-size="12.5" letter-spacing="6.5" fill="#4a90d9">GAME STUDIOS</text>
+</svg>

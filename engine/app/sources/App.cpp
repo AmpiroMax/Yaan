@@ -1109,10 +1109,25 @@ bool App::init(const AppConfig& config) {
             // above. It is also the page most likely to be quietly WRONG, so
             // being able to photograph it is worth more here than elsewhere.
             menu_.open(MenuPage::Controls);
+        } else if (page == "credits") {
+            // ТИТРЫ, и они снимаются не ради красоты: там стоит строка
+            // атрибуции силуэта дуба, без которой герб использовать нельзя
+            // (CC BY 2.0, assets/branding/README.txt). Требование лицензии,
+            // которое нельзя предъявить кадром, — это требование, о котором
+            // через месяц никто не вспомнит.
+            menu_.open(MenuPage::Credits);
+        } else if (page == "stub") {
+            // Страница «этого ещё нет», на которую ведут пункты без систем.
+            menu_.open_stub("menu.stub.no_saves");
+        } else if (page == "splash") {
+            // Кадр студии. Он показывается ДО меню и по таймеру, то есть в
+            // обычном прогоне его нельзя ни поймать, ни снять.
+            menu_.open(MenuPage::Splash);
         } else {
             std::fprintf(stderr,
                          "[menu] DFN_MENU_PAGE=\"%s\" is not "
-                         "root|categories|category_maps|pause|calibrate|settings|controls -- "
+                         "root|categories|category_maps|pause|calibrate|settings|controls|"
+                         "credits|stub|splash -- "
                          "REFUSING to run, because a root frame filed under "
                          "\"%s\" is worse than no frame\n",
                          mp, mp);
@@ -1426,6 +1441,22 @@ bool App::init(const AppConfig& config) {
         } else {
             mode_ = AppMode::Playing;
         }
+        // A PAUSE PAGE OVER NOTHING IS NOT EVIDENCE OF THE PAUSE PAGE. Until
+        // today DFN_MENU_PAGE=pause could only be photographed with no world
+        // loaded, so the frame showed the rows over a flat ground -- and the
+        // whole design of that page (a HALF veil, so the player still sees
+        // where he left off, with a plate under the text because the veil is
+        // not what the words stand on) is a claim about what happens over a
+        // LIVE frame. DFN_OPEN_MAP=<map> DFN_MENU_PAGE=pause now loads the
+        // world and then pauses it, which is the state a player is actually in.
+        if (const char* mp = door_value("DFN_MENU_PAGE");
+            mp != nullptr && std::string(mp) == "pause") {
+            paused_from_ = mode_;
+            mode_ = AppMode::Menu;
+            input_->set_cursor_captured(false);
+            menu_.open(MenuPage::Pause);
+            return true;
+        }
         input_->set_cursor_captured(!unattended_run());
         return true;
     }
@@ -1462,6 +1493,38 @@ bool App::init(const AppConfig& config) {
     if (config_.show_menu || wants_menu_screen) {
         mode_ = AppMode::Menu;
         input_->set_cursor_captured(false);
+        // THE STUDIO'S FRAME AT LAUNCH (owner, 26.08: «рисуй его отдельным
+        // сплэш-кадром при запуске приложения»). Two guards, and both matter:
+        //
+        // NOT ON AN UNATTENDED RUN, EVER. Every tour, playtest, capture and
+        // menu-shot recipe in this tree starts by measuring frames, and a
+        // splash prepended to all of them would shift every counted frame in
+        // the project by two seconds. Nobody would file that as this change's
+        // fault -- it would look like the world got slower.
+        //
+        // NOT WHEN A DOOR ALREADY NAMED A PAGE: DFN_MENU_PAGE says which screen
+        // to photograph, and covering it with a title card is the one thing
+        // that door exists to prevent.
+        constexpr float SPLASH_DEFAULT_S = 2.2f;
+        const bool named_page = door_value("DFN_MENU_PAGE") != nullptr;
+        float splash = (unattended_run() || named_page) ? 0.0f : SPLASH_DEFAULT_S;
+        if (const char* v = door_value("DFN_SPLASH"); v != nullptr && *v != '\0') {
+            splash = static_cast<float>(std::atof(v));
+        }
+        if (menu_.page() == MenuPage::Splash) {
+            // DFN_MENU_PAGE=splash asked for THIS page on purpose. Give it a
+            // duration whatever the guards above decided, and start the clock
+            // HALF WAY IN: the frame fades, so t=0 is a black rectangle, and a
+            // door that photographs the page it was asked for must photograph
+            // it at the opacity a player sees, not at the one frame where it
+            // is not there yet.
+            splash = splash > 0.0f ? splash : SPLASH_DEFAULT_S;
+            menu_.tick(splash * 0.5f);
+        }
+        menu_.set_splash_seconds(splash);
+        if (splash > 0.0f && menu_.page() == MenuPage::Root) {
+            menu_.open(MenuPage::Splash);
+        }
     } else {
         if (!enter_world(config_.start_stand)) {
             return false;
@@ -3070,6 +3133,63 @@ int App::run() {
         // simulates here -- the menu is drawn over whatever the last frame was
         // (a dimmed world when paused, a plain ground before any world).
         if (mode_ == AppMode::Menu) {
+            // THE MENU'S OWN CLOCK. The dust field and the splash fade are
+            // functions of it and hold no state of their own, so the same
+            // second draws the same frame (Rule 13). Clamped, because a menu
+            // left open while the machine swapped must not teleport the motes.
+            const auto menu_now = std::chrono::steady_clock::now();
+            menu_.tick(std::min(0.1f, std::chrono::duration<float>(menu_now - last).count()));
+
+            // THE POINTER, IN CANVAS PIXELS (owner, 26.08: «выбор должен быть
+            // доступен как мышкой, так и стрелочками»). The menu is drawn into
+            // the HUD canvas at the INTERNAL resolution and stretched over the
+            // window, while the mouse arrives in the OS's LOGICAL units -- on a
+            // Retina display the framebuffer is twice the content size, so a
+            // hit test written against either number alone misses by a factor
+            // of two. content_size() exists for exactly this pair.
+            const glm::vec2 cursor = input_->mouse_position();
+            const glm::uvec2 content = window_->content_size();
+            const int hud_w = static_cast<int>(render_system_.hud().width());
+            const int hud_h = static_cast<int>(render_system_.hud().height());
+            int mx = -1;
+            int my = -1;
+            if (content.x > 0 && content.y > 0) {
+                mx = static_cast<int>(cursor.x / static_cast<float>(content.x)
+                                      * static_cast<float>(hud_w));
+                my = static_cast<int>(cursor.y / static_cast<float>(content.y)
+                                      * static_cast<float>(hud_h));
+            }
+            const size_t hovered = menu_row_at(hud_w, hud_h, menu_, mx, my);
+            // HOVER MOVES THE SELECTION ONLY WHEN THE POINTER MOVED. A hand
+            // resting on the mouse while the other drives the arrows would
+            // otherwise drag the selection back under the cursor every frame,
+            // and the keyboard would look broken.
+            const bool pointer_moved = std::abs(cursor.x - menu_cursor_.x) > 0.5f
+                                       || std::abs(cursor.y - menu_cursor_.y) > 0.5f;
+            if (pointer_moved) {
+                menu_cursor_ = cursor;
+                menu_.set_selection(hovered);
+            }
+
+            // THE STUDIO'S FRAME. It answers to every key and to the mouse,
+            // because a title card the player cannot dismiss is the first thing
+            // he will hate about the game; and it leaves on its own when its
+            // time is up.
+            const bool on_splash = menu_.page() == MenuPage::Splash;
+            if (on_splash) {
+                const bool skip = input_->was_pressed(platform::Key::ENTER)
+                                  || input_->was_pressed(platform::Key::ESCAPE)
+                                  || input_->was_pressed(platform::Key::SPACE)
+                                  || input_->was_pressed(platform::MouseButton::LEFT);
+                if (skip || menu_.time() >= menu_.splash_seconds()) {
+                    menu_.open(MenuPage::Root);
+                }
+            }
+            // THE KEY THAT DISMISSED THE SPLASH DOES NOT ALSO PRESS A ROW. The
+            // page changed to the root above, and the same Enter edge is still
+            // in this frame's snapshot -- without this guard, launching the
+            // game and tapping Enter twice would run the first menu item.
+            if (!on_splash) {
             if (input_->was_pressed(platform::Key::UP)) {
                 menu_.move(-1);
             }
@@ -3089,6 +3209,18 @@ int App::run() {
                 action = menu_.activate();
             } else if (input_->was_pressed(platform::Key::ESCAPE)) {
                 action = menu_.back();
+            } else if (input_->was_pressed(platform::MouseButton::LEFT)) {
+                // A CLICK IS ENTER ON THE ROW UNDER THE POINTER, and it points
+                // first: clicking a row the keyboard had not selected must act
+                // on the row that was CLICKED. On a page with no rows (credits,
+                // the stub, the splash) the click is still Enter, which is what
+                // "click anywhere to go back" means there.
+                if (hovered < menu_.item_count()) {
+                    menu_.set_selection(hovered);
+                    action = menu_.activate();
+                } else if (menu_.item_count() == 0 && mx >= 0) {
+                    action = menu_.activate();
+                }
             }
             switch (action) {
             case MenuAction::OpenMap: {
@@ -3177,6 +3309,7 @@ int App::run() {
             case MenuAction::None:
                 break;
             }
+            } // !on_splash
             if (window_->should_close()) {
                 break;
             }

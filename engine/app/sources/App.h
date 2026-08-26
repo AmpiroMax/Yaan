@@ -342,6 +342,13 @@ private:
     std::optional<MapManifest> current_map_;
     uint32_t active_stand_ = 0;
     int menu_shot_frames_ = 0; // DFN_MENU_SHOT flush counter
+    // WHERE THE POINTER WAS ON THE PREVIOUS MENU FRAME. The menu takes both the
+    // arrows and the mouse (owner, 26.08), and hover may only move the
+    // selection when the pointer ACTUALLY MOVED -- otherwise a hand resting on
+    // the mouse pulls the selection back under the cursor every frame and the
+    // arrow keys read as broken. Starts off-screen so the first real position
+    // counts as a move.
+    glm::vec2 menu_cursor_{-1.0f, -1.0f};
     void body_probe_drive();  // fixed tick: pose the camera for the probe
     void body_probe_frame(float alpha, float frame_dt); // after render: shoot
 
