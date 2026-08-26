@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 24:08:2026 - 01:20:00
+Last updated: 27:08:2026 - 14:30:00
 Module: tests/app
 File: tests/app/DoorsTests.cpp
 
@@ -38,6 +38,10 @@ UPD:
 - 22:08:2026 - 17:45:00: AppHouse.cpp в списке сканируемых (читает DFN_HOUSE_AO через door_value).
 - 24:08:2026 - 01:20:00: AppInterior.cpp в списке файлов; безлюдных дверей 17
   (DFN_INTERIOR, DFN_INTERIOR_EXIT — И15 волна А).
+- 27:08:2026 - 14:30:00: безлюдных дверей 19 (DFN_INTERIOR_TURN, DFN_DOOR_OPEN —
+  починка «из дома не выйти» и декоративные створки). Число ПЕРЕСЧИТАНО по
+  таблице, а не прибавлено на глаз: рукав поймал бы ошибку, но красный тест на
+  чужом столе стоит дороже, чем сложение на своём.
 */
 
 #include <doctest/doctest.h>
@@ -249,7 +253,11 @@ TEST_CASE("whether a run is unattended is the table's column, door by door") {
     // 17 с 24.08 (И15): DFN_INTERIOR (открыть карту сразу внутри локации) и
     // DFN_INTERIOR_EXIT (выйти через N кадров) — обе существуют ровно затем,
     // чтобы вход и выход мог снять автомат: руками они не выставляются.
-    CHECK(unattended_doors == 17);
+    // 19 с 27.08: DFN_INTERIOR_TURN (доворот после входа — без него прогон
+    // смотрит в комнату, а дверь остаётся за спиной) и DFN_DOOR_OPEN (открыть
+    // декоративные створки). Обе — руки автомата: поворот головы и нажатие E
+    // перед дверью иначе умеет только человек.
+    CHECK(unattended_doors == 19);
 
     // PRESENCE, NOT TRUTH. `DFN_TOUR=0` still means a tour is being run by a
     // script -- every door here is opened by being set at all, and a door that

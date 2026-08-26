@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 27:08:2026 - 01:20:00
+Last updated: 27:08:2026 - 14:30:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -74,6 +74,20 @@ UPD:
   кодом, что и город. Плюс ИНВЕРСИЯ КОЛЛАЙДЕРА ДВЕРИ (ключ элемента portal=1):
   створка запечатанного дома входит в коллайдер, иначе игрок прошёл бы сквозь
   оболочку мимо всей механики. Дверь без флага — как была, до треугольника.
+- 27:08:2026 - 13:10:00: ТРИ ЭТАПА ЭКРАНА ЗАГРУЗКИ ОТМЕЧАЮТСЯ ЗДЕСЬ, а не в
+  enter_world: 75% времени загрузки Вайтрана живёт в этой функции (1736 из
+  2319 мс), и разметить их снаружи было нечем — снаружи видно только, что
+  load_scene_houses вернулась. Полоса внутри сборки идёт по числу построек.
+  Отметки молчат вне загрузки (редакторская правка дома, вход в дом): это
+  проверяет load_step, а не вызывающий.
+- 27:08:2026 - 14:30:00: СТВОРКА — ВЕЩЬ С ТИПОМ И С НАРУЖНОЙ НОРМАЛЬЮ (владелец
+  27.08). Каждое полотно КАРТЫ идёт в house_doorways_ (было: только
+  запечатанное), с типом Portal/Locked/Decorative и с единичной нормалью
+  наружу, посчитанной по тем же треугольникам: каждый разворачивается в
+  сторону «от середины дома», сумма по площади даёт нормаль стены. Ею
+  определяется точка выхода из локации — по слову владельца, свойство ДВЕРИ,
+  а не случайность позы. Габарит постройки поднят из блока пятен травы: он
+  теперь нужен двоим, а второй проход по вершинам стоил бы 868 обходов.
 */
 
 #include "engine/app/sources/App.h"
@@ -649,18 +663,24 @@ void App::upload_house_mesh(bool interior_only) {
         const std::vector<std::uint8_t>& sky_vis = ao_of(built);
         const auto t_split = tick();
         const glm::vec3 zero = to_world(glm::vec3{0.0f});
+        // ГАБАРИТ ПОСТРОЙКИ В МИРОВЫХ — считается ОДИН раз и служит двум
+        // потребителям: пятну под траву (ниже) и наружной нормали дверного
+        // полотна (ей нужна середина дома, чтобы отличить «на улицу» от
+        // «в комнату»). Второй проход по вершинам ради того же числа стоил бы
+        // 868 лишних обходов на загрузку города.
+        glm::vec2 lo{1e9f};
+        glm::vec2 hi{-1e9f};
+        for (const world::HouseVertex& hv : built.vertices) {
+            const glm::vec3 wp = to_world(hv.pos);
+            lo = glm::min(lo, {wp.x, wp.z});
+            hi = glm::max(hi, {wp.x, wp.z});
+        }
+        const glm::vec2 house_center_xz = (lo + hi) * 0.5f;
         {
-            glm::vec2 lo{1e9f};
-            glm::vec2 hi{-1e9f};
-            for (const world::HouseVertex& hv : built.vertices) {
-                const glm::vec3 wp = to_world(hv.pos);
-                lo = glm::min(lo, {wp.x, wp.z});
-                hi = glm::max(hi, {wp.x, wp.z});
-            }
             const glm::vec2 half = (hi - lo) * 0.5f - glm::vec2{0.45f};
             if (collect_exclusions && half.x > 0.5f && half.y > 0.5f) {
-                const glm::vec2 c = (lo + hi) * 0.5f;
-                ground_exclusions.push_back({c.x, c.y, half.x, half.y});
+                ground_exclusions.push_back({house_center_xz.x, house_center_xz.y,
+                                             half.x, half.y});
             }
         }
         // НИЗ ПОСТРОЙКИ — для мха износа: зелёный налёт живёт в первом метре
@@ -858,31 +878,88 @@ void App::upload_house_mesh(bool interior_only) {
                 seal_on && cur_place != nullptr && cur_place->sealed;
             const bool portal_leaf =
                 is_door && (graph.param(e->id, "portal") == "1" || sealed_here);
-            if (is_door && sealed_here && collect_doorways) {
-                // ГДЕ ДВЕРЬ — ЗНАЕТ ТОЛЬКО ГЕОМЕТРИЯ. Середина габарита
-                // полотна в мировых: генератору для той же точки пришлось бы
-                // заново решать посадку рецепта, поворот размещения и вынос
-                // двери — три счёта, которые уже сделаны здесь.
-                glm::vec3 dlo{1e9f};
-                glm::vec3 dhi{-1e9f};
-                for (std::uint32_t i = 0; i < part.index_count; ++i) {
-                    const glm::vec3 wp =
-                        to_world(built.vertices[built.indices[part.index_begin + i]].pos);
-                    dlo = glm::min(dlo, wp);
-                    dhi = glm::max(dhi, wp);
-                }
-                HouseDoorway dw;
-                dw.at = (dlo + dhi) * 0.5f;
-                // РУКА ДОТЯГИВАЕТСЯ ДО СТВОРКИ, А НЕ ДО ЕЁ СЕРЕДИНЫ: прицел
-                // стоит снаружи, полотно 0.05-0.10 м толщиной, и радиус
-                // меряется от центра до плеча человека перед порогом.
-                dw.reach_m = 1.6f;
-                dw.scene_index = cur_index;
-                dw.interior = cur_place->interior;
-                house_doorways_.push_back(std::move(dw));
-            }
             render::MeshData* into = nullptr;
             if (is_door) {
+                // СТВОРКА КАК ВЕЩЬ С ТИПОМ (владелец 27.08). Каждое полотно
+                // КАРТЫ попадает в список дверей движка, а не только
+                // запечатанное: запечатанное — переход («Войти» либо
+                // «Заперто»), остальные — ДЕКОРАТИВНЫЕ, которые просто
+                // открываются. Тип выводится здесь и один раз, потому что
+                // здесь — единственное место, знающее и рецепт створки, и
+                // запись композиции, и мировую геометрию полотна.
+                //
+                // ДОМ РЕДАКТОРА (cur_place == nullptr) в список НЕ идёт: у
+                // строящейся в руках постройки нет ни композиции, ни улицы, и
+                // прицел на её створке отобрал бы у строителя клавишу.
+                // ...И ДОЗА DFN_HOUSE_SEAL=0 ОСТАЁТСЯ ОТРИЦАТЕЛЬНЫМ ПЛЕЧОМ.
+                // Её обещание — «прежний город бит-в-бит, переходов у дверей
+                // нет», и завести при ней 92 декоративных прицела Житнова
+                // значило бы тихо отменить обещание: рука, которой мерят
+                // «стало хуже», перестала бы быть тем городом, с которым
+                // сравнивают.
+                if (collect_doorways && cur_place != nullptr && seal_on) {
+                    // ГДЕ ДВЕРЬ — ЗНАЕТ ТОЛЬКО ГЕОМЕТРИЯ. Середина габарита
+                    // полотна в мировых: генератору для той же точки пришлось
+                    // бы заново решать посадку рецепта, поворот размещения и
+                    // вынос двери — три счёта, которые уже сделаны здесь.
+                    glm::vec3 dlo{1e9f};
+                    glm::vec3 dhi{-1e9f};
+                    // НАРУЖНАЯ НОРМАЛЬ — ИЗ ТЕХ ЖЕ ТРЕУГОЛЬНИКОВ. Полотно —
+                    // тонкая плита: две её большие грани несут ±n, а рёбра
+                    // почти не имеют площади. Каждый треугольник
+                    // разворачивается в сторону «от середины дома», после
+                    // чего сумма по площади даёт наружную нормаль стены —
+                    // независимо от порядка обхода рецепта и от поворота
+                    // размещения. Брать сам вектор «центр дома → дверь»
+                    // нельзя: дверь редко стоит по центру стены, и он смотрел
+                    // бы наискось, отправляя вышедшего в стену соседа.
+                    glm::vec3 n_sum{0.0f};
+                    for (std::uint32_t i = 0; i < part.index_count; ++i) {
+                        const glm::vec3 wp = to_world(
+                            built.vertices[built.indices[part.index_begin + i]].pos);
+                        dlo = glm::min(dlo, wp);
+                        dhi = glm::max(dhi, wp);
+                    }
+                    HouseDoorway dw;
+                    dw.at = (dlo + dhi) * 0.5f;
+                    glm::vec3 outward{dw.at.x - house_center_xz.x, 0.0f,
+                                      dw.at.z - house_center_xz.y};
+                    if (glm::length(outward) < 1e-3f) {
+                        outward = {0.0f, 0.0f, 1.0f}; // дверь в центре — дефект дома
+                    }
+                    outward = glm::normalize(outward);
+                    for (std::uint32_t i = 0; i + 2 < part.index_count; i += 3) {
+                        const glm::vec3 a = to_world(
+                            built.vertices[built.indices[part.index_begin + i]].pos);
+                        const glm::vec3 b = to_world(
+                            built.vertices[built.indices[part.index_begin + i + 1]].pos);
+                        const glm::vec3 c = to_world(
+                            built.vertices[built.indices[part.index_begin + i + 2]].pos);
+                        glm::vec3 n = glm::cross(b - a, c - a); // длина = 2*площадь
+                        if (glm::dot(n, outward) < 0.0f) {
+                            n = -n;
+                        }
+                        n_sum += n;
+                    }
+                    // ПЛОСКО ПО XZ: игрок выходит на улицу, а не в небо, и
+                    // наклон полотна не имеет права поднять точку выхода.
+                    const glm::vec3 flat{n_sum.x, 0.0f, n_sum.z};
+                    dw.out_normal = glm::length(flat) > 1e-4f
+                                        ? glm::normalize(flat)
+                                        : outward;
+                    // РУКА ДОТЯГИВАЕТСЯ ДО СТВОРКИ, А НЕ ДО ЕЁ СЕРЕДИНЫ:
+                    // прицел стоит снаружи, полотно 0.05-0.10 м толщиной, и
+                    // радиус меряется от центра до плеча человека перед
+                    // порогом.
+                    dw.reach_m = 1.6f;
+                    dw.scene_index = cur_index;
+                    dw.door_index = doors->size(); // номер, который створка сейчас получит
+                    dw.kind = !sealed_here ? DoorwayKind::Decorative
+                              : cur_place->interior.empty() ? DoorwayKind::Locked
+                                                            : DoorwayKind::Portal;
+                    dw.interior = cur_place->interior;
+                    house_doorways_.push_back(std::move(dw));
+                }
                 doors->emplace_back();
                 doors->back().surface = surface;
                 doors->back().tone = tone;
@@ -976,6 +1053,14 @@ void App::upload_house_mesh(bool interior_only) {
     if (!interior_only) {
     append_graph(house_.graph(),
                  [&](glm::vec3 local) { return house_.to_world(local); });
+    // ПОЛОСА ВНУТРИ ДЛИННОГО ЭТАПА (27.08). Сборка построек — 75% времени
+    // загрузки Вайтрана (1736 из 2319 мс), и до сегодня всё это время экран
+    // стоял на одной строке: «грузится» и «повисло» выглядели одинаково.
+    // Счёт идёт по ПОСТРОЙКАМ, а не по времени: сколько займёт заливка, до
+    // её конца не знает никто, а число домов известно с первой строки.
+    const float houses_total = static_cast<float>(
+        std::max<std::size_t>(placed_houses_.size(), 1));
+    std::size_t houses_done = 0;
     for (const PlacedHouse& ph : placed_houses_) {
         // Поворот вокруг вертикали по конвенции сцены: местный +X при yaw
         // уходит в (cos, -sin) — та же формула, что у расстановок деталей.
@@ -987,8 +1072,16 @@ void App::upload_house_mesh(bool interior_only) {
         append_graph(ph.graph, [&, c, sn](glm::vec3 l) {
             return ph.pos + glm::vec3{l.x * c + l.z * sn, l.y, -l.x * sn + l.z * c};
         });
+        load_tick(static_cast<float>(++houses_done) / houses_total);
     }
     cur_place = nullptr;
+    // ЭТАП ЗАКРЫВАЕТСЯ ТАМ, ГДЕ РАБОТА КОНЧИЛАСЬ, а не там, откуда её звали:
+    // отсюда видно, что построек больше нет, а из enter_world — только что
+    // load_scene_houses вернулась. Отметка идёт в ТОТ ЖЕ список, что и
+    // остальные (правило одного списка на прибор и на глаз), и молчит на
+    // всякой заливке вне загрузки — редакторской правке дома, входе в дом:
+    // load_step проверяет, идёт ли загрузка вообще.
+    load_step("постройки собраны (меши+AO+разнос)");
     }
 
     // ВТОРОЙ ПРОХОД — ИНТЕРЬЕР-ЛОКАЦИЯ (И15). Тот же построитель, другой
@@ -1036,6 +1129,9 @@ void App::upload_house_mesh(bool interior_only) {
     render_system_.set_interior_mesh(*renderer_, std::move(int_list),
                                      std::move(int_doors));
     upload_interior_body(int_indices);
+    if (!interior_only) {
+        load_step("потоки построек в видеопамяти");
+    }
 
     // СКВОЗЬ ДОМ ХОДИТЬ НЕЛЬЗЯ (кроме дверей — они качаются). Коллайдер из тех
     // же треугольников, что и картинка: два описания одного дома разъезжаются в
@@ -1053,6 +1149,14 @@ void App::upload_house_mesh(bool interior_only) {
             const auto t_col = tick();
             house_body_ = physics_->create_terrain_mesh(desc);
             bclock.collider_s += sec(t_col, tick());
+            // ОДИН ВЫЗОВ НА 1.1 СЕКУНДЫ (Вайтран, 3.8 млн вершин), и разрезать
+            // его нечем: дерево Jolt строится целиком, изнутри него кадр не
+            // показать. Отдельным этапом он назван всё равно — чтобы человек,
+            // жалующийся «висит секунду», мог сказать, НА ЧЁМ, а не «на
+            // загрузке». Отметка стоит ПОСЛЕ работы, как и все прочие
+            // (LoadingScreen.h: открывающая семантика сдвинула бы каждую
+            // строку прибора DFN_LOAD_LOG на одну).
+            load_step("коллайдер построек");
             if (!house_body_.valid()) {
                 std::fprintf(stderr, "[постройка] коллайдер НЕ создан — сквозь дом "
                                      "можно пройти\n");

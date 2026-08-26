@@ -1,6 +1,6 @@
 /*
 Created: 23:08:2026 - 22:40:00
-Last updated: 24:08:2026 - 00:45:00
+Last updated: 27:08:2026 - 14:30:00
 Module: engine/render
 File: engine/render/sources/LoadingScreen.cpp
 
@@ -22,6 +22,9 @@ AI Agents Notice (must follow):
 UPD:
 - 23:08:2026 - 22:40:00: Создан вместе с заголовком (И15 волна А, шаг 3).
 - 24:08:2026 - 00:45:00: stage() называет СДЕЛАННУЮ работу; полоса по set_expected().
+- 27:08:2026 - 14:30:00: полоса встаёт ПОД списком (было: прибита к h/2 + 64).
+  Отметка подходила пяти этапам входа в дом и наехала на девятый этап загрузки
+  города в тот же день, когда их стало девять.
 */
 
 #include "engine/render/sources/LoadingScreen.h"
@@ -159,7 +162,12 @@ void LoadingScreen::draw(PixelCanvas& canvas) const {
     const int bar_w = w / 2;
     const int bar_h = 8;
     const int bar_x = (w - bar_w) / 2;
-    const int bar_y = h / 2 + 64;
+    // ПОЛОСА СТОИТ ПОД СПИСКОМ, А НЕ НА ФИКСИРОВАННОЙ ОТМЕТКЕ. Прибитая к
+    // h/2 + 64, она подходила при пяти этапах входа в дом и НАЕХАЛА на девятый
+    // этап загрузки города в тот же день, когда их стало девять (кадр приёмки
+    // 27.08: «мир готов» перечёркнут заливкой). Место под список — величина
+    // переменная, и вычислять её надо, а не помнить.
+    const int bar_y = std::max(h / 2 + 64, y + 10);
     canvas.fill_rect(bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2, BAR_FRAME);
     canvas.fill_rect(bar_x, bar_y, bar_w, bar_h, BACKGROUND);
     const int filled =

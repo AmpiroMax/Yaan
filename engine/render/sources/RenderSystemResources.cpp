@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 24:08:2026 - 01:30:00
+Last updated: 27:08:2026 - 14:30:00
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -89,6 +89,11 @@ UPD:
   DESIGN_RES_W). Заказ владельца 27.08: «везде качество поднимаем до базового
   fullhd» и «шрифт интерфейса слишком угловатый» — это одно решение, а не два.
   Довод и числа — у самой строки и в docs/NUMBERS.md.
+- 27:08:2026 - 14:30:00: fill_house_slot СОХРАНЯЕТ НОМЕР СТВОРКИ (пустая занимает
+  место с mesh_id 0) и переносит open_angle; set_house_door_open(index, radians)
+  — угол открытой двери называет зона app. Сжатие списка на пустой створке
+  сдвинуло бы каждый следующий номер, а по номеру app открывает КОНКРЕТНОЕ
+  полотно: игрок жал бы одну дверь, а открывалась бы соседняя.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -447,18 +452,41 @@ void RenderSystem::fill_house_slot(platform::IRenderer& renderer,
                  box, st.emissive});
         }
     }
+    // НОМЕР СТВОРКИ СОХРАНЯЕТСЯ. Пропуск пустой двери «сжал» бы список, и
+    // всякий номер после неё поехал бы на единицу — а по этому номеру зона app
+    // открывает КОНКРЕТНОЕ полотно (set_house_door_open). Пустая створка
+    // занимает своё место с mesh_id 0 и не рисуется: место в списке дешевле
+    // молчаливого сдвига, при котором игрок жмёт одну дверь, а открывается
+    // соседняя.
     for (HouseDoor& d : doors) {
-        if (d.mesh.vertices.empty() || d.mesh.indices.empty()) {
-            continue;
+        HouseDoorGpu gpu{};
+        gpu.hinge_a = d.hinge_a;
+        gpu.hinge_b = d.hinge_b;
+        gpu.demo_swing = d.demo_swing;
+        gpu.open_angle = d.open_angle;
+        if (!d.mesh.vertices.empty() && !d.mesh.indices.empty()) {
+            const platform::MeshHandle h =
+                renderer.create_mesh(d.mesh.vertices, d.mesh.indices);
+            if (h.valid()) {
+                gpu.mesh_id = h.id;
+                gpu.texture_asset = house_tile_asset(renderer, d.surface, d.tone);
+                gpu.normal_asset =
+                    house_tile_asset(renderer, d.surface, d.tone, /*normal=*/true);
+            }
         }
-        const platform::MeshHandle h = renderer.create_mesh(d.mesh.vertices, d.mesh.indices);
-        if (h.valid()) {
-            out_doors.push_back({h.id, house_tile_asset(renderer, d.surface, d.tone),
-                                    house_tile_asset(renderer, d.surface, d.tone,
-                                                     /*normal=*/true),
-                                 d.hinge_a, d.hinge_b, d.demo_swing});
-        }
+        out_doors.push_back(gpu);
     }
+}
+
+void RenderSystem::set_house_door_open(std::size_t index, float radians) {
+    // ЧУЖОЙ НОМЕР — НЕ ОШИБКА ВЫЗЫВАЮЩЕГО. Между тем, как app запомнила номер,
+    // и тем, как она его называет, карта могла перезалиться (правка дома в
+    // редакторе, вход в другой город). Тихо пропустить здесь честнее, чем
+    // требовать от app держать чужую заливку в голове.
+    if (index >= house_doors_.size()) {
+        return;
+    }
+    house_doors_[index].open_angle = radians;
 }
 
 void RenderSystem::set_house_mesh(platform::IRenderer& renderer,

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 24:08:2026 - 01:30:00
+Last updated: 27:08:2026 - 14:30:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -186,6 +186,10 @@ UPD:
   СВОЕГО цикла. Гейт в условиях, а не обёрткой: обёртка сдвинула бы двести
   строк чужого кода и утопила бы в отступах diff. Дозой 0 (подвес выключен)
   кадр прежний — добавлено одно `false ||` на цикл.
+- 27:08:2026 - 14:30:00: ...И дверь, которую ОТКРЫЛ ИГРОК: угол = demo_swing ? swing
+  : open_angle (заказ владельца 27.08 про декоративные/межкомнатные двери).
+  Створка с mesh_id 0 пропускается — это место пустой двери в списке, см.
+  fill_house_slot.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1196,15 +1200,26 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         const float swing = (1.0f - std::cos(house_door_phase_)) * 0.5f * 1.48f;
         for (const HouseDoorGpu& d : (suspended ? interior_doors_
                                                  : house_doors_)) {
+            if (d.mesh_id == 0) {
+                continue; // место пустой створки в списке (см. fill_house_slot)
+            }
             const glm::vec3 axis_v = d.hinge_b - d.hinge_a;
             const float axis_len = glm::length(axis_v);
             glm::mat4 xform(1.0f);
             // Качается ТОЛЬКО дверь с demo_swing (выбранная в сессии):
             // остальные полотна стоят закрытыми — приёмка 20.08 прочитала
             // общее качание как «все двери перекошены».
-            if (d.demo_swing && axis_len > 1e-4f) {
+            //
+            // ...И ДВЕРЬ, КОТОРУЮ ОТКРЫЛ ИГРОК (27.08). Это и есть обещанное
+            // выше «игровое открыто/закрыто как состояние симуляции»: угол
+            // приходит СНАРУЖИ (set_house_door_open), render его не сочиняет
+            // и не помнит между картами. Показ демонстрационного хода имеет
+            // приоритет: он живёт ровно у одной створки — той, что выбрана в
+            // редакторе, — и слить два угла в один значило бы потерять оба.
+            const float angle = d.demo_swing ? swing : d.open_angle;
+            if (angle != 0.0f && axis_len > 1e-4f) {
                 xform = glm::translate(glm::mat4(1.0f), d.hinge_a)
-                      * glm::rotate(glm::mat4(1.0f), swing, axis_v / axis_len)
+                      * glm::rotate(glm::mat4(1.0f), angle, axis_v / axis_len)
                       * glm::translate(glm::mat4(1.0f), -d.hinge_a);
             }
             platform::DrawParams dp;

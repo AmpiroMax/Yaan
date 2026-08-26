@@ -1,6 +1,6 @@
 /*
 Created: 23:08:2026 - 23:50:00
-Last updated: 27:08:2026 - 01:20:00
+Last updated: 27:08:2026 - 14:30:00
 Module: engine/app
 File: engine/app/sources/AppInterior.cpp
 
@@ -52,6 +52,36 @@ UPD:
   sealed её оболочки, и до этой строки читала ПРЕДЫДУЩУЮ локацию. Цель
   перехода копируется перед входом: вход перетряхивает portals_, и ссылка в
   этот вектор умирает под ногами у enter_interior.
+- 27:08:2026 - 12:20:00: ИЗ ДОМА НЕЛЬЗЯ БЫЛО ВЫЙТИ (жалоба владельца, живая игра
+  на 64acf03: «двери на вход работают, на выход — нет»). Прицел обратной двери
+  вставал по СЫРЫМ координатам композиции локации, без сдвига в карман: у
+  x90z90 это (5.0, 1.6, 7.7) посреди города вместо (…, -998.4, …) под ним.
+  Изнутри цели не было нигде, и подсказка «Выйти» не появлялась ни под каким
+  углом. spawn_scene_portals сдвигает переходы тем же карманом, каким
+  enter_interior двигает постройки, свет и точку входа. ПОЧЕМУ ЭТО ДОЖИЛО ДО
+  ИГРОКА: беспилотный замер выхода (DFN_INTERIOR_EXIT) звал leave_interior()
+  напрямую и прицела не касался — зелёное «выход 0.01 мс» стояло рядом с
+  дефектом, ничего о нём не зная. Дверь теперь ЖМЁТ КЛАВИШУ, а строка
+  «переходов на локации» несёт МИРОВУЮ отметку первого перехода: ровно её
+  отсутствие делало верную печать «переходов: 1» неотличимой от дефекта.
+  Плюс DFN_INTERIOR_TURN — доворот после входа: без него ни один прогон не
+  смотрит на дверь, потому что точка входа смотрит в комнату.
+- 27:08:2026 - 12:50:00: ТОЧКА ВЫХОДА — СВОЙСТВО ДВЕРИ (владелец 27.08: «выход из
+  двери должен ставить игрока СПИНОЙ К ДВЕРИ, из которой он вышел, рядом с тем
+  домом, у которого был — не в какую-то рандомную точку»). Была поза игрока в
+  момент нажатия — то есть где угодно: подошёл боком, жал в прыжке, тянулся с
+  крыльца соседа. Стал адрес, выведенный из полотна: середина створки плюс
+  0.9 м по её наружной нормали, взгляд ОТ дома, посадка лучом вниз (у Вайтрана
+  дверь выходит на каменную террасу, которой нет в поле высот). Поза осталась
+  запасной рукой ровно для [portal] композиции — точки в воздухе без нормали,
+  — и приходит явным аргументом: умолчание тихо вернуло бы жалобу владельца
+  всякому новому вызову. Плюс ТИП СТВОРКИ (Portal/Locked/Decorative) и
+  декоративная дверь, которая просто открывается поворотом на петле.
+- 27:08:2026 - 14:30:00: present_loading_frame берёт СТВОЛ ИМЕНИ снимка (у города
+  и у комнаты он разный: один прогон показывает два экрана, и рецепты И15
+  знают комнату как loading_000.png). Пара load_step/load_tick — «отметить
+  этап и показать кадр» и «подвинуть долю внутри этапа не чаще 80 мс»: до
+  сегодня модель этапов города велась, а кадры не показывались вовсе.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -70,6 +100,7 @@ UPD:
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 
@@ -91,9 +122,35 @@ constexpr float POCKET_DEPTH_M = 1000.0f;
 constexpr float PLATE_DROP_M = 5.0f;
 constexpr float PLATE_HALF_M = 128.0f;
 
+/// ШАГ ОТ ПОЛОТНА НАРУЖУ — куда встаёт вышедший. Не «подальше»: 0.9 м — это
+/// радиус капсулы игрока (0.35) плюс полтолщины створки плюс запас, при
+/// котором капсула гарантированно не пересекает ни полотно, ни косяк, и при
+/// этом человек стоит У ДВЕРИ, а не посреди улицы. Больше метра — и выход из
+/// дома на узкой террасе Вайтрана поставил бы игрока за парапет.
+constexpr float STEP_OUT_M = 0.9f;
+
+/// СКОЛЬКО ИСКАТЬ ЗЕМЛЮ ПОД ТОЧКОЙ ВЫХОДА. Вверх — на случай крыльца выше
+/// середины створки, вниз — на случай ступеней от порога. Луч, а не отметка
+/// рельефа: дверь Вайтрана выходит на КАМЕННУЮ ТЕРРАСУ, которой нет в поле
+/// высот, и посадка по земле уронила бы вышедшего сквозь неё.
+constexpr float EXIT_PROBE_UP_M = 1.4f;
+constexpr float EXIT_PROBE_DOWN_M = 6.0f;
+
+/// ГЛАЗ НАД СТУПНЯМИ (PLAYER_EYE_HEIGHT свода). Копия, а не ссылка на
+/// константу симуляции, здесь была бы правилом 35 наоборот: значение нужно
+/// только для того, чтобы прицел обратной двери гарантированно доставал до
+/// КАМЕРЫ вошедшего, и оно обязано совпасть с тем, из которого камера
+/// строится.
+constexpr float PLAYER_EYE_M = 1.7f;
+
+/// ЗАПАС, НА КОТОРЫЙ ПРИЦЕЛ ОБРАТНОЙ ДВЕРИ ПЕРЕКРЫВАЕТ ТОЧКУ ВХОДА. Ровно
+/// впритык нельзя: вход в 1.58 м при коробке 1.58 — это попадание в грань, а
+/// грань луч ловит на числах с плавающей точкой через раз.
+constexpr float PORTAL_ENTRY_MARGIN_M = 0.3f;
+
 } // namespace
 
-void App::present_loading_frame() {
+void App::present_loading_frame(const char* shot_stem) {
     if (renderer_ == nullptr || window_ == nullptr) {
         return;
     }
@@ -111,12 +168,52 @@ void App::present_loading_frame() {
     // КАДР ЭКРАНА ЗАГРУЗКИ ИНАЧЕ НЕ ПОПАДАЕТ НИ НА ОДИН БЕСПИЛОТНЫЙ ПРОГОН.
     // Экран живёт между двумя кадрами штатной петли и потому невидим для
     // DFN_SHOT_AFTER, который считает ПОКАЗАННЫЕ ею кадры. Снимок пишется
-    // ровно один раз за прогон и только туда, куда прогон уже складывает
+    // ровно один раз НА СТВОЛ ИМЕНИ и только туда, куда прогон уже складывает
     // снимки, — новой двери для этого не нужно.
-    if (!loading_shot_ && !capture_dir_.empty() && unattended_run()) {
-        loading_shot_ = true;
-        (void)renderer_->save_screenshot(capture_dir_ + "/loading_000.png");
+    if (shot_stem == nullptr || capture_dir_.empty() || !unattended_run()) {
+        return;
     }
+    const std::string stem(shot_stem);
+    for (const std::string& done : loading_shots_) {
+        if (done == stem) {
+            return;
+        }
+    }
+    loading_shots_.push_back(stem);
+    (void)renderer_->save_screenshot(capture_dir_ + "/" + stem + "_000.png");
+}
+
+void App::load_step(const char* what) {
+    if (!loading_.active()) {
+        return;
+    }
+    loading_.stage(what);
+    // ЯВНАЯ ДОЛЯ ГАСИТСЯ НА ГРАНИЦЕ ЭТАПА. Оставленная от предыдущего этапа,
+    // она прибила бы полосу к его последнему проценту: экран показывал бы
+    // движение внутри одного этапа и мёртвую полосу во всех остальных.
+    loading_.set_progress(-1.0f);
+    loading_frame_at_ = std::chrono::steady_clock::now();
+    present_loading_frame(loading_shot_stem_);
+}
+
+void App::load_tick(float fraction) {
+    if (!loading_.active()) {
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (now - loading_frame_at_ < std::chrono::milliseconds(LOAD_FRAME_MIN_MS)) {
+        return;
+    }
+    loading_frame_at_ = now;
+    // ДОЛЯ ЭТАПА — ЭТО ДОЛЯ ЕГО КУСКА ПОЛОСЫ, а не всей полосы. Иначе на
+    // границе каждого этапа полоса прыгала бы назад, к началу следующего
+    // куска, — движение, которое человек читает как «загрузка сорвалась».
+    const std::size_t done = loading_.stages().size();
+    const std::size_t total = std::max(loading_.expected(), done + 1);
+    loading_.set_progress((static_cast<float>(done)
+                           + std::clamp(fraction, 0.0f, 1.0f))
+                          / static_cast<float>(total));
+    present_loading_frame(loading_shot_stem_);
 }
 
 void App::hold_loading_screen() {
@@ -131,7 +228,7 @@ void App::hold_loading_screen() {
                      + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
                            std::chrono::duration<float>(interior_fade_s_));
     while (std::chrono::steady_clock::now() < until) {
-        present_loading_frame();
+        present_loading_frame(loading_shot_stem_);
     }
 }
 
@@ -196,33 +293,84 @@ void App::clear_scene_portals(bool interior) {
     gameplay::reap_interactable_bodies(world_, *physics_);
 }
 
-void App::spawn_scene_portals(const world::SceneDoc& doc, bool interior) {
+void App::spawn_scene_portals(const world::SceneDoc& doc, bool interior,
+                              const glm::vec3* entry) {
     if (physics_ == nullptr) {
         return;
     }
     clear_scene_portals(interior);
+    // КООРДИНАТЫ ЛОКАЦИИ — СВОИ ОТ НУЛЯ, И ЭТО КАСАЕТСЯ ПЕРЕХОДОВ ТОЖЕ.
+    // Композиция интерьера пишет позиции от собственного нуля (шапка любой
+    // assets/scenes/int/**.scene: «Координаты СВОИ от нуля»), и enter_interior
+    // сдвигает в карман ВСЁ, что из неё поднимает: постройки (H.position +
+    // карман), светильники, точку входа. Прицел обратной двери сдвига не
+    // получал — и вставал не в километре под городом, а посреди самого
+    // города, на y ≈ 1.6 м. Изнутри его не было НИГДЕ: игрок входил в дом и
+    // не мог выйти (жалоба владельца 27.08, живая игра). Беспилотный замер
+    // выхода этого не поймал и не мог: DFN_INTERIOR_EXIT зовёт
+    // leave_interior() напрямую, минуя прицел.
+    const glm::vec3 origin = interior ? interior_pocket_ : glm::vec3{0.0f};
     for (std::size_t i = 0; i < doc.portals.size(); ++i) {
         const world::ScenePortal& P = doc.portals[i];
+        const glm::vec3 at = P.at + origin;
         const ecs::EntityId id = world_.spawn();
         // ПЕРЕХОД НЕ РИСУЕТСЯ. Створка двери уже стоит в сцене как деталь
         // постройки; сущность здесь — только прицел и подсказка. Второй,
         // нарисованный «предмет-дверь» поверх настоящей двери — это два
         // описания одной вещи, и они разъедутся при первой правке дома.
-        world_.add(id, components::Transform{.position = P.at,
+        world_.add(id, components::Transform{.position = at,
                                              .rotation = {1.0f, 0.0f, 0.0f, 0.0f},
                                              .scale = glm::vec3{1.0f}});
         const std::uint64_t action =
             serialization::fnv1a64(P.to + "@" + std::to_string(i));
+        // ИЗ ЛОКАЦИИ ВСЕГДА МОЖНО ВЫЙТИ ТУДА, ОТКУДА В НЕЁ ВОШЛИ. Это
+        // инвариант движка, а не пожелание к содержимому: игрок, запертый
+        // внутри дома, не может ни выйти, ни внятно пожаловаться, и ровно
+        // это владелец и прислал 27.08. Композиция вправе поставить точку
+        // входа не строго перед полотном (у Житнова x172z286 она в 1.58 м
+        // вбок от обратной двери при радиусе прицела 1.10 — и оттуда двери
+        // не было видно НИ ПОД КАКИМ углом), но цена такой вольности —
+        // молчаливая ловушка, и платить её игроку нельзя.
+        //
+        // ПОЭТОМУ ПРИЦЕЛ ОБРАТНОЙ ДВЕРИ ДОТЯГИВАЕТСЯ ДО ТОЧКИ ВХОДА, а не
+        // до написанного в файле радиуса, если тот не достаёт. Промах
+        // называется вслух: чинить его — генератору города, и молча
+        // растянутый прицел лишил бы его повода.
+        float r = std::max(P.radius_m, 0.4f);
+        float half_y = std::max(r, 1.0f);
+        float reach = std::max(P.radius_m, 0.5f);
+        if (interior && entry != nullptr && world::portal_is_back(P)) {
+            // Глаз, а не ступни: луч прицела идёт из камеры.
+            const glm::vec3 eye{entry->x, entry->y + PLAYER_EYE_M, entry->z};
+            const glm::vec3 d = eye - at;
+            const float lateral = std::max(std::fabs(d.x), std::fabs(d.z));
+            // ПО ВЫСОТЕ ТОЖЕ. Сегодня глаз вошедшего на 0.8 м выше середины
+            // створки и попадает в коробку с запасом, но «сегодня» — это
+            // свойство нынешних рецептов, а не механики: комната с высоким
+            // порогом или низкой дверью вернула бы ту же ловушку с другой оси.
+            half_y = std::max(half_y, std::fabs(d.y) + PORTAL_ENTRY_MARGIN_M);
+            if (lateral + PORTAL_ENTRY_MARGIN_M > r) {
+                std::fprintf(stderr,
+                             "[интерьер] точка входа в %.2f м вбок от обратной "
+                             "двери при радиусе %.2f — прицел РАСТЯНУТ до %.2f "
+                             "(дефект композиции локации: спавн не перед "
+                             "полотном)\n",
+                             static_cast<double>(lateral),
+                             static_cast<double>(r),
+                             static_cast<double>(lateral + PORTAL_ENTRY_MARGIN_M));
+                r = lateral + PORTAL_ENTRY_MARGIN_M;
+            }
+            reach = std::max(reach, glm::length(d) + PORTAL_ENTRY_MARGIN_M);
+        }
         world_.add(id, gameplay::Highlightable{
                            .prompt_key = interior ? "prompt.leave" : "prompt.enter",
-                           .max_use_distance = std::max(P.radius_m, 0.5f)});
+                           .max_use_distance = reach});
         world_.add(id, gameplay::Usable{.action = action,
                                         .repeatable = true,
                                         .used = false});
         platform::StaticBoxDesc box;
-        box.center = P.at;
-        const float r = std::max(P.radius_m, 0.4f);
-        box.half_extents = {r, std::max(r, 1.0f), r};
+        box.center = at;
+        box.half_extents = {r, half_y, r};
         box.layer = physics::LAYER_INTERACTABLE;
         box.user_data = id.packed();
         const platform::PhysicsBodyHandle body = physics_->create_static_box(box);
@@ -241,8 +389,18 @@ void App::spawn_scene_portals(const world::SceneDoc& doc, bool interior) {
         portals_.push_back(std::move(link));
     }
     if (!doc.portals.empty()) {
-        std::fprintf(stderr, "[интерьер] переходов на %s: %zu\n",
-                     interior ? "локации" : "карте", doc.portals.size());
+        // МИРОВАЯ ОТМЕТКА ПЕРВОГО ПЕРЕХОДА — В СТРОКЕ, и это не украшение:
+        // ровно её отсутствие скрывало дефект кармана. «Переходов на локации:
+        // 1» печаталось верно и тогда, когда единственный прицел стоял на
+        // километр выше игрока. Число, а не состояние (тот же довод, что у
+        // LoadStage.ms).
+        const glm::vec3 first = doc.portals.front().at + origin;
+        std::fprintf(stderr,
+                     "[интерьер] переходов на %s: %zu (первый в мире %.1f %.1f "
+                     "%.1f)\n",
+                     interior ? "локации" : "карте", doc.portals.size(),
+                     static_cast<double>(first.x), static_cast<double>(first.y),
+                     static_cast<double>(first.z));
     }
 }
 
@@ -251,6 +409,7 @@ void App::spawn_house_portals() {
         return;
     }
     std::size_t open = 0;
+    std::size_t decor = 0;
     for (std::size_t i = 0; i < house_doorways_.size(); ++i) {
         const HouseDoorway& D = house_doorways_[i];
         const ecs::EntityId id = world_.spawn();
@@ -265,13 +424,16 @@ void App::spawn_house_portals() {
             "house-door@" + std::to_string(static_cast<int>(D.at.x * 100.0f))
             + "," + std::to_string(static_cast<int>(D.at.y * 100.0f))
             + "," + std::to_string(static_cast<int>(D.at.z * 100.0f)));
-        // ЗАПЕРТО — ЭТО НАДПИСЬ, А НЕ МОЛЧАНИЕ (заказ владельца 26.08:
-        // «остальные двери честно говорят заперто»). Подсказка под прицелом
-        // уже есть у каждого взаимодействия — новой системы не нужно, нужен
-        // другой ключ строки.
+        // ТРИ ТИПА — ТРИ НАДПИСИ, И НИ ОДНОГО МОЛЧАНИЯ (владелец 26.08:
+        // «остальные двери честно говорят заперто»; 27.08: «должны быть и
+        // декоративные двери, что будут просто открываться»). Подсказка под
+        // прицелом уже есть у каждого взаимодействия — новой системы не нужно,
+        // нужен ключ строки по ТИПУ створки.
+        const char* prompt = D.kind == DoorwayKind::Portal     ? "prompt.enter"
+                             : D.kind == DoorwayKind::Locked   ? "prompt.locked"
+                                                               : "prompt.open";
         world_.add(id, gameplay::Highlightable{
-                           .prompt_key = D.interior.empty() ? "prompt.locked"
-                                                            : "prompt.enter",
+                           .prompt_key = prompt,
                            .max_use_distance = D.reach_m});
         world_.add(id, gameplay::Usable{.action = action,
                                         .repeatable = true,
@@ -303,13 +465,91 @@ void App::spawn_house_portals() {
         // получит имена тогда, когда получит вторую дверь.
         link.to_spawn = D.interior.empty() ? std::string{} : std::string{"door"};
         link.entity = id;
+        link.kind = D.kind;
+        link.door_index = D.door_index;
+        // ОБРАТНЫЙ АДРЕС — ЗДЕСЬ, А НЕ НА ВЫХОДЕ. Он выведен из полотна
+        // (середина створки плюс шаг по наружной нормали), и потому один и тот
+        // же, сколько бы раз игрок ни входил и с какой бы стороны ни подходил.
+        // Высота остаётся высотой середины створки: на землю точку сажает
+        // выход, лучом вниз, — там она уже пересчитывается по СЕГОДНЯШНЕЙ
+        // геометрии крыльца, а не по той, что была на загрузке.
+        link.back_at = D.at + D.out_normal * STEP_OUT_M;
+        // ВЗГЛЯД ОТ ДОМА: игрок стоит СПИНОЙ К ДВЕРИ (владелец 27.08).
+        // yaw 0 смотрит в -Z, положительный — по часовой сверху (конвенция
+        // PlayerMovement и InteractionSystem::view_direction).
+        link.back_yaw = std::atan2(D.out_normal.x, -D.out_normal.z);
+        link.back_set = true;
         portals_.push_back(std::move(link));
-        open += D.interior.empty() ? 0u : 1u;
+        open += D.kind == DoorwayKind::Portal ? 1u : 0u;
+        decor += D.kind == DoorwayKind::Decorative ? 1u : 0u;
     }
     std::fprintf(stderr,
-                 "[интерьер] дверей построек: %zu, из них с внутренностью %zu "
-                 "(остальные заперты)\n",
-                 house_doorways_.size(), open);
+                 "[интерьер] дверей построек: %zu — переходов %zu, заперто %zu, "
+                 "декоративных %zu\n",
+                 house_doorways_.size(), open,
+                 house_doorways_.size() - open - decor, decor);
+    // ТАБЛИЦА СТВОРОК ПОД ПРИБОРОМ ЗАГРУЗКИ. «Выход ставит игрока у СВОЕЙ
+    // двери» — утверждение о координатах девяноста трёх дверей, и проверить
+    // его по одному прогону, глядя в окно, нельзя. Печать только под
+    // DFN_LOAD_LOG: 93 строки в каждом прогоне были бы шумом.
+    if (const char* ll = door_value("DFN_LOAD_LOG");
+        ll != nullptr && *ll != '\0' && *ll != '0') {
+        for (const HouseDoorway& D : house_doorways_) {
+            std::fprintf(stderr,
+                         "[дверь] %s полотно (%.1f %.1f %.1f) нормаль "
+                         "(%.2f %.2f) выход (%.1f %.1f %.1f) рыск %.2f%s%s\n",
+                         D.kind == DoorwayKind::Portal       ? "переход"
+                         : D.kind == DoorwayKind::Locked     ? "заперта"
+                                                             : "декорат",
+                         static_cast<double>(D.at.x), static_cast<double>(D.at.y),
+                         static_cast<double>(D.at.z),
+                         static_cast<double>(D.out_normal.x),
+                         static_cast<double>(D.out_normal.z),
+                         static_cast<double>(D.at.x + D.out_normal.x * STEP_OUT_M),
+                         static_cast<double>(D.at.y),
+                         static_cast<double>(D.at.z + D.out_normal.z * STEP_OUT_M),
+                         static_cast<double>(
+                             std::atan2(D.out_normal.x, -D.out_normal.z)),
+                         D.interior.empty() ? "" : " -> ", D.interior.c_str());
+        }
+    }
+}
+
+void App::open_decorative_doors() {
+    // ДВЕРЬ БЕСПИЛОТНОГО КАДРА ОТКРЫТОЙ СТВОРКИ (DFN_DOOR_OPEN=1). Повернуть
+    // декоративную дверь умеет только рука на клавише E, стоящая перед ней, —
+    // значит без этой двери «створка поворачивается на петле» есть
+    // утверждение, которое не может предъявить ни один прогон. Открывает ВСЕ
+    // декоративные разом: их на карте единицы, а искать нужную по номеру
+    // означало бы знать номер до прогона, который его и печатает.
+    static const bool on = [] {
+        const char* e = door_value("DFN_DOOR_OPEN");
+        return e != nullptr && *e != '\0' && *e != '0';
+    }();
+    if (!on) {
+        return;
+    }
+    std::size_t n = 0;
+    // КОПИЯ СПИСКА ДЕЙСТВИЙ, А НЕ ОБХОД ЖИВОГО: toggle_decorative_door ищет по
+    // portals_ и правит запись в нём. Обходить контейнер, который правят
+    // изнутри цикла, — та же ошибка, из-за которой переход исполняется ПОСЛЕ
+    // раздачи событий, а не в обработчике.
+    std::vector<std::uint64_t> actions;
+    for (const PortalLink& l : portals_) {
+        if (l.house && l.kind == DoorwayKind::Decorative) {
+            actions.push_back(l.action);
+        }
+    }
+    for (const std::uint64_t a : actions) {
+        for (const PortalLink& l : portals_) {
+            if (l.action == a) {
+                toggle_decorative_door(l);
+                ++n;
+                break;
+            }
+        }
+    }
+    std::fprintf(stderr, "[интерьер] дверь DFN_DOOR_OPEN: открыто створок %zu\n", n);
 }
 
 void App::take_portal() {
@@ -323,7 +563,14 @@ void App::take_portal() {
             continue;
         }
         if (link.house) {
-            if (link.to.empty()) {
+            // ТИП СТВОРКИ РЕШАЕТ, ЧТО ДЕЛАЕТ КЛАВИША, и это разные вещи, а не
+            // оттенки одной: переход грузит локацию, запертая говорит вслух,
+            // декоративная поворачивается на петле и никуда не ведёт.
+            if (link.kind == DoorwayKind::Decorative) {
+                toggle_decorative_door(link);
+                return;
+            }
+            if (link.kind == DoorwayKind::Locked || link.to.empty()) {
                 // ЗАПЕРТО. Надпись игрок уже прочитал под прицелом — здесь
                 // остаётся строка для прогона: «нажал, и ничего не случилось»
                 // и «нажал, и дверь ответила» неразличимы в логе иначе.
@@ -336,7 +583,8 @@ void App::take_portal() {
             // копируется запись портала композиции.
             const std::string to = link.to;
             const std::string spawn = link.to_spawn;
-            (void)enter_interior(to, spawn);
+            const PortalReturn back{link.back_at, link.back_yaw, link.back_set};
+            (void)enter_interior(to, spawn, back);
             return;
         }
         const world::SceneDoc& doc = link.interior ? interior_doc_ : scene_doc_;
@@ -347,14 +595,47 @@ void App::take_portal() {
         if (world::portal_is_back(P)) {
             leave_interior();
         } else {
-            (void)enter_interior(P.to, P.to_spawn);
+            // [portal] КОМПОЗИЦИИ ПОЛОТНА НЕ ИМЕЕТ, и обратного адреса у него
+            // тоже нет: он — точка в воздухе, у которой нет ни нормали, ни
+            // стороны «наружу». Точкой возврата остаётся поза игрока, и это
+            // честно названо здесь, а не спрятано в умолчании аргумента.
+            (void)enter_interior(P.to, P.to_spawn, PortalReturn{});
         }
         return;
     }
 }
 
+void App::toggle_decorative_door(const PortalLink& link) {
+    // ДЕКОРАТИВНАЯ СТВОРКА ОТКРЫВАЕТСЯ ПОВОРОТОМ НА ПЕТЛЕ и ничего больше не
+    // делает: ни загрузки, ни телепорта (владелец 27.08 — «просто
+    // открываться, межкомнатные»). Состояние живёт у ССЫЛКИ ПЕРЕХОДА, а не у
+    // меша: меш перезаливается на каждой правке дома, а «эта дверь открыта» —
+    // свойство мира, которое обязано пережить перезаливку.
+    //
+    // ПОВОРОТ МГНОВЕННЫЙ, И ЭТО НАЗВАНО ВСЛУХ, а не выдано за анимацию:
+    // плавный ход — время, а время двери требует своего тика и своей кривой.
+    // Механика типа и поворота проверяема уже сегодня; плавность — следующий
+    // шаг, и она НЕ будет вторым механизмом, только скоростью у этого.
+    for (PortalLink& l : portals_) {
+        if (l.action != link.action) {
+            continue;
+        }
+        l.open = !l.open;
+        constexpr float OPEN_ANGLE_RAD = 1.5707963f; // 90°
+        render_system_.set_house_door_open(l.door_index,
+                                           l.open ? OPEN_ANGLE_RAD : 0.0f);
+        if (auto* h = world_.get<gameplay::Highlightable>(l.entity)) {
+            h->prompt_key = l.open ? "prompt.close" : "prompt.open";
+        }
+        std::fprintf(stderr, "[интерьер] декоративная дверь %zu: %s\n",
+                     l.door_index, l.open ? "ОТКРЫТА" : "ЗАКРЫТА");
+        return;
+    }
+}
+
 bool App::enter_interior(const std::string& scene_path,
-                         const std::string& spawn_name) {
+                         const std::string& spawn_name,
+                         const PortalReturn& back_addr) {
     if (renderer_ == nullptr || physics_ == nullptr || !world_.alive(player_)) {
         return false;
     }
@@ -382,6 +663,11 @@ bool App::enter_interior(const std::string& scene_path,
     loading_.set_log(load_log);
     loading_.begin("Вход", scene_path);
     loading_.set_expected(5);
+    // СНИМОК ЭКРАНА КОМНАТЫ ПОД СВОИМ СТВОЛОМ. enter_world перед этим ставила
+    // «loading_world»: тот же прогон показывает два разных экрана, и рецепты
+    // И15 знают комнату как loading_000.png.
+    loading_shot_stem_ = "loading";
+    loading_frame_at_ = std::chrono::steady_clock::now();
     if (interior_fade_s_ > 0.0f) {
         present_loading_frame();
     }
@@ -488,15 +774,31 @@ bool App::enter_interior(const std::string& scene_path,
     }
 
     loading_.stage("свет локации");
-    // ТОЧКА ВОЗВРАТА — ГДЕ ИГРОК СТОИТ СЕЙЧАС. Не точка активации: игрок,
-    // высаженный в дверном проёме, немедленно активирует ту же дверь снова.
+    // ТОЧКА ВОЗВРАТА — СВОЙСТВО ДВЕРИ, А НЕ ПОЗА ЧЕЛОВЕКА (владелец 27.08:
+    // «выход из двери должен ставить игрока СПИНОЙ К ДВЕРИ, из которой он
+    // вышел, рядом с тем домом, у которого был — не в какую-то рандомную
+    // точку на карте»). Дверь знает, где её полотно и куда смотрит наружная
+    // нормаль; поза же — это где человек СТОЯЛ в момент нажатия, и она
+    // законно бывает какой угодно: подошёл боком, жал в прыжке, тянулся к
+    // двери с крыльца соседа. Вернуть его туда — и есть та самая «рандомная
+    // точка», в которой ни один игрок себя не узнает.
+    //
+    // ПОЗА ОСТАЁТСЯ ЗАПАСНОЙ РУКОЙ, и только для переходов БЕЗ полотна
+    // ([portal] композиции — точка в воздухе, у которой нет ни нормали, ни
+    // стороны «наружу»). Молчаливой она при этом не является: адрес двери
+    // приходит явным аргументом, и его отсутствие — решение вызывающего.
     gameplay::InteriorReturn back;
     back.from_scene = state.inside() ? state.scene_path : gallery_scene_;
-    if (const auto* tr = world_.get<components::Transform>(player_)) {
-        back.position = tr->position;
-    }
-    if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
-        back.yaw = ps->yaw;
+    if (back_addr.set) {
+        back.position = back_addr.at;
+        back.yaw = back_addr.yaw;
+    } else {
+        if (const auto* tr = world_.get<components::Transform>(player_)) {
+            back.position = tr->position;
+        }
+        if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+            back.yaw = ps->yaw;
+        }
     }
     state.stack.push_back(back);
     state.scene_path = scene_path;
@@ -527,6 +829,21 @@ bool App::enter_interior(const std::string& scene_path,
                      "игрок встал в начало кармана\n",
                      scene_path.c_str(), spawn_name.c_str());
     }
+    // ДОВОРОТ ПОСЛЕ ВХОДА (DFN_INTERIOR_TURN=<градусы>). Точка входа смотрит В
+    // КОМНАТУ — так задумано, и дверь остаётся ЗА СПИНОЙ. Значит ни один
+    // беспилотный прогон не может ни увидеть подсказку «Выйти», ни нажать на
+    // неё, пока кто-то не развернёт игрока, а рука на клавише мыши в прогон не
+    // приходит. Без этой двери сценарий владельца «вошёл, развернулся, вышел»
+    // проверялся только человеком — и не проверялся.
+    static const float turn_deg = [] {
+        const char* e = door_value("DFN_INTERIOR_TURN");
+        return (e != nullptr && *e != '\0') ? std::strtof(e, nullptr) : 0.0f;
+    }();
+    if (turn_deg != 0.0f) {
+        spawn_yaw += turn_deg * 3.14159265358979f / 180.0f;
+        std::fprintf(stderr, "[интерьер] дверь DFN_INTERIOR_TURN: доворот %.1f°\n",
+                     static_cast<double>(turn_deg));
+    }
     if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
         physics_->teleport_character(ps->character, spawn);
         ps->yaw = spawn_yaw;
@@ -539,7 +856,7 @@ bool App::enter_interior(const std::string& scene_path,
         pt->position = spawn;
     }
 
-    spawn_scene_portals(doc, /*interior=*/true);
+    spawn_scene_portals(doc, /*interior=*/true, &spawn);
     interior_doc_ = std::move(doc);
     render_system_.set_world_suspended(true);
     state.visited = true;
@@ -595,22 +912,56 @@ void App::leave_interior() {
         render_system_.clear_air_override();
     }
 
+    // ПОСАДКА НА ТО, ЧТО ПОД НОГАМИ, А НЕ НА ОТМЕТКУ РЕЛЬЕФА. Адрес двери
+    // несёт высоту СЕРЕДИНЫ СТВОРКИ — это метр с небольшим над порогом, и
+    // высадить туда значило бы уронить человека с метра либо утопить его в
+    // крыльце. Луч вниз находит настоящую опору: у Вайтрана дверь выходит на
+    // каменную террасу, которой нет в поле высот, и посадка по земле провалила
+    // бы вышедшего сквозь неё. Ни луч, ни поле высот не ответили — точка
+    // остаётся как есть, и об этом печатается строка: падение с метра на
+    // глазах игрока честнее, чем молчаливый телепорт в неизвестность.
+    glm::vec3 out = back.position;
+    const platform::RayHit ground = physics_->raycast(
+        {out.x, out.y + EXIT_PROBE_UP_M, out.z}, {0.0f, -1.0f, 0.0f},
+        EXIT_PROBE_UP_M + EXIT_PROBE_DOWN_M, physics::LAYER_STATIC);
+    bool grounded = ground.hit;
+    if (ground.hit) {
+        out.y = ground.position.y + 0.02f;
+    } else if (const auto h = chunks_.height_at({out.x, out.z})) {
+        // ВТОРАЯ РУКА — ПОЛЕ ВЫСОТ. Луч меряет то, что ОТДАНО ФИЗИКЕ, а чанк
+        // под дверью может быть ещё не резидентным: в живой игре человек
+        // дошёл до двери ногами и чанк загружен, но беспилотный прогон
+        // (DFN_INTERIOR) телепортируется внутрь с первого кадра, и у дальних
+        // домов Житнова земли под точкой выхода физически нет. Поле высот
+        // отвечает и там, где тела нет, — и это законный ответ, а не догадка:
+        // земля в этой точке будет ровно на этой отметке, когда чанк придёт.
+        out.y = *h + 0.02f;
+        grounded = true;
+    }
     if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
-        physics_->teleport_character(ps->character, back.position);
+        physics_->teleport_character(ps->character, out);
         ps->yaw = back.yaw;
         ps->vertical_velocity = 0.0f;
     }
     if (auto* tr = world_.get<components::Transform>(player_)) {
-        tr->position = back.position;
+        tr->position = out;
     }
     if (auto* pt = world_.get<components::PreviousTransform>(player_)) {
-        pt->position = back.position;
+        pt->position = out;
     }
 
     interior_leave_ms_ =
         std::chrono::duration<double, std::milli>(
             std::chrono::steady_clock::now() - t0).count();
-    std::fprintf(stderr, "[интерьер] ВЫХОД за %.2f ms\n", interior_leave_ms_);
+    // ТОЧКА ВЫХОДА — В СТРОКЕ, И ЭТО ПРИЁМКА, А НЕ ОТЛАДКА. «Игрока выкинуло в
+    // рандомную точку» — жалоба о КООРДИНАТЕ, и без числа она проверяется
+    // только глазами того, кто жаловался.
+    std::fprintf(stderr,
+                 "[интерьер] ВЫХОД за %.2f ms в (%.1f %.1f %.1f), рыск %.2f%s\n",
+                 interior_leave_ms_, static_cast<double>(out.x),
+                 static_cast<double>(out.y), static_cast<double>(out.z),
+                 static_cast<double>(back.yaw),
+                 grounded ? "" : " — ОПОРЫ ПОД ТОЧКОЙ ВЫХОДА НЕТ");
 }
 
 } // namespace dfn::app
