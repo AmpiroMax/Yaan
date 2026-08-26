@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:35:04
-Last updated: 18:08:2026 - 17:35:04
+Last updated: 27:08:2026 - 14:00:00
 Module: engine/app
 File: engine/app/sources/AppHud.cpp
 
@@ -15,6 +15,11 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 17:35:04: Создан вместе с заголовком — 238 строк сборки кадра из
   App::run().
+- 27:08:2026 - 14:00:00: Подсказка прицела рисуется испечённой антиквой (UiFont.h),
+  а отступ от низа стал долей кадра: холст интерфейса вырос до 1920×1080
+  (UI_CANVAS_W), и прежние 40 пикселей из одиннадцатой части кадра стали
+  тридцатой. Запасная ветка на блочный шрифт оставлена и не мертва: подсказка
+  «Войти», которой не видно, неотличима от двери, которая не работает.
 */
 
 #include "engine/app/sources/AppHud.h"
@@ -22,6 +27,9 @@ UPD:
 #include "engine/app/sources/Localization.h"
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/render/sources/BitmapFont.h"
+#include <algorithm>
+
+#include "engine/app/sources/UiFont.h"
 #include "engine/render/sources/PixelCanvas.h"
 
 namespace dfn::app {
@@ -35,17 +43,46 @@ std::string_view say(const char* key) {
 // be two chances for the verification hook to stop looking like the thing it
 // verifies, which would make it useless in the one way that is hard to notice.
 constexpr render::Color PROMPT_INK{232, 228, 214};
-constexpr int PROMPT_BOTTOM_GAP = 40;
+// ОТСТУП ОТ НИЗА — ДОЛЯ КАДРА, А НЕ 40 ПИКСЕЛЕЙ. Сорок пикселей были
+// одиннадцатой частью холста 640×360 и стали тридцатой частью холста
+// 1920×1080: та же строка уехала бы почти в самый низ кадра.
+constexpr int prompt_bottom_gap(int hud_h) { return std::max(8, hud_h / 9); }
+
+// ПОДСКАЗКА ПРИЦЕЛА РИСУЕТСЯ ТЕМ ЖЕ ШРИФТОМ, ЧТО И МЕНЮ (заказ владельца
+// 27.08). И это не косметика: холст интерфейса стал 1920×1080 вместо 640×360
+// (UI_CANVAS_W), то есть блочный шрифт 5×8 на том же экране физически
+// уменьшился ВТРОЕ. Оставить его здесь значило бы «поднять качество» и
+// одновременно сделать единственную игровую надпись втрое мельче.
+//
+// «Войти», «Заперто», «Взять» — это СОСТОЯНИЕ МИРА, а не инструкция по
+// клавишам, и заказ 27.08 их прямо оставляет. Снята была подпись под кадром,
+// а не ответ мира на то, куда смотрит игрок.
+int prompt_px(const render::PixelCanvas& hud) {
+    return ui_px(static_cast<int>(hud.height()), UiText::Caption);
+}
 
 void draw_centred(render::PixelCanvas& hud, std::string_view text, int y,
                   bool plate) {
     const int w = static_cast<int>(hud.width());
-    const int tw = render::text_width_px(text);
+    const int px = prompt_px(hud);
+    if (px <= 0) {
+        // АКТИВА ШРИФТА НЕТ — РИСУЕМ БЛОЧНЫМ, а не ничем. Подсказка «Войти»,
+        // которой не видно, неотличима от двери, которая не работает, и это
+        // ровно тот отказ, что владелец разбирал руками три захода.
+        const int tw = render::text_width_px(text);
+        const int tx = (w - tw) / 2;
+        if (plate) {
+            draw_text_plate(hud, tx, y, tw, render::FONT_INK_H);
+        }
+        render::draw_text(hud, tx, y, text, PROMPT_INK, /*shadow=*/true);
+        return;
+    }
+    const int tw = ui_text_width(text, px);
     const int tx = (w - tw) / 2;
     if (plate) {
-        draw_text_plate(hud, tx, y, tw, render::FONT_INK_H);
+        draw_text_plate(hud, tx, y, tw, ui_cap_height(px));
     }
-    render::draw_text(hud, tx, y, text, PROMPT_INK, /*shadow=*/true);
+    ui_draw_text(hud, tx, y, text, PROMPT_INK, px, /*shadow=*/true);
 }
 
 } // namespace
@@ -133,7 +170,7 @@ bool compose_hud(render::PixelCanvas& hud, const HudFrame& f) {
     // without a plate.
     if (!f.prompt.empty()) {
         draw_centred(hud, f.prompt,
-                     static_cast<int>(hud.height()) - PROMPT_BOTTOM_GAP,
+                     static_cast<int>(hud.height()) - prompt_bottom_gap(static_cast<int>(hud.height())),
                      /*plate=*/true);
         any = true;
     }
@@ -143,8 +180,8 @@ bool compose_hud(render::PixelCanvas& hud, const HudFrame& f) {
     // unmistakable rather than assumed to be.
     if (f.probe) {
         const int h = static_cast<int>(hud.height());
-        draw_centred(hud, say("prompt.take"), h - PROMPT_BOTTOM_GAP, false);
-        draw_centred(hud, say("prompt.nonexistent"), h - 24, false);
+        draw_centred(hud, say("prompt.take"), h - prompt_bottom_gap(h), false);
+        draw_centred(hud, say("prompt.nonexistent"), h - prompt_bottom_gap(h) / 2, false);
         any = true;
     }
 

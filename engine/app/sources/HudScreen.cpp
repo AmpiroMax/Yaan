@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:38:00
-Last updated: 18:08:2026 - 23:20:00
+Last updated: 27:08:2026 - 14:00:00
 Module: engine/app
 File: engine/app/sources/HudScreen.cpp
 
@@ -42,6 +42,11 @@ UPD:
   разбора App.cpp: имя без строки в таблице больше не открывается и говорит об
   этом вслух, поэтому «какие вообще есть двери» перестало быть вопросом к grep.
 - 18:08:2026 - 23:20:00: Жёлтый значок режима редактора в углу игрового поля.
+- 27:08:2026 - 14:00:00: Лента компаса и плашка инструмента — на испечённую
+  антикву и на общую лестницу размеров (UiFont.h, заказ владельца 27.08):
+  холст интерфейса стал 1920×1080, и блочный шрифт 5×8 физически уменьшился
+  втрое на том же экране. Ячейка 6×9 перестала описывать высоту полосы, и
+  высота ленты считается теперь по метрикам нарисованного.
 */
 
 #include "engine/app/sources/HudScreen.h"
@@ -55,6 +60,7 @@ UPD:
 #include "engine/app/sources/DebugOverlay.h"
 #include "engine/app/sources/Localization.h"
 #include "engine/core/serialization/sources/ContentHash.h"
+#include "engine/app/sources/UiFont.h"
 #include "engine/render/sources/BitmapFont.h"
 #include "engine/render/sources/PixelCanvas.h"
 
@@ -311,7 +317,13 @@ bool draw_compass_ribbon(render::PixelCanvas& canvas, const HudFacts& facts) {
     const int cx = w / 2;
     const int x_left = cx - ribbon_w / 2;
     const int y_top = wy + 4;
-    const int tick_y = y_top + render::FONT_CELL_H + 1;
+    // ЛЕНТА МЕРЯЕТСЯ ТЕМ ШРИФТОМ, КОТОРЫМ НАПИСАНЫ ЕЁ МЕТКИ. Холст интерфейса
+    // стал 1920×1080 (UI_CANVAS_W, 27.08), и метка «СВ» блочным шрифтом
+    // физически уменьшилась втрое на том же экране; ячейка 6×9 перестала
+    // описывать высоту полосы.
+    const int mark_px = ui_px(h, UiText::Small);
+    const int mark_h = mark_px > 0 ? ui_cap_height(mark_px) : render::FONT_CELL_H;
+    const int tick_y = y_top + mark_h + std::max(1, mark_h / 8);
 
     // The ground under the marks, on the same rule as every other text in this
     // interface: the ribbon lies across the SKY, which is the brightest thing
@@ -340,7 +352,8 @@ bool draw_compass_ribbon(render::PixelCanvas& canvas, const HudFacts& facts) {
     for (int i = 0; i < 8; ++i) {
         const float bearing = static_cast<float>(i) * (PI_F / 4.0f);
         const std::string_view mark = loc(RIBBON_KEYS[i]);
-        const int mw = render::text_width_px(mark);
+        const int mw = mark_px > 0 ? ui_text_width(mark, mark_px)
+                                   : render::text_width_px(mark);
         const int x = column(bearing) - mw / 2;
         // A mark is drawn only if it fits WHOLE: half a letter at the edge of a
         // compass reads as a different letter, and a compass that can be
@@ -348,8 +361,12 @@ bool draw_compass_ribbon(render::PixelCanvas& canvas, const HudFacts& facts) {
         if (x < x_left + 1 || x + mw > x_left + ribbon_w - 1) {
             continue;
         }
-        render::draw_text(canvas, x, y_top, mark,
-                          (i == 0) ? RIBBON_NORTH : RIBBON_MARK, /*shadow=*/true);
+        const render::Color ink = (i == 0) ? RIBBON_NORTH : RIBBON_MARK;
+        if (mark_px > 0) {
+            ui_draw_text(canvas, x, y_top, mark, ink, mark_px, /*shadow=*/true);
+        } else {
+            render::draw_text(canvas, x, y_top, mark, ink, /*shadow=*/true);
+        }
     }
     return true;
 }
@@ -470,14 +487,19 @@ bool draw_tool_badge(render::PixelCanvas& canvas, const HudFacts& facts) {
     // стоит подсказка взаимодействия в теле, — одно место для «что сейчас
     // будет», а не два.
     const int cx = w / 2;
-    const int line_h = render::FONT_CELL_H + 1;
+    // ПЛАШКА ИНСТРУМЕНТА — ТЕМ ЖЕ ШРИФТОМ И ТОЙ ЖЕ ЛЕСТНИЦЕЙ (27.08). Роль
+    // Caption: это ответ на «что сейчас будет по щелчку», его читают в кадре и
+    // мельче подписи меню он быть не должен.
+    const int badge_px = ui_px(static_cast<int>(canvas.height()), UiText::Caption);
+    const auto text_w = [&](std::string_view t) {
+        return badge_px > 0 ? ui_text_width(t, badge_px) : render::text_width_px(t);
+    };
+    const int line_h = badge_px > 0 ? ui_line_height(badge_px) : render::FONT_CELL_H + 1;
     const int lines_ahead = facts.tool_action.empty() ? 1 : 2;
     int y = wy + wh - lines_ahead * line_h - BADGE_BOTTOM_GAP;
 
-    const int name_w = render::text_width_px(facts.tool_name);
-    const int act_w = facts.tool_action.empty()
-                          ? 0
-                          : render::text_width_px(facts.tool_action);
+    const int name_w = text_w(facts.tool_name);
+    const int act_w = facts.tool_action.empty() ? 0 : text_w(facts.tool_action);
     const int block_w = std::max(name_w, act_w);
     const int lines = lines_ahead;
     int x = cx - block_w / 2;
@@ -492,7 +514,14 @@ bool draw_tool_badge(render::PixelCanvas& canvas, const HudFacts& facts) {
     y = std::max(y, wy + 2);
 
     draw_text_plate(canvas, x, y, block_w, lines * line_h - 1);
-    render::draw_text(canvas, x, y, facts.tool_name, INK, /*shadow=*/true);
+    const auto put = [&](int tx, int ty, std::string_view t, render::Color c) {
+        if (badge_px > 0) {
+            ui_draw_text(canvas, tx, ty, t, c, badge_px, /*shadow=*/true);
+        } else {
+            render::draw_text(canvas, tx, ty, t, c, /*shadow=*/true);
+        }
+    };
+    put(x, y, facts.tool_name, INK);
     if (!facts.tool_action.empty()) {
         // THE SAME TWO COLOURS THE GHOST'S EDGES USE, and they mean the same
         // thing: green is "this click lands", red is "it will not, and here is
@@ -500,8 +529,7 @@ bool draw_tool_badge(render::PixelCanvas& canvas, const HudFacts& facts) {
         // the outline in the world come from the one judge pass.
         const render::Color ok{120, 208, 120};
         const render::Color no{224, 108, 108};
-        render::draw_text(canvas, x, y + line_h, facts.tool_action,
-                          facts.tool_ready ? ok : no, /*shadow=*/true);
+        put(x, y + line_h, facts.tool_action, facts.tool_ready ? ok : no);
     }
     return true;
 }

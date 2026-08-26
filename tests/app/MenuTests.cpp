@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:44:00
-Last updated: 27:08:2026 - 02:50:00
+Last updated: 27:08:2026 - 14:00:00
 Module: tests/app
 File: tests/app/MenuTests.cpp
 
@@ -59,6 +59,13 @@ UPD:
   Новые случаи: раскладка строк (menu_row_boxes) — внутри кадра, без наложений,
   по одной коробке на пункт; и попадание мышью (menu_row_at) — в центр коробки
   попадает её строка, а мимо списка не попадает ничего.
+- 27:08:2026 - 14:00:00: Строки страницы настроек больше не сосчитаны здесь, а
+  названы в заголовке (SettingsRow): страница выросла на две строки (окно и
+  полный экран, заказ владельца 27.08), «яркость» уехала с 4 на 6, и рукав
+  начал жать «палитру», сообщая об этом как «страница калибровки не
+  открывается». Тот же отказ, что был у строк корня 14.08, и та же починка.
+  Новые случаи: лестницы окна и полного экрана с КОНТРОЛЕМ «они не трогают
+  сетку рендера», и второй контроль предупреждения о перезапуске.
 */
 
 #include <doctest/doctest.h>
@@ -107,14 +114,21 @@ constexpr int ROOT_CREDITS = static_cast<int>(dfn::app::RootRow::Credits);
 constexpr int ROOT_QUIT = static_cast<int>(dfn::app::RootRow::Quit);
 constexpr size_t ROOT_ROW_COUNT = static_cast<size_t>(dfn::app::RootRow::Count);
 
-// Rows, in the order the page draws them.
-constexpr int ROW_RESOLUTION = 0;
-constexpr int ROW_MSAA = 1;
-constexpr int ROW_PALETTE = 2;
-constexpr int ROW_HEAD_BOB = 3;
-constexpr int ROW_BRIGHTNESS = 4;
-constexpr int ROW_CONTROLS = 5;
-constexpr int ROW_BACK = 6;
+// СТРОКИ СТРАНИЦЫ НАСТРОЕК — ИЗ ЗАГОЛОВКА, а не сосчитанные здесь. Эти семь
+// чисел были написаны от руки, и 27.08 страница выросла на две строки (окно и
+// полный экран): «яркость» уехала с 4 на 6, рукав начал жать «палитру» и
+// сообщил об этом как «страница калибровки не открывается» — правдивый красный,
+// называющий не тот предмет. Ровно тот же отказ, что уже был у строк корня
+// 14.08 и записан выше. Починено тем же механизмом: имя одно на код и на прибор.
+constexpr int ROW_RESOLUTION = static_cast<int>(dfn::app::SettingsRow::Resolution);
+constexpr int ROW_MSAA = static_cast<int>(dfn::app::SettingsRow::Msaa);
+constexpr int ROW_PALETTE = static_cast<int>(dfn::app::SettingsRow::Palette);
+constexpr int ROW_HEAD_BOB = static_cast<int>(dfn::app::SettingsRow::HeadBob);
+constexpr int ROW_BRIGHTNESS = static_cast<int>(dfn::app::SettingsRow::Brightness);
+constexpr int ROW_CONTROLS = static_cast<int>(dfn::app::SettingsRow::Controls);
+constexpr int ROW_BACK = static_cast<int>(dfn::app::SettingsRow::Back);
+constexpr int ROW_WINDOW = static_cast<int>(dfn::app::SettingsRow::Window);
+constexpr int ROW_FULLSCREEN = static_cast<int>(dfn::app::SettingsRow::Fullscreen);
 
 void select(MenuModel& m, int row) {
     m.open(MenuPage::Settings); // selection resets to 0
@@ -130,11 +144,25 @@ void select_root(MenuModel& m, int row) {
     }
 }
 
+// ЛЕСТНИЦА СЕТКИ РЕНДЕРА. Выросла 27.08 до Full HD: заказ владельца требует
+// поднять базу качества, а страница, не умеющая назвать разрешение, на котором
+// игра идёт, — это страница, которая про него врёт. Все ступени 16:9.
+constexpr int RESOLUTION_RUNGS = 6;
 bool legal_resolution(const MenuSettings& s) {
     return (s.internal_w == 320 && s.internal_h == 180)
         || (s.internal_w == 640 && s.internal_h == 360)
         || (s.internal_w == 960 && s.internal_h == 540)
-        || (s.internal_w == 1280 && s.internal_h == 720);
+        || (s.internal_w == 1280 && s.internal_h == 720)
+        || (s.internal_w == 1600 && s.internal_h == 900)
+        || (s.internal_w == 1920 && s.internal_h == 1080);
+}
+
+// ЛЕСТНИЦА ОКНА (новая строка страницы, 27.08).
+bool legal_window(const MenuSettings& s) {
+    return (s.window_w == 1280 && s.window_h == 720)
+        || (s.window_w == 1600 && s.window_h == 900)
+        || (s.window_w == 1920 && s.window_h == 1080)
+        || (s.window_w == 2560 && s.window_h == 1440);
 }
 
 } // namespace
@@ -232,13 +260,31 @@ TEST_CASE("settings rows land only on legal values, and wrap") {
         m.adjust(+1);
         CHECK(legal_resolution(m.settings()));
     }
-    // Four rungs, so four presses return to where it started.
+    // Полный круг по лестнице возвращает туда, откуда начали.
     const MenuSettings before = m.settings();
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < RESOLUTION_RUNGS; ++i) {
         m.adjust(+1);
     }
     CHECK(m.settings().internal_w == before.internal_w);
     CHECK(m.settings().internal_h == before.internal_h);
+
+    // ОКНО И ПОЛНЫЙ ЭКРАН — НОВЫЕ СТРОКИ (заказ владельца 27.08), и у них тот же
+    // вопрос: ступень или что угодно. КОНТРОЛЬ у обеих — что они НЕ трогают
+    // сетку рендера: две строки, названные в игре похоже, легче всего спутать
+    // именно в коде.
+    select(m, ROW_WINDOW);
+    const MenuSettings grid = m.settings();
+    for (int i = 0; i < 9; ++i) {
+        m.adjust(+1);
+        CHECK(legal_window(m.settings()));
+        CHECK(m.settings().internal_w == grid.internal_w);
+    }
+    select(m, ROW_FULLSCREEN);
+    const bool fs = m.settings().fullscreen;
+    m.adjust(+1);
+    CHECK(m.settings().fullscreen != fs);
+    m.adjust(-1);
+    CHECK(m.settings().fullscreen == fs);
 
     select(m, ROW_MSAA);
     for (int i = 0; i < 9; ++i) {
@@ -279,12 +325,23 @@ TEST_CASE("the restart warning fires for the renderer's rows and not for the liv
     CHECK(m.settings().head_bob != 1.0f);
     CHECK_FALSE(m.needs_restart()); // THE CONTROL: a live setting must stay silent
 
+    // ВТОРОЙ КОНТРОЛЬ, заведённый 27.08 вместе со строками окна: они тоже
+    // применяются живьём, и предупреждение о перезапуске обязано молчать. Без
+    // него «предупреждение срабатывает на всё» прошло бы незамеченным — а это
+    // и есть лёгкая ошибка.
+    select(m, ROW_WINDOW);
+    m.adjust(+1);
+    CHECK_FALSE(m.needs_restart());
+    select(m, ROW_FULLSCREEN);
+    m.adjust(+1);
+    CHECK_FALSE(m.needs_restart());
+
     select(m, ROW_RESOLUTION);
     m.adjust(+1);
     CHECK(m.needs_restart());
 
     // ...and it goes quiet again when the row is turned back to what launched.
-    for (int i = 0; i < 3; ++i) {
+    for (int i = 0; i < RESOLUTION_RUNGS - 1; ++i) {
         m.adjust(+1);
     }
     CHECK_FALSE(m.needs_restart());

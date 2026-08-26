@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 27:08:2026 - 03:25:00
+Last updated: 27:08:2026 - 14:00:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -95,6 +95,29 @@ UPD:
   знака студии. Поймано КАДРОМ приёмки, а не рассуждением: на сетке интерфейса
   640×360 строка занимает 434 px из 640, знак — первые 134, и на общей полосе
   они соприкасаются. Два касающихся текста читаются как поломка обоих.
+- 27:08:2026 - 14:00:00: МЕНЮ ПЕРЕШЛО НА НАСТОЯЩИЙ ШРИФТ И НА ОДНУ ЛЕСТНИЦУ
+  РАЗМЕРОВ, И ПОТЕРЯЛО ВСЕ ПОДСКАЗКИ УПРАВЛЕНИЯ (три заказа владельца 27.08).
+  * «шрифт интерфейса слишком угловатый, нужен нормальный шрифт»: каждая
+    строка каждой страницы рисуется теперь испечённой антиквой (UiFont.h,
+    assets/fonts/ui_serif.*, PT Serif под SIL OFL). Блочный 5×8 остался языком
+    ПРИБОРОВ (отладочный вывод, чат) и игроку не показывается.
+  * «в меню текст разных кнопок разным размером»: разнобой был не внутри
+    страницы, а МЕЖДУ страницами — корень считал множитель от h/180, браузер
+    брал base+1, титры h/300, заглушка h/260, а настройки и управление стояли
+    на FONT_CELL_H и не масштабировались вовсе. Теперь размер спрашивают у
+    РОЛИ, и ролей пять на всё меню.
+  * «весь вспомогательный текст подсказок ВООБЩЕ отовсюду удалить»:
+    draw_keys_hint() СНЯТА (не спрятана — мёртвую функцию следующий агент
+    включит обратно), вместе с подвалом экрана управления и строками клавиш на
+    калибровке и настройках. Ключи локализации убраны тем же движением: строка
+    без читателя переживает любой рефакторинг.
+  * СТРАНИЦА ГРАФИКИ: две новые строки — размер окна и полный экран, обе
+    применяются живьём; строка сетки рендера переименована в «Качество
+    картинки», и её лестница доросла до 1920×1080.
+  * ЧТО НЕ СНЯТО И ПОЧЕМУ: две строки на калибровке («поднимайте, пока средний
+    квадрат…») и предупреждение о перезапуске. Это не инструкции по клавишам,
+    а задача экрана и состояние настройки; без первых страница превращается в
+    три серых квадрата без вопроса.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -114,9 +137,11 @@ UPD:
 #include "engine/app/sources/AppDoors.h"
 #include "engine/app/sources/Controls.h"
 #include "engine/app/sources/DebugOverlay.h"
+#include "engine/app/sources/IntroVideo.h"
 #include "engine/app/sources/Localization.h"
 #include "engine/app/sources/MenuArt.h"
 #include "engine/app/sources/PngImage.h"
+#include "engine/app/sources/UiFont.h"
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/render/sources/BitmapFont.h"
 #include "engine/render/sources/PixelCanvas.h"
@@ -193,8 +218,15 @@ std::string_view loc(std::string_view key) {
 // a resolution the player could type into settings.cfg today and get a picture
 // nobody has ever looked at. A menu that cannot express the broken state is
 // worth more than a menu that validates it afterwards.
-constexpr uint32_t RES_W[] = {320, 640, 960, 1280};
-constexpr uint32_t RES_H[] = {180, 360, 540, 720};
+constexpr uint32_t RES_W[] = {320, 640, 960, 1280, 1600, 1920};
+constexpr uint32_t RES_H[] = {180, 360, 540, 720, 900, 1080};
+// РАЗМЕРЫ ОКНА — та же лестница из тех же соображений: это значения, на
+// которых картинка складывается целыми числами, а не поле ввода, куда можно
+// вписать окно, которого никто не видел. 16:9 во всех ступенях, потому что
+// таковы и сетка рендера, и кадры приёмки; смешивать сюда 4:3 значило бы
+// показывать игроку выбор, который меняет КАДРИРОВАНИЕ мира, не сказав об этом.
+constexpr uint32_t WIN_W[] = {1280, 1600, 1920, 2560};
+constexpr uint32_t WIN_H[] = {720, 900, 1080, 1440};
 constexpr uint32_t MSAA_STEPS[] = {0, 2, 4, 8};
 // 0 is the motion-sickness setting the research mandated and it is a FULL stop
 // of the motion, not a small one -- so it is a rung of its own, not the bottom
@@ -204,16 +236,20 @@ constexpr float BOB_STEPS[] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f};
 // The rows of the settings page, named once. Their ORDER is the order of the
 // picture: what the frame is drawn on, then what is done to it, then how it
 // moves, then how dark it is allowed to get.
-enum SettingsRow : size_t {
-    RowResolution = 0,
-    RowMsaa,
-    RowPalette,
-    RowHeadBob,
-    RowBrightness, // opens the calibration page, which is where an EYE decides
-    RowControls,   // opens the key list (read-only; rebinding is not a thing yet)
-    RowBack,
-    RowCount,
-};
+// ИМЕНА СТРОК ЖИВУТ В ЗАГОЛОВКЕ (SettingsRow), а не здесь: их индексирует и
+// рукав, и счётный индекс в тесте — это тот самый молча уезжающий номер, о
+// котором предупреждает запись над RootRow. Локальные короткие имена оставлены,
+// чтобы switch ниже читался, но ЗНАЧЕНИЕ у них одно и общее.
+constexpr size_t RowWindow = static_cast<size_t>(SettingsRow::Window);
+constexpr size_t RowFullscreen = static_cast<size_t>(SettingsRow::Fullscreen);
+constexpr size_t RowResolution = static_cast<size_t>(SettingsRow::Resolution);
+constexpr size_t RowMsaa = static_cast<size_t>(SettingsRow::Msaa);
+constexpr size_t RowPalette = static_cast<size_t>(SettingsRow::Palette);
+constexpr size_t RowHeadBob = static_cast<size_t>(SettingsRow::HeadBob);
+constexpr size_t RowBrightness = static_cast<size_t>(SettingsRow::Brightness);
+constexpr size_t RowControls = static_cast<size_t>(SettingsRow::Controls);
+constexpr size_t RowBack = static_cast<size_t>(SettingsRow::Back);
+constexpr size_t RowCount = static_cast<size_t>(SettingsRow::Count);
 
 // Nearest rung to a value that may have come from a hand-edited settings.cfg.
 // Never fails: a file saying msaa=3 has to land somewhere, and landing on the
@@ -255,10 +291,40 @@ size_t cycle(size_t index, size_t count, int delta) {
     return fits_width(w, full, brief);
 }
 
+// ТО ЖЕ ПРАВИЛО, НО МЕРЯЕТ НАСТОЯЩИМ ШРИФТОМ. fits_width() считает блочными
+// ячейками 6×9, и после перехода интерфейса на антикву эта мера перестала
+// описывать нарисованное: у пропорционального шрифта ширина строки не равна
+// числу знаков. Правило одно и то же — «влезает полный вариант, иначе
+// короткий», — и живёт оно по-прежнему в одном месте; здесь у него просто
+// появилась вторая линейка, потому что линеек в дереве теперь две.
+[[nodiscard]] std::string_view fits_px(int w, int px, std::string_view full,
+                                       std::string_view brief) {
+    if (!ui_font_ready()) {
+        return fits_width(w, full, brief);
+    }
+    return ui_text_width(full, px) <= w - w / 12 ? full : brief;
+}
+
+// --- ОДИН ШРИФТ И ОДНА ЛЕСТНИЦА РАЗМЕРОВ НА ВСЕ СТРАНИЦЫ ---------------------
+// Заказ владельца 27.08: «в меню текст разных кнопок разным размером; шрифт
+// интерфейса слишком угловатый». Оба отказа жили здесь и оба — от одной
+// причины: КАЖДАЯ страница называла свой размер сама. Корень считал множитель
+// от h/180, браузер брал base+1, титры — h/300, заглушка — h/260, а настройки
+// и управление вообще стояли на FONT_CELL_H, то есть не масштабировались
+// вовсе. Ни одно из этих чисел не было неправильным по отдельности — вместе
+// они и есть «разный размер у разных кнопок».
+//
+// Теперь размер спрашивают у РОЛИ (UiFont.h), и ролей пять на всё меню.
+[[nodiscard]] int px_for(int canvas_h, UiText role) { return ui_px(canvas_h, role); }
+
+[[nodiscard]] int tw_of(std::string_view text, int px) {
+    return ui_text_width(text, px);
+}
+
 void draw_centered(render::PixelCanvas& canvas, int y, std::string_view text,
-                   render::Color color) {
-    const int x = (static_cast<int>(canvas.width()) - render::text_width_px(text)) / 2;
-    render::draw_text(canvas, x, y, text, color, /*shadow=*/true);
+                   render::Color color, int px) {
+    const int x = (static_cast<int>(canvas.width()) - tw_of(text, px)) / 2;
+    ui_draw_text(canvas, x, y, text, color, px, /*shadow=*/true);
 }
 
 // --- THE START SCREEN'S OWN PALETTE -----------------------------------------
@@ -288,54 +354,67 @@ constexpr render::Color STUDIO_MARK{96, 104, 118};    // the corner signature
 // 1920x1080, and a layout in absolute pixels only holds at the size it was
 // eyeballed on.
 struct ListMetrics {
-    int base = 1;     // magnification of an ordinary row
-    int big = 2;      // magnification of the first row (CONTINUE, in the reference)
-    int tracking = 1; // extra pixels between glyph cells
+    int item_px = 1;  // кегль ОБЫЧНОГО пункта -- один на всю страницу
+    int big_px = 1;   // кегль первого пункта там, где он крупнее (корень, пауза)
+    int blurb_px = 1; // кегль подписи под пунктом
     int gap = 4;      // vertical air between rows
     int edge = 0;     // the column's right edge (right-aligned pages)
     int top = 0;      // y of the first row's ink
     int total = 0;    // height of the whole block
 };
 
-[[nodiscard]] int row_scale(const ListMetrics& m, size_t i) {
-    return i == 0 ? m.big : m.base;
+[[nodiscard]] int row_px(const ListMetrics& m, size_t i) {
+    return i == 0 ? m.big_px : m.item_px;
 }
+
+// Высота ЯЩИКА строки. Прописная, а не полная высота строки: выносных элементов
+// в наших пунктах почти нет, и блок, сложенный по line_height, стоит заметно
+// выше, чем выглядит, — именно так список уезжал за низ кадра.
+[[nodiscard]] int row_box_h(int px) { return std::max(1, ui_cap_height(px)); }
 
 [[nodiscard]] ListMetrics list_metrics(int w, int h, size_t n) {
     ListMetrics m;
+    const int frame_h = h; // h ужимается внутри цикла; кадр — нет
     // The reference's column stands a good way in from the edge -- far enough
     // that the letters are not read against the bezel.
     m.edge = w - std::max(6, w / 12);
     const int rows = static_cast<int>(n);
-    // MEASURED AGAINST THE REFERENCE'S PROPORTION, not picked. A Skyrim menu
-    // item is about 4 % of the frame's height and its CONTINUE about 6 %; the
-    // font's ink is 8 px, so at the interface's design grid (360 rows, see
-    // RenderSystem::set_internal_resolution -- the HUD deliberately keeps its
-    // own grid while the world renders at full detail) that is a magnification
-    // of two and three. h/180 is the divisor that lands there and scales with
-    // any other grid.
-    m.base = std::max(1, h / 180); // 360 -> 2, 180 -> 1
+    // ДВА РАЗМЕРА НА СПИСОК, И ОБА ИЗ ОДНОЙ ЛЕСТНИЦЫ (UiFont.h). Раньше здесь
+    // считался множитель блочного шрифта от h/180, и «пункт» получался разным
+    // на разных страницах — жалоба владельца 27.08. Пропорции образца те же,
+    // что были: пункт около 4 % высоты кадра по прописной, крупный первый —
+    // около 6 %; они теперь записаны один раз, в долях роли.
+    m.item_px = px_for(h, UiText::Item);
+    m.big_px = px_for(h, UiText::Accent);
+    m.blurb_px = px_for(h, UiText::Caption);
     for (;;) {
-        m.big = m.base + 1;
-        m.gap = std::max(2, m.base * 5);
-        m.tracking = m.base;
+        m.gap = std::max(2, row_box_h(m.item_px) * 5 / 8);
         m.total = 0;
         for (int i = 0; i < rows; ++i) {
-            m.total += text_height_scaled(i == 0 ? m.big : m.base) + m.gap;
+            m.total += row_box_h(i == 0 ? m.big_px : m.item_px) + m.gap;
         }
         m.total = std::max(0, m.total - m.gap); // no gap after the last row
         // A BLOCK THAT DOES NOT FIT IS THE FAILURE THIS LOOP EXISTS FOR: the
         // controls page shipped once with its last two rows off the bottom
         // because its arithmetic lived inside the drawing and nothing could
-        // measure it. Shrink until it fits, and at scale 1 accept whatever we
-        // get -- there is nothing smaller to fall back to.
-        if (m.base == 1 || m.total <= h * 3 / 5) {
+        // measure it. Ужимаем, спускаясь ПО ЛЕСТНИЦЕ (ui_px от меньшей высоты),
+        // а не деля кегль: половина испечённой ступени — это ступень, которой
+        // нет, и рантайм всё равно взял бы ближайшую.
+        if (m.total <= h * 3 / 5 || m.item_px <= px_for(h / 4, UiText::Item)) {
             break;
         }
-        --m.base;
+        const int smaller = px_for(h * 4 / 5, UiText::Item);
+        const int smaller_big = px_for(h * 4 / 5, UiText::Accent);
+        if (smaller >= m.item_px) {
+            break; // лестница кончилась: ниже честно ничего нет
+        }
+        m.item_px = smaller;
+        m.big_px = smaller_big;
+        m.blurb_px = px_for(h * 4 / 5, UiText::Caption);
+        h = h * 4 / 5;
     }
-    const int bottom = h - std::max(4, h / 9);
-    m.top = std::max(h / 10, bottom - m.total);
+    const int bottom = frame_h - std::max(4, frame_h / 9);
+    m.top = std::max(frame_h / 10, bottom - m.total);
     return m;
 }
 
@@ -495,6 +574,16 @@ void MenuModel::adjust(int delta) {
         return;
     }
     switch (selection_) {
+    case RowWindow: {
+        const size_t i = cycle(nearest_rung(WIN_W, settings_.window_w),
+                               std::size(WIN_W), delta);
+        settings_.window_w = WIN_W[i];
+        settings_.window_h = WIN_H[i];
+        break;
+    }
+    case RowFullscreen:
+        settings_.fullscreen = !settings_.fullscreen;
+        break;
     case RowResolution: {
         const size_t i = cycle(nearest_rung(RES_W, settings_.internal_w),
                                std::size(RES_W), delta);
@@ -729,7 +818,7 @@ struct ListPlan {
     ListMetrics m;
     std::vector<MenuRowBox> boxes; // ink rect of each label
     std::vector<int> blurb_y;      // y of the blurb ink, or -1 when there is none
-    int blurb_scale = 1;
+    int blurb_px = 1;
     int title_y = 0;
     bool right_aligned = false;
 };
@@ -751,15 +840,15 @@ struct ListPlan {
     // (the reference's CONTINUE, our Продолжить); a picker has no such row and
     // a list where one entry is bigger reads as that entry being special.
     if (!p.right_aligned) {
-        p.m.big = p.m.base;
+        p.m.big_px = p.m.item_px;
     }
-    p.blurb_scale = std::max(1, p.m.base - 1);
+    p.blurb_px = p.m.blurb_px;
 
-    const auto row_h = [&](size_t i) { return text_height_scaled(row_scale(p.m, i)); };
+    const auto row_h = [&](size_t i) { return row_box_h(row_px(p.m, i)); };
     const auto blurb_h = [&](size_t i) {
         return menu_row(model, i).blurb.empty()
                    ? 0
-                   : text_height_scaled(p.blurb_scale) + p.m.gap / 2;
+                   : row_box_h(p.blurb_px) + p.m.gap / 2;
     };
 
     if (!p.right_aligned) {
@@ -767,41 +856,49 @@ struct ListPlan {
         // bottom, blurbs included. The shrink loop is the same one list_metrics
         // runs, redone here because the blurbs are what actually overflow: a
         // category with twenty maps is a real page.
+        int scratch_h = h;
         for (;;) {
-            p.blurb_scale = std::max(1, p.m.base - 1);
-            p.m.gap = std::max(2, p.m.base * 5);
-            p.m.tracking = p.m.base;
-            p.m.big = p.m.base;
+            p.m.gap = std::max(2, row_box_h(p.m.item_px) * 5 / 8);
             int total = 0;
             for (size_t i = 0; i < n; ++i) {
                 total += row_h(i) + blurb_h(i) + p.m.gap;
             }
             p.m.total = std::max(0, total - p.m.gap);
             p.title_y = h / 8;
-            p.m.top = p.title_y + text_height_scaled(p.m.base + 1) + p.m.gap * 3;
-            if (p.m.base == 1 || p.m.top + p.m.total <= h - h / 8) {
+            p.m.top = p.title_y + row_box_h(px_for(h, UiText::Title)) + p.m.gap * 3;
+            if (p.m.top + p.m.total <= h - h / 8) {
                 break;
             }
-            --p.m.base;
+            // Спуск ПО ЛЕСТНИЦЕ: просим размер от кадра поменьше и берём то, что
+            // испечено. Кончилась лестница — принимаем как есть: нарисовать
+            // мельче, чем испечено, значит нарисовать мыло.
+            const int smaller = px_for(scratch_h * 4 / 5, UiText::Item);
+            if (smaller >= p.m.item_px) {
+                break;
+            }
+            scratch_h = scratch_h * 4 / 5;
+            p.m.item_px = smaller;
+            p.m.big_px = smaller;
+            p.blurb_px = px_for(scratch_h, UiText::Caption);
         }
     } else {
         // The title (the pause word) stands above the block; the start screen
         // has none, and draws its emblem instead.
-        p.title_y = std::max(h / 12, p.m.top - text_height_scaled(p.m.big) - p.m.gap * 2);
+        p.title_y = std::max(h / 12, p.m.top - row_box_h(p.m.big_px) - p.m.gap * 2);
     }
 
     p.boxes.reserve(n);
     p.blurb_y.reserve(n);
     int y = p.m.top;
     for (size_t i = 0; i < n; ++i) {
-        const int s = row_scale(p.m, i);
+        const int s = row_px(p.m, i);
         const Row r = menu_row(model, i);
-        const int lw = text_width_scaled(r.label, s, p.m.tracking);
+        const int lw = tw_of(r.label, s);
         MenuRowBox b;
         b.x = p.right_aligned ? p.m.edge - lw : (w - lw) / 2;
         b.y = y;
         b.w = lw;
-        b.h = text_height_scaled(s);
+        b.h = row_box_h(s);
         p.boxes.push_back(b);
         y += b.h;
         if (r.blurb.empty()) {
@@ -809,7 +906,7 @@ struct ListPlan {
         } else {
             y += p.m.gap / 2;
             p.blurb_y.push_back(y);
-            y += text_height_scaled(p.blurb_scale);
+            y += row_box_h(p.blurb_px);
         }
         y += p.m.gap;
     }
@@ -820,6 +917,8 @@ struct ListPlan {
 // page itself is a two-column table drawn at the small font; only the ROW BAND
 // is shared, because that is the only part a pointer needs.
 struct SettingsLayout {
+    int title_px = 1;
+    int item_px = 1;
     int title_y = 0;
     int first_y = 0;
     int step = 0;
@@ -828,10 +927,35 @@ struct SettingsLayout {
 
 [[nodiscard]] SettingsLayout settings_layout(int h) {
     SettingsLayout L;
-    L.title_y = h / 6;
-    L.first_y = L.title_y + render::FONT_CELL_H + 16;
-    L.step = render::FONT_CELL_H + 4;
-    L.gap_after_brightness = 4; // the two rows below the dial are verbs, not values
+    // РАЗМЕРЫ ИЗ ТОЙ ЖЕ ЛЕСТНИЦЫ, ЧТО У ОСТАЛЬНЫХ СТРАНИЦ. До сегодня эта
+    // страница стояла на render::FONT_CELL_H — то есть НЕ масштабировалась
+    // вовсе: на 1920×1080 её строки были в девять раз мельче строк корня.
+    // Это и есть вторая половина жалобы «в меню текст разных кнопок разным
+    // размером»: разнобой был не внутри страницы, а между страницами.
+    L.title_px = px_for(h, UiText::Title);
+    L.item_px = px_for(h, UiText::Item);
+    const int row = std::max(1, ui_cap_height(L.item_px));
+    L.title_y = h / 8;
+    L.first_y = L.title_y + std::max(1, ui_cap_height(L.title_px)) + row;
+    L.step = row + row / 2;
+    // the two rows below the dial are verbs, not values
+    L.gap_after_brightness = row / 2;
+    // ВСЕ СТРОКИ ОБЯЗАНЫ ПОМЕСТИТЬСЯ. Страница выросла на две строки (окно и
+    // полный экран), и без этой проверки последние две ушли бы за низ кадра —
+    // ровно тот отказ, который экран управления уже один раз выпустил.
+    while (L.item_px > 0
+           && L.first_y + static_cast<int>(RowCount) * L.step + L.gap_after_brightness
+                  > h - h / 12) {
+        const int smaller = px_for(h * 4 / 5, UiText::Item);
+        if (smaller >= L.item_px) {
+            break;
+        }
+        L.item_px = smaller;
+        const int r = std::max(1, ui_cap_height(L.item_px));
+        L.step = r + r / 2;
+        L.gap_after_brightness = r / 2;
+        h = h * 4 / 5;
+    }
     return L;
 }
 
@@ -863,7 +987,7 @@ std::vector<MenuRowBox> menu_row_boxes(int canvas_w, int canvas_h,
         out.reserve(RowCount);
         for (size_t i = 0; i < RowCount; ++i) {
             out.push_back(MenuRowBox{canvas_w / 4, settings_row_y(L, i), canvas_w / 2,
-                                     render::FONT_INK_H});
+                                     std::max(1, ui_cap_height(L.item_px))});
         }
         return out;
     }
@@ -917,11 +1041,20 @@ void draw_calibration(render::PixelCanvas& canvas, const MenuModel& model) {
     // what black looks like on this monitor, so it must not be tinted by ours.
     canvas.clear(render::Color{0, 0, 0});
 
-    draw_centered(canvas, h / 8, loc("menu.calibrate.title"), TITLE);
-    draw_centered(canvas, h / 8 + render::FONT_CELL_H * 2,
-                  fits(w, loc("menu.calibrate.line1"), loc("menu.calibrate.line1.short")), ITEM);
-    draw_centered(canvas, h / 8 + render::FONT_CELL_H * 3 + 2,
-                  fits(w, loc("menu.calibrate.line2"), loc("menu.calibrate.line2.short")), BLURB);
+    const int title_px = px_for(h, UiText::Title);
+    const int item_px = px_for(h, UiText::Item);
+    const int cap_px = px_for(h, UiText::Caption);
+    const int line = std::max(1, ui_line_height(cap_px));
+    draw_centered(canvas, h / 8, loc("menu.calibrate.title"), TITLE, title_px);
+    // ЭТИ ДВЕ СТРОКИ — НЕ ПОДСКАЗКА УПРАВЛЕНИЯ, И ПОТОМУ ОСТАЛИСЬ. Заказ 27.08
+    // снял инструкции по клавишам; здесь написано, ЧТО ГЛАЗ ДОЛЖЕН УВИДЕТЬ, —
+    // без этого страница превращается в три серых квадрата без задачи.
+    draw_centered(canvas, h / 8 + std::max(1, ui_cap_height(title_px)) + line,
+                  fits_px(w, cap_px, loc("menu.calibrate.line1"),
+                          loc("menu.calibrate.line1.short")), ITEM, cap_px);
+    draw_centered(canvas, h / 8 + std::max(1, ui_cap_height(title_px)) + line * 2,
+                  fits_px(w, cap_px, loc("menu.calibrate.line2"),
+                          loc("menu.calibrate.line2.short")), BLURB, cap_px);
 
     // Squares big enough that the eye judges a TONE rather than a thin edge:
     // a one-step difference on a 4 px sliver is a different perceptual task
@@ -937,8 +1070,8 @@ void draw_calibration(render::PixelCanvas& canvas, const MenuModel& model) {
         canvas.fill_rect(px, y0, patch, patch, grey(unlift(target, floor_value)));
         char label[8];
         std::snprintf(label, sizeof(label), "%d", i);
-        render::draw_text(canvas, px + (patch - render::text_width_px(label)) / 2,
-                          y0 + patch + 4, label, BLURB, /*shadow=*/true);
+        ui_draw_text(canvas, px + (patch - tw_of(label, cap_px)) / 2,
+                     y0 + patch + line / 2, label, BLURB, cap_px, /*shadow=*/true);
     }
 
     // The number, in the ruler the page is built on: steps first, because that
@@ -948,16 +1081,16 @@ void draw_calibration(render::PixelCanvas& canvas, const MenuModel& model) {
                   static_cast<double>(floor_value / SHADE_STEP),
                   static_cast<double>(floor_value));
     const std::string_view level = loc("menu.calibrate.level");
-    const int vw = render::text_width_px(level) + render::FONT_CELL_W
-                 + render::text_width_px(value);
+    const int space = std::max(4, item_px / 3);
+    const int vw = tw_of(level, item_px) + space + tw_of(value, item_px);
     const int vx = (w - vw) / 2;
-    const int vy = y0 + patch + render::FONT_CELL_H * 2 + 6;
-    render::draw_text(canvas, vx, vy, level, BLURB, true);
-    render::draw_text(canvas, vx + render::text_width_px(level) + render::FONT_CELL_W, vy,
-                      value, ITEM_SELECTED, true);
-
-    draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4,
-                  fits(w, loc("menu.calibrate.keys"), loc("menu.calibrate.keys.short")), BLURB);
+    const int vy = y0 + patch + line * 2;
+    ui_draw_text(canvas, vx, vy, level, BLURB, item_px, true);
+    ui_draw_text(canvas, vx + tw_of(level, item_px) + space, vy, value, ITEM_SELECTED,
+                 item_px, true);
+    // ПОДСКАЗКА О КЛАВИШАХ СНЯТА (заказ владельца 27.08). Её место внизу кадра
+    // осталось пустым намеренно: строка, объясняющая игроку, что стрелки — это
+    // стрелки, а Esc — это назад, была тем самым «вспомогательным текстом».
 }
 
 // THE SETTINGS PAGE (the user's request: settings.cfg had five rows describing
@@ -997,7 +1130,13 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
         std::string_view label;
         std::string_view value;
     };
+    std::snprintf(buf, sizeof(buf), "%ux%u", s.window_w, s.window_h);
+    const std::string window(buf);
+
     const Row rows[RowCount] = {
+        {loc("menu.settings.window"), window},
+        {loc("menu.settings.fullscreen"),
+         s.fullscreen ? loc("menu.settings.on") : loc("menu.settings.off")},
         {loc("menu.settings.resolution"), res},
         {loc("menu.settings.msaa"), msaa},
         {loc("menu.settings.palette"),
@@ -1008,35 +1147,36 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
         {loc("menu.back"), {}},
     };
 
-    int label_w = 0;
-    int value_w = 0;
-    for (const Row& r : rows) {
-        label_w = std::max(label_w, render::text_width_px(r.label));
-        value_w = std::max(value_w, render::text_width_px(r.value));
-    }
-    const int gap = render::FONT_CELL_W * 3;
-    const int block = label_w + gap + value_w;
-    const int x0 = (w - block) / 2;
-
     // THE ROW ARITHMETIC LIVES IN settings_layout() so the MOUSE can read the
     // same numbers (menu_row_boxes). It used to be inline here, which is fine
     // for one reader and a shadow copy the moment there are two (Rule 39).
     const SettingsLayout L = settings_layout(h);
-    draw_centered(canvas, L.title_y, loc("menu.settings.title"), TITLE);
-    canvas.fill_rect(w / 4, L.title_y + render::FONT_CELL_H + 4, w / 2, 1, RULE_LINE);
+
+    int label_w = 0;
+    int value_w = 0;
+    for (const Row& r : rows) {
+        label_w = std::max(label_w, tw_of(r.label, L.item_px));
+        value_w = std::max(value_w, tw_of(r.value, L.item_px));
+    }
+    const int gap = L.item_px;
+    const int block = label_w + gap + value_w;
+    const int x0 = (w - block) / 2;
+
+    draw_centered(canvas, L.title_y, loc("menu.settings.title"), TITLE, L.title_px);
+    canvas.fill_rect(w / 4, L.title_y + ui_cap_height(L.title_px) + L.item_px / 3, w / 2,
+                     std::max(1, L.item_px / 24), RULE_LINE);
 
     for (size_t i = 0; i < RowCount; ++i) {
         const int y = settings_row_y(L, i);
         const bool sel = (i == model.selection());
         const render::Color color = sel ? ITEM_SELECTED : ITEM;
         if (sel) {
-            render::draw_text(canvas, x0 - render::FONT_CELL_W * 2, y, ">", ITEM_SELECTED,
-                              true);
+            ui_draw_text(canvas, x0 - gap * 2, y, ">", ITEM_SELECTED, L.item_px, true);
         }
-        render::draw_text(canvas, x0, y, rows[i].label, color, /*shadow=*/true);
+        ui_draw_text(canvas, x0, y, rows[i].label, color, L.item_px, /*shadow=*/true);
         if (!rows[i].value.empty()) {
-            render::draw_text(canvas, x0 + block - render::text_width_px(rows[i].value), y,
-                              rows[i].value, color, /*shadow=*/true);
+            ui_draw_text(canvas, x0 + block - tw_of(rows[i].value, L.item_px), y,
+                         rows[i].value, color, L.item_px, /*shadow=*/true);
         }
     }
 
@@ -1044,13 +1184,17 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
     // swallowed by the renderer at init, so turning them changes the file and
     // not the frame in front of the player. A page that lets that happen
     // silently teaches the player that the settings do nothing.
+    //
+    // ЭТО НЕ ПОДСКАЗКА УПРАВЛЕНИЯ, а СОСТОЯНИЕ: строка отвечает не «какую
+    // клавишу нажать», а «эта настройка ещё не в кадре». Заказ 27.08 снял
+    // первое и не трогал второго.
     if (model.needs_restart()) {
-        draw_centered(canvas, h - render::FONT_CELL_H * 4,
-                      fits(w, loc("menu.settings.restart"), loc("menu.settings.restart.short")),
-                      BLURB);
+        const int cap = px_for(h, UiText::Caption);
+        draw_centered(canvas, h - ui_line_height(cap) * 2,
+                      fits_px(w, cap, loc("menu.settings.restart"),
+                              loc("menu.settings.restart.short")),
+                      BLURB, cap);
     }
-    draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4,
-                  fits(w, loc("menu.settings.keys"), loc("menu.settings.keys.short")), BLURB);
 }
 
 // THE CONTROLS PAGE (the user's request: "я должен уметь посмотреть на это в
@@ -1098,33 +1242,55 @@ void draw_controls(render::PixelCanvas& canvas) {
         rows.push_back({std::string(loc(m.keys)), loc(m.what), {}});
     }
 
+    // СПИСОК КЛАВИШ — ЭТО СПРАВОЧНИК, а не список кнопок: тридцать с лишним
+    // строк, которые читают глазами один раз. Роль Small на всю страницу — и
+    // это ОДНА роль, а не «сколько влезет»: строки одного смысла обязаны быть
+    // одного размера (заказ 27.08). Самая мелкая из ролей выбрана замером, а не
+    // вкусом: на Caption описания вроде «Подтвердить (в редакторе) или быстрый
+    // коммент со снимком» не помещались в половину кадра и въезжали в клавиши
+    // соседней колонки — видно на первом кадре приёмки этой страницы.
+    const int item_px = px_for(h, UiText::Small);
     int keys_w = 0;
     for (const Row& r : rows) {
-        keys_w = std::max(keys_w, render::text_width_px(r.keys));
+        keys_w = std::max(keys_w, tw_of(r.keys, item_px));
     }
-    const int gap = render::FONT_CELL_W * 2;
+    const int gap = item_px;
 
     // THE LAYOUT IS COMPUTED NEXT DOOR (Controls.h controls_layout) so a test
     // can read it. The first cut of this page did its arithmetic here, inline,
     // and did not fit at 320x180 -- the last rows ran off the bottom and the
     // footer sat on top of a row. Nothing could have caught that but a frame,
     // and a frame only catches the resolutions somebody remembers to shoot.
-    const ControlsLayout L = controls_layout(w, h);
+    const int title_px = px_for(h, UiText::Title);
+    // ПОЛ ШАГА — ВЫСОТА СТРОКИ, а не прописной: см. довод у самой функции.
+    const int line = std::max(1, ui_line_height(item_px));
+    const ControlsLayout L = controls_layout(w, h, line, line * 9 / 8);
     const int title_y = L.title_y;
     const int row_h = L.row_h;
 
-    draw_centered(canvas, title_y, loc("controls.title"), TITLE);
-    canvas.fill_rect(w / 4, title_y + render::FONT_CELL_H + 2, w / 2, 1, RULE_LINE);
+    draw_centered(canvas, title_y, loc("controls.title"), TITLE, title_px);
+    canvas.fill_rect(w / 4, title_y + ui_cap_height(title_px) + item_px / 3, w / 2,
+                     std::max(1, item_px / 16), RULE_LINE);
 
-    const int x_keys = std::max(render::FONT_CELL_W, (w - (keys_w + gap + 200)) / 2);
+    // ГОРИЗОНТАЛЬ СЧИТАЕТСЯ ПО КОЛОНКЕ, А НЕ ПО КАДРУ. Прежняя арифметика знала
+    // только про один столбец: ширина описаний была числом 200 (пикселей,
+    // верных на сетке 640×360), а вторая колонка получала сдвиг от середины
+    // кадра. На холсте 1920×1080 это дало ровно то, что видно на первом кадре
+    // приёмки, — описания левой колонки въехали в клавиши правой. Теперь у
+    // страницы есть ШИРИНА КОЛОНКИ, и всё внутри неё.
+    const int margin = std::max(item_px, w / 24);
+    const int col_w = (L.columns == 2 ? (w - margin * 2) / 2 : w - margin * 2);
+    const int x_keys = L.columns == 2 ? margin : std::max(margin, (w - (keys_w + gap + col_w / 2)) / 2);
     const int x_what = x_keys + keys_w + gap;
+    // Правый край текста колонки: за него не выходит ни описание, ни пометка.
+    const int col_right = x_what + col_w - keys_w - gap;
 
     int y = L.first_y;
     const size_t key_rows = control_bindings().size();
     // TWO COLUMNS WHEN THE FRAME IS SHORT (Controls.h controls_layout). The
     // second column starts at the middle of the frame and the y restarts; in
     // one-column mode the offsets are zero and this reads exactly as before.
-    const int col_shift = L.columns == 2 ? w / 2 - x_keys + render::FONT_CELL_W : 0;
+    const int col_shift = L.columns == 2 ? col_w : 0;
     for (size_t i = 0; i < rows.size(); ++i) {
         int x_off = 0;
         if (L.columns == 2) {
@@ -1138,28 +1304,34 @@ void draw_controls(render::PixelCanvas& canvas) {
         // the frame is too short, because the rows they group are already
         // adjacent and the ROWS are the thing nobody may lose.
         if (L.headings && i == 0) {
-            render::draw_text(canvas, x_keys, y, loc("controls.section.keys"), BLURB, true);
+            ui_draw_text(canvas, x_keys, y, loc("controls.section.keys"), BLURB, item_px,
+                         true);
             y += row_h;
         } else if (L.headings && i == key_rows) {
-            render::draw_text(canvas, x_keys, y, loc("controls.section.fly"), BLURB, true);
+            ui_draw_text(canvas, x_keys, y, loc("controls.section.fly"), BLURB, item_px,
+                         true);
             y += row_h;
         }
-        render::draw_text(canvas, x_keys + x_off, y, rows[i].keys, ITEM_SELECTED, /*shadow=*/true);
-        render::draw_text(canvas, x_what + x_off, y, rows[i].what, ITEM, true);
+        ui_draw_text(canvas, x_keys + x_off, y, rows[i].keys, ITEM_SELECTED, item_px,
+                     /*shadow=*/true);
+        ui_draw_text(canvas, x_what + x_off, y, rows[i].what, ITEM, item_px, true);
+        // ПОМЕТКА ОБЛАСТИ («только в редакторе») — ПЕРВОЕ, ЧЕМ СТРАНИЦА
+        // ПЛАТИТ ЗА ТЕСНОТУ, и платит она молча: строка, которой пометка не
+        // влезла, всё равно на месте и всё равно читается. Порог считается по
+        // краю КОЛОНКИ, а не кадра, — иначе в две колонки пометка левой лезет
+        // в клавиши правой, что и было на первом кадре.
         if (!rows[i].note.empty()) {
-            const int nx = x_what + x_off + render::text_width_px(rows[i].what) + render::FONT_CELL_W;
-            if (nx + render::text_width_px(rows[i].note) < w) {
-                render::draw_text(canvas, nx, y, rows[i].note, BLURB, true);
+            const int nx = x_what + x_off + tw_of(rows[i].what, item_px) + item_px / 2;
+            if (nx + tw_of(rows[i].note, item_px) <= col_right + x_off) {
+                ui_draw_text(canvas, nx, y, rows[i].note, BLURB, item_px, true);
             }
         }
         if (L.columns == 1) {
             y += row_h;
         }
     }
-
-    if (L.footer) {
-        draw_centered(canvas, h - render::FONT_CELL_H * 2 - 4, loc("controls.keys"), BLURB);
-    }
+    // ПОДВАЛ «Esc — назад» СНЯТ (заказ владельца 27.08). Полоса под списком
+    // осталась полем — см. ControlsLayout::footer.
 }
 
 namespace {
@@ -1178,25 +1350,25 @@ void draw_item_list(render::PixelCanvas& canvas, const MenuModel& model,
     for (size_t i = 0; i < n && i < p.boxes.size(); ++i) {
         const MenuRowBox& b = p.boxes[i];
         const bool sel = (i == model.selection());
-        const int scale = row_scale(p.m, i);
+        const int px = row_px(p.m, i);
         const Row r = menu_row(model, i);
-        draw_text_scaled(canvas, b.x, b.y, r.label, sel ? ITEM_BRIGHT : ITEM_DIM,
-                         scale, p.m.tracking, /*shadow=*/true);
+        ui_draw_text(canvas, b.x, b.y, r.label, sel ? ITEM_BRIGHT : ITEM_DIM, px,
+                     /*shadow=*/true);
         if (sel) {
             // THE RULE UNDER THE WORD is what carries the selection when the
             // player is colour-blind or the monitor is uncalibrated -- the
             // brightness difference between the two item colours is a couple of
             // quantizer steps, which is the weakest signal this project has.
-            const int thick = std::max(1, scale / 2);
-            canvas.fill_rect(b.x, b.y + b.h + std::max(1, scale / 2), b.w, thick,
+            const int thick = std::max(1, px / 20);
+            canvas.fill_rect(b.x, b.y + b.h + std::max(2, px / 8), b.w, thick,
                              ITEM_BRIGHT);
         }
         if (p.blurb_y[i] >= 0) {
-            const int bw = text_width_scaled(r.blurb, p.blurb_scale, p.m.tracking);
+            const int bw = tw_of(r.blurb, p.blurb_px);
             const int bx = p.right_aligned ? p.m.edge - bw
                                            : (static_cast<int>(canvas.width()) - bw) / 2;
-            draw_text_scaled(canvas, bx, p.blurb_y[i], r.blurb, BLURB, p.blurb_scale,
-                             p.m.tracking, /*shadow=*/true);
+            ui_draw_text(canvas, bx, p.blurb_y[i], r.blurb, BLURB, p.blurb_px,
+                         /*shadow=*/true);
         }
     }
 }
@@ -1232,33 +1404,27 @@ void draw_studio_mark(render::PixelCanvas& canvas) {
     const int y = h - margin - icon;
     draw_image_fit(canvas, cached_png(BRAND_SPIRAL_ICON_PNG), margin, y, icon, icon,
                    0.55f);
-    const int scale = std::max(1, h / 400);
-    draw_text_scaled(canvas, margin + icon + std::max(3, icon / 4),
-                     y + (icon - text_height_scaled(scale)) / 2, loc("menu.studio"),
-                     STUDIO_MARK, scale, scale, /*shadow=*/true);
+    const int px = px_for(h, UiText::Small);
+    ui_draw_text(canvas, margin + icon + std::max(3, icon / 4),
+                 y + (icon - std::max(1, ui_cap_height(px))) / 2, loc("menu.studio"),
+                 STUDIO_MARK, px, /*shadow=*/true);
 }
 
-// The one line that says which keys work. Bottom right on the reference's
-// pages, so it does not collide with the studio mark in the other corner.
-void draw_keys_hint(render::PixelCanvas& canvas, bool plate) {
-    const int w = static_cast<int>(canvas.width());
-    const int h = static_cast<int>(canvas.height());
-    const int scale = std::max(1, h / 400);
-    const std::string_view hint =
-        fits(w / std::max(1, scale), loc("menu.hint.mouse"), loc("menu.hint.short"));
-    const int tw = text_width_scaled(hint, scale, scale);
-    const int x = w - std::max(6, w / 12) - tw;
-    // ONE ROW ABOVE THE STUDIO MARK'S BAND, not beside it. The hint is a long
-    // line and the mark sits in the other corner: on the same row they meet in
-    // the middle at the design grid (measured at 640x360 -- the hint is 434 px
-    // of a 640 px frame and the mark takes the first 134), and two texts
-    // touching read as a bug in both.
-    const int y = h - std::max(4, h / 24) - text_height_scaled(scale) * 2;
-    if (plate) {
-        draw_text_plate(canvas, x, y, tw, text_height_scaled(scale));
-    }
-    draw_text_scaled(canvas, x, y, hint, BLURB, scale, scale, /*shadow=*/true);
-}
+// --- ПОДСКАЗКА О КЛАВИШАХ: СНЯТА -------------------------------------------
+// Здесь стояла draw_keys_hint() — одна строка внизу каждой страницы: «Стрелки
+// или мышь — выбор, Enter или щелчок — принять, Esc — назад». Заказ владельца
+// 27.08 дословно: «весь вспомогательный текст подсказок ВООБЩЕ отовсюду
+// удалить — это ужасно выглядит, просто кошмарно такие вещи подписывать,
+// особенно на лице игры — главном меню».
+//
+// СНЯТА, А НЕ СПРЯТАНА, и это разные вещи. Пока функция существует и не
+// зовётся, она мёртвый код, который следующий агент включит обратно, приняв
+// за забытое; ключи локализации, которые она читала (menu.hint, menu.hint.short,
+// menu.hint.mouse), убраны из ru.txt вместе с ней, чтобы не осталось строки без
+// читателя. Управление меню при этом не изменилось ни на клавишу: стрелки,
+// мышь, Enter, щелчок и Esc работают ровно как работали — исчезла подпись, а не
+// поведение. Экран управления (menu.controls) остался единственным местом, где
+// клавиши названы, и это место, куда за ними ИДУТ.
 
 // --- THE START SCREEN -------------------------------------------------------
 // The owner's reference is Skyrim SE's main menu: black with rare, slowly
@@ -1292,15 +1458,14 @@ void draw_root(render::PixelCanvas& canvas, const MenuModel& model) {
 
     // The game's name under the emblem, spaced out: it is a wordmark here, not
     // a sentence, and the tracking is what makes five px letters read as one.
-    const int tscale = std::max(1, h / 180);
+    const int title_px = px_for(h, UiText::Title);
     const std::string_view title = loc("app.title");
-    const int tw = text_width_scaled(title, tscale, tscale * 4);
-    draw_text_scaled(canvas, cx - tw / 2, cy + box / 2 + h / 24, title, TITLE, tscale,
-                     tscale * 4, /*shadow=*/true);
+    const int tw = tw_of(title, title_px);
+    ui_draw_text(canvas, cx - tw / 2, cy + box / 2 + h / 24, title, TITLE, title_px,
+                 /*shadow=*/true);
 
     draw_item_list(canvas, model, plan_list(w, h, model));
     draw_studio_mark(canvas);
-    draw_keys_hint(canvas, /*plate=*/false);
 }
 
 // --- THE PAUSE SCREEN -------------------------------------------------------
@@ -1324,9 +1489,9 @@ void draw_pause(render::PixelCanvas& canvas, const MenuModel& model) {
 
     const ListPlan p = plan_list(w, h, model);
     const MenuRowBox block = list_bounds(p);
-    const int scale = std::max(1, p.m.base);
+    const int title_px = px_for(h, UiText::Title);
     const std::string_view title = loc("menu.paused");
-    const int title_w = text_width_scaled(title, scale, scale * 2);
+    const int title_w = tw_of(title, title_px);
     const int title_x = p.m.edge - title_w;
 
     // ONE PLATE UNDER THE TITLE AND THE ROWS TOGETHER, sized from the rectangle
@@ -1336,10 +1501,8 @@ void draw_pause(render::PixelCanvas& canvas, const MenuModel& model) {
     draw_text_plate(canvas, plate_x, plate_y, p.m.edge - plate_x,
                     block.y + block.h - plate_y, /*pad=*/std::max(4, p.m.gap));
 
-    draw_text_scaled(canvas, title_x, p.title_y, title, TITLE, scale, scale * 2,
-                     /*shadow=*/true);
+    ui_draw_text(canvas, title_x, p.title_y, title, TITLE, title_px, /*shadow=*/true);
     draw_item_list(canvas, model, p);
-    draw_keys_hint(canvas, /*plate=*/true);
 }
 
 // --- THE MAP BROWSER --------------------------------------------------------
@@ -1364,12 +1527,12 @@ void draw_browser(render::PixelCanvas& canvas, const MenuModel& model) {
             title = loc(cat_title_key);
         }
     }
-    const int tscale = p.m.base + 1;
-    const int tw = text_width_scaled(title, tscale, tscale);
-    draw_text_scaled(canvas, (w - tw) / 2, p.title_y, title, TITLE, tscale, tscale,
-                     /*shadow=*/true);
-    canvas.fill_rect(w / 4, p.title_y + text_height_scaled(tscale) + p.m.gap, w / 2,
-                     std::max(1, p.m.base / 2), RULE_LINE);
+    const int title_px = px_for(h, UiText::Title);
+    const int tw = tw_of(title, title_px);
+    ui_draw_text(canvas, (w - tw) / 2, p.title_y, title, TITLE, title_px,
+                 /*shadow=*/true);
+    canvas.fill_rect(w / 4, p.title_y + ui_cap_height(title_px) + p.m.gap, w / 2,
+                     std::max(1, title_px / 24), RULE_LINE);
 
     draw_item_list(canvas, model, p);
 
@@ -1378,12 +1541,11 @@ void draw_browser(render::PixelCanvas& canvas, const MenuModel& model) {
     // (docs/MAP_LAYOUT.md): a source that cannot open says so on screen instead
     // of doing nothing.
     if (!model.browser_status().empty()) {
-        const int s = std::max(1, p.m.base);
-        const int sw = text_width_scaled(model.browser_status(), s, s);
-        draw_text_scaled(canvas, (w - sw) / 2, h - std::max(4, h / 12), model.browser_status(),
-                         ITEM_SELECTED, s, s, /*shadow=*/true);
+        const int s = px_for(h, UiText::Caption);
+        const int sw = tw_of(model.browser_status(), s);
+        ui_draw_text(canvas, (w - sw) / 2, h - std::max(4, h / 12), model.browser_status(),
+                     ITEM_SELECTED, s, /*shadow=*/true);
     }
-    draw_keys_hint(canvas, /*plate=*/false);
 }
 
 // --- CREDITS ----------------------------------------------------------------
@@ -1398,35 +1560,39 @@ void draw_credits(render::PixelCanvas& canvas, const MenuModel& model) {
     canvas.clear(SCREEN_BLACK);
     draw_dust(canvas, model.time(), dust_count(w, h));
 
-    const int base = std::max(1, h / 300);
-    const int gap = std::max(3, base * 6);
+    const int title_px = px_for(h, UiText::Title);
+    const int body_px = px_for(h, UiText::Caption);
+    const int gap = std::max(3, body_px / 2);
     const int icon = std::max(10, h / 10);
-    draw_image_fit(canvas, cached_png(BRAND_SPIRAL_ICON_PNG), (w - icon) / 2, h / 10,
+    draw_image_fit(canvas, cached_png(BRAND_SPIRAL_ICON_PNG), (w - icon) / 2, h / 12,
                    icon, icon, 0.9f);
 
     struct Line {
         const char* key;
-        int scale;
+        int px;
         render::Color color;
     };
     const Line lines[] = {
-        {"menu.credits.studio", base + 1, TITLE},
-        {"menu.credits.game", base, ITEM_DIM},
-        {"menu.credits.engine", base, BLURB},
-        {"menu.credits.art", base, BLURB},
+        {"menu.credits.studio", title_px, TITLE},
+        {"menu.credits.game", body_px, ITEM_DIM},
+        {"menu.credits.engine", body_px, BLURB},
+        {"menu.credits.art", body_px, BLURB},
         // The mandatory one. Kept in the item colour rather than the blurb
         // colour: an attribution nobody can read is an attribution nobody made.
-        {"menu.credits.oak", base, ITEM_DIM},
+        {"menu.credits.oak", body_px, ITEM_DIM},
+        // ВТОРАЯ ОБЯЗАТЕЛЬНАЯ СТРОКА, и обязательна она по той же причине, что
+        // и первая: SIL OFL 1.1 требует сохранять уведомление об авторских
+        // правах шрифта всюду, где шрифт используется, а используется он
+        // ровно на этом экране и на всех соседних (assets/fonts/OFL.txt).
+        {"menu.credits.font", body_px, ITEM_DIM},
     };
-    int y = h / 10 + icon + gap * 2;
+    int y = h / 12 + icon + gap * 2;
     for (const Line& l : lines) {
         const std::string_view text = loc(l.key);
-        const int tw = text_width_scaled(text, l.scale, l.scale);
-        draw_text_scaled(canvas, (w - tw) / 2, y, text, l.color, l.scale, l.scale,
-                         /*shadow=*/true);
-        y += text_height_scaled(l.scale) + gap;
+        const int tw = tw_of(text, l.px);
+        ui_draw_text(canvas, (w - tw) / 2, y, text, l.color, l.px, /*shadow=*/true);
+        y += std::max(1, ui_line_height(l.px)) + gap;
     }
-    draw_keys_hint(canvas, /*plate=*/false);
 }
 
 // --- THE "NOT YET" PAGE -----------------------------------------------------
@@ -1439,17 +1605,15 @@ void draw_stub(render::PixelCanvas& canvas, const MenuModel& model) {
     canvas.clear(SCREEN_BLACK);
     draw_dust(canvas, model.time(), dust_count(w, h));
 
-    const int base = std::max(1, h / 260);
+    const int title_px = px_for(h, UiText::Title);
+    const int body_px = px_for(h, UiText::Item);
     const std::string_view title = loc("menu.stub.title");
-    const int tw = text_width_scaled(title, base + 1, base + 1);
-    draw_text_scaled(canvas, (w - tw) / 2, h / 3, title, TITLE, base + 1, base + 1,
-                     /*shadow=*/true);
+    const int tw = tw_of(title, title_px);
+    ui_draw_text(canvas, (w - tw) / 2, h / 3, title, TITLE, title_px, /*shadow=*/true);
 
     const std::string_view msg = localized(model.stub_message());
-    const int mw = text_width_scaled(msg, base, base);
-    draw_text_scaled(canvas, (w - mw) / 2, h / 2, msg, ITEM_DIM, base, base,
-                     /*shadow=*/true);
-    draw_keys_hint(canvas, /*plate=*/false);
+    const int mw = tw_of(msg, body_px);
+    ui_draw_text(canvas, (w - mw) / 2, h / 2, msg, ITEM_DIM, body_px, /*shadow=*/true);
 }
 
 } // namespace
@@ -1458,7 +1622,13 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
     canvas.resize(canvas.width(), canvas.height());
     switch (model.page()) {
     case MenuPage::Splash:
-        draw_studio_splash(canvas, model.time(), model.splash_seconds());
+        // ПРЕДЗАПИСАННОЕ ВИДЕО, А НЕ РИСОВАНИЕ В КАДРЕ (заказ владельца 27.08).
+        // Запасная ветка — прежняя нарисованная заставка, и она НЕ мёртвый код:
+        // актив интро может не собраться, а экран, который в этом случае
+        // остаётся пустым, — это ровно та жалоба, с которой всё началось.
+        if (!draw_intro(canvas, model.time())) {
+            draw_studio_splash(canvas, model.time(), model.splash_seconds());
+        }
         return;
     case MenuPage::Root:
         draw_root(canvas, model);

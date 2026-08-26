@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 19:11:04
-Last updated: 18:08:2026 - 17:32:10
+Last updated: 27:08:2026 - 14:00:00
 Module: engine/app
 File: engine/app/sources/DebugOverlay.cpp
 
@@ -50,6 +50,10 @@ UPD:
 - 18:08:2026 - 17:32:10: чтение двери — через таблицу (door_value, AppDoors.h). Слой 2
   разбора App.cpp: имя без строки в таблице больше не открывается и говорит об
   этом вслух, поэтому «какие вообще есть двери» перестало быть вопросом к grep.
+- 27:08:2026 - 14:00:00: Подсказка «3 — снимок состояния, 5 — снимок экрана»
+  СНЯТА (заказ владельца 27.08: «весь вспомогательный текст подсказок ВООБЩЕ
+  отовсюду удалить»). Она и была инструкцией по клавишам — о чём говорил её
+  собственный прежний комментарий. Измерения остались все до одного.
 */
 
 #include "engine/app/sources/DebugOverlay.h"
@@ -349,16 +353,19 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap,
         y += line_h;
     }
 
-    // The capture hint sits bottom-right so it never overlaps the readout,
-    // and it is drawn dim: it is an instruction, not a measurement. It gets the
-    // same plate for the same reason -- the bottom of the frame is ground
-    // today, but ground is snow, sand and water elsewhere.
-    const std::string_view hint = localized(serialization::fnv1a64("debug.hint.capture"));
-    const int hint_w = render::text_width_px(hint);
-    const int hint_y = debug_overlay_hint_top_y(static_cast<int>(canvas.height()))
-                     + READOUT_PLATE_PAD;
-    draw_text_plate(canvas, w - hint_w - 3, hint_y, hint_w, render::FONT_INK_H);
-    render::draw_text(canvas, w - hint_w - 3, hint_y, hint, dim, true);
+    // ПОДСКАЗКА «3 — снимок состояния, 5 — снимок экрана» СНЯТА (заказ владельца
+    // 27.08: «весь вспомогательный текст подсказок ВООБЩЕ отовсюду удалить»).
+    // Она стояла внизу справа и была ровно тем, что заказ называет: ИНСТРУКЦИЕЙ
+    // ПО КЛАВИШАМ — о чём говорил и её собственный прежний комментарий («it is
+    // an instruction, not a measurement»). Отладочный вывод остаётся полностью:
+    // сняты не измерения, а подпись под ними. Клавиши 3 и 5 работают как
+    // работали и названы там, где за ними идут, — на экране управления.
+    //
+    // debug_overlay_hint_top_y() ОСТАВЛЕН: он всё ещё отвечает на вопрос «где
+    // кончается место, которое оверлей за собой держит», и на него смотрит
+    // рукав app_debug_overlay. Полоса стала полем.
+    (void)w;
+    (void)dim;
 }
 
 int debug_overlay_bottom_y(const DebugSnapshot& snap, int origin_y) {

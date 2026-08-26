@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:24:58
+Last updated: 27:08:2026 - 14:00:00
 Module: engine/platform/window
 File: engine/platform/window/sources/null/NullWindow.h
 
@@ -24,6 +24,9 @@ UPD:
 - 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 - 17:08:2026 - 16:27:55: полный экран — тихий отказ: нечего показывать, нечего разворачивать.
 - 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
+- 27:08:2026 - 14:00:00: set_size() принимается: у безголового окна
+  размер — единственное, что у него есть, и счётный прогон, попросивший другой
+  кадр, обязан его получить.
 */
 
 #pragma once
@@ -48,6 +51,15 @@ public:
     // loudly would make every headless test print a warning it cannot act on.
     void set_fullscreen(bool /*on*/) override {}
     [[nodiscard]] bool is_fullscreen() const override { return false; }
+    /// РАЗМЕР ПРИНИМАЕТСЯ, И ЭТО НЕ ПРИТВОРСТВО: у безголового окна размер —
+    /// единственное, что у него вообще есть (framebuffer_size его отдаёт), и
+    /// прогон, попросивший другой кадр, обязан его получить. Отказ здесь сделал
+    /// бы счётный прогон слепым к настройке, которую он же и проверяет.
+    void set_size(uint32_t width, uint32_t height) override {
+        if (width > 0 && height > 0) {
+            size_ = {width, height};
+        }
+    }
 
 private:
     glm::uvec2 size_{0, 0};

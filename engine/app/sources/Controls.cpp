@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 19:22:10
-Last updated: 18:08:2026 - 23:52:10
+Last updated: 27:08:2026 - 14:00:00
 Module: engine/app
 File: engine/app/sources/Controls.cpp
 
@@ -25,6 +25,8 @@ UPD:
 - 18:08:2026 - 20:26:30: Delete и Backspace убирают выбранное; подписи обеих клавиш.
 - 18:08:2026 - 23:20:00: Режим на `, Tab отдан интерфейсу; цифры 6..9 и их подписи.
 - 18:08:2026 - 23:52:10: Режим на ` (Tab отдан интерфейсу), X — сетка; подписи ` и X.
+- 27:08:2026 - 14:00:00: Раскладка страницы управления считается мерой того шрифта,
+  которым её рисуют (см. заголовок).
 */
 
 #include "engine/app/sources/Controls.h"
@@ -132,9 +134,12 @@ const Binding& binding_for(Action action) {
 
 std::span<const MovementRow> movement_rows() { return MOVEMENT; }
 
-ControlsLayout controls_layout(int width_px, int height_px) {
+ControlsLayout controls_layout(int width_px, int height_px, int min_pitch, int line_h) {
     (void)width_px; // the rows are two columns; only the HEIGHT is contended
     const int rows = static_cast<int>(TABLE.size() + MOVEMENT.size());
+    // Мера шрифта: своя, если её передали, иначе прежняя блочная.
+    const int ink = min_pitch > 0 ? min_pitch : render::FONT_INK_H;
+    const int cell = line_h > 0 ? line_h : render::FONT_CELL_H;
 
     ControlsLayout L;
     L.title_y = height_px / 12;
@@ -162,15 +167,13 @@ ControlsLayout controls_layout(int width_px, int height_px) {
             L.columns == 2 ? (rows + 1) / 2 : rows;
         L.rows_per_column = L.columns == 2 ? drawn_rows : 0;
         L.line_count = drawn_rows + (L.headings ? 2 : 0);
-        L.first_y = L.title_y + render::FONT_CELL_H + (L.headings ? 6 : 4);
-        const int floor_y =
-            height_px - (L.footer ? render::FONT_CELL_H * 2 + 4 : 2);
+        L.first_y = L.title_y + cell + (L.headings ? cell * 2 / 3 : cell / 2);
+        const int floor_y = height_px - (L.footer ? cell * 2 + 4 : 2);
         const int room = floor_y - L.first_y;
         // The pitch never goes below the glyph height: rows that overlap are
         // not a denser list, they are an unreadable one.
-        L.row_h = std::max(render::FONT_INK_H,
-                           std::min(render::FONT_CELL_H + 1,
-                                    room / std::max(L.line_count, 1)));
+        L.row_h = std::max(ink, std::min(cell + cell / 8,
+                                         room / std::max(L.line_count, 1)));
         L.bottom = L.first_y + L.line_count * L.row_h;
         L.fits = L.bottom <= floor_y;
         if (L.fits) {

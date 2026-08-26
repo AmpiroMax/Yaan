@@ -61,6 +61,7 @@ public:
     [[nodiscard]] glm::uvec2 content_size() const override;
     [[nodiscard]] bool consume_resize() override;
     void set_fullscreen(bool on) override;
+    void set_size(uint32_t width, uint32_t height) override;
     [[nodiscard]] bool is_fullscreen() const override;
 
     /// Backend-internal: the raw GLFW handle for the sibling glfw input backend.

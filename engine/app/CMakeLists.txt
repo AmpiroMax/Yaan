@@ -118,12 +118,14 @@ if(DFN_APP_READY)
         sources/EditorPlant.cpp
         sources/EditorHud.cpp
         sources/HudScreen.cpp
+        sources/IntroVideo.cpp
         sources/Localization.cpp
         sources/MapCatalog.cpp
         sources/Menu.cpp
         sources/MenuArt.cpp
         sources/PngImage.cpp
-        sources/TrajectoryRecord.cpp)
+        sources/TrajectoryRecord.cpp
+        sources/UiFont.cpp)
     # dfn_editor: the editor's INTERFACE layer (Dear ImGui). It is a separate
     # target and not a few files here because docs/ARCHITECTURE.md names
     # engine/editor as the ONE place that library may be included, and

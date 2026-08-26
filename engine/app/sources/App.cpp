@@ -584,6 +584,31 @@ UPD:
   запекания ассетов рисовалась в hud() с 18.08 и НИ РАЗУ не показывалась —
   set_hud_visible выставляет только run(), который во время запекания ещё не
   начался. Та же ошибка на том же пути найдена при заведении экрана загрузки.
+- 27:08:2026 - 14:00:00: ЧЕТЫРЕ ЗАКАЗА ВЛАДЕЛЬЦА 27.08, ОДНИМ ФАЙЛОМ, ПОТОМУ ЧТО
+  ВСЕ ЧЕТЫРЕ ПРОХОДЯТ ЧЕРЕЗ ВЕТКУ МЕНЮ.
+  1. ЗАСТАВКА ВИСЕЛА И ЖДАЛА КЛИКА («заставка со spiral висит серым экраном,
+     ждёт моего клика — такого быть не должно»). Причина найдена и она
+     механическая: метка времени `last` двигалась в КОНЦЕ ветки меню, а
+     разность бралась в НАЧАЛЕ следующего кадра — отрисовка лежала между
+     двумя точками, снаружи измеряемого отрезка. tick() получал микросекунды
+     вместо длительности кадра, часы меню шли примерно в тысячу раз медленнее
+     настоящих, и заставка не доживала до своих 2.2 с НИКОГДА. Метка двинута
+     к замеру. Подробности — у самой строки.
+  2. ИНТРО — ПРЕДЗАПИСАННОЕ ВИДЕО (IntroVideo.h, tools/gen_intro.py), и
+     ДЛИТЕЛЬНОСТЬ ЗАСТАВКИ ТЕПЕРЬ БЕРЁТСЯ У АКТИВА, а не назначается числом:
+     число в коде и число в файле — два определения одной длительности.
+     Беспилотные прогоны интро по-прежнему не видят (та же пара условий).
+  3. РЕДАКТОР — СВОЙСТВО ЗАПУСКА МИРА («в обычной игре могу войти в режим
+     редактуры и строить»). set_editor_session() — единственная точка, где
+     право строить назначается; Scope::EditorOnly спрашивает про сессию, а не
+     про положение камеры; ветка меню каждым кадром кладёт ПУСТОЙ кадр ImGui,
+     потому что панели, которые «не убираются» в главном меню, — это буквально
+     последний кадр редактора, застывший под меню.
+  4. ГРАФИКА В НАСТРОЙКАХ («в меню настроек добавь возможность менять
+     графику; оно в игре и меню должно синхронизироваться»). Окно и полный
+     экран применяются ЖИВЬЁМ и проверяются ПО ФАКТУ у окна; синхронизация —
+     это отсутствие второго состояния: страница настроек одна на корень и на
+     паузу, set_settings зовётся ровно один раз при старте.
 */
 
 #include "engine/app/sources/App.h"
@@ -599,6 +624,7 @@ UPD:
 #include "engine/app/sources/Controls.h"
 #include "engine/app/sources/EditorHud.h"
 #include "engine/app/sources/HudScreen.h"
+#include "engine/app/sources/IntroVideo.h"
 #include "engine/app/sources/Localization.h"
 // The object menu's pictures. Included HERE and not in App.h on purpose: only
 // wire_editor_panels() names it, and App.h is already the widest header in the
@@ -1010,7 +1036,19 @@ bool App::init(const AppConfig& config) {
     // Страница настроек открывается на том, с чем игра ЗАПУЩЕНА, и это же
     // значение отвечает на вопрос «какая строка применится лишь после
     // перезапуска»: модель хранит вторую копию и сравнивает с ней.
+    //
+    // И ЭТА КОПИЯ ОДНА НА ВСЮ ИГРУ (заказ владельца 27.08: «оно в игре и меню
+    // должно синхронизироваться»). Синхронизация здесь не механизм, а
+    // ОТСУТСТВИЕ второго состояния: страница настроек — одна MenuModel, и с
+    // корня, и с паузы открывается ОНА ЖЕ. set_settings зовётся ровно один раз,
+    // при старте; всё, что игрок повернул, живёт дальше в этой модели, а
+    // settings_return_ помнит только, куда возвращаться. Две копии — по одной
+    // на точку входа — разошлись бы в первый же вечер, и симптом («в паузе
+    // поменял, в меню старое») выглядел бы как несохранение.
     MenuSettings ms;
+    ms.window_w = config.window_width;
+    ms.window_h = config.window_height;
+    ms.fullscreen = config.fullscreen;
     ms.internal_w = config.internal_width;
     ms.internal_h = config.internal_height;
     ms.msaa = config.msaa_samples;
@@ -1371,6 +1409,10 @@ bool App::init(const AppConfig& config) {
             }
         }
         if (editor_door) {
+            // ДВЕРЬ ОТКРЫВАЕТ РЕДАКТОРСКУЮ СЕССИЮ, а не только режим камеры:
+            // рецепты, снимающие панели и инструменты, приходят сюда, и гейт
+            // обязан пропускать ровно тот путь, которым ходит человек из меню.
+            set_editor_session(true, "дверь DFN_EDITOR");
             enter_editor_mode();
             // THE RELATIVE DOOR (DFN_EDITOR_CAM_REL=x,height_above_ground,z,
             // yaw,pitch), asked for by the flora zone after it lost two days
@@ -1439,6 +1481,7 @@ bool App::init(const AppConfig& config) {
                 }
             }
         } else {
+            set_editor_session(false, "дверь DFN_OPEN_MAP без DFN_EDITOR");
             mode_ = AppMode::Playing;
         }
         // A PAUSE PAGE OVER NOTHING IS NOT EVIDENCE OF THE PAUSE PAGE. Until
@@ -1505,9 +1548,18 @@ bool App::init(const AppConfig& config) {
         // NOT WHEN A DOOR ALREADY NAMED A PAGE: DFN_MENU_PAGE says which screen
         // to photograph, and covering it with a title card is the one thing
         // that door exists to prevent.
+        //
+        // ДЛИТЕЛЬНОСТЬ БЕРЁТСЯ У АКТИВА, А НЕ НАЗНАЧАЕТСЯ ЗДЕСЬ (заказ 27.08:
+        // интро — предзаписанное видео). Число в коде и число в файле — это два
+        // определения одной длительности: разойдясь, они дают либо обрезанное
+        // интро, либо чёрный экран в хвосте, и ни то ни другое не сообщает о
+        // себе. Актива нет — остаётся прежняя нарисованная заставка и её
+        // прежние 2.2 с.
         constexpr float SPLASH_DEFAULT_S = 2.2f;
+        const float intro_s = intro_video().duration_s();
+        const float splash_len = intro_s > 0.0f ? intro_s : SPLASH_DEFAULT_S;
         const bool named_page = door_value("DFN_MENU_PAGE") != nullptr;
-        float splash = (unattended_run() || named_page) ? 0.0f : SPLASH_DEFAULT_S;
+        float splash = (unattended_run() || named_page) ? 0.0f : splash_len;
         if (const char* v = door_value("DFN_SPLASH"); v != nullptr && *v != '\0') {
             splash = static_cast<float>(std::atof(v));
         }
@@ -1518,8 +1570,14 @@ bool App::init(const AppConfig& config) {
             // door that photographs the page it was asked for must photograph
             // it at the opacity a player sees, not at the one frame where it
             // is not there yet.
-            splash = splash > 0.0f ? splash : SPLASH_DEFAULT_S;
-            menu_.tick(splash * 0.5f);
+            splash = splash > 0.0f ? splash : splash_len;
+            // НА ПИКЕ, А НЕ НА ПОЛОВИНЕ. У нарисованной заставки середина и
+            // была пиком; у интро пик — это доля, названная в tools/gen_intro.py
+            // (пауза 0.30 + восход 1.35 из 3.50 = 0.47 длительности). Число
+            // повторено здесь ОДНОЙ строкой сознательно: снимок двери — это
+            // приборный кадр, и требовать ради него общий заголовок с кривой
+            // яркости значило бы завести зависимость шире, чем предмет.
+            menu_.tick(splash * (intro_s > 0.0f ? 0.52f : 0.5f));
         }
         menu_.set_splash_seconds(splash);
         if (splash > 0.0f && menu_.page() == MenuPage::Root) {
@@ -1928,10 +1986,18 @@ bool App::action_pressed(Action action) const {
     // 1..5 became the editor's five modes: 2 must mean the surface brush in
     // the editor and the readout in the body, and one keypress cannot ask two
     // handlers to sort that out between them.
+    //
+    // И ОБЛАСТЬ «ТОЛЬКО В РЕДАКТОРЕ» СПРАШИВАЕТ ПРО СЕССИЮ, А НЕ ПРО КАМЕРУ
+    // (заказ владельца 27.08). mode_ == Editor отвечал на вопрос «где сейчас
+    // камера», и этого было достаточно ровно до тех пор, пока в редакторский
+    // режим нельзя было попасть из игры. Попасть было можно — клавишей ` — и
+    // тогда все инструменты становились доступны в обычной игре. Условие здесь
+    // И-овое, а не заменяющее: право строить (editor_session_) и текущий взгляд
+    // (mode_) — разные вопросы, и клавиша инструмента требует обоих.
     const auto listening = [this](Scope scope) {
         switch (scope) {
         case Scope::Anywhere:    return true;
-        case Scope::EditorOnly:  return mode_ == AppMode::Editor;
+        case Scope::EditorOnly:  return editor_session_ && mode_ == AppMode::Editor;
         case Scope::PlayingOnly: return mode_ == AppMode::Playing;
         }
         return false;
@@ -2256,6 +2322,19 @@ void App::enter_editor_mode() {
     }
     editor_cam_.reset(eye, yaw, pitch);
     mode_ = AppMode::Editor;
+}
+
+void App::set_editor_session(bool on, const char* why) {
+    editor_session_ = on;
+    // ПАНЕЛИ СЛЕДУЮТ ЗА ПРАВОМ, А НЕ ЗА РЕЖИМОМ КАМЕРЫ. Владелец назвал два
+    // разных отказа одним днём — «интерфейс редактора есть даже в обычной игре»
+    // и «выхожу в главное меню, интерфейс панели редактора остаётся», — и оба
+    // случаются, когда видимость панелей решается не там, где решается право.
+    editor_ui_.set_visible(on);
+    std::fprintf(stderr, "[режим] сессия %s (%s)\n",
+                 on ? "РЕДАКТОРА: инструменты и панели доступны"
+                    : "ИГРЫ: инструментов и панелей нет",
+                 why != nullptr ? why : "?");
 }
 
 // POSSESS THE PLAYER at the free camera. The inverse of apply_restore's eye ->
@@ -3139,6 +3218,24 @@ int App::run() {
             // left open while the machine swapped must not teleport the motes.
             const auto menu_now = std::chrono::steady_clock::now();
             menu_.tick(std::min(0.1f, std::chrono::duration<float>(menu_now - last).count()));
+            // ЧАСЫ МЕНЮ ШЛИ ПОЧТИ ОСТАНОВИВШИСЬ, И ЭТО БЫЛА ПРИЧИНА «ЗАСТАВКА
+            // ВИСИТ И ЖДЁТ КЛИКА» (владелец, 27.08). Метка `last` двигалась в
+            // САМОМ КОНЦЕ ветки меню — последней строкой перед continue, — а
+            // разность бралась в начале СЛЕДУЮЩЕГО кадра. Между этими двумя
+            // точками нет ничего: отрисовка кадра лежит МЕЖДУ ними, снаружи
+            // измеряемого отрезка. То есть tick() каждый кадр получал не
+            // длительность кадра, а длительность перехода к следующей итерации
+            // цикла — микросекунды. Часы меню шли примерно в тысячу раз
+            // медленнее настоящих, заставка не доживала до своих секунд НИКОГДА,
+            // и единственным выходом оставалась клавиша.
+            //
+            // Метка двигается ЗДЕСЬ, у замера: «сколько прошло от начала
+            // прошлого кадра до начала этого» — единственное определение, при
+            // котором сумма тиков равна настоящему времени. Выход в мир от
+            // этого не получает скачка dt, ради которого метку и сдвигали в
+            // конец: кадр меню короткий, и разность на первом игровом кадре —
+            // это он и есть.
+            last = menu_now;
 
             // THE POINTER, IN CANVAS PIXELS (owner, 26.08: «выбор должен быть
             // доступен как мышкой, так и стрелочками»). The menu is drawn into
@@ -3231,9 +3328,14 @@ int App::run() {
                 const MapManifest* m = menu_.chosen_map();
                 if (m != nullptr && open_map(*m)) {
                     // BOTH buttons run this browser; the target decides the mode.
+                    // И ЭТО ЖЕ РЕШЕНИЕ — ЕДИНСТВЕННОЕ, ГДЕ ДАЁТСЯ ПРАВО СТРОИТЬ
+                    // (заказ владельца 27.08). Кнопка меню и есть ответ на «это
+                    // игра или редактор»; всё, что дальше, только читает его.
                     if (menu_.browse_target() == BrowseTarget::Editor) {
+                        set_editor_session(true, "пункт меню «Редактор»");
                         enter_editor_mode();
                     } else {
+                        set_editor_session(false, "вход в мир как в игру");
                         mode_ = AppMode::Playing;
                     }
                     input_->set_cursor_captured(!unattended_run());
@@ -3244,6 +3346,12 @@ int App::run() {
                 // Back to whichever mode paused: pausing the editor and resuming
                 // must not silently possess the body.
                 mode_ = paused_from_;
+                // И ПАНЕЛИ ВОЗВРАЩАЮТСЯ РОВНО ТЕМ, КОМУ ОНИ ПОЛОЖЕНЫ. Ветка
+                // меню гасит интерфейс каждым кадром (см. пустой кадр ниже),
+                // поэтому возврат в мир обязан назвать право заново — и он
+                // называет ЕГО, а не «как было»: иначе пауза стала бы вторым
+                // местом, где решается, редактор это или игра.
+                editor_ui_.set_visible(editor_session_);
                 input_->set_cursor_captured(!unattended_run());
                 break;
             case MenuAction::Quit:
@@ -3270,6 +3378,34 @@ int App::run() {
                 config_.palette_post = s.palette;
                 config_.head_bob = s.head_bob;
                 step_ctx_.bob_scale = config_.head_bob;
+                // ОКНО И ПОЛНЫЙ ЭКРАН — ЖИВЬЁМ (заказ владельца 27.08). Обе
+                // строки идут через окно платформы и проверяются ПО ФАКТУ:
+                // бэкенд имеет право отказать, и настройка, записанная в файл
+                // как принятая, когда окно её не приняло, — это файл, который
+                // врёт про экран. Отказ громкий, и в config_ уезжает то, что
+                // окно действительно показывает.
+                if (window_ != nullptr) {
+                    if (s.fullscreen != window_->is_fullscreen()) {
+                        window_->set_fullscreen(s.fullscreen);
+                    }
+                    if (!window_->is_fullscreen()
+                        && (s.window_w != config_.window_width
+                            || s.window_h != config_.window_height)) {
+                        window_->set_size(s.window_w, s.window_h);
+                    }
+                    const glm::uvec2 got = window_->content_size();
+                    config_.fullscreen = window_->is_fullscreen();
+                    if (!config_.fullscreen && got.x > 0 && got.y > 0) {
+                        config_.window_width = got.x;
+                        config_.window_height = got.y;
+                    }
+                    if (config_.fullscreen != s.fullscreen) {
+                        std::fprintf(stderr,
+                                     "[window] полный экран НЕ переключился: "
+                                     "оставляю %s\n",
+                                     config_.fullscreen ? "полный экран" : "окно");
+                    }
+                }
                 write_settings(config_);
                 break;
             }
@@ -3327,6 +3463,23 @@ int App::run() {
             if (menu_.page() == MenuPage::Calibrate) {
                 render_system_.environment().black_floor = menu_.black_floor();
             }
+            // ГЛАВНОЕ МЕНЮ ВСЕГДА ЧИСТОЕ (заказ владельца 27.08: «когда я выхожу
+            // в главное меню, интерфейс панели редактора остаётся, а должен
+            // убираться»).
+            //
+            // ПОЧЕМУ ОДНОГО set_visible(false) МАЛО, и почему это была не
+            // забытая строка, а устройство. Панели рисует НЕ этот цикл:
+            // ImGui::Render() складывает списки, а бэкенд выкладывает их внутри
+            // IRenderer::end_frame(). Ветка меню уходит на continue ДО пары
+            // begin_frame/end_frame — то есть новых списков не появляется, а
+            // бэкенд продолжает выкладывать ПОСЛЕДНИЕ. Панели, которые «не
+            // убираются», — это буквально последний кадр редактора, застывший
+            // под меню. Поэтому здесь делается не «спрятать», а ПУСТОЙ КАДР:
+            // ImGui объявляет ноль окон и Render() кладёт пустые списки, после
+            // чего выкладывать бэкенду нечего.
+            editor_ui_.set_visible(false);
+            editor_ui_.begin_frame(*input_, *window_, 0.0f);
+            editor_ui_.end_frame();
             draw_menu(render_system_.hud(), menu_);
             render_system_.set_hud_visible(true);
             render_system_.render(world_, *renderer_, camera_, 0.0f);
@@ -3345,7 +3498,9 @@ int App::run() {
                     window_->request_close();
                 }
             }
-            last = std::chrono::steady_clock::now(); // no frame_dt spike on resume
+            // МЕТКА ВРЕМЕНИ ДВИНУТА В НАЧАЛО ВЕТКИ, к самому замеру (см. запись
+            // там же): здесь она стояла ПОСЛЕ отрисовки и потому исключала её из
+            // измеряемого отрезка — часы меню шли микросекундами в кадр.
             continue;
         }
         if (window_->consume_resize()) {

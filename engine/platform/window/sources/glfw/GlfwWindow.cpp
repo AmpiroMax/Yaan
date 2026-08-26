@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:24:58
+Last updated: 27:08:2026 - 14:00:00
 Module: engine/platform/window
 File: engine/platform/window/sources/glfw/GlfwWindow.cpp
 
@@ -26,6 +26,9 @@ UPD:
 - 17:08:2026 - 16:27:55: set_fullscreen — своя частота монитора, возврат в запомненную рамку.
 - 17:08:2026 - 19:17:13: content_size() через glfwGetWindowSize — GLFW сообщает позицию курсора именно в этих единицах.
 - 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
+- 27:08:2026 - 14:00:00: set_size(): в полном экране не делает ничего и
+  не запоминает просьбу; в оконном режиме обновляет и запомненную коробку,
+  иначе возврат из полного экрана прыгал бы в размер, выбранный полчаса назад.
 */
 
 #include "engine/platform/window/sources/glfw/GlfwWindow.h"
@@ -115,6 +118,22 @@ void GlfwWindow::set_fullscreen(bool on) {
     }
     glfwSetWindowMonitor(window_, nullptr, windowed_x_, windowed_y_,
                          windowed_w_, windowed_h_, GLFW_DONT_CARE);
+}
+
+void GlfwWindow::set_size(uint32_t width, uint32_t height) {
+    // В ПОЛНОМ ЭКРАНЕ РАЗМЕР ЗАДАЁТ МОНИТОР. Просьба не отвергается ошибкой и
+    // не откладывается: она просто не про этот режим, и запомнить её тоже
+    // нельзя — окно, которое при выходе из полного экрана прыгнет в размер,
+    // заказанный полчаса назад, читается как поломка.
+    if (window_ == nullptr || width == 0 || height == 0 || is_fullscreen()) {
+        return;
+    }
+    glfwSetWindowSize(window_, static_cast<int>(width), static_cast<int>(height));
+    // И ЗАПОМИНАЕМ КАК ОКОННУЮ КОРОБКУ: без этого возврат из полного экрана
+    // восстановил бы РАНЬШЕ выбранный размер, а не тот, который игрок только
+    // что поставил.
+    glfwGetWindowPos(window_, &windowed_x_, &windowed_y_);
+    glfwGetWindowSize(window_, &windowed_w_, &windowed_h_);
 }
 
 bool GlfwWindow::is_fullscreen() const {

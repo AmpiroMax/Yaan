@@ -136,6 +136,13 @@ if(TARGET dfn_render AND TARGET dfn_core)
         # (27.08), и раскладка строк — та же функция, что читает мышь.
         ${CMAKE_SOURCE_DIR}/engine/app/sources/MenuArt.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
+        # IntroVideo: страница заставки — предзаписанное видео (заказ 27.08),
+        # и рукав меню его ЧИТАЕТ: длительность интро и есть длительность
+        # заставки, а её теперь можно проверить без окна.
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/IntroVideo.cpp
+        # UiFont: интерфейс перешёл на испечённую антикву (27.08), и раскладка
+        # страниц меряет ЕЁ метрики -- рукав обязан линковать тот же шрифт.
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/UiFont.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
 
@@ -315,6 +322,11 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # порознь совершенно правы.
     target_sources(app_hud_screen PRIVATE
         ${CMAKE_SOURCE_DIR}/tests/app/HudComposeTests.cpp
+        # UiFont/PngImage: надписи мира (подсказка прицела, лента компаса,
+        # плашка инструмента) с 27.08 рисуются испечённой антиквой, а не
+        # блочным шрифтом — рукав обязан линковать её и её читатель .png.
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/UiFont.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppHud.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/EditorHud.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/ChatOverlay.cpp

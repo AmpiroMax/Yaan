@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:07:24
-Last updated: 18:08:2026 - 18:07:24
+Last updated: 27:08:2026 - 14:00:00
 Module: engine/app
 File: engine/app/sources/AppSettings.cpp
 
@@ -14,6 +14,10 @@ AI Agents Notice (must follow):
 UPD:
 - 18:08:2026 - 18:07:24: Вынесено из App.cpp. Разбор отделён от файла: пока он сидел внутри
   App.cpp вперемешку с открытием файла, проверить его было нечем.
+- 27:08:2026 - 14:00:00: Строка window=ШИРИНАxВЫСОТА: размер окна стал
+  настройкой страницы графики (заказ владельца 27.08) и обязан переживать
+  запуск. Отвергается ГРОМКО и никогда к ближайшему — тот же довод, что у msaa:
+  окно 40×20 открылось бы, и игрок увидел бы не настройку, а поломку.
 */
 
 #include "engine/app/sources/AppSettings.h"
@@ -33,6 +37,13 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
 std::string settings_to_text(const AppConfig& cfg) {
     std::ostringstream out;
     out << "# Daggerfall N graphics settings (auto-generated; edit freely)\n"
+        // ОКНО — ЭТО НЕ СЕТКА РЕНДЕРА, и файл обязан говорить это словами: две
+        // строки с числами вида WxH рядом друг с другом иначе читаются как
+        // опечатка одной. Строка появилась 27.08 вместе со страницей графики:
+        // до неё размер окна нельзя было ни выбрать в игре, ни сохранить.
+        << "# window: размер ОКНА в логических единицах. Меняется на странице\n"
+        << "#   настроек и применяется сразу; в полном экране размер задаёт монитор.\n"
+        << "window=" << cfg.window_width << 'x' << cfg.window_height << "\n"
         << "# internal_resolution: rendering pixel grid, integer-upscaled to the\n"
         << "#   window. Default 1920x1080 (full detail). Retro presets:\n"
         << "#   640x360 (fine retro), 320x180 (chunky Daggerfall).\n"
@@ -76,7 +87,22 @@ void settings_from_text(const std::string& text, AppConfig& cfg) {
         }
         const std::string key = line.substr(0, eq);
         const std::string value = line.substr(eq + 1);
-        if (key == "internal_resolution") {
+        if (key == "window") {
+            unsigned w = 0;
+            unsigned h = 0;
+            if (std::sscanf(value.c_str(), "%ux%u", &w, &h) == 2 && w >= 320 && h >= 180) {
+                cfg.window_width = w;
+                cfg.window_height = h;
+            } else {
+                // ГРОМКО, И НИКОГДА К БЛИЖАЙШЕМУ — тот же довод, что у msaa
+                // ниже: окно 40×20 открылось бы, и игрок увидел бы не настройку,
+                // а поломку.
+                std::fprintf(stderr,
+                             "[settings] window=%s ОТВЕРГНУТО (нужно ШИРИНАxВЫСОТА, "
+                             "не меньше 320x180); оставляю %ux%u\n",
+                             value.c_str(), cfg.window_width, cfg.window_height);
+            }
+        } else if (key == "internal_resolution") {
             unsigned w = 0;
             unsigned h = 0;
             if (std::sscanf(value.c_str(), "%ux%u", &w, &h) == 2 && w > 0 && h > 0) {
