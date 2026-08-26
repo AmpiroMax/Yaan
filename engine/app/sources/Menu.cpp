@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 27:08:2026 - 01:22:15
+Last updated: 27:08:2026 - 03:25:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -91,6 +91,10 @@ UPD:
   * menu_row_boxes() — раскладка строк, общая для отрисовки и для мыши.
   * Дверь дозы DFN_MENU_DUST=0 — поле без пылинок: два прогона дают побитово
     одинаковый кадр меню, и обе руки приёмки выходят из ОДНОЙ сборки (правило 47).
+- 27:08:2026 - 03:25:00: Подсказка о клавишах — на своей строке, а не на полосе
+  знака студии. Поймано КАДРОМ приёмки, а не рассуждением: на сетке интерфейса
+  640×360 строка занимает 434 px из 640, знак — первые 134, и на общей полосе
+  они соприкасаются. Два касающихся текста читаются как поломка обоих.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -1244,7 +1248,12 @@ void draw_keys_hint(render::PixelCanvas& canvas, bool plate) {
         fits(w / std::max(1, scale), loc("menu.hint.mouse"), loc("menu.hint.short"));
     const int tw = text_width_scaled(hint, scale, scale);
     const int x = w - std::max(6, w / 12) - tw;
-    const int y = h - std::max(4, h / 24);
+    // ONE ROW ABOVE THE STUDIO MARK'S BAND, not beside it. The hint is a long
+    // line and the mark sits in the other corner: on the same row they meet in
+    // the middle at the design grid (measured at 640x360 -- the hint is 434 px
+    // of a 640 px frame and the mark takes the first 134), and two texts
+    // touching read as a bug in both.
+    const int y = h - std::max(4, h / 24) - text_height_scaled(scale) * 2;
     if (plate) {
         draw_text_plate(canvas, x, y, tw, text_height_scaled(scale));
     }
