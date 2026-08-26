@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 24:08:2026 - 02:00:00
+# Last updated: 27:08:2026 - 01:20:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -89,6 +89,9 @@
 # - 24:08:2026 - 02:00:00: dfn_interior_check — приёмка интерьера-локации (И15 волна А)
 #                          и две его дозы в ctest: чистый пилот 0 находок,
 #                          испорченная оснастка ровно 4.
+# - 27:08:2026 - 01:20:00: отрицательное плечо приёмки локаций переехало с КОПИИ
+#   Вайтрана на боевой город (И15 волна Б): у самого Вайтрана теперь есть
+#   внутренности, копия wr-int.scene снята, и плечо мерит то, что играется.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -285,13 +288,26 @@ target_link_libraries(dfn_interior_check PRIVATE dfn_world dfn_core)
 # Положительное: нарочно испорченная — РОВНО ЧЕТЫРЕ, по одной на руку.
 # Без второго теста молчание прибора неотличимо от прибора неработающего;
 # без первого «четыре находки» доказывали бы только, что он шумит.
+# ОТРИЦАТЕЛЬНОЕ ПЛЕЧО ПЕРЕЕХАЛО С КОПИИ НА БОЕВОЙ ГОРОД (И15 волна Б, 27.08).
+# Волна А держала его на пилоте — доме из КОПИИ Вайтрана (wr-int.scene),
+# потому что боевой город тогда не имел права меняться (правило 47). Теперь
+# внутренности есть у самого Вайтрана, копия снята, и плечо мерит ТО, ЧТО
+# ИГРАЕТСЯ: настоящий дом настоящего города плюс парность ссылок ВСЕХ его
+# локаций (рука 6 идёт по --city целиком, а не по одному дому).
 add_test(NAME interiors_pilot_clean
-         COMMAND dfn_interior_check assets/scenes/int/whiterun/x100z84.scene
-                 --city assets/scenes/wr-int.scene --expect 0
+         COMMAND dfn_interior_check assets/scenes/int/whiterun/x103z86.scene
+                 --city assets/scenes/whiterun.scene --expect 0
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_test(NAME interiors_broken_fixture
          COMMAND dfn_interior_check assets/scenes/int/broken.scene --expect 4
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# СУДЬЯ ВНУТРИДОМОВОГО МАРША (dfn_stairs_check, волна лестниц 27.08): проход от
+# двери, уклон, просвет над носком каждой ступени, марш внутри оболочки, стык
+# невидимого пандуса. Три крита владельца про лестницы не имели ни одного
+# прибора — приёмка прошлых заходов печатала просвет по ПЛИТАМ, а бьёт не плита.
+add_executable(dfn_stairs_check tools/check_stairs.cpp)
+target_link_libraries(dfn_stairs_check PRIVATE dfn_world dfn_core)
 
 # THE BUILDING KIT CLI (dfn_kit): forges the construction parts an agent
 # assembles houses out of. Same standing again — a kit that stopped compiling

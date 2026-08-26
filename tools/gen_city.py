@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 24:08:2026 - 12:40:00
-# Last updated: 25:08:2026 - 14:05:29
+# Last updated: 27:08:2026 - 01:20:00
 # Module: tools
 # File: tools/gen_city.py
 #
@@ -373,6 +373,44 @@
 #         правилу 30 — DFN_CITY_BARE=1: это ЕДИНСТВЕННЫЙ законный выпуск без
 #         натуральной земли (по нему её и снимают прибором), и на нём рамка
 #         молчит, а код возврата 0. Проверено обоими прогонами.
+# - 27:08:2026 - 01:20:00: СТАДИЯ 14а «ИНТЕРЬЕРЫ» — ДОМА СНАРУЖИ СТАЛИ БОЛВАНКАМИ
+#   (заказ владельца 26.08: «все дома сделать снаружи — чисто болванками,
+#   чтобы внутреннее обустройство каждого дома не грузилось, пока мы по миру
+#   гуляем»; И15 волна Б, docs/plans/INTERIORS_I15.md).
+#   ЧТО ПЕРЕЕХАЛО. Убранство, которое кладёт furnish() (FURN, FURN_UPPER,
+#   дрова и огонь очага, лампа очага), уходит не в сцену города, а в
+#   assets/scenes/int/<выпуск>/<слаг>.scene — одна локация на дом. В сцене
+#   города у постройки появляется ОДНА строка interior=, у построек со
+#   створкой — sealed=1. Строки [portal] в городе НЕТ НИ ОДНОЙ, и это
+#   решение: мировые координаты дверного полотна знает заливка построек в
+#   движке, и вторая их запись здесь была бы вторым ответом на один вопрос.
+#   ДОЗА DFN_CITY_INTERIORS=0/1 (критерий волны Б из свода). Замер на
+#   Вайтране: дифф пары — РОВНО 229 удалённых [house] (205 «убранство» + 24
+#   «огонь очага») и 24 [light] очагов, добавлено 25 строк interior= и 32
+#   sealed=1; доза 0 воспроизводит боевой Вайтран БАЙТ-В-БАЙТ (7964 строки).
+#   ТРИ ПРАВИЛА, КУПЛЕННЫЕ ПРИЁМКОЙ ЭТОЙ ЖЕ ВОЛНЫ.
+#   (1) ЛОКАЦИЮ ПОЛУЧАЕТ ТОЛЬКО ПОСТРОЙКА СО СТВОРКОЙ (has_door). У амбара
+#       (city-barn/-old) проём БЕЗ полотна — сквозной въезд; болванка из него
+#       невозможна, и переезд убранства дал бы два дефекта разом: пустой
+#       амбар, видимый с улицы насквозь, и локацию, в которую нельзя войти.
+#       Рука 6 приёмки назвала оба. Итог Вайтрана после правила: 23 локации,
+#       216 предметов (было 25 и 229 — разница ровно два амбара).
+#   (2) ЗАПЕЧАТЫВАНИЕ — СВОЙСТВО ЧЕРТЕЖА, А НЕ НАЛИЧИЯ ВНУТРЕННОСТИ. sealed
+#       ставится КАЖДОЙ постройке со створкой, включая восемь башен кольца:
+#       дом без локации остаётся болванкой, и его проём обязан быть стеной
+#       ровно так же. Иначе «болванка» значила бы «пустая комната, в которую
+#       можно войти».
+#   (3) ТОЧКА ВХОДА ПРОВЕРЯЕТСЯ ПРОТИВ МЕБЕЛИ (_spawn_point). Штатные 0.80 м
+#       от порога внутрь у лавки попадали В ПРИЛАВОК — приёмка назвала точку
+#       входа непроходимой у двух домов Вайтрана; после сдвига вдоль стены
+#       таких находок ноль (у Житнова точка отодвинута у 40 локаций из 63).
+#   ПРИБОР --check ТЕПЕРЬ СМОТРИТ И НА ЛОКАЦИИ: убранство переехало в них, и
+#   прибор, глядящий только на три прежних файла, перестал бы видеть ровно тот
+#   класс дефекта, ради которого заведён. ЗАМЕР ЭТОЙ ВОЛНЫ, объясняющий, зачем
+#   это нужно: незакоммиченные правки полки Житнова, лежащие в дереве, НЕ
+#   МЕНЯЮТ сцену города ни на байт (25 254 строки байт-в-байт) и меняют 12
+#   локаций из 67 — то есть после волны болванок дрейф раскладки мебели виден
+#   ТОЛЬКО в локациях.
 import hashlib
 import importlib
 import json
@@ -737,8 +775,60 @@ H = []   # [house]
 P = []   # [place]
 LIGHTS = []   # [light]
 
+# --- И15 ВОЛНА Б: УБРАНСТВО ЖИВЁТ В ЛОКАЦИИ, А НЕ В ГОРОДЕ -------------------
+# ЗАКАЗ ВЛАДЕЛЬЦА 26.08 дословно: «все дома сделать снаружи — чисто болванками,
+# чтобы внутреннее обустройство каждого дома не грузилось, пока мы по миру
+# гуляем».
+#
+# ЧТО ИМЕННО ПЕРЕЕЗЖАЕТ И ПОЧЕМУ ИМЕННО ЭТИ ЗАПИСИ. Убранство дома — это
+# ровно то, что кладёт furnish(): предметы FURN/FURN_UPPER, дрова очага и его
+# огонь. Мебель площадей, дворов и торговых рядов НЕ переезжает: она стоит под
+# открытым небом, её видно с улицы, и болванкой её не заменишь. Разница видна
+# по заметке: «убранство: <дом>» против «двор: ...» и «прилавок ...».
+#
+# ДОЗА (правило 30, критерий волны Б из свода И15): DFN_CITY_INTERIORS=0 даёт
+# ПРЕЖНЮЮ сцену — тот же порядок строк, те же числа, всё убранство на месте;
+# =1 (умолчание) уводит его в assets/scenes/int/<выпуск>/<слаг>.scene. Дифф
+# пары — это и есть счёт переехавшего, и он обязан сходиться с записанным.
+#
+# ДВЕРЬ ГЕНЕРАТОРА, А НЕ ДВИЖКА, И ЭТО ЗАМЕР, А НЕ ВКУС: таблица дверей
+# engine/app/sources/AppDoors.cpp держит двери ПРИЛОЖЕНИЯ, а DFN_CITY_INTERIORS
+# не доживает до приложения — она решает, что попадёт в ФАЙЛ. Соседи по
+# семейству те же: DFN_CITY_BARE, DFN_CITY_ROW_FLAT, DFN_CITY_WRITE_HEIGHTS.
+INTERIORS_ON = str(env("INTERIORS", "1")).strip() not in ("0", "", "no", "off")
+INT_BUCKET = None    # сборщик убранства текущего дома; None — пишем в город
+INT_ROOMS = []       # локации этого прогона (см. write_interiors)
+INTERIOR_OF = {}     # индекс в H -> путь к .scene локации
+SEALED = set()       # индексы в H, чья створка входит в коллайдер
+_HAS_DOOR = {}       # рецепт -> есть ли в чертеже элемент door=1
+
+
+def has_door(rec):
+    """Есть ли у рецепта дверное полотно (элемент door=1).
+
+    ЗАПЕЧАТЫВАТЬ НАДО ИМЕННО ИХ, И ТОЛЬКО ИХ. Створка живёт вне коллайдера
+    намеренно — она качается; но у болванки проём ведёт не в комнату, а в
+    пустую коробку мимо перехода. Кольцо стены, бордюр и прилавок дверей не
+    носят, и ключ им не ставится: лишний sealed на теле без двери — это ключ,
+    который однажды прочитают как утверждение о двери."""
+    if rec not in _HAS_DOOR:
+        p = os.path.join(ROOT, "assets/houses", rec)
+        try:
+            _HAS_DOOR[rec] = "door=1" in open(p, encoding="utf-8").read()
+        except OSError:
+            _HAS_DOOR[rec] = False
+    return _HAS_DOOR[rec]
+
 def house(file, x, y, z, yaw_deg, note):
     H.append((f"assets/houses/{file}", x, y, z, math.radians(yaw_deg), note))
+    # ЗАПЕЧАТЫВАНИЕ — СВОЙСТВО ЧЕРТЕЖА, А НЕ НАЛИЧИЯ ВНУТРЕННОСТИ (И15 волна Б).
+    # Дом без локации остаётся болванкой, и его проём обязан быть стеной ровно
+    # так же — иначе «болванка» значила бы «пустая комната, в которую можно
+    # войти». Ставится ЗДЕСЬ, а не в put_house: восемь башен кольца Вайтрана и
+    # голубятни Житнова носят двери, а сквозь put_house не проходят.
+    if INTERIORS_ON and has_door(file):
+        SEALED.add(len(H) - 1)
+    return len(H) - 1
 
 def place(obj, x, y, z, yaw_deg=0.0, note=None, scale=1.0):
     P.append((obj, x, y, z, math.radians(yaw_deg), note, scale))
@@ -1086,6 +1176,20 @@ def loc_to_world(ox, oz, yaw_deg, lx, lz):
     sn = math.sin(math.radians(yaw_deg))
     return (ox + lx*c + lz*sn, oz - lx*sn + lz*c)
 
+def furn_put(ff, mx, fy, mz, wyaw, note, lx, ly, lz, lyaw):
+    """ОДИН ПРЕДМЕТ УБРАНСТВА — В ГОРОД ИЛИ В ЛОКАЦИЮ (И15 волна Б).
+
+    Мировые координаты считаются в furnish() и при дозе 0 уходят в сцену
+    города В ТОЧНОСТИ как раньше — ни один разряд не пересчитан. При дозе 1
+    уезжают МЕСТНЫЕ, те самые (lx, lz), с которых мировые и получены: локация
+    ставит ту же оболочку в начало координат, и обратный поворот был бы
+    вторым, приблизительным ответом на вопрос, уже решённый точно."""
+    if INT_BUCKET is None:
+        house(ff, mx, fy, mz, wyaw, note)
+    else:
+        INT_BUCKET["items"].append((ff, lx, ly, lz, lyaw, note))
+
+
 def furnish(rec, ox, oy, oz, yaw_deg, note):
     """Мебель дома: локальные позиции раскладки поворачиваются той же
     матрицей сцены, что и сам дом, и садятся на ВЕРХ ПОЛОВОЙ ПЛИТЫ этого
@@ -1106,7 +1210,8 @@ def furnish(rec, ox, oy, oz, yaw_deg, note):
                 continue
             ff = fit[0][2]
         mx, mz = loc_to_world(ox, oz, yaw_deg, lx, lz)
-        house(ff, mx, fy, mz, (yaw_deg + lyaw) % 360.0, "убранство: " + note)
+        furn_put(ff, mx, fy, mz, (yaw_deg + lyaw) % 360.0, "убранство: " + note,
+                 lx, floor_of(rec), lz, lyaw % 360.0)
         FURN_Y.append((fy, fy, ff + " в " + note))
         if ff == "furn-hearth.dfh":
             # ДРОВА В ЛОТОК (выпечка кузни-2, furn-fire 0.60x0.78x0.60). До неё
@@ -1120,8 +1225,10 @@ def furnish(rec, ox, oy, oz, yaw_deg, note):
             # 0.98 над низом очага, а точка света стоит на 0.93 (борт 0.38 +
             # HEARTH_FLAME) — свет оказывается ВНУТРИ пламени, а не над ним.
             fx2, fz2 = loc_to_world(ox, oz, yaw_deg, lx + 0.40, lz + 0.40)
-            house("furn-fire.dfh", fx2, fy + HEARTH_TRAY, fz2,
-                  (yaw_deg + lyaw + 37) % 360.0, "огонь очага: " + note)
+            furn_put("furn-fire.dfh", fx2, fy + HEARTH_TRAY, fz2,
+                     (yaw_deg + lyaw + 37) % 360.0, "огонь очага: " + note,
+                     lx + 0.40, floor_of(rec) + HEARTH_TRAY, lz + 0.40,
+                     (lyaw + 37) % 360.0)
             # ПЛАМЯ НАД ДРОВАМИ, А НЕ В ЛОТКЕ (претензии [N18]+[N4]: «зал замка
             # в полдень 25.9/255 при радиусе 13»). Огонь стоял на 0.55 над
             # ПОЛОМ, а борт лотка очага кончается на 0.38 (замер recipe_top:
@@ -1182,6 +1289,17 @@ def furnish(rec, ox, oy, oz, yaw_deg, note):
             lamp("hearth", hx, fy + recipe_top("furn-hearth.dfh") + HEARTH_FLAME,
                  hz, "очаг: " + note, radius=rad, shadow=rec in HEARTH_SHADOW,
                  interior=True, room=room)
+            # ОГОНЬ ОЧАГА ПЕРЕЕЗЖАЕТ ВМЕСТЕ С ОЧАГОМ. Снят с ХВОСТА LIGHTS, а
+            # не посчитан заново: цвет и радиус несут экземплярную дрожь от
+            # МИРОВЫХ координат, и второй счёт дал бы другой огонь в комнате,
+            # чем в городе, — то есть второй ответ на «какой здесь свет».
+            if INT_BUCKET is not None:
+                (_lx, _ly, _lz, _col, _rad, _sh_, _nt, _in, _rm, _sf,
+                 _fl) = LIGHTS.pop()
+                INT_BUCKET["light"] = (
+                    lx + 0.70,
+                    floor_of(rec) + recipe_top("furn-hearth.dfh") + HEARTH_FLAME,
+                    lz + 0.70, _col, _rad, _sf, _fl, _nt)
     # УБРАНСТВО ВЕРХНИХ ЯРУСОВ. Кровати и сундуки наверху, стол и очаг внизу —
     # у пакета cornhall-* жилые тела с этой волны двухэтажные. Очага на ярусе
     # нет ни у одного тела (труба одна и она внизу), столбов тоже, поэтому
@@ -1191,8 +1309,9 @@ def furnish(rec, ox, oy, oz, yaw_deg, note):
     # ниже пола», и предмет, стоящий ВЫШЕ, — не нарушение, а замысел.
     for ff, lx, lz, lyaw, dy in FURN_UPPER.get(rec, ()):
         mx, mz = loc_to_world(ox, oz, yaw_deg, lx, lz)
-        house(ff, mx, fy + dy, mz, (yaw_deg + lyaw) % 360.0,
-              "убранство яруса: " + note)
+        furn_put(ff, mx, fy + dy, mz, (yaw_deg + lyaw) % 360.0,
+                 "убранство яруса: " + note,
+                 lx, floor_of(rec) + dy, lz, lyaw % 360.0)
         FURN_Y.append((fy + dy, fy, ff + " на ярусе " + note))
 # TREE (вид чертежа -> рецепты полки) — В ПАСПОРТЕ: это биом.
 
@@ -2163,11 +2282,36 @@ def put_house(f):
     # под пад; расхождение двух полей и было тем самым «дом утоплен».
     y = f.get("y", sit_rect(ccx, ccz, w, d, yaw, 25.0))
     name = hs["name"] or hs["kind"] or "дом"
-    house(rec, ox, y, oz, yaw, name)
+    hidx = house(rec, ox, y, oz, yaw, name)
     PLACED.append((ccx, ccz, w, d, yaw, name))
     FLOORS.append((ccx, ccz, w, d, yaw, house_floor(rec, y), name))
     FRAMES.append((rec, ox, y, oz, yaw, w, d, name, hs["kind"]))
+    # --- СТАДИЯ 14а, ПЕРВАЯ ПОЛОВИНА: СБОР УБРАНСТВА ДОМА В ЛОКАЦИЮ ---------
+    # Сбор идёт ЗДЕСЬ, а не отдельным проходом по FRAMES, ровно по одной
+    # причине: раскладку знает furnish(), и второй проход считал бы её заново.
+    # Сама ЗАПИСЬ файлов — отдельной стадией перед выпуском (write_interiors):
+    # порядок строк города не сдвигается ни на байт.
+    global INT_BUCKET
+    # ...И ТОЛЬКО У ПОСТРОЙКИ СО СТВОРКОЙ. Правило куплено приёмкой этой же
+    # волны: у амбара (city-barn/-old) проём БЕЗ полотна — сквозной въезд, — и
+    # для него «болванка» невозможна по построению. Запечатать нечего, значит
+    # внутрь ведёт не переход, а сам проём; убранство, уехавшее в локацию, дало
+    # бы ДВА дефекта разом: пустой амбар, видимый с улицы насквозь, и локацию,
+    # в которую нельзя войти (рука 6 назвала оба). Убранство таких построек
+    # остаётся в городе — оно и так на виду.
+    want = (INTERIORS_ON and has_door(rec)
+            and bool(FURN.get(rec) or FURN_UPPER.get(rec)))
+    if want:
+        INT_BUCKET = {"items": [], "light": None, "rec": rec, "name": name,
+                      "kind": hs["kind"], "px": hs["x"], "pz": hs["z"]}
     furnish(rec, ox, y, oz, yaw, name)
+    if INT_BUCKET is not None:
+        room = INT_BUCKET
+        INT_BUCKET = None
+        room["slug"] = "x%dz%d" % (round(room["px"]), round(room["pz"]))
+        room["path"] = "assets/scenes/int/%s/%s.scene" % (OUT, room["slug"])
+        INT_ROOMS.append(room)
+        INTERIOR_OF[hidx] = room["path"]
     n_seg, n_stoop, foot_base = 0, 0, None
     if "foot_lo" in f:
         n_seg, n_stoop, foot_base = footing_and_stoop(
@@ -6077,10 +6221,20 @@ def write_scene(rel_path, header, terrain, places, houses, lights):
         if note:
             out += [f"note = {note}"]
         out += [""]
-    for file, x, y, z, yaw, note in houses:
+    for i, (file, x, y, z, yaw, note) in enumerate(houses):
         out += ["[house]", f"file = {file}",
                 f"pos = {x:.3f} {y:.3f} {z:.3f}", f"yaw = {yaw:.6f}",
-                f"note = {note}", ""]
+                f"note = {note}"]
+        # КЛЮЧИ БОЛВАНКИ — ПОСЛЕДНИМИ В БЛОКЕ (И15 волна Б). Четыре строки
+        # экстерьера остаются на своих местах до последнего разряда: дифф
+        # дозовой пары обязан показывать ПЕРЕЕЗД убранства, а не перетасовку
+        # города. Порядок ключей движку безразличен (Scene.cpp читает их
+        # перечислением), а человеку с diff — нет.
+        if i in INTERIOR_OF:
+            out += [f"interior = {INTERIOR_OF[i]}"]
+        if i in SEALED:
+            out += ["sealed = 1"]
+        out += [""]
     # СВЕТ ОЧАГОВ. Рендер зажигает восемь ближайших ([light] — не объект),
     # тени просит только тот, кому они по сюжету (слотов два).
     for x, y, z, col, rad, shadow, note, inter, room, soft, flick in lights:
@@ -6101,6 +6255,192 @@ def write_scene(rel_path, header, terrain, places, houses, lights):
     open(os.path.join(ROOT, rel_path), "w",
          encoding="utf-8").write("\n".join(out))
     return len(out)
+
+# --- СТАДИЯ 14а: ИНТЕРЬЕРЫ-ЛОКАЦИИ (И15 волна Б) -----------------------------
+# Своя стадия МЕЖДУ полотном и выпуском — так её и заказывал свод. В put_house
+# отсюда не уходит ни одной строки, порядок строк экстерьера не сдвигается, а
+# файлы локаций пишутся тогда, когда все дома уже расставлены и слаги можно
+# проверить на уникальность разом.
+# НАСКОЛЬКО ГЛУБОКО В КОМНАТУ СТАВИТСЯ ВОШЕДШИЙ. Не «подальше от двери»:
+# 0.80 м ЗАМЕРЕНО как слишком много — у лавки (city-shop) прилавок стоит вплотную
+# к порогу (стол на z 4.60 при двери на 6.00), и капсула игрока радиусом 0.35 в
+# точку входа не вставала вовсе. Ближе нельзя тоже: створка теперь В КОЛЛАЙДЕРЕ,
+# и вошедший, поставленный в проём, оказался бы внутри двери. 0.55 — это
+# «полотно позади, ближайшая мебель впереди», и проверяется оно рукой 1.
+DOOR_STEP_IN = 0.80
+
+# ПОЛУШИРИНА КАПСУЛЫ ИГРОКА ПЛЮС ЛАДОНЬ. Число не выдумано здесь: 0.35 —
+# PLAYER_CAPSULE_RADIUS движка, тот же, каким мерит приёмка локаций; 0.05 —
+# запас на то, что пятно рецепта обводит габарит, а не ноги предмета.
+SPAWN_CLEAR_M = 0.40
+
+
+def _spawn_free(rec, items, sx, sz):
+    """Встанет ли вошедший в (sx, sz), не влезая в мебель этой же комнаты.
+
+    ЗАМЕР, А НЕ ОСТОРОЖНОСТЬ: приёмка волны Б назвала у лавки (city-shop,
+    два дома Вайтрана) «точку входа НЕПРОХОДИМОЙ» — прилавок стоит вплотную к
+    порогу, и вошедший оказывался внутри стола. Пятно каждого предмета
+    генератор знает у полки (recipe_box), и проверить это здесь дешевле, чем
+    ловить приёмкой после каждой правки раскладки."""
+    for ff, lx, _ly, lz, lyaw, _note in items:
+        try:
+            cx, cz, w, d, _a, _o = recipe_box(ff)
+        except Exception:                                   # noqa: BLE001
+            continue
+        # Центр пятна предмета в координатах комнаты: начало рецепта лежит в
+        # УГЛУ, поэтому середина габарита доворачивается тем же поворотом.
+        mx, mz = loc_to_world(lx, lz, lyaw, cx, cz)
+        c = abs(math.cos(math.radians(lyaw)))
+        s = abs(math.sin(math.radians(lyaw)))
+        hx = (w * c + d * s) / 2.0 + SPAWN_CLEAR_M
+        hz = (w * s + d * c) / 2.0 + SPAWN_CLEAR_M
+        if abs(sx - mx) < hx and abs(sz - mz) < hz:
+            return False
+    x0, z0, x1, z1 = recipe_wall_rect(rec)
+    return (x0 + SPAWN_CLEAR_M < sx < x1 - SPAWN_CLEAR_M
+            and z0 + SPAWN_CLEAR_M < sz < z1 - SPAWN_CLEAR_M)
+
+
+def _spawn_point(rec, items, dpx, dpz, inx, inz):
+    """Точка входа: от порога внутрь, а если там мебель — вбок вдоль стены.
+
+    Порядок проб НЕ произволен. Сначала штатная глубина (0.80 — она же у
+    пилота волны А, и она же не тронула ни один дом, у которого всё в
+    порядке), потом сдвиг ВДОЛЬ стены по полметра в обе стороны (в лавке
+    свободен угол рядом с прилавком), и только потом глубже в комнату."""
+    tx, tz = -inz, inx                        # касательная к дверной стене
+    tries = [(0.0, DOOR_STEP_IN)]
+    for side in (0.5, -0.5, 1.0, -1.0, 1.5, -1.5):
+        tries.append((side, DOOR_STEP_IN))
+    for deep in (1.20, 1.60):
+        tries.append((0.0, deep))
+        for side in (0.6, -0.6):
+            tries.append((side, deep))
+    for off, deep in tries:
+        sx = dpx + inx * deep + tx * off
+        sz = dpz + inz * deep + tz * off
+        if _spawn_free(rec, items, sx, sz):
+            return sx, sz, (off != 0.0 or deep != DOOR_STEP_IN)
+    # НЕ НАШЛОСЬ — СТАВИМ ШТАТНУЮ И ГОВОРИМ ВСЛУХ. Молча выбранная «наименее
+    # плохая» точка — это дефект, который увидит только игрок.
+    return dpx + inx * DOOR_STEP_IN, dpz + inz * DOOR_STEP_IN, None
+
+
+def write_interiors():
+    """N сцен локаций по собранным INT_ROOMS. Возвращает (сцен, предметов)."""
+    if not INT_ROOMS:
+        return 0, 0
+    # СЛАГ ОТ ЧЕРТЁЖНЫХ КООРДИНАТ, ОКРУГЛЁННЫХ ДО МЕТРА (свод И15, дельта-2 и
+    # дельта-3). Имя и вид сталкиваются (15-16 различных на 28 домов Вайтрана),
+    # origin рамы — ВЫХОД солвера расталкивания и меняется от вставки соседа, а
+    # чертёжные x,z — ВХОД, и они уникальны. Дециметр отвергнут замером: те же
+    # 28 из 28, но подвижка дома на 5 см рвала бы ссылку сохранения.
+    # УНИКАЛЬНОСТЬ ОБЕСПЕЧИВАЕТ ПРОВЕРКА, А НЕ РАЗРЯД, и падение — ВСЛУХ.
+    seen = {}
+    for r in INT_ROOMS:
+        if r["slug"] in seen:
+            a = seen[r["slug"]]
+            sys.exit(
+                "СЛАГИ ЛОКАЦИЙ СТОЛКНУЛИСЬ: «%s» у двух домов чертежа — "
+                "(%.2f, %.2f) вид «%s» и (%.2f, %.2f) вид «%s». Слаг берётся "
+                "от чертёжных координат, округлённых до метра; разведи дома в "
+                "чертеже или дай второму свой вид."
+                % (r["slug"], a["px"], a["pz"], a["kind"] or "",
+                   r["px"], r["pz"], r["kind"] or ""))
+        seen[r["slug"]] = r
+    rel_dir = "assets/scenes/int/%s" % OUT
+    out_dir = os.path.join(ROOT, rel_dir)
+    os.makedirs(out_dir, exist_ok=True)
+    n_items = 0
+    n_moved = [0]
+    written = set()
+    for r in INT_ROOMS:
+        rec = r["rec"]
+        dpx, dpz, axis = recipe_door_pt(rec)
+        # ВНУТРЬ — ЭТО ПРОТИВ НАРУЖНОЙ НОРМАЛИ СТОРОНЫ РЕЦЕПТА, в МЕСТНЫХ
+        # координатах чертежа (оболочка локации стоит с yaw=0, и мировая
+        # конвенция сцены здесь ни при чём).
+        inx, inz = {"+Z": (0.0, -1.0), "-Z": (0.0, 1.0),
+                    "+X": (-1.0, 0.0), "-X": (1.0, 0.0)}[axis]
+        # РЫСК ИГРОКА ЛИЦОМ В КОМНАТУ. Конвенция PlayerMovement: взгляд это
+        # (sin yaw, -cos yaw), то есть yaw=0 смотрит в -Z.
+        spawn_yaw = {"+Z": 0.0, "-Z": math.pi,
+                     "+X": -math.pi / 2, "-X": math.pi / 2}[axis]
+        fl = floor_of(rec)
+        sx, sz, moved = _spawn_point(rec, r["items"], dpx, dpz, inx, inz)
+        if moved is None:
+            print("  ТОЧКА ВХОДА В %s (%s) СТОИТ В МЕБЕЛИ: свободного места у "
+                  "порога не нашлось ни одной из 13 проб — раскладка рецепта "
+                  "перегораживает вход" % (r["slug"], rec))
+        elif moved:
+            n_moved[0] += 1
+        L = ["# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).",
+             "# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом",
+             "# %s: правится ЧЕРТЁЖ и паспорт, а не этот файл." % OUT,
+             "# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная",
+             "# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что",
+             "# стоит в городе, — интерьер не может быть больше дома.",
+             "map = int/%s/%s" % (OUT, r["slug"]),
+             "world_span_m = 64",
+             "",
+             "[spawn]",
+             "name = door",
+             "pos = %.3f %.3f %.3f" % (sx, fl + 0.10, sz),
+             "yaw = %.6f" % spawn_yaw,
+             "note = сразу за порогом, лицом в комнату",
+             "",
+             "[house]",
+             "file = assets/houses/%s" % rec,
+             "pos = 0 0 0",
+             "yaw = 0",
+             "sealed = 1",
+             "note = оболочка: тот же чертёж, что снаружи (%s)" % r["name"]]
+        for ff, lx, ly, lz, lyaw, note in r["items"]:
+            L += ["", "[house]", "file = assets/houses/%s" % ff,
+                  "pos = %.3f %.3f %.3f" % (lx, ly, lz),
+                  "yaw = %.6f" % math.radians(lyaw),
+                  "note = %s" % note]
+            n_items += 1
+        if r["light"] is not None:
+            lx, ly, lz, col, rad, soft, flick, note = r["light"]
+            L += ["", "[light]", "pos = %.3f %.3f %.3f" % (lx, ly, lz),
+                  "color = %.3f %.3f %.3f" % col,
+                  "radius_m = %.2f" % rad,
+                  "casts_shadow = 0"]
+            if soft > 0.0:
+                L += ["softness = %g" % soft]
+            if flick > 0.0:
+                L += ["flicker = %.2f" % flick]
+            L += ["note = %s" % note]
+        # ОБЩИЙ СВЕТ КОМНАТЫ НЕ НОЛЬ: комната без окон и без ambient — чёрный
+        # кадр, на котором «свет не работает» неотличимо от «локация не
+        # загрузилась». Туман по масштабу КОМНАТЫ, а не города.
+        L += ["", "[air]", "fog_start = 40", "fog_end = 120", "ambient = 0.10",
+              "",
+              "[portal]",
+              "at = %.3f %.3f %.3f" % (dpx + inx * 0.30, fl + 1.00,
+                                       dpz + inz * 0.30),
+              "radius_m = 1.10",
+              "to = ^back",
+              "note = обратная дверь"]
+        path = os.path.join(out_dir, "%s.scene" % r["slug"])
+        open(path, "w", encoding="utf-8").write("\n".join(L) + "\n")
+        written.add(os.path.basename(path))
+    # СИРОТА ХУЖЕ ОТСУТСТВИЯ. Дом, убранный из чертежа, оставил бы за собой
+    # локацию, на которую никто не ссылается, — а приёмка парности (рука 6
+    # свода) считает такие файлы находкой. Сносится ТОЛЬКО то, что этот
+    # генератор и пишет (слаг xNNzNN), рукописные файлы не трогаются.
+    for f in os.listdir(out_dir):
+        if (f.endswith(".scene") and f not in written
+                and re.fullmatch(r"x-?\d+z-?\d+\.scene", f)):
+            os.remove(os.path.join(out_dir, f))
+            print("  снята осиротевшая локация: %s/%s" % (rel_dir, f))
+    if n_moved[0]:
+        print("  точка входа отодвинута от мебели у %d локаций из %d"
+              % (n_moved[0], len(INT_ROOMS)))
+    return len(INT_ROOMS), n_items
+
 
 def write_relief(rel_path, Hh, relief_paths):
     """Рельеф: дельты от НАТУРАЛЬНОЙ земли, классы земли, тропы."""
@@ -6663,6 +7003,11 @@ def main(city="whiterun"):
     relief_paths, FABRIC, HARD = fabric_out()
     n_kerb = kerbs_along(PATHS)
 
+    # 14а. ИНТЕРЬЕРЫ-ЛОКАЦИИ (И15 волна Б). Между полотном и выпуском: убранство
+    # уже собрано put_house'ом, дома расставлены окончательно, а строки города
+    # ещё не написаны — значит ссылки interior= попадут в них тем же проходом.
+    n_int, n_int_items = write_interiors()
+
     # 15. ВЫПУСК.
     write_scene(f"assets/scenes/{OUT}.scene", city_header(), terrain,
                 P, H, LIGHTS)
@@ -6702,6 +7047,10 @@ def main(city="whiterun"):
           f"{len(terrain)} terrain-блоков, {len(relief_paths)} троп, "
           f"терраса: {n_step} марш + {n_kerb} отрезков кромки, "
           f"фундамент: {n_foot} отрезков ленты + {n_stoop} крылец")
+    print(f"{OUT}: болванки (И15 волна Б, DFN_CITY_INTERIORS="
+          f"{'1' if INTERIORS_ON else '0'}): локаций {n_int}, "
+          f"предметов убранства в них {n_int_items}, запечатанных створок "
+          f"{len(SEALED)}")
 
 
 def _norm(text, tag, city):
@@ -6715,6 +7064,40 @@ def _norm(text, tag, city):
             line = "built_commit"
         out.append(line.replace(tag, city))
     return out
+
+
+def _check_interiors(city, tag, int_dir):
+    """Локации в дереве против локаций этого прогона. Возвращает счёт бед."""
+    live_dir = os.path.join(ROOT, f"assets/scenes/int/{city}")
+    have = sorted(os.listdir(live_dir)) if os.path.isdir(live_dir) else []
+    made = sorted(os.listdir(int_dir)) if os.path.isdir(int_dir) else []
+    if not have and not made:
+        return 0
+    if have != made:
+        only_live = [f for f in have if f not in made]
+        only_made = [f for f in made if f not in have]
+        print(f"assets/scenes/int/{city}: СОСТАВ РАСХОДИТСЯ — в дереве "
+              f"{len(have)}, у прогона {len(made)}"
+              + (f"; лишние в дереве: {', '.join(only_live[:4])}"
+                 if only_live else "")
+              + (f"; недостающие: {', '.join(only_made[:4])}"
+                 if only_made else ""))
+        return 1
+    diff = []
+    for f in made:
+        was = _norm(open(os.path.join(live_dir, f), encoding="utf-8").read(),
+                    tag, city)
+        now = _norm(open(os.path.join(int_dir, f), encoding="utf-8").read(),
+                    tag, city)
+        if was != now:
+            diff.append(f)
+    if diff:
+        print(f"assets/scenes/int/{city}: РАСХОДЯТСЯ {len(diff)} локаций из "
+              f"{len(made)}: {', '.join(diff[:6])}"
+              + (" ..." if len(diff) > 6 else ""))
+        return 1
+    print(f"assets/scenes/int/{city}: байт-в-байт ({len(made)} локаций)")
+    return 0
 
 
 def check_release(city):
@@ -6742,9 +7125,17 @@ def check_release(city):
             f"assets/maps/{zone}/{tag}.map"]
     live = [f"assets/scenes/{city}.scene", f"assets/scenes/{city}.relief",
             f"assets/maps/{zone}/{city}.map"]
+    int_dir = os.path.join(ROOT, f"assets/scenes/int/{tag}")
     try:
         main(city)
         bad = 0
+        # ЛОКАЦИИ ПРОВЕРЯЮТСЯ ТЕМ ЖЕ ПРИБОРОМ, и это не «заодно» (И15 волна Б).
+        # Убранство переехало ИЗ сцены города В них: если бы прибор смотрел
+        # только на три прежних файла, ровно тот класс дефекта, ради которого
+        # он заведён — «правка рецептов пришла, перевыпуск не пришёл», — стал
+        # бы для него невидим. Замер этой волны: правки полки Житнова 25.08
+        # НЕ МЕНЯЮТ сцену города ни на байт и меняют 12 локаций из 67.
+        bad += _check_interiors(city, tag, int_dir)
         for a, b in zip(live, made):
             pa = os.path.join(ROOT, a)
             if not os.path.exists(pa):
@@ -6766,13 +7157,18 @@ def check_release(city):
                 print(f"    {i + 1}: в дереве  {was[i]}")
                 print(f"    {i + 1}: у прогона {now[i]}")
         print("ВЫПУСК СВЕЖИЙ" if not bad else
-              f"ВЫПУСК ЗАСТАРЕЛ: {bad} файла(ов) из 3 не воспроизводятся")
+              f"ВЫПУСК ЗАСТАРЕЛ: {bad} предмет(ов) выпуска из 4 "
+              f"(сцена, рельеф, карта, локации) не воспроизводятся")
         return 0 if not bad else 1
     finally:
         for b in made:
             p = os.path.join(ROOT, b)
             if os.path.exists(p):
                 os.remove(p)
+        if os.path.isdir(int_dir):
+            for f in os.listdir(int_dir):
+                os.remove(os.path.join(int_dir, f))
+            os.rmdir(int_dir)
 
 
 def cli(argv):
