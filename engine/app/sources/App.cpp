@@ -3204,6 +3204,9 @@ void App::become_player_from_editor() {
 
 int App::run() {
     auto last = std::chrono::steady_clock::now();
+    // Стенные часы заставки, отдельно от часов меню: их РАСХОЖДЕНИЕ и было
+    // дефектом, а величину, которую меришь, нельзя мерить ею же самой.
+    splash_started_ = last;
     while (!window_->should_close()) {
         window_->poll_events();
         input_->update();
@@ -3279,6 +3282,25 @@ int App::run() {
                                   || input_->was_pressed(platform::Key::SPACE)
                                   || input_->was_pressed(platform::MouseButton::LEFT);
                 if (skip || menu_.time() >= menu_.splash_seconds()) {
+                    // ОДНА СТРОКА, КОТОРОЙ НЕ ХВАТАЛО. Заставка «висела и ждала
+                    // клика» месяц, и ни один снимок не мог этого показать: на
+                    // КАДРЕ она выглядела правильно, неправильным было ВРЕМЯ
+                    // (метка `last` двигалась снаружи измеряемого отрезка, см.
+                    // запись выше). Дефект жил в разнице между часами меню и
+                    // стенными часами, а разницу видно только числом — поэтому
+                    // здесь печатаются ОБА, один раз за запуск. Расхождение
+                    // вдесятеро — это тот же дефект, вернувшийся, и его увидит
+                    // первый же, кто запустит игру из терминала.
+                    const float wall = std::chrono::duration<float>(
+                                           menu_now - splash_started_)
+                                           .count();
+                    std::fprintf(stderr,
+                                 "[интро] заставка закончилась: часы меню %.2f с, "
+                                 "стенные %.2f с, обещано %.2f с%s\n",
+                                 static_cast<double>(menu_.time()),
+                                 static_cast<double>(wall),
+                                 static_cast<double>(menu_.splash_seconds()),
+                                 skip ? " (пропущена игроком)" : "");
                     menu_.open(MenuPage::Root);
                 }
             }
