@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 24:08:2026 - 14:44:50
+Last updated: 27:08:2026 - 01:20:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -63,6 +63,13 @@ UPD:
 - 24:08:2026 - 01:30:00: И15 волна А — ДВА СЛОТА, ОДИН ПОСТРОИТЕЛЬ: приёмник
 - 24:08:2026 - 14:39:57: прибор состава сборки (DFN_LOAD_LOG): меш/AO/разнос/коллайдер копилками — одна строка «постройки залиты» не различала «дорого тело» против «дорого число тел».
 - 24:08:2026 - 14:44:50: И10 — кэш AO на диске (build_lead/ao_cache, артефакт сборки; дверь DFN_HOUSE_AO_DISK) + полный отпечаток вместо 64 вершин (коллизия параметрических семейств).
+- 27:08:2026 - 01:20:00: И15 волна Б: ЗАПЕЧАТЫВАНИЕ СТВОРКИ ПО КЛЮЧУ РАЗМЕЩЕНИЯ
+  (sealed у [house]) рядом с прежним ключом чертежа portal=1, и СБОР СТВОРОК
+  ГОРОДА (house_doorways_) — их мировые координаты считает только этот файл.
+  Доза DFN_HOUSE_SEAL=0 возвращает прежний город бит-в-бит. Плюс число вершин
+  коллайдера в строке «[постройка] тело:»: вопрос волны «сколько ушло из
+  мировой сцены» до неё нельзя было ответить иначе как счётом строк .scene
+  (замер Вайтрана: 3 938 184 -> 3 809 484 вершины, створки вернули 1 152).
   append_graph переключается указателями, и интерьер-локация собирается тем же
   кодом, что и город. Плюс ИНВЕРСИЯ КОЛЛАЙДЕРА ДВЕРИ (ключ элемента portal=1):
   створка запечатанного дома входит в коллайдер, иначе игрок прошёл бы сквозь
@@ -519,6 +526,26 @@ void App::upload_house_mesh(bool interior_only) {
     // городом по той же XZ, и его пятна выкосили бы траву НАВЕРХУ — под домом,
     // которого там нет.
     bool collect_exclusions = true;
+    // ЧЬЯ ЭТО ПОСТРОЙКА СЕЙЧАС (И15 волна Б). Строящийся в редакторе дом —
+    // ничей (nullptr); дом карты несёт свою запись композиции, и из неё
+    // построитель берёт ДВЕ вещи: запечатана ли створка (sealed) и куда она
+    // ведёт (interior). Указателем, а не ещё одним параметром лямбды: тело
+    // построителя не должно знать, на кого работает (см. выше про два слота).
+    const world::ScenePlacedHouse* cur_place = nullptr;
+    std::size_t cur_index = 0;
+    // Створки собираются только у ГОРОДА: у локации свой обратный [portal],
+    // и второй, выведенный из её же оболочки, был бы вторым выходом наружу.
+    bool collect_doorways = true;
+    if (!interior_only) {
+        house_doorways_.clear();
+    }
+    // ДОЗА ЗАПЕЧАТЫВАНИЯ (правило 30). 0 — створки как были и ни одного
+    // перехода у дверей: город бит-в-бит доволновой, и «стало хуже» можно
+    // предъявить одним бинарником, а не памятью о вчерашнем.
+    static const bool seal_on = [] {
+        const char* e = door_value("DFN_HOUSE_SEAL");
+        return e == nullptr || *e == '\0' || *e != '0';
+    }();
 
     // КЭШ НЕБЕСНОЙ ВИДИМОСТИ ПО ОТПЕЧАТКУ МЕША. 434 постройки города — это
     // ~20-30 уникальных .dfh: печь AO на каждый ЭКЗЕМПЛЯР значило бы платить
@@ -823,8 +850,37 @@ void App::upload_house_mesh(bool interior_only) {
             // ведёт не он, а переход, — и тогда створка обязана быть стеной,
             // иначе игрок пройдёт сквозь оболочку мимо всей механики.
             // Дверь БЕЗ флага — как была, до последнего треугольника.
+            // ...И ВТОРОЙ, РАЗМЕЩЕНЧЕСКИЙ СПОСОБ СКАЗАТЬ ТО ЖЕ (волна Б, ключ
+            // сцены sealed у [house]): один чертёж носят одиннадцать домов
+            // Вайтрана, и portal=1 в нём запечатал бы каждый проём каждой
+            // карты, где он встречается, включая стенды кузницы.
+            const bool sealed_here =
+                seal_on && cur_place != nullptr && cur_place->sealed;
             const bool portal_leaf =
-                is_door && graph.param(e->id, "portal") == "1";
+                is_door && (graph.param(e->id, "portal") == "1" || sealed_here);
+            if (is_door && sealed_here && collect_doorways) {
+                // ГДЕ ДВЕРЬ — ЗНАЕТ ТОЛЬКО ГЕОМЕТРИЯ. Середина габарита
+                // полотна в мировых: генератору для той же точки пришлось бы
+                // заново решать посадку рецепта, поворот размещения и вынос
+                // двери — три счёта, которые уже сделаны здесь.
+                glm::vec3 dlo{1e9f};
+                glm::vec3 dhi{-1e9f};
+                for (std::uint32_t i = 0; i < part.index_count; ++i) {
+                    const glm::vec3 wp =
+                        to_world(built.vertices[built.indices[part.index_begin + i]].pos);
+                    dlo = glm::min(dlo, wp);
+                    dhi = glm::max(dhi, wp);
+                }
+                HouseDoorway dw;
+                dw.at = (dlo + dhi) * 0.5f;
+                // РУКА ДОТЯГИВАЕТСЯ ДО СТВОРКИ, А НЕ ДО ЕЁ СЕРЕДИНЫ: прицел
+                // стоит снаружи, полотно 0.05-0.10 м толщиной, и радиус
+                // меряется от центра до плеча человека перед порогом.
+                dw.reach_m = 1.6f;
+                dw.scene_index = cur_index;
+                dw.interior = cur_place->interior;
+                house_doorways_.push_back(std::move(dw));
+            }
             render::MeshData* into = nullptr;
             if (is_door) {
                 doors->emplace_back();
@@ -925,10 +981,14 @@ void App::upload_house_mesh(bool interior_only) {
         // уходит в (cos, -sin) — та же формула, что у расстановок деталей.
         const float c = std::cos(ph.yaw);
         const float sn = std::sin(ph.yaw);
+        cur_place = ph.scene_index < scene_doc_.houses.size()
+                  ? &scene_doc_.houses[ph.scene_index] : nullptr;
+        cur_index = ph.scene_index;
         append_graph(ph.graph, [&, c, sn](glm::vec3 l) {
             return ph.pos + glm::vec3{l.x * c + l.z * sn, l.y, -l.x * sn + l.z * c};
         });
     }
+    cur_place = nullptr;
     }
 
     // ВТОРОЙ ПРОХОД — ИНТЕРЬЕР-ЛОКАЦИЯ (И15). Тот же построитель, другой
@@ -939,13 +999,21 @@ void App::upload_house_mesh(bool interior_only) {
     collider_indices = &int_indices;
     positions = &interior_positions_;
     collect_exclusions = false;
+    collect_doorways = false;
     for (const PlacedHouse& ph : interior_houses_) {
         const float c = std::cos(ph.yaw);
         const float sn = std::sin(ph.yaw);
+        // ОБОЛОЧКА ЛОКАЦИИ ЗАПЕЧАТЫВАЕТСЯ ТЕМ ЖЕ КЛЮЧОМ, что и снаружи: иначе
+        // изнутри пустой болванки можно выйти сквозь тот же проём, минуя
+        // обратный переход, и оказаться в километре под городом.
+        cur_place = ph.scene_index < interior_doc_.houses.size()
+                  ? &interior_doc_.houses[ph.scene_index] : nullptr;
+        cur_index = ph.scene_index;
         append_graph(ph.graph, [&, c, sn](glm::vec3 l) {
             return ph.pos + glm::vec3{l.x * c + l.z * sn, l.y, -l.x * sn + l.z * c};
         });
     }
+    cur_place = nullptr;
 
     std::size_t n_streams = 0;
     std::size_t n_doors = 0;
@@ -1065,9 +1133,15 @@ void App::upload_house_mesh(bool interior_only) {
                      bclock.cache_hits, bclock.split_s, bclock.collider_s);
     }
     if (!interior_only) {
+        // ВЕРШИНЫ КОЛЛАЙДЕРА — В ТОЙ ЖЕ СТРОКЕ (И15 волна Б). Вопрос волны
+        // болванок «сколько ушло из мировой сцены» до неё нельзя было
+        // ответить числом: потоки и двери считались, а ТЕЛО, которое отдано
+        // Jolt, — нет, и «стало легче» опиралось бы на счёт строк .scene.
         std::fprintf(stderr,
-                     "[постройка] тело: потоков %zu, дверей %zu (готовых домов %zu)\n",
-                     n_streams, n_doors, placed_houses_.size());
+                     "[постройка] тело: потоков %zu, дверей %zu (готовых домов "
+                     "%zu), вершин коллайдера %zu\n",
+                     n_streams, n_doors, placed_houses_.size(),
+                     house_positions_.size());
     }
 }
 

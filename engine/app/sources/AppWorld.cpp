@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 24:08:2026 - 01:30:00
+Last updated: 27:08:2026 - 01:20:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -55,6 +55,10 @@ UPD:
   ОДИН список на прибор DFN_LOAD_LOG и на глаз игрока (формат строки прибора
   не сдвинут); [portal] карты становятся вещами мира; DFN_INTERIOR открывает
   карту сразу внутри локации; unload_world снимает локацию вместе с картой.
+- 27:08:2026 - 01:20:00: И15 волна Б: spawn_house_portals() зовётся ПОСЛЕ переходов
+  композиции, и порядок обязателен — spawn_scene_portals начинается с уборки
+  своей стороны (clear_scene_portals(false)) и снесла бы двери, заведённые
+  раньше. house_doorways_ чистится при выгрузке мира вместе с portals_.
 */
 
 #include "engine/app/sources/App.h"
@@ -172,6 +176,7 @@ void App::unload_world() {
         }
     }
     portals_.clear();
+    house_doorways_.clear();
     interior_houses_.clear();
     interior_positions_.clear();
     interior_doc_ = {};
@@ -1924,6 +1929,11 @@ bool App::enter_world(uint32_t stand) {
     // ПЕРЕХОДЫ КАРТЫ ([portal], И15). Пусто на каждой сцене без порталов, и
     // тогда всё ниже — прежний мир до последнего бита (доза 0, правило 47).
     spawn_scene_portals(scene_doc_, /*interior=*/false);
+    // ДВЕРИ ПОСТРОЕК (И15 волна Б) — ПОСЛЕ переходов композиции, и порядок
+    // обязателен: spawn_scene_portals начинается с уборки СВОЕЙ стороны
+    // (clear_scene_portals(false)), и она снесла бы двери, заведённые раньше.
+    // Пусто на каждой карте без ключа sealed — прежний мир до последнего бита.
+    spawn_house_portals();
 
     load_mark("мир готов");
     loading_.finish();

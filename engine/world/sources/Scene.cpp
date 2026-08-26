@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 23:08:2026 - 23:40:00
+Last updated: 27:08:2026 - 00:12:00
 Module: engine/world
 File: engine/world/sources/Scene.cpp
 
@@ -92,6 +92,8 @@ UPD:
   (правило 47) в tests/core/SceneTests.cpp: боевой Вайтран читается без единого
   портала и без единого interior=, а два прохода записи сходятся побайтово.
 - 23:08:2026 - 23:40:00: ключ ambient в [air] — общий свет локации (И15 шаг 4).
+- 27:08:2026 - 00:12:00: ключ sealed у [house] (И15 волна Б): створка входит в
+  коллайдер. Только добавление; сцена без ключа пишется и читается как раньше.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -323,6 +325,8 @@ bool read_scene(const std::filesystem::path& path, SceneDoc& out, std::string& e
                 }
             } else if (key == "interior") {
                 H.interior = value;
+            } else if (key == "sealed") {
+                H.sealed = value == "1" || value == "true" || value == "yes";
             } else if (key == "note") {
                 H.note = value;
             }
@@ -570,6 +574,9 @@ bool write_scene(const SceneDoc& doc, const std::filesystem::path& path) {
             << "yaw = " << H.yaw << "\n";
         if (!H.interior.empty()) {
             out << "interior = " << H.interior << "\n";
+        }
+        if (H.sealed) {
+            out << "sealed = 1\n";
         }
         if (!H.note.empty()) {
             out << "note = " << H.note << "\n";

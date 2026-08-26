@@ -1,6 +1,6 @@
 /*
 Created: 16:08:2026 - 20:16:09
-Last updated: 23:08:2026 - 22:10:00
+Last updated: 27:08:2026 - 01:05:00
 Module: tests
 File: tests/core/SceneTests.cpp
 
@@ -57,6 +57,12 @@ UPD:
   чужой spawn молча переставил бы игрока); и рука дозы 0 по правилу 47 —
   настоящий Вайтран не приобрёл ни портала, ни interior=, а два прохода
   записи сходятся побайтово.
+- 27:08:2026 - 01:05:00: И15 волна Б: рука дозы 0 по боевому Вайтрану ПЕРЕПИСАНА, а
+  не снята. Её утверждение «город без interior=» отменил заказ владельца
+  26.08 («дома снаружи болванками»): убранство уехало в локации, ссылки
+  стоят в самой боевой сцене. Осталось то, что и было настоящим содержанием
+  руки, — круговой прогон побайтово; добавились парность (у каждой ссылки
+  есть файл) и sealed у каждого дома со ссылкой.
 */
 
 #include "engine/world/sources/Scene.h"
@@ -783,12 +789,23 @@ TEST_CASE("scene: tomorrow's section does not break today's reader, and does "
     std::filesystem::remove(path, ec);
 }
 
-TEST_CASE("scene: a shipped city is unchanged by the interior keys (dose 0)") {
-    // ПРАВИЛО 47, КОНТРОЛЬНАЯ РУКА: мир БЕЗ порталов обязан остаться прежним.
-    // Читается настоящая боевая сцена Вайтрана; у неё не должно появиться ни
-    // одного портала, ни одной названной точки входа и ни одного interior=,
-    // а круговой прогон (чтение→запись→чтение→запись) обязан сойтись
-    // ПОБАЙТОВО — то есть добавления формата ничего не сдвинули.
+TEST_CASE("scene: a shipped city carries its interiors and round-trips") {
+    // ЧТО ЭТА РУКА МЕРИЛА ДО 27.08 И ПОЧЕМУ ПЕРЕСТАЛА. Волна А зоны И15
+    // (интерьеры-локации) держала здесь контрольную руку правила 47: боевой
+    // Вайтран обязан читаться БЕЗ единого портала и без единого interior=,
+    // потому что пилот жил на КОПИИ карты и мир не имел права измениться.
+    // Волна Б («все дома снаружи болванками», заказ владельца 26.08) это
+    // утверждение отменяет НАМЕРЕННО: убранство уехало из сцены города в
+    // локации, и ссылки на них теперь стоят в самой боевой сцене. Оставить
+    // прежнюю проверку значило бы держать красным тест, который проверяет
+    // отсутствие сделанной работы.
+    //
+    // ЧТО ОСТАЛОСЬ ИЗМЕРИМЫМ И ЦЕННЫМ: круговой прогон (чтение→запись→
+    // чтение→запись) обязан сходиться ПОБАЙТОВО. Это и было настоящим
+    // содержанием руки — что добавления формата ничего не сдвинули, — и оно
+    // от волны к волне не зависит. Плюс новое утверждение того же рода: у
+    // каждой ссылки interior= есть файл, и у каждого дома со ссылкой
+    // выставлен sealed (иначе внутрь ведёт не переход, а дыра в проёме).
     const std::filesystem::path city{"assets/scenes/whiterun.scene"};
     if (!std::filesystem::exists(city)) {
         return; // сцена не в дереве — судить нечего
@@ -796,15 +813,19 @@ TEST_CASE("scene: a shipped city is unchanged by the interior keys (dose 0)") {
     SceneDoc doc;
     std::string error;
     REQUIRE(read_scene(city, doc, error));
-    CHECK(doc.portals.empty());
-    CHECK(doc.spawns.empty());
     std::size_t with_interior = 0;
+    std::size_t sealed = 0;
     for (const auto& h : doc.houses) {
-        if (!h.interior.empty()) {
-            ++with_interior;
+        sealed += h.sealed ? 1u : 0u;
+        if (h.interior.empty()) {
+            continue;
         }
+        ++with_interior;
+        CHECK(std::filesystem::exists(h.interior));
+        CHECK(h.sealed);
     }
-    CHECK(with_interior == 0);
+    CHECK(with_interior > 0);
+    CHECK(sealed >= with_interior);
     CHECK(doc.houses.size() > 100); // прибор действительно читал город
 
     const auto a = std::filesystem::temp_directory_path() / "dfn_city_pass1.scene";

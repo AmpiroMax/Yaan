@@ -1,6 +1,6 @@
 /*
 Created: 23:08:2026 - 23:50:00
-Last updated: 24:08:2026 - 03:20:00
+Last updated: 27:08:2026 - 01:20:00
 Module: engine/app
 File: engine/app/sources/AppInterior.cpp
 
@@ -45,6 +45,13 @@ UPD:
   И СНИМОК САМОГО ЭКРАНА: он живёт между двумя кадрами штатной петли и
   потому невидим для DFN_SHOT_AFTER, который считает показанные ею кадры;
   пишется ровно один раз за прогон туда, куда прогон уже кладёт снимки.
+- 27:08:2026 - 01:20:00: И15 волна Б: spawn_house_portals() — переход у каждой
+  запечатанной створки города («Войти» либо «Заперто»), и ветка house в
+  take_portal. И ОДНА ПОЧИНКА ПОРЯДКА: interior_doc_ присваивается ДО
+  upload_house_mesh, а не после, — заливка читает у композиции локации ключ
+  sealed её оболочки, и до этой строки читала ПРЕДЫДУЩУЮ локацию. Цель
+  перехода копируется перед входом: вход перетряхивает portals_, и ссылка в
+  этот вектор умирает под ногами у enter_interior.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -226,12 +233,83 @@ void App::spawn_scene_portals(const world::SceneDoc& doc, bool interior) {
             world_.resource<gameplay::InteractableBodies>()
                 .bodies[id.packed()] = body;
         }
-        portals_.push_back(PortalLink{action, i, interior, id});
+        PortalLink link;
+        link.action = action;
+        link.index = i;
+        link.interior = interior;
+        link.entity = id;
+        portals_.push_back(std::move(link));
     }
     if (!doc.portals.empty()) {
         std::fprintf(stderr, "[интерьер] переходов на %s: %zu\n",
                      interior ? "локации" : "карте", doc.portals.size());
     }
+}
+
+void App::spawn_house_portals() {
+    if (physics_ == nullptr || house_doorways_.empty()) {
+        return;
+    }
+    std::size_t open = 0;
+    for (std::size_t i = 0; i < house_doorways_.size(); ++i) {
+        const HouseDoorway& D = house_doorways_[i];
+        const ecs::EntityId id = world_.spawn();
+        world_.add(id, components::Transform{.position = D.at,
+                                             .rotation = {1.0f, 0.0f, 0.0f, 0.0f},
+                                             .scale = glm::vec3{1.0f}});
+        // ДЕЙСТВИЕ ИМЕНУЕТСЯ ТОЧКОЙ, А НЕ НОМЕРОМ ЗАПИСИ. Номер створки живёт
+        // внутри прогона (порядок заливки), а координата — свойство города:
+        // два перехода одного дома не сольются, а перевыпуск карты не
+        // переназначит действия соседям.
+        const std::uint64_t action = serialization::fnv1a64(
+            "house-door@" + std::to_string(static_cast<int>(D.at.x * 100.0f))
+            + "," + std::to_string(static_cast<int>(D.at.y * 100.0f))
+            + "," + std::to_string(static_cast<int>(D.at.z * 100.0f)));
+        // ЗАПЕРТО — ЭТО НАДПИСЬ, А НЕ МОЛЧАНИЕ (заказ владельца 26.08:
+        // «остальные двери честно говорят заперто»). Подсказка под прицелом
+        // уже есть у каждого взаимодействия — новой системы не нужно, нужен
+        // другой ключ строки.
+        world_.add(id, gameplay::Highlightable{
+                           .prompt_key = D.interior.empty() ? "prompt.locked"
+                                                            : "prompt.enter",
+                           .max_use_distance = D.reach_m});
+        world_.add(id, gameplay::Usable{.action = action,
+                                        .repeatable = true,
+                                        .used = false});
+        platform::StaticBoxDesc box;
+        box.center = D.at;
+        // Коробка прицела ЧУТЬ БОЛЬШЕ полотна по горизонтали и заметно выше:
+        // человек целится в дверь, а не в её геометрический центр, и створка
+        // в полтора метра ростом ловилась бы только точным попаданием.
+        box.half_extents = {0.7f, 1.1f, 0.7f};
+        box.layer = physics::LAYER_INTERACTABLE;
+        box.user_data = id.packed();
+        const platform::PhysicsBodyHandle body = physics_->create_static_box(box);
+        if (body.valid()) {
+            if (!world_.has_resource<gameplay::InteractableBodies>()) {
+                world_.add_resource(gameplay::InteractableBodies{});
+            }
+            world_.resource<gameplay::InteractableBodies>()
+                .bodies[id.packed()] = body;
+        }
+        PortalLink link;
+        link.action = action;
+        link.index = i;
+        link.interior = false;
+        link.house = true;
+        link.to = D.interior;
+        // ИМЯ ТОЧКИ ВХОДА ОДНО НА ВСЕ ДОМА: у локации волны Б одна дверь, и
+        // называется она так же, как у пилота. Локация с двумя дверями
+        // получит имена тогда, когда получит вторую дверь.
+        link.to_spawn = D.interior.empty() ? std::string{} : std::string{"door"};
+        link.entity = id;
+        portals_.push_back(std::move(link));
+        open += D.interior.empty() ? 0u : 1u;
+    }
+    std::fprintf(stderr,
+                 "[интерьер] дверей построек: %zu, из них с внутренностью %zu "
+                 "(остальные заперты)\n",
+                 house_doorways_.size(), open);
 }
 
 void App::take_portal() {
@@ -243,6 +321,23 @@ void App::take_portal() {
     for (const PortalLink& link : portals_) {
         if (link.action != action) {
             continue;
+        }
+        if (link.house) {
+            if (link.to.empty()) {
+                // ЗАПЕРТО. Надпись игрок уже прочитал под прицелом — здесь
+                // остаётся строка для прогона: «нажал, и ничего не случилось»
+                // и «нажал, и дверь ответила» неразличимы в логе иначе.
+                std::fprintf(stderr, "[интерьер] дверь ЗАПЕРТА\n");
+                return;
+            }
+            // КОПИЯ, А НЕ ССЫЛКА: вход правит portals_ (снимает переходы
+            // локации, заводит новые), и ссылка в этот вектор умирает прямо
+            // под ногами у enter_interior. Та же причина, по которой ниже
+            // копируется запись портала композиции.
+            const std::string to = link.to;
+            const std::string spawn = link.to_spawn;
+            (void)enter_interior(to, spawn);
+            return;
         }
         const world::SceneDoc& doc = link.interior ? interior_doc_ : scene_doc_;
         if (link.index >= doc.portals.size()) {
@@ -338,6 +433,12 @@ bool App::enter_interior(const std::string& scene_path,
         }
         interior_houses_ = std::move(houses);
         loading_.stage("постройки локации прочитаны");
+        // КОМПОЗИЦИЯ ЛОКАЦИИ — ДО ЗАЛИВКИ, А НЕ ПОСЛЕ (волна Б). Заливка
+        // читает у неё ключ sealed оболочки, а до этой строки interior_doc_
+        // держал ПРЕДЫДУЩУЮ локацию: створка запечатывалась бы по чужой
+        // записи. Присваивание стоит ПОСЛЕ всех чтений, которые могут не
+        // получиться, — правило файла соблюдено.
+        interior_doc_ = doc;
         upload_house_mesh(/*interior_only=*/true);
         loading_.stage("геометрия и коллайдер локации");
         interior_resident_ = scene_path;
