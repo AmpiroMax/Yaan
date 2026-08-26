@@ -1,0 +1,143 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# whiterun: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/whiterun/x100z64
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 7.500 1.820 7.200
+yaw = 0.000000
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/city-keep-s.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (ЗАМОК)
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 6.800 1.720 0.450
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 7.200 1.920 0.850
+yaw = 0.645772
+note = огонь очага: ЗАМОК
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 4.200 1.720 3.200
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 6.200 1.720 3.200
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 8.200 1.720 3.200
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 4.300 1.720 2.700
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 6.300 1.720 2.700
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 8.300 1.720 2.700
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 4.300 1.720 4.400
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 6.300 1.720 4.400
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 8.300 1.720 4.400
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-column-h281.dfh
+pos = 2.600 1.720 3.900
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-column-h281.dfh
+pos = 12.400 1.720 3.900
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 14.550 1.720 2.400
+yaw = 4.712389
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 14.550 1.720 5.200
+yaw = 4.712389
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.500 1.720 6.600
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 1.400 1.720 6.600
+yaw = 0.000000
+note = убранство: ЗАМОК
+
+[light]
+pos = 7.500 2.650 1.150
+color = 1.000 0.536 0.210
+radius_m = 12.84
+casts_shadow = 0
+softness = 0.25
+flicker = 0.51
+note = очаг: ЗАМОК
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 7.500 2.720 7.700
+radius_m = 1.10
+to = ^back
+note = обратная дверь

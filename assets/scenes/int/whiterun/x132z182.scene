@@ -1,0 +1,89 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# whiterun: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/whiterun/x132z182
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 0.800 1.420 3.500
+yaw = 1.570796
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/city-mill.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (МЕЛЬНИЦА)
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 2.400 1.320 2.300
+yaw = 0.000000
+note = убранство: МЕЛЬНИЦА
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 5.700 1.320 0.900
+yaw = 0.000000
+note = убранство: МЕЛЬНИЦА
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 5.700 1.320 1.800
+yaw = 0.000000
+note = убранство: МЕЛЬНИЦА
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 5.700 1.320 2.700
+yaw = 0.000000
+note = убранство: МЕЛЬНИЦА
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 6.550 1.320 4.600
+yaw = 4.712389
+note = убранство: МЕЛЬНИЦА
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 2.200 1.320 5.800
+yaw = 0.000000
+note = убранство: МЕЛЬНИЦА
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 0.600 1.320 0.500
+yaw = 0.000000
+note = убранство: МЕЛЬНИЦА
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 1.000 1.520 0.900
+yaw = 0.645772
+note = огонь очага: МЕЛЬНИЦА
+
+[light]
+pos = 1.300 2.250 1.200
+color = 1.000 0.598 0.235
+radius_m = 10.91
+casts_shadow = 0
+softness = 0.25
+flicker = 0.58
+note = очаг: МЕЛЬНИЦА
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 0.300 2.320 3.500
+radius_m = 1.10
+to = ^back
+note = обратная дверь

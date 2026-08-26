@@ -1,0 +1,371 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# cornhall: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/cornhall/x380z282
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 5.075 0.660 14.200
+yaw = 0.000000
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/cornhall-inn.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (постоялый двор пивоварских ворот)
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 2.300 0.560 0.650
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 2.700 0.760 1.050
+yaw = 0.645772
+note = огонь очага: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-woodpile.dfh
+pos = 4.100 0.560 0.700
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 0.700 0.560 2.600
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.800 0.560 2.100
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.800 0.560 3.600
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 0.700 0.560 5.100
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.800 0.560 4.600
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.800 0.560 6.100
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 0.700 0.560 7.600
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.800 0.560 7.100
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.800 0.560 8.600
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 0.700 0.560 10.100
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.800 0.560 9.600
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.800 0.560 11.100
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 6.450 0.560 2.200
+yaw = 4.712389
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 6.450 0.560 4.400
+yaw = 4.712389
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 5.700 0.560 6.200
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 4.200 0.560 7.100
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 4.200 0.560 8.000
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.600 0.560 12.400
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 2.300 0.560 13.100
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 2.700 0.760 13.500
+yaw = 0.645772
+note = огонь очага: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 4.200 0.560 12.600
+yaw = 0.000000
+note = убранство: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.400 4.920 0.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.400 4.920 2.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.400 4.920 4.700
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.400 4.920 6.800
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 2.200 4.920 0.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 2.200 4.920 2.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 3.600 4.920 0.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 3.600 4.920 1.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 3.500 4.920 3.200
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 8.000 4.920 0.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 9.600 4.920 0.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 8.000 4.920 2.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 9.600 4.920 2.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 8.000 4.920 5.200
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 8.100 4.920 6.200
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 8.000 4.920 11.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 9.600 4.920 11.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 2.200 7.920 0.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 2.200 7.920 2.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 2.200 7.920 4.700
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 2.200 7.920 6.800
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 4.000 7.920 0.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 4.000 7.920 2.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 5.400 7.920 5.200
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 5.500 7.920 7.000
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 8.000 7.920 0.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 9.600 7.920 0.500
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 8.000 7.920 2.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 9.600 7.920 2.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 8.000 7.920 11.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 2.200 7.920 12.600
+yaw = 0.000000
+note = убранство яруса: постоялый двор пивоварских ворот
+
+[light]
+pos = 3.000 1.490 13.800
+color = 1.000 0.579 0.221
+radius_m = 12.35
+casts_shadow = 0
+softness = 0.25
+flicker = 0.58
+note = очаг: постоялый двор пивоварских ворот
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 5.075 1.560 14.700
+radius_m = 1.10
+to = ^back
+note = обратная дверь

@@ -1,0 +1,89 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# whiterun: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/whiterun/x103z86
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 2.250 0.220 5.200
+yaw = 0.000000
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/city-house-s.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (дом)
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 1.550 0.120 0.350
+yaw = 0.000000
+note = убранство: дом
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 1.950 0.320 0.750
+yaw = 0.645772
+note = огонь очага: дом
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 0.550 0.120 2.500
+yaw = 0.000000
+note = убранство: дом
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.650 0.120 2.000
+yaw = 0.000000
+note = убранство: дом
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 0.650 0.120 3.550
+yaw = 0.000000
+note = убранство: дом
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 3.150 0.120 3.750
+yaw = 0.000000
+note = убранство: дом
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 0.300 0.120 2.200
+yaw = 1.570796
+note = убранство: дом
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 3.600 0.120 1.900
+yaw = 0.000000
+note = убранство: дом
+
+[light]
+pos = 2.250 1.050 1.050
+color = 0.995 0.548 0.222
+radius_m = 7.01
+casts_shadow = 0
+softness = 0.25
+flicker = 0.50
+note = очаг: дом
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 2.250 1.120 5.700
+radius_m = 1.10
+to = ^back
+note = обратная дверь

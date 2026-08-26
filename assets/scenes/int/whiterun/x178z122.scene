@@ -1,0 +1,107 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# whiterun: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/whiterun/x178z122
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 5.000 0.745 7.200
+yaw = 0.000000
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/city-house-l.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (постоялый двор)
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 4.300 0.645 0.400
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 4.700 0.845 0.800
+yaw = 0.645772
+note = огонь очага: постоялый двор
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 3.600 0.645 3.000
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 3.700 0.645 2.500
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 3.700 0.645 4.200
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.450 0.645 5.550
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 8.550 0.645 5.550
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 9.500 0.645 3.400
+yaw = 4.712389
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-column-h272.dfh
+pos = 2.100 0.645 3.900
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-column-h272.dfh
+pos = 7.900 0.645 3.900
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.450 0.645 0.600
+yaw = 0.000000
+note = убранство: постоялый двор
+
+[light]
+pos = 5.000 1.575 1.100
+color = 1.000 0.547 0.211
+radius_m = 9.97
+casts_shadow = 0
+softness = 0.25
+flicker = 0.53
+note = очаг: постоялый двор
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 5.000 1.645 7.700
+radius_m = 1.10
+to = ^back
+note = обратная дверь

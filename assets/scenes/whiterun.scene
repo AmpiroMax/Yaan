@@ -951,156 +951,64 @@ file = assets/houses/city-tower.dfh
 pos = 100.089 25.878 176.696
 yaw = 3.215772
 note = башня кольца (наружу)
+sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
 pos = 137.168 26.803 159.346
 yaw = 2.440014
 note = башня кольца (наружу)
+sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
 pos = 147.557 26.814 140.840
 yaw = 2.011705
 note = башня кольца (наружу)
+sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
 pos = 146.692 27.801 116.046
 yaw = 1.468191
 note = башня кольца (наружу)
+sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
 pos = 126.821 27.294 70.835
 yaw = 0.426851
 note = башня кольца (наружу)
+sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
 pos = 83.759 28.035 53.766
 yaw = 5.984609
 note = башня кольца (наружу)
+sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
 pos = 62.765 26.344 107.763
 yaw = 5.008255
 note = башня кольца (наружу)
+sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
 pos = 68.120 26.167 155.241
 yaw = 3.945661
 note = башня кольца (наружу)
+sealed = 1
 
 [house]
 file = assets/houses/city-keep-s.dfh
 pos = 92.500 35.996 60.000
 yaw = 0.000000
 note = ЗАМОК
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 99.300 37.716 60.450
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 99.700 37.916 60.850
-yaw = 0.645772
-note = огонь очага: ЗАМОК
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 96.700 37.716 63.200
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 98.700 37.716 63.200
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 100.700 37.716 63.200
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 96.800 37.716 62.700
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 98.800 37.716 62.700
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 100.800 37.716 62.700
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 96.800 37.716 64.400
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 98.800 37.716 64.400
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 100.800 37.716 64.400
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-column-h281.dfh
-pos = 95.100 37.716 63.900
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-column-h281.dfh
-pos = 104.900 37.716 63.900
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 107.050 37.716 62.400
-yaw = 4.712389
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 107.050 37.716 65.200
-yaw = 4.712389
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 93.000 37.716 66.600
-yaw = 0.000000
-note = убранство: ЗАМОК
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 93.900 37.716 66.600
-yaw = 0.000000
-note = убранство: ЗАМОК
+interior = assets/scenes/int/whiterun/x100z64.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
@@ -1437,6 +1345,7 @@ file = assets/houses/city-donjon.dfh
 pos = 119.704 35.996 68.376
 yaw = 4.712389
 note = донжон
+sealed = 1
 
 [house]
 file = assets/houses/city-revet2-h40.dfh
@@ -1557,72 +1466,8 @@ file = assets/houses/city-house-l.dfh
 pos = 83.870 34.053 97.059
 yaw = 1.862253
 note = усадьба
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 83.017 34.698 92.826
-yaw = 1.862253
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 83.286 34.898 92.328
-yaw = 2.508025
-note = огонь очага: усадьба
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 85.709 34.698 92.749
-yaw = 1.862253
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 85.201 34.698 92.797
-yaw = 1.862253
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 86.830 34.698 92.308
-yaw = 1.862253
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 89.057 34.698 95.033
-yaw = 1.862253
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 86.729 34.698 87.275
-yaw = 1.862253
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 84.397 34.698 86.983
-yaw = 0.291457
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-column-h272.dfh
-pos = 87.002 34.698 93.927
-yaw = 1.862253
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-column-h272.dfh
-pos = 85.335 34.698 88.372
-yaw = 1.862253
-note = убранство: усадьба
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 84.315 34.698 96.456
-yaw = 1.862253
-note = убранство: усадьба
+interior = assets/scenes/int/whiterun/x90z90.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h16.dfh
@@ -1767,54 +1612,8 @@ file = assets/houses/city-house-s.dfh
 pos = 99.983 35.342 83.773
 yaw = 0.291457
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 101.568 35.462 83.663
-yaw = 0.291457
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 102.066 35.662 83.931
-yaw = 0.937229
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 101.228 35.462 86.010
-yaw = 0.291457
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 101.180 35.462 85.502
-yaw = 0.291457
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 101.626 35.462 86.987
-yaw = 0.291457
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 104.078 35.462 86.460
-yaw = 0.291457
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 100.902 35.462 85.794
-yaw = 1.862253
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 103.977 35.462 84.558
-yaw = 0.291457
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x103z86.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h20.dfh
@@ -1911,54 +1710,8 @@ file = assets/houses/city-house-s.dfh
 pos = 111.646 33.128 93.323
 yaw = 0.463648
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 113.189 33.248 92.943
-yaw = 0.463648
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 113.725 33.448 93.122
-yaw = 1.109419
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 113.256 33.248 95.313
-yaw = 0.463648
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 113.122 33.248 94.821
-yaw = 0.463648
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 113.815 33.248 96.207
-yaw = 0.463648
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 116.140 33.248 95.268
-yaw = 0.463648
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 112.898 33.248 95.157
-yaw = 2.034444
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 115.716 33.248 93.412
-yaw = 0.463648
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x115z95.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
@@ -2049,90 +1802,8 @@ file = assets/houses/city-temple.dfh
 pos = 83.000 32.945 105.000
 yaw = 0.000000
 note = ХРАМ
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 88.100 33.070 105.700
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 84.000 33.070 105.600
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 84.400 33.270 106.000
-yaw = 0.645772
-note = огонь очага: ХРАМ
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 92.600 33.070 105.600
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 93.000 33.270 106.000
-yaw = 0.645772
-note = огонь очага: ХРАМ
-
-[house]
-file = assets/houses/furn-column.dfh
-pos = 85.400 33.070 107.400
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-column.dfh
-pos = 92.600 33.070 107.400
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 86.200 33.070 108.200
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 90.200 33.070 108.200
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 86.200 33.070 109.400
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 90.200 33.070 109.400
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 86.200 33.070 110.600
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 90.200 33.070 110.600
-yaw = 0.000000
-note = убранство: ХРАМ
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 94.550 33.070 108.000
-yaw = 4.712389
-note = убранство: ХРАМ
+interior = assets/scenes/int/whiterun/x89z108.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h06.dfh
@@ -2283,114 +1954,8 @@ file = assets/houses/city-longhall.dfh
 pos = 133.243 31.732 115.899
 yaw = 2.356194
 note = ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 130.414 31.862 108.404
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 130.414 32.062 107.838
-yaw = 3.001966
-note = огонь очага: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 132.111 31.862 113.354
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 131.687 31.862 113.637
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 132.818 31.862 112.505
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 135.576 31.862 109.889
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 135.152 31.862 110.172
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 136.283 31.862 109.041
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 125.747 31.862 106.990
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 125.323 31.862 107.273
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 126.454 31.862 106.141
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 129.212 31.862 103.525
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 128.788 31.862 103.808
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 129.919 31.862 102.677
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-column-h341.dfh
-pos = 132.005 31.862 109.217
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-column-h341.dfh
-pos = 128.611 31.862 105.823
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 135.399 31.862 113.248
-yaw = 3.926991
-note = убранство: ЙОРРВАСКР 45°
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 137.627 31.862 110.950
-yaw = 2.356194
-note = убранство: ЙОРРВАСКР 45°
+interior = assets/scenes/int/whiterun/x129z106.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
@@ -2565,54 +2130,8 @@ file = assets/houses/city-house-s.dfh
 pos = 113.567 33.080 103.560
 yaw = 0.083141
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 115.141 33.200 103.780
-yaw = 0.083141
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 115.572 33.400 104.146
-yaw = 0.728913
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 114.323 33.200 106.006
-yaw = 0.083141
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 114.381 33.200 105.499
-yaw = 0.083141
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 114.509 33.200 107.044
-yaw = 0.083141
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 117.017 33.200 107.036
-yaw = 0.083141
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 114.049 33.200 105.728
-yaw = 1.653938
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 117.312 33.200 105.155
-yaw = 0.083141
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x117z109.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
@@ -2709,54 +2228,8 @@ file = assets/houses/city-house-s.dfh
 pos = 126.532 32.577 118.199
 yaw = 3.484617
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 124.954 32.697 118.390
-yaw = 3.484617
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 124.443 32.897 118.148
-yaw = 4.130388
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 125.173 32.697 116.029
-yaw = 3.484617
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 125.247 32.697 116.534
-yaw = 3.484617
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 124.725 32.697 115.074
-yaw = 3.484617
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 122.304 32.697 115.726
-yaw = 3.484617
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 125.509 32.697 116.228
-yaw = 5.055413
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 122.502 32.697 117.620
-yaw = 3.484617
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x123z115.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
@@ -2853,54 +2326,8 @@ file = assets/houses/city-house-s.dfh
 pos = 98.144 32.261 126.647
 yaw = 1.670465
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 98.338 32.381 125.070
-yaw = 1.670465
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 98.696 32.581 124.632
-yaw = 2.316237
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 100.577 32.381 125.851
-yaw = 1.670465
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 100.070 32.381 125.801
-yaw = 1.670465
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 101.612 32.381 125.647
-yaw = 1.670465
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 101.562 32.381 123.139
-yaw = 1.670465
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 100.303 32.381 126.129
-yaw = 3.241261
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 99.677 32.381 122.876
-yaw = 1.670465
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x102z124.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h14.dfh
@@ -2997,54 +2424,8 @@ file = assets/houses/city-house-s.dfh
 pos = 117.834 32.025 126.683
 yaw = 5.034140
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 117.993 32.145 128.265
-yaw = 5.034140
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 117.740 32.345 128.771
-yaw = 5.679911
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 115.637 32.145 127.996
-yaw = 5.034140
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 116.143 32.145 127.933
-yaw = 5.034140
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 114.672 32.145 128.423
-yaw = 5.034140
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 115.273 32.145 130.858
-yaw = 5.034140
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 115.842 32.145 127.664
-yaw = 0.321751
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 117.170 32.145 130.700
-yaw = 5.034140
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x112z131.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
@@ -3141,54 +2522,8 @@ file = assets/houses/city-shop.dfh
 pos = 100.500 29.663 149.500
 yaw = 1.570796
 note = лавка
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 100.900 29.783 149.050
-yaw = 1.570796
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 101.300 29.983 148.650
-yaw = 2.216568
-note = огонь очага: лавка
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 105.100 29.783 146.600
-yaw = 1.570796
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 101.700 29.783 143.900
-yaw = 0.000000
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 103.300 29.783 143.900
-yaw = 0.000000
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 103.100 29.783 149.100
-yaw = 1.570796
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 105.400 29.783 144.900
-yaw = 1.570796
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 105.450 29.783 145.750
-yaw = 1.570796
-note = убранство: лавка
+interior = assets/scenes/int/whiterun/x104z146.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
@@ -3297,54 +2632,8 @@ file = assets/houses/city-shop.dfh
 pos = 97.737 27.665 165.479
 yaw = 1.570796
 note = лавка
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 98.137 27.785 165.029
-yaw = 1.570796
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 98.537 27.985 164.629
-yaw = 2.216568
-note = огонь очага: лавка
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 102.337 27.785 162.579
-yaw = 1.570796
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 98.937 27.785 159.879
-yaw = 0.000000
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 100.537 27.785 159.879
-yaw = 0.000000
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 100.337 27.785 165.079
-yaw = 1.570796
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 102.637 27.785 160.879
-yaw = 1.570796
-note = убранство: лавка
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 102.687 27.785 161.729
-yaw = 1.570796
-note = убранство: лавка
+interior = assets/scenes/int/whiterun/x104z161.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
@@ -3453,72 +2742,8 @@ file = assets/houses/city-house-l.dfh
 pos = 134.136 27.916 149.047
 yaw = 4.712389
 note = таверна
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 133.736 28.561 153.347
-yaw = 4.712389
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 133.336 28.761 153.747
-yaw = 5.358161
-note = огонь очага: таверна
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 131.136 28.561 152.647
-yaw = 4.712389
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 131.636 28.561 152.747
-yaw = 4.712389
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 129.936 28.561 152.747
-yaw = 4.712389
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 128.586 28.561 149.497
-yaw = 4.712389
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 128.586 28.561 157.597
-yaw = 4.712389
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 130.736 28.561 158.547
-yaw = 3.141593
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-column-h272.dfh
-pos = 130.236 28.561 151.147
-yaw = 4.712389
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-column-h272.dfh
-pos = 130.236 28.561 156.947
-yaw = 4.712389
-note = убранство: таверна
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 133.536 28.561 149.497
-yaw = 4.712389
-note = убранство: таверна
+interior = assets/scenes/int/whiterun/x128z152.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
@@ -3657,54 +2882,8 @@ file = assets/houses/city-shop-old.dfh
 pos = 127.815 27.557 169.626
 yaw = 3.141593
 note = кузница
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 125.515 27.677 169.226
-yaw = 3.141593
-note = убранство: кузница
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 125.115 27.877 168.826
-yaw = 3.787364
-note = огонь очага: кузница
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 126.215 27.677 167.026
-yaw = 3.141593
-note = убранство: кузница
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 122.715 27.677 169.026
-yaw = 3.141593
-note = убранство: кузница
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 122.715 27.677 167.926
-yaw = 3.141593
-note = убранство: кузница
-
-[house]
-file = assets/houses/furn-woodpile.dfh
-pos = 123.515 27.677 165.026
-yaw = 3.141593
-note = убранство: кузница
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 127.465 27.677 164.826
-yaw = 3.141593
-note = убранство: кузница
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 127.515 27.677 167.426
-yaw = 4.712389
-note = убранство: кузница
+interior = assets/scenes/int/whiterun/x124z168.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
@@ -3807,54 +2986,8 @@ file = assets/houses/city-house-s.dfh
 pos = 132.830 29.629 139.376
 yaw = 3.463343
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 131.249 29.749 139.534
-yaw = 3.463343
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 130.743 29.949 139.281
-yaw = 4.109115
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 131.518 29.749 137.178
-yaw = 3.463343
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 131.581 29.749 137.684
-yaw = 3.463343
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 131.091 29.749 136.213
-yaw = 3.463343
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 128.656 29.749 136.814
-yaw = 3.463343
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 131.850 29.749 137.383
-yaw = 5.034140
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 128.814 29.749 138.712
-yaw = 3.463343
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x130z138.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h22.dfh
@@ -3945,54 +3078,8 @@ file = assets/houses/city-house-s.dfh
 pos = 135.052 27.814 146.597
 yaw = 0.519146
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 136.571 27.934 146.132
-yaw = 0.519146
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 137.117 28.134 146.281
-yaw = 1.164918
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 136.769 27.934 148.495
-yaw = 0.519146
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 136.608 27.934 148.011
-yaw = 0.519146
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 137.377 27.934 149.357
-yaw = 0.519146
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 139.647 27.934 148.290
-yaw = 0.519146
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 136.404 27.934 148.358
-yaw = 2.089942
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 139.120 27.934 146.460
-yaw = 0.519146
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x138z147.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
@@ -4089,54 +3176,8 @@ file = assets/houses/city-house-s.dfh
 pos = 109.228 27.444 172.850
 yaw = 1.661456
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 109.437 27.564 171.274
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 109.799 27.764 170.840
-yaw = 2.307228
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 111.668 27.564 172.075
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 111.161 27.564 172.021
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 112.705 27.564 171.881
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 112.678 27.564 169.373
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 111.392 27.564 172.352
-yaw = 3.232253
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 110.795 27.564 169.092
-yaw = 1.661456
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x112z168.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
@@ -4227,54 +3268,8 @@ file = assets/houses/city-house-s.dfh
 pos = 108.462 27.634 166.699
 yaw = 1.661456
 note = дом
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 108.671 27.754 165.124
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 109.033 27.954 164.689
-yaw = 2.307228
-note = огонь очага: дом
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 110.902 27.754 165.925
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 110.395 27.754 165.871
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 111.939 27.754 165.731
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 111.912 27.754 163.223
-yaw = 1.661456
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 110.626 27.754 166.201
-yaw = 3.232253
-note = убранство: дом
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 110.029 27.754 162.942
-yaw = 1.661456
-note = убранство: дом
+interior = assets/scenes/int/whiterun/x111z161.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
@@ -4365,48 +3360,8 @@ file = assets/houses/city-house-s-old.dfh
 pos = 89.641 28.113 150.959
 yaw = 5.878294
 note = ветхий
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 90.928 28.233 151.891
-yaw = 5.878294
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 91.138 28.433 152.417
-yaw = 0.240880
-note = огонь очага: ветхий
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 89.162 28.233 153.474
-yaw = 5.878294
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 89.451 28.233 153.054
-yaw = 5.878294
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 91.059 28.233 155.647
-yaw = 5.878294
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 88.032 28.233 155.601
-yaw = 5.878294
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 88.794 28.233 155.982
-yaw = 5.878294
-note = убранство: ветхий
+interior = assets/scenes/int/whiterun/x91z154.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h12.dfh
@@ -4503,48 +3458,8 @@ file = assets/houses/city-house-s-old.dfh
 pos = 84.117 28.312 145.252
 yaw = 5.608444
 note = ветхий
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 85.109 28.432 146.493
-yaw = 5.608444
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 85.171 28.632 147.056
-yaw = 6.254216
-note = огонь очага: ветхий
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 82.985 28.432 147.548
-yaw = 5.608444
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 83.375 28.432 147.220
-yaw = 5.608444
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 84.234 28.432 150.148
-yaw = 5.608444
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 81.329 28.432 149.297
-yaw = 5.608444
-note = убранство: ветхий
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 81.962 28.432 149.867
-yaw = 5.608444
-note = убранство: ветхий
+interior = assets/scenes/int/whiterun/x84z149.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
@@ -4641,54 +3556,8 @@ file = assets/houses/city-house-s.dfh
 pos = 104.630 26.080 195.870
 yaw = 4.764972
 note = ферма
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 104.361 26.200 197.436
-yaw = 4.764972
-note = убранство: ферма
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 103.983 26.400 197.856
-yaw = 5.410744
-note = огонь очага: ферма
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 102.162 26.200 196.550
-yaw = 4.764972
-note = убранство: ферма
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 102.666 26.200 196.624
-yaw = 4.764972
-note = убранство: ферма
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 101.119 26.200 196.705
-yaw = 4.764972
-note = убранство: ферма
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 101.050 26.200 199.212
-yaw = 4.764972
-note = убранство: ферма
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 102.448 26.200 196.285
-yaw = 0.052583
-note = убранство: ферма
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 102.921 26.200 199.564
-yaw = 4.764972
-note = убранство: ферма
+interior = assets/scenes/int/whiterun/x102z196.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h08.dfh
@@ -4977,54 +3846,8 @@ file = assets/houses/city-mill.dfh
 pos = 137.196 26.069 180.435
 yaw = 4.248741
 note = МЕЛЬНИЦА
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 134.065 27.389 181.553
-yaw = 4.248741
-note = убранство: МЕЛЬНИЦА
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 133.842 27.389 185.130
-yaw = 4.248741
-note = убранство: МЕЛЬНИЦА
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 133.037 27.389 184.728
-yaw = 4.248741
-note = убранство: МЕЛЬНИЦА
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 132.232 27.389 184.326
-yaw = 4.248741
-note = убранство: МЕЛЬНИЦА
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 130.152 27.389 184.236
-yaw = 2.677945
-note = убранство: МЕЛЬНИЦА
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 131.024 27.389 179.809
-yaw = 4.248741
-note = убранство: МЕЛЬНИЦА
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 136.480 27.389 180.748
-yaw = 4.248741
-note = убранство: МЕЛЬНИЦА
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 135.944 27.589 180.927
-yaw = 4.894513
-note = огонь очага: МЕЛЬНИЦА
+interior = assets/scenes/int/whiterun/x132z182.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h04.dfh
@@ -5271,72 +4094,8 @@ file = assets/houses/city-house-l.dfh
 pos = 173.969 25.713 114.858
 yaw = 6.141288
 note = постоялый двор
-
-[house]
-file = assets/houses/furn-hearth.dfh
-pos = 178.170 26.358 115.862
-yaw = 6.141288
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-fire.dfh
-pos = 178.509 26.558 116.315
-yaw = 0.503875
-note = огонь очага: постоялый двор
-
-[house]
-file = assets/houses/furn-table.dfh
-pos = 177.109 26.358 118.337
-yaw = 6.141288
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 177.279 26.358 117.856
-yaw = 6.141288
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-bench.dfh
-pos = 177.038 26.358 119.539
-yaw = 6.141288
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 173.630 26.358 120.416
-yaw = 6.141288
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-bed.dfh
-pos = 181.649 26.358 121.562
-yaw = 6.141288
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-shelf.dfh
-pos = 182.893 26.358 119.568
-yaw = 4.570492
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-column-h272.dfh
-pos = 175.497 26.358 119.016
-yaw = 6.141288
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-column-h272.dfh
-pos = 181.239 26.358 119.836
-yaw = 6.141288
-note = убранство: постоялый двор
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 174.330 26.358 115.516
-yaw = 6.141288
-note = убранство: постоялый двор
+interior = assets/scenes/int/whiterun/x178z122.scene
+sealed = 1
 
 [house]
 file = assets/houses/city-foot2-h10.dfh
@@ -7257,270 +6016,6 @@ file = assets/houses/furn-curb12b.dfh
 pos = 94.367 33.501 92.220
 yaw = 5.007460
 note = бордюр тропы
-
-[light]
-pos = 100.000 38.646 61.150
-color = 1.000 0.536 0.210
-radius_m = 12.84
-casts_shadow = 1
-interior = 1
-room = 100.000 66.200 12.200 5.900
-softness = 0.25
-flicker = 0.51
-note = очаг: ЗАМОК
-
-[light]
-pos = 83.487 35.628 91.954
-color = 0.901 0.486 0.194
-radius_m = 10.39
-casts_shadow = 0
-interior = 1
-room = 87.021 90.894 5.820 5.814
-softness = 0.25
-flicker = 0.43
-note = очаг: усадьба
-
-[light]
-pos = 102.440 36.392 84.132
-color = 0.995 0.548 0.222
-radius_m = 7.01
-casts_shadow = 0
-interior = 1
-room = 103.000 86.000 2.665 3.316
-softness = 0.25
-flicker = 0.50
-note = очаг: дом
-
-[light]
-pos = 114.128 34.178 93.256
-color = 0.855 0.423 0.155
-radius_m = 7.17
-casts_shadow = 0
-interior = 1
-room = 115.000 95.000 3.090 3.524
-softness = 0.25
-flicker = 0.40
-note = очаг: дом
-
-[light]
-pos = 84.700 34.000 106.300
-color = 0.877 0.473 0.189
-radius_m = 12.11
-casts_shadow = 0
-interior = 1
-room = 89.000 110.015 5.300 4.485
-softness = 0.25
-flicker = 0.42
-note = очаг: ХРАМ
-
-[light]
-pos = 93.300 34.000 106.300
-color = 1.000 0.553 0.217
-radius_m = 12.23
-casts_shadow = 0
-interior = 1
-room = 89.000 110.015 5.300 4.485
-softness = 0.25
-flicker = 0.53
-note = очаг: ХРАМ
-
-[light]
-pos = 130.414 32.792 107.414
-color = 0.977 0.496 0.186
-radius_m = 13.68
-casts_shadow = 1
-interior = 1
-room = 130.414 107.414 8.319 8.319
-softness = 0.25
-flicker = 0.48
-note = очаг: ЙОРРВАСКР 45°
-
-[light]
-pos = 115.896 34.130 104.420
-color = 0.887 0.489 0.199
-radius_m = 6.10
-casts_shadow = 0
-interior = 1
-room = 116.058 106.363 2.003 2.890
-softness = 0.25
-flicker = 0.42
-note = очаг: дом
-
-[light]
-pos = 124.059 33.627 117.966
-color = 1.000 0.625 0.252
-radius_m = 6.06
-casts_shadow = 0
-interior = 1
-room = 123.404 116.130 2.805 3.392
-softness = 0.25
-flicker = 0.60
-note = очаг: дом
-
-[light]
-pos = 98.965 33.311 124.303
-color = 1.000 0.592 0.238
-radius_m = 6.23
-casts_shadow = 0
-interior = 1
-room = 100.905 124.109 2.930 2.061
-softness = 0.25
-flicker = 0.56
-note = очаг: дом
-
-[light]
-pos = 117.550 33.075 129.150
-color = 0.965 0.496 0.188
-radius_m = 6.63
-casts_shadow = 0
-interior = 1
-room = 115.700 129.767 3.362 2.748
-softness = 0.25
-flicker = 0.48
-note = очаг: дом
-
-[light]
-pos = 101.600 30.713 148.350
-color = 1.000 0.551 0.210
-radius_m = 7.30
-casts_shadow = 0
-interior = 1
-room = 104.415 146.500 3.385 2.300
-softness = 0.25
-flicker = 0.55
-note = очаг: лавка
-
-[light]
-pos = 98.837 28.715 164.329
-color = 0.873 0.472 0.188
-radius_m = 7.35
-casts_shadow = 0
-interior = 1
-room = 101.652 162.479 3.385 2.300
-softness = 0.25
-flicker = 0.42
-note = очаг: лавка
-
-[light]
-pos = 133.036 29.491 154.047
-color = 1.000 0.549 0.205
-radius_m = 12.06
-casts_shadow = 0
-interior = 1
-room = 129.346 154.047 4.460 4.450
-softness = 0.25
-flicker = 0.56
-note = очаг: таверна
-
-[light]
-pos = 124.815 28.607 168.526
-color = 0.971 0.475 0.171
-radius_m = 7.73
-casts_shadow = 0
-interior = 1
-room = 124.815 165.711 2.300 3.385
-softness = 0.25
-flicker = 0.48
-note = очаг: кузница
-
-[light]
-pos = 130.364 30.679 139.091
-color = 1.000 0.567 0.226
-radius_m = 6.55
-casts_shadow = 0
-interior = 1
-room = 129.747 137.241 2.748 3.362
-softness = 0.25
-flicker = 0.53
-note = очаг: дом
-
-[light]
-pos = 137.526 28.864 146.392
-color = 1.000 0.511 0.184
-radius_m = 7.11
-casts_shadow = 0
-interior = 1
-room = 138.494 148.085 3.202 3.562
-softness = 0.25
-flicker = 0.53
-note = очаг: дом
-
-[light]
-pos = 110.070 28.494 170.514
-color = 1.000 0.578 0.216
-radius_m = 6.95
-casts_shadow = 0
-interior = 1
-room = 112.012 170.337 2.908 2.030
-softness = 0.25
-flicker = 0.60
-note = очаг: дом
-
-[light]
-pos = 109.304 28.684 164.363
-color = 1.000 0.590 0.236
-radius_m = 6.66
-casts_shadow = 0
-interior = 1
-room = 111.246 164.187 2.908 2.030
-softness = 0.25
-flicker = 0.56
-note = очаг: дом
-
-[light]
-pos = 91.295 29.163 152.811
-color = 1.000 0.544 0.217
-radius_m = 6.89
-casts_shadow = 0
-interior = 1
-room = 90.527 154.603 2.959 3.468
-softness = 0.25
-flicker = 0.51
-note = очаг: ветхий
-
-[light]
-pos = 85.218 29.362 147.477
-color = 0.919 0.482 0.187
-radius_m = 6.20
-casts_shadow = 0
-interior = 1
-room = 84.000 149.000 3.442 3.593
-softness = 0.25
-flicker = 0.45
-note = очаг: ветхий
-
-[light]
-pos = 103.699 27.130 198.172
-color = 0.888 0.485 0.195
-radius_m = 6.69
-casts_shadow = 0
-interior = 1
-room = 101.752 198.274 2.812 1.894
-softness = 0.25
-flicker = 0.43
-note = очаг: ферма
-
-[light]
-pos = 135.541 28.319 181.061
-color = 1.000 0.598 0.235
-radius_m = 10.91
-casts_shadow = 0
-interior = 1
-room = 133.025 180.949 5.458 6.288
-softness = 0.25
-flicker = 0.58
-note = очаг: МЕЛЬНИЦА
-
-[light]
-pos = 178.764 27.288 116.654
-color = 1.000 0.547 0.211
-radius_m = 9.97
-casts_shadow = 0
-interior = 1
-room = 178.242 120.307 5.181 5.189
-softness = 0.25
-flicker = 0.53
-note = очаг: постоялый двор
 
 [light]
 pos = 109.500 30.548 153.500

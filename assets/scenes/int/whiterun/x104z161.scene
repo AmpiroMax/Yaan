@@ -1,0 +1,89 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# whiterun: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/whiterun/x104z161
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 2.000 0.220 5.200
+yaw = 0.000000
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/city-shop.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (лавка)
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 0.450 0.120 0.400
+yaw = 0.000000
+note = убранство: лавка
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 0.850 0.320 0.800
+yaw = 0.645772
+note = огонь очага: лавка
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 2.900 0.120 4.600
+yaw = 0.000000
+note = убранство: лавка
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 5.600 0.120 1.200
+yaw = 4.712389
+note = убранство: лавка
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 5.600 0.120 2.800
+yaw = 4.712389
+note = убранство: лавка
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.400 0.120 2.600
+yaw = 0.000000
+note = убранство: лавка
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 4.600 0.120 4.900
+yaw = 0.000000
+note = убранство: лавка
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 3.750 0.120 4.950
+yaw = 0.000000
+note = убранство: лавка
+
+[light]
+pos = 1.150 1.050 1.100
+color = 0.873 0.472 0.188
+radius_m = 7.35
+casts_shadow = 0
+softness = 0.25
+flicker = 0.42
+note = очаг: лавка
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 3.000 1.120 5.700
+radius_m = 1.10
+to = ^back
+note = обратная дверь

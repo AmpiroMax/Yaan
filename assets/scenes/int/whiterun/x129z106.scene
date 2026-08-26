@@ -1,0 +1,149 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# whiterun: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/whiterun/x129z106
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 15.200 0.230 4.000
+yaw = -1.570796
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/city-longhall.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (ЙОРРВАСКР 45°)
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 7.300 0.130 3.300
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 7.700 0.330 3.700
+yaw = 0.645772
+note = огонь очага: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 2.600 0.130 1.000
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 2.700 0.130 0.500
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 2.700 0.130 2.100
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 2.600 0.130 5.900
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 2.700 0.130 5.400
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 2.700 0.130 7.000
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 11.600 0.130 1.000
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 11.700 0.130 0.500
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 11.700 0.130 2.100
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 11.600 0.130 5.900
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 11.700 0.130 5.400
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 11.700 0.130 7.000
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-column-h341.dfh
+pos = 5.600 0.130 3.850
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-column-h341.dfh
+pos = 10.400 0.130 3.850
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 0.350 0.130 3.400
+yaw = 1.570796
+note = убранство: ЙОРРВАСКР 45°
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.400 0.130 6.600
+yaw = 0.000000
+note = убранство: ЙОРРВАСКР 45°
+
+[light]
+pos = 8.000 1.060 4.000
+color = 0.977 0.496 0.186
+radius_m = 13.68
+casts_shadow = 0
+softness = 0.25
+flicker = 0.48
+note = очаг: ЙОРРВАСКР 45°
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 15.700 1.130 4.000
+radius_m = 1.10
+to = ^back
+note = обратная дверь

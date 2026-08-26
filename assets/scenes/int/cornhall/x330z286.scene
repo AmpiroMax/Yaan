@@ -1,0 +1,233 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# cornhall: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/cornhall/x330z286
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 5.500 0.260 7.200
+yaw = 0.000000
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/cornhall-brewery.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (ПИВОВАРНЯ)
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 4.800 0.160 0.600
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 5.200 0.360 1.000
+yaw = 0.645772
+note = огонь очага: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-woodpile.dfh
+pos = 6.600 0.160 0.650
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.700 0.160 0.700
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 1.600 0.160 0.700
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 2.500 0.160 0.700
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.700 0.160 1.600
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 1.600 0.160 1.600
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.700 0.160 2.500
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 8.700 0.160 0.700
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 9.600 0.160 0.700
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 9.600 0.160 1.600
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 2.600 0.160 4.600
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 2.700 0.160 4.100
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 2.700 0.160 5.600
+yaw = 0.000000
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 0.600 0.160 5.200
+yaw = 1.570796
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 10.400 0.160 0.700
+yaw = 4.712389
+note = убранство: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.600 4.280 0.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 1.500 4.280 0.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 2.400 4.280 0.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.600 4.280 1.500
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 1.500 4.280 1.500
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 0.500 4.280 3.200
+yaw = 1.570796
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 4.000 4.280 0.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 4.900 4.280 0.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 3.200 4.280 4.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 3.300 4.280 5.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-woodpile.dfh
+pos = 2.000 4.280 6.800
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 7.000 4.280 0.700
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 7.900 4.280 0.700
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 7.000 4.280 6.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 7.900 4.280 6.600
+yaw = 0.000000
+note = убранство яруса: ПИВОВАРНЯ
+
+[light]
+pos = 5.500 1.090 1.300
+color = 0.940 0.496 0.193
+radius_m = 11.38
+casts_shadow = 0
+softness = 0.25
+flicker = 0.46
+note = очаг: ПИВОВАРНЯ
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 5.500 1.160 7.700
+radius_m = 1.10
+to = ^back
+note = обратная дверь

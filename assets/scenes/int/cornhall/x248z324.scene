@@ -1,0 +1,203 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# cornhall: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/cornhall/x248z324
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 5.700 0.240 6.200
+yaw = 0.000000
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/cornhall-arcade.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (arcade)
+
+[house]
+file = assets/houses/furn-hearth.dfh
+pos = 1.700 0.140 0.500
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-fire.dfh
+pos = 2.100 0.340 0.900
+yaw = 0.645772
+note = огонь очага: arcade
+
+[house]
+file = assets/houses/furn-woodpile.dfh
+pos = 3.400 0.140 0.550
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 0.550 0.140 3.200
+yaw = 1.570796
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 6.300 0.140 0.550
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 7.600 0.140 0.550
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 3.200 0.140 2.900
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 3.300 0.140 2.400
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 3.300 0.140 4.000
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.550 0.140 4.550
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 6.400 0.140 5.600
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 7.300 0.140 5.600
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 8.200 0.140 5.600
+yaw = 0.000000
+note = убранство: arcade
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.400 4.580 0.500
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 0.400 4.580 2.600
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 2.000 4.580 0.600
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 2.000 4.580 1.500
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-table.dfh
+pos = 2.900 4.580 2.600
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 3.000 4.580 3.600
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 5.200 4.580 0.500
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 0.400 4.580 5.000
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 2.200 4.580 6.600
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-bed.dfh
+pos = 5.200 4.580 7.300
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 8.000 4.580 0.250
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 8.800 4.580 0.250
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 8.000 4.580 6.000
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 8.900 4.580 6.000
+yaw = 0.000000
+note = убранство яруса: arcade
+
+[light]
+pos = 2.400 1.070 1.200
+color = 1.000 0.518 0.198
+radius_m = 10.49
+casts_shadow = 0
+softness = 0.25
+flicker = 0.50
+note = очаг: arcade
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 5.700 1.140 6.700
+radius_m = 1.10
+to = ^back
+note = обратная дверь
