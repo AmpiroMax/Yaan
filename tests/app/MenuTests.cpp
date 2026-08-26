@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:44:00
-Last updated: 27:08:2026 - 14:00:00
+Last updated: 27:08:2026 - 15:10:00
 Module: tests/app
 File: tests/app/MenuTests.cpp
 
@@ -66,6 +66,15 @@ UPD:
   открывается». Тот же отказ, что был у строк корня 14.08, и та же починка.
   Новые случаи: лестницы окна и полного экрана с КОНТРОЛЕМ «они не трогают
   сетку рендера», и второй контроль предупреждения о перезапуске.
+- 27:08:2026 - 15:10:00: СЛУЧАЙ СИНХРОНИЗАЦИИ (заказ владельца 27.08: «оно в игре
+  и меню должно синхронизироваться»). Утверждение про ОТСУТСТВИЕ второго
+  состояния нельзя проверить, оставаясь на одной точке входа: строка крутится в
+  паузе и читается ИЗ КОРНЯ, потом наоборот. КОНТРОЛЬ проверен, а не обещан —
+  сборка, в которой open(Settings) перечитывает настройки из «с чем запущены»
+  (то есть по копии на точку входа), проходит все остальные случаи этого файла
+  и падает ровно здесь. Второе утверждение случая — что узкий вход
+  set_live_fullscreen НЕ глушит предупреждение о перезапуске: без него починка
+  «страница видит F11» через set_settings прошла бы молча.
 */
 
 #include <doctest/doctest.h>
@@ -443,6 +452,65 @@ TEST_CASE("settings are reachable from pause, and come back to pause") {
     CHECK(r.page() == MenuPage::Settings);
     CHECK(r.back() == MenuAction::SettingsDone);
     CHECK(r.page() == MenuPage::Root);
+}
+
+TEST_CASE("настройка, повёрнутая в паузе, ВИДНА из главного меню, и наоборот") {
+    // ЗАКАЗ ВЛАДЕЛЬЦА 27.08 ДОСЛОВНО: «оно в игре и меню должно
+    // синхронизироваться». Это утверждение про ОТСУТСТВИЕ второго состояния, и
+    // проверить его можно только так: повернуть строку, ВЫЙДЯ и войдя с ДРУГОЙ
+    // стороны, и прочитать её там. Правильная реализация делает это даром —
+    // страница одна; неправильная (по копии настроек на точку входа) прошла бы
+    // все остальные случаи этого файла и упала бы здесь.
+    MenuModel m;
+    MenuSettings launched;
+    launched.window_w = 1280;
+    launched.window_h = 720;
+    launched.fullscreen = false;
+    m.set_settings(launched);
+
+    // Игрок посреди игры открывает настройки С ПАУЗЫ и меняет две строки.
+    m.open(MenuPage::Pause);
+    m.set_selection(static_cast<size_t>(dfn::app::PauseRow::Settings));
+    REQUIRE(m.activate() == MenuAction::None);
+    REQUIRE(m.page() == MenuPage::Settings);
+    select(m, ROW_WINDOW);
+    m.adjust(+1);
+    select(m, ROW_FULLSCREEN);
+    m.adjust(+1);
+    const MenuSettings from_pause = m.settings();
+    CHECK(from_pause.window_w != launched.window_w);
+    CHECK(from_pause.fullscreen != launched.fullscreen);
+    CHECK(m.back() == MenuAction::SettingsDone);
+    CHECK(m.page() == MenuPage::Pause);
+
+    // Он выходит в главное меню и открывает настройки ОТТУДА. Обе строки стоят
+    // там, где он их оставил.
+    m.open(MenuPage::Root);
+    select_root(m, ROOT_SETTINGS);
+    REQUIRE(m.activate() == MenuAction::None);
+    REQUIRE(m.page() == MenuPage::Settings);
+    CHECK(m.settings().window_w == from_pause.window_w);
+    CHECK(m.settings().window_h == from_pause.window_h);
+    CHECK(m.settings().fullscreen == from_pause.fullscreen);
+
+    // И ОБРАТНО: повёрнутое в главном меню видно с паузы.
+    select(m, ROW_MSAA);
+    m.adjust(+1);
+    const uint32_t from_root = m.settings().msaa;
+    CHECK(m.back() == MenuAction::SettingsDone);
+    m.open(MenuPage::Pause);
+    m.set_selection(static_cast<size_t>(dfn::app::PauseRow::Settings));
+    REQUIRE(m.activate() == MenuAction::None);
+    CHECK(m.settings().msaa == from_root);
+
+    // КОНТРОЛЬ: F11 (единственный орган управления полным экраном ВНЕ страницы)
+    // доезжает до страницы — и НЕ глушит предупреждение о перезапуске. Без
+    // второго утверждения починка «страница видит F11» через set_settings
+    // прошла бы: она обновляет и «с чем ЗАПУЩЕНЫ», то есть стирает
+    // предупреждение о строке, которую игрок повернул минуту назад.
+    CHECK(m.needs_restart()); // сглаживание уже повёрнуто выше
+    m.set_live_fullscreen(!m.settings().fullscreen);
+    CHECK(m.needs_restart());
 }
 
 TEST_CASE("the pause page is the same page whatever the player was doing") {
