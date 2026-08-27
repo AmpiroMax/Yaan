@@ -184,7 +184,7 @@ scale = 1
 
 [place]
 object = juniper-forge-a
-pos = 210.000 24.880 470.000
+pos = 210.000 24.920 470.000
 yaw = 4.660029
 scale = 1
 
@@ -16006,109 +16006,6 @@ note = фундамент granary
 
 [house]
 file = assets/houses/cornhall-granary.dfh
-pos = 342.583 23.275 399.618
-yaw = 5.213172
-note = granary
-sealed = 1
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 342.332 22.675 400.097
-yaw = 5.213172
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 343.069 22.675 401.442
-yaw = 5.213172
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 343.805 22.675 402.787
-yaw = 5.213172
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 344.541 22.675 404.132
-yaw = 5.213172
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 345.561 22.675 405.683
-yaw = 3.642376
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 343.923 22.675 406.579
-yaw = 3.642376
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 342.286 22.675 407.475
-yaw = 3.642376
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 340.648 22.675 408.372
-yaw = 3.642376
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 339.098 22.675 409.391
-yaw = 2.071579
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 338.361 22.675 408.046
-yaw = 2.071579
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 337.625 22.675 406.701
-yaw = 2.071579
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 336.889 22.675 405.356
-yaw = 2.071579
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 335.869 22.675 403.805
-yaw = 0.500783
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 337.507 22.675 402.909
-yaw = 0.500783
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 339.144 22.675 402.013
-yaw = 0.500783
-note = фундамент granary
-
-[house]
-file = assets/houses/city-foot2-h06.dfh
-pos = 340.782 22.675 401.117
-yaw = 0.500783
-note = фундамент granary
-
-[house]
-file = assets/houses/cornhall-granary.dfh
 pos = 346.101 24.080 388.160
 yaw = 0.016899
 note = granary
@@ -21476,19 +21373,19 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 160.523 24.744 276.396
+pos = 160.523 24.731 276.396
 yaw = 5.995898
 note = двор: granary
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 167.165 23.980 278.410
+pos = 167.165 23.975 278.410
 yaw = 5.995898
 note = двор: granary
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 166.316 23.980 278.107
+pos = 166.316 24.000 278.107
 yaw = 5.995898
 note = двор: granary
 
@@ -21500,7 +21397,7 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 169.458 23.980 274.920
+pos = 169.458 23.970 274.920
 yaw = 6.167463
 note = двор: old
 
@@ -21512,19 +21409,19 @@ note = двор: old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 168.970 23.980 272.195
+pos = 168.970 23.970 272.195
 yaw = 6.167463
 note = двор: old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 170.867 23.980 272.416
+pos = 170.867 23.970 272.416
 yaw = 6.167463
 note = двор: old
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 172.764 23.980 272.636
+pos = 172.764 23.970 272.636
 yaw = 6.167463
 note = двор: old
 
@@ -21536,7 +21433,7 @@ note = двор: old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 168.739 23.980 274.182
+pos = 168.739 23.970 274.182
 yaw = 1.455074
 note = двор: old
 
@@ -21770,19 +21667,19 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 349.365 23.970 308.318
+pos = 349.365 23.960 308.318
 yaw = 3.392785
 note = двор: granary
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 350.249 23.970 308.143
+pos = 350.249 23.960 308.143
 yaw = 3.392785
 note = двор: granary
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 354.356 23.970 307.089
+pos = 354.356 23.964 307.089
 yaw = 3.392785
 note = двор: granary
 
@@ -21812,7 +21709,7 @@ note = двор: old
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 362.418 23.969 312.359
+pos = 362.418 23.970 312.359
 yaw = 3.368005
 note = двор: old
 
@@ -21836,7 +21733,7 @@ note = двор: old
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 374.408 23.966 310.813
+pos = 374.408 23.970 310.813
 yaw = 3.359590
 note = двор: jetty
 
@@ -21860,13 +21757,13 @@ note = двор: jetty
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 375.686 23.798 312.885
+pos = 375.686 23.933 312.885
 yaw = 3.359590
 note = двор: jetty
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 373.699 23.939 313.326
+pos = 373.699 23.970 313.326
 yaw = 3.359590
 note = двор: jetty
 
@@ -21878,13 +21775,13 @@ note = двор: jetty
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 369.726 23.970 314.206
+pos = 369.726 23.969 314.206
 yaw = 3.359590
 note = двор: jetty
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 375.254 23.950 310.933
+pos = 375.254 23.970 310.933
 yaw = 4.930386
 note = двор: jetty
 
@@ -21956,7 +21853,7 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 180.432 24.960 227.382
+pos = 180.432 24.649 227.382
 yaw = 1.466091
 note = двор: granary
 
@@ -21974,19 +21871,19 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 180.620 24.970 225.592
+pos = 180.620 24.968 225.592
 yaw = 1.466091
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 178.061 24.933 227.937
+pos = 178.061 24.468 227.937
 yaw = 1.466091
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 178.289 24.970 225.764
+pos = 178.289 24.968 225.764
 yaw = 1.466091
 note = двор: granary
 
@@ -22004,7 +21901,7 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 180.050 24.898 228.146
+pos = 180.050 24.404 228.146
 yaw = 3.036888
 note = двор: granary
 
@@ -22016,61 +21913,61 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 177.108 24.220 236.347
+pos = 177.108 24.290 236.347
 yaw = 1.283245
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 178.926 24.264 230.377
+pos = 178.926 24.290 230.377
 yaw = 1.283245
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 178.622 24.220 231.226
+pos = 178.622 24.290 231.226
 yaw = 1.283245
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 177.618 24.220 234.621
+pos = 177.618 24.290 234.621
 yaw = 1.283245
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 174.340 24.220 236.363
+pos = 174.340 24.326 236.363
 yaw = 1.283245
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 174.910 24.220 234.435
+pos = 174.910 24.293 234.435
 yaw = 1.283245
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 175.480 24.223 232.508
+pos = 175.480 24.290 232.508
 yaw = 1.283245
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 176.050 24.337 230.580
+pos = 176.050 24.290 230.580
 yaw = 1.283245
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 176.258 24.220 236.930
+pos = 176.258 24.290 236.930
 yaw = 2.854041
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 178.538 24.552 229.220
+pos = 178.538 24.290 229.220
 yaw = 2.854041
 note = двор: thatch
 
@@ -22190,13 +22087,13 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 332.283 22.970 217.661
+pos = 332.283 22.972 217.661
 yaw = 0.172250
 note = двор: granary
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 334.851 22.979 219.942
+pos = 334.851 22.980 219.942
 yaw = 4.888747
 note = двор: thatch
 
@@ -22220,13 +22117,13 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 337.319 22.970 218.690
+pos = 337.319 22.975 218.690
 yaw = 4.888747
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 337.672 22.978 220.669
+pos = 337.672 22.980 220.669
 yaw = 4.888747
 note = двор: thatch
 
@@ -22244,7 +22141,7 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 335.350 22.970 219.041
+pos = 335.350 22.980 219.041
 yaw = 0.176358
 note = двор: thatch
 
@@ -22256,19 +22153,19 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 328.831 23.031 232.587
+pos = 328.831 23.037 232.587
 yaw = 4.490383
 note = двор: granary
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 327.254 23.367 239.346
+pos = 327.254 23.295 239.346
 yaw = 4.490383
 note = двор: granary
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 327.501 23.304 238.479
+pos = 327.501 23.280 238.479
 yaw = 4.490383
 note = двор: granary
 
@@ -22298,79 +22195,79 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 330.490 23.141 238.861
+pos = 330.490 23.179 238.861
 yaw = 4.490383
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 329.983 22.981 232.027
+pos = 329.983 22.991 232.027
 yaw = 6.061179
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 328.058 23.381 240.552
+pos = 328.058 23.244 240.552
 yaw = 6.061179
 note = двор: granary
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 334.825 23.354 240.577
+pos = 334.825 23.240 240.577
 yaw = 4.953531
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 336.267 23.390 246.649
+pos = 336.267 23.240 246.649
 yaw = 4.953531
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 336.101 23.390 245.763
+pos = 336.101 23.240 245.763
 yaw = 4.953531
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 335.255 23.390 242.325
+pos = 335.255 23.240 242.325
 yaw = 4.953531
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 336.868 23.037 239.251
+pos = 336.868 23.207 239.251
 yaw = 4.953531
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 337.348 23.276 241.203
+pos = 337.348 23.240 241.203
 yaw = 4.953531
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 337.828 23.383 243.155
+pos = 337.828 23.240 243.155
 yaw = 4.953531
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 338.308 23.372 245.107
+pos = 338.308 23.240 245.107
 yaw = 4.953531
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 334.926 23.251 239.729
+pos = 334.926 23.240 239.729
 yaw = 0.241142
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 336.846 23.390 247.536
+pos = 336.846 23.240 247.536
 yaw = 0.241142
 note = двор: thatch
 
@@ -22580,19 +22477,19 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 176.936 23.894 375.045
+pos = 176.936 23.955 375.045
 yaw = 1.880774
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 176.322 23.951 373.130
+pos = 176.322 23.969 373.130
 yaw = 1.880774
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 175.709 23.969 371.216
+pos = 175.709 23.970 371.216
 yaw = 1.880774
 note = двор: thatch
 
@@ -22604,7 +22501,7 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 178.840 23.963 374.434
+pos = 178.840 23.970 374.434
 yaw = 3.451570
 note = двор: thatch
 
@@ -23246,73 +23143,73 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 62.355 23.970 330.105
+pos = 62.355 23.953 330.105
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 51.893 23.759 334.103
+pos = 51.893 23.931 334.103
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 52.751 23.806 333.825
+pos = 52.751 23.923 333.825
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 60.677 23.970 330.755
+pos = 60.677 23.947 330.755
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 63.932 23.775 331.961
+pos = 63.932 23.572 331.961
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 61.912 23.808 332.743
+pos = 61.912 23.521 332.743
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 59.891 23.725 333.526
+pos = 59.891 23.461 333.526
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 57.871 23.536 334.308
+pos = 57.871 23.394 334.308
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 55.850 23.339 335.091
+pos = 55.850 23.318 335.091
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 53.830 23.248 335.873
+pos = 53.830 23.266 335.873
 yaw = 3.511099
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 63.210 23.969 330.096
+pos = 63.210 23.934 330.096
 yaw = 5.081895
 note = двор: barn-old
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 51.087 23.562 334.791
+pos = 51.087 23.860 334.791
 yaw = 5.081895
 note = двор: barn-old
 
@@ -23564,7 +23461,7 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 236.751 24.940 466.987
+pos = 236.751 24.943 466.987
 yaw = 1.253767
 note = двор: hut
 
@@ -23594,7 +23491,7 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 236.731 24.961 465.928
+pos = 236.731 24.970 465.928
 yaw = 2.824563
 note = двор: hut
 
@@ -23702,73 +23599,73 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 205.791 24.710 472.407
+pos = 205.791 24.886 472.407
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 208.489 24.900 461.537
+pos = 208.489 24.940 461.537
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 208.227 24.900 462.399
+pos = 208.227 24.940 462.399
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 206.217 24.832 470.658
+pos = 206.217 24.911 470.658
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 203.367 24.234 472.640
+pos = 203.367 24.276 472.640
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 203.879 24.382 470.535
+pos = 203.879 24.401 470.535
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 204.392 24.546 468.430
+pos = 204.392 24.551 468.430
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 204.905 24.686 466.325
+pos = 204.905 24.656 466.325
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 205.417 24.787 464.220
+pos = 205.417 24.757 464.220
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 205.930 24.870 462.114
+pos = 205.930 24.841 462.114
 yaw = 1.331970
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 205.310 24.546 473.113
+pos = 205.310 24.815 473.113
 yaw = 2.902766
 note = двор: скотный баз
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 208.385 24.900 460.482
+pos = 208.385 24.943 460.482
 yaw = 2.902766
 note = двор: скотный баз
 
@@ -23816,7 +23713,7 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 192.941 24.098 191.756
+pos = 192.941 23.970 191.756
 yaw = 1.065253
 note = двор: thatch
 
@@ -23834,37 +23731,37 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 193.813 24.018 190.181
+pos = 193.813 23.970 190.181
 yaw = 1.065253
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 190.235 24.306 191.172
+pos = 190.235 24.051 191.172
 yaw = 1.065253
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 191.209 24.105 189.414
+pos = 191.209 23.970 189.414
 yaw = 1.065253
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 192.182 24.001 187.655
+pos = 192.182 23.970 187.655
 yaw = 1.065253
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 193.155 23.978 185.896
+pos = 193.155 23.970 185.896
 yaw = 1.065253
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 191.985 24.200 192.141
+pos = 191.985 23.970 192.141
 yaw = 2.636050
 note = двор: thatch
 
@@ -24164,7 +24061,7 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 193.906 24.005 241.270
+pos = 193.906 24.065 241.270
 yaw = 1.502549
 note = двор: hut
 
@@ -24176,13 +24073,13 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 190.677 23.978 243.789
+pos = 190.677 23.994 243.789
 yaw = 1.502549
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 190.804 24.113 241.926
+pos = 190.804 24.221 241.926
 yaw = 1.502549
 note = двор: hut
 
@@ -24194,7 +24091,7 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 192.927 24.156 240.201
+pos = 192.927 24.256 240.201
 yaw = 3.073345
 note = двор: hut
 
@@ -24776,13 +24673,13 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 184.178 23.960 383.214
+pos = 184.178 23.968 383.214
 yaw = 1.287109
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 184.740 23.969 381.285
+pos = 184.740 23.970 381.285
 yaw = 1.287109
 note = двор: thatch
 
@@ -25178,25 +25075,25 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 320.771 23.399 249.773
+pos = 320.771 23.270 249.773
 yaw = 6.030413
 note = двор: granary
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 327.478 23.505 251.557
+pos = 327.478 23.363 251.557
 yaw = 6.030413
 note = двор: granary
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 326.620 23.474 251.283
+pos = 326.620 23.296 251.283
 yaw = 6.030413
 note = двор: granary
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 322.514 23.399 250.223
+pos = 322.514 23.243 250.223
 yaw = 6.030413
 note = двор: granary
 
@@ -25526,61 +25423,61 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 353.012 23.338 320.921
+pos = 353.012 23.960 320.921
 yaw = 3.217693
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 346.786 23.909 321.346
+pos = 346.786 23.960 321.346
 yaw = 3.217693
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 347.688 23.856 321.327
+pos = 347.688 23.960 321.327
 yaw = 3.217693
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 351.217 23.513 321.058
+pos = 351.217 23.960 321.058
 yaw = 3.217693
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 354.011 23.109 323.503
+pos = 354.011 23.786 323.503
 yaw = 3.217693
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 352.007 23.329 323.656
+pos = 352.007 23.960 323.656
 yaw = 3.217693
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 350.003 23.610 323.808
+pos = 350.003 23.960 323.808
 yaw = 3.217693
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 347.999 23.840 323.961
+pos = 347.999 23.960 323.961
 yaw = 3.217693
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 353.859 23.225 321.509
+pos = 353.859 23.960 321.509
 yaw = 4.788489
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 345.843 23.943 322.120
+pos = 345.843 23.960 322.120
 yaw = 4.788489
 note = двор: thatch
 
@@ -25682,7 +25579,7 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 407.212 23.962 317.630
+pos = 407.212 23.970 317.630
 yaw = 4.504947
 note = двор: thatch
 
@@ -25922,66 +25819,6 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 344.220 23.342 398.756
-yaw = 5.213172
-note = двор: granary
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 347.509 22.970 404.868
-yaw = 5.213172
-note = двор: granary
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 347.120 22.970 404.054
-yaw = 5.213172
-note = двор: granary
-
-[house]
-file = assets/houses/furn-woodpile.dfh
-pos = 345.085 23.129 400.335
-yaw = 5.213172
-note = двор: granary
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 345.854 23.571 396.950
-yaw = 5.213172
-note = двор: granary
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 346.903 23.271 398.867
-yaw = 5.213172
-note = двор: granary
-
-[house]
-file = assets/houses/furn-fence-gate.dfh
-pos = 347.952 23.058 400.783
-yaw = 5.213172
-note = двор: granary
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 349.001 22.986 402.700
-yaw = 5.213172
-note = двор: granary
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 344.099 23.471 397.910
-yaw = 0.500783
-note = двор: granary
-
-[house]
-file = assets/houses/furn-fence2.dfh
-pos = 348.296 22.970 405.577
-yaw = 0.500783
-note = двор: granary
-
-[house]
-file = assets/houses/furn-woodpile.dfh
 pos = 346.100 23.970 386.310
 yaw = 0.016899
 note = двор: granary
@@ -26006,37 +25843,37 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 345.255 23.970 383.674
+pos = 345.261 23.970 384.024
 yaw = 0.016899
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 347.440 23.970 383.637
+pos = 347.446 23.970 383.987
 yaw = 0.016899
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 349.625 23.970 383.600
+pos = 349.631 23.970 383.950
 yaw = 0.016899
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 351.809 23.970 383.563
+pos = 351.815 23.970 383.913
 yaw = 0.016899
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 345.289 23.970 385.674
+pos = 345.295 23.970 386.024
 yaw = 1.587695
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 354.028 23.970 385.526
+pos = 354.034 23.970 385.876
 yaw = 1.587695
 note = двор: granary
 
@@ -26066,37 +25903,37 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 159.316 23.970 178.943
+pos = 159.634 23.970 179.089
 yaw = 1.142270
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 160.224 23.970 176.956
+pos = 160.542 23.970 177.101
 yaw = 1.142270
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 161.131 23.970 174.969
+pos = 161.450 23.970 175.114
 yaw = 1.142270
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 162.039 23.970 172.981
+pos = 162.358 23.970 173.127
 yaw = 1.142270
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 161.135 23.970 179.774
+pos = 161.453 23.970 179.920
 yaw = 2.713067
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 164.767 23.970 171.825
+pos = 165.085 23.970 171.970
 yaw = 2.713067
 note = двор: granary
 
@@ -26126,37 +25963,37 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 181.031 23.970 168.411
+pos = 180.432 23.970 168.049
 yaw = 1.026837
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 182.071 23.970 166.691
+pos = 181.472 23.970 166.329
 yaw = 1.026837
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 183.111 23.970 164.971
+pos = 182.512 23.970 164.609
 yaw = 1.026837
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 184.152 23.970 163.252
+pos = 183.553 23.970 162.889
 yaw = 1.026837
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 182.742 23.970 169.446
+pos = 182.143 23.970 169.084
 yaw = 2.597633
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 186.903 23.970 162.567
+pos = 186.304 23.970 162.204
 yaw = 2.597633
 note = двор: thatch
 
@@ -26174,31 +26011,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 231.166 23.970 158.081
+pos = 230.856 23.970 157.919
 yaw = 4.230513
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 230.301 23.970 159.735
+pos = 229.991 23.970 159.573
 yaw = 4.230513
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 229.436 23.970 161.389
+pos = 229.126 23.970 161.227
 yaw = 4.230513
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 229.394 23.970 157.154
+pos = 229.084 23.970 156.992
 yaw = 5.801310
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 226.798 23.970 162.116
+pos = 226.488 23.970 161.954
 yaw = 5.801310
 note = двор: hut
 
@@ -26228,37 +26065,37 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 305.457 23.970 160.743
+pos = 305.134 23.970 160.608
 yaw = 4.316524
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 304.614 23.970 162.759
+pos = 304.291 23.970 162.624
 yaw = 4.316524
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 303.772 23.970 164.775
+pos = 303.449 23.970 164.640
 yaw = 4.316524
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 302.929 23.970 166.791
+pos = 302.606 23.970 166.656
 yaw = 4.316524
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 303.612 23.970 159.971
+pos = 303.289 23.968 159.836
 yaw = 5.887321
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 300.241 23.970 168.035
+pos = 299.918 23.970 167.901
 yaw = 5.887321
 note = двор: granary
 
@@ -26270,13 +26107,13 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 187.444 22.985 409.761
+pos = 187.444 22.970 409.761
 yaw = 0.713769
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 186.731 22.975 410.313
+pos = 186.731 22.970 410.313
 yaw = 0.713769
 note = двор: thatch
 
@@ -26288,37 +26125,37 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 180.584 22.970 412.594
+pos = 180.126 22.970 412.065
 yaw = 0.713769
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 182.103 22.970 411.278
+pos = 181.645 22.970 410.749
 yaw = 0.713769
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 183.623 22.970 409.962
+pos = 183.164 22.970 409.433
 yaw = 0.713769
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 185.142 22.971 408.646
+pos = 184.684 22.970 408.117
 yaw = 0.713769
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 181.893 22.970 414.106
+pos = 181.435 22.970 413.577
 yaw = 2.284565
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 187.971 23.003 408.842
+pos = 187.512 22.974 408.313
 yaw = 2.284565
 note = двор: thatch
 
@@ -26336,31 +26173,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 198.426 23.653 415.229
+pos = 198.763 23.687 415.135
 yaw = 1.843027
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 197.924 23.715 413.431
+pos = 198.261 23.754 413.337
 yaw = 1.843027
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 197.422 23.773 411.633
+pos = 197.759 23.810 411.539
 yaw = 1.843027
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 200.352 23.862 414.692
+pos = 200.689 23.885 414.597
 yaw = 3.413823
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 198.846 23.939 409.298
+pos = 199.183 23.949 409.204
 yaw = 3.413823
 note = двор: hut
 
@@ -26390,37 +26227,37 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 334.820 23.182 403.355
+pos = 334.488 23.218 403.467
 yaw = 5.038052
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 335.519 23.189 405.425
+pos = 335.187 23.229 405.537
 yaw = 5.038052
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 336.218 23.242 407.495
+pos = 335.886 23.287 407.607
 yaw = 5.038052
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 336.917 23.301 409.565
+pos = 336.585 23.354 409.677
 yaw = 5.038052
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 332.925 23.410 403.995
+pos = 332.593 23.463 404.107
 yaw = 0.325663
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 335.721 23.669 412.275
+pos = 335.389 23.712 412.387
 yaw = 0.325663
 note = двор: granary
 
@@ -26450,37 +26287,37 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 215.291 23.970 429.282
+pos = 214.880 23.970 429.848
 yaw = 2.513876
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 213.523 23.970 427.998
+pos = 213.112 23.970 428.565
 yaw = 2.513876
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 211.754 23.970 426.715
+pos = 211.343 23.970 427.282
 yaw = 2.513876
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 209.986 23.970 425.432
+pos = 209.575 23.970 425.999
 yaw = 2.513876
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 216.466 23.970 427.663
+pos = 216.055 23.970 428.230
 yaw = 4.084673
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 209.392 23.970 422.530
+pos = 208.981 23.970 423.097
 yaw = 4.084673
 note = двор: granary
 
@@ -26498,31 +26335,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 276.489 23.970 426.700
+pos = 276.177 23.970 426.860
 yaw = 5.186194
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 277.340 23.970 428.361
+pos = 277.029 23.970 428.521
 yaw = 5.186194
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 278.192 23.970 430.022
+pos = 277.881 23.970 430.182
 yaw = 5.186194
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 274.709 23.970 427.612
+pos = 274.398 23.970 427.772
 yaw = 0.473805
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 277.264 23.970 432.596
+pos = 276.953 23.970 432.755
 yaw = 0.473805
 note = двор: hut
 
@@ -26540,31 +26377,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 24.444 23.970 261.225
+pos = 24.442 23.970 261.575
 yaw = 6.278417
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 26.310 23.970 261.234
+pos = 26.309 23.970 261.584
 yaw = 6.278417
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 28.177 23.970 261.242
+pos = 28.175 23.970 261.592
 yaw = 6.278417
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 24.434 23.970 263.225
+pos = 24.433 23.970 263.575
 yaw = 1.566028
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 30.034 23.970 263.251
+pos = 30.033 23.970 263.601
 yaw = 1.566028
 note = двор: hut
 
@@ -26582,31 +26419,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 41.147 23.970 320.896
+pos = 41.781 23.970 321.192
 yaw = 4.276897
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 40.359 23.970 322.589
+pos = 40.994 23.970 322.884
 yaw = 4.276897
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 39.572 23.970 324.281
+pos = 40.206 23.970 324.577
 yaw = 4.276897
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 39.333 23.970 320.053
+pos = 39.968 23.970 320.348
 yaw = 5.847694
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 36.971 23.970 325.130
+pos = 37.606 23.970 325.425
 yaw = 5.847694
 note = двор: hut
 
@@ -26624,31 +26461,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 61.842 22.970 347.382
+pos = 61.612 22.970 347.646
 yaw = 5.568078
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 63.251 22.970 348.606
+pos = 63.022 22.970 348.870
 yaw = 5.568078
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 64.661 22.970 349.830
+pos = 64.431 22.970 350.094
 yaw = 5.568078
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 60.530 22.970 348.892
+pos = 60.301 22.970 349.156
 yaw = 0.855689
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 64.759 22.970 352.564
+pos = 64.529 22.970 352.828
 yaw = 0.855689
 note = двор: hut
 
@@ -26666,31 +26503,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 441.821 23.970 257.010
+pos = 441.652 23.970 256.703
 yaw = 3.643986
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 440.185 23.970 257.909
+pos = 440.016 23.970 257.602
 yaw = 3.643986
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 438.549 23.970 258.808
+pos = 438.380 23.970 258.501
 yaw = 3.643986
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 440.858 23.970 255.257
+pos = 440.689 23.970 254.950
 yaw = 5.214782
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 435.950 23.970 257.954
+pos = 435.781 23.970 257.647
 yaw = 5.214782
 note = двор: hut
 
@@ -26708,31 +26545,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 486.500 23.970 254.980
+pos = 487.074 23.970 254.579
 yaw = 5.321847
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 487.568 23.970 256.510
+pos = 488.142 23.970 256.110
 yaw = 5.321847
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 488.637 23.970 258.041
+pos = 489.211 23.970 257.640
 yaw = 5.321847
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 484.860 23.970 256.125
+pos = 485.434 23.970 255.724
 yaw = 0.609458
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 488.065 23.970 260.716
+pos = 488.639 23.970 260.316
 yaw = 0.609458
 note = двор: hut
 
@@ -26762,37 +26599,37 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 466.916 23.970 248.746
+pos = 467.231 23.970 248.898
 yaw = 1.120011
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 467.868 23.970 246.779
+pos = 468.183 23.970 246.932
 yaw = 1.120011
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 468.820 23.970 244.812
+pos = 469.135 23.970 244.965
 yaw = 1.120011
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 469.772 23.970 242.846
+pos = 470.087 23.970 242.998
 yaw = 1.120011
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 468.716 23.970 249.617
+pos = 469.031 23.970 249.770
 yaw = 2.690807
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 472.524 23.970 241.750
+pos = 472.839 23.970 241.903
 yaw = 2.690807
 note = двор: granary
 
@@ -26822,37 +26659,37 @@ note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 506.938 23.970 251.105
+pos = 506.590 23.970 251.070
 yaw = 4.611296
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 506.717 23.970 253.279
+pos = 506.369 23.970 253.244
 yaw = 4.611296
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 506.497 23.970 255.453
+pos = 506.149 23.970 255.417
 yaw = 4.611296
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 506.276 23.970 257.627
+pos = 505.928 23.970 257.591
 yaw = 4.611296
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 504.948 23.970 250.903
+pos = 504.600 23.970 250.868
 yaw = 6.182093
 note = двор: granary
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 504.066 23.970 259.599
+pos = 503.718 23.970 259.563
 yaw = 6.182093
 note = двор: granary
 
@@ -26882,37 +26719,37 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 451.572 23.970 347.902
+pos = 451.022 23.970 347.468
 yaw = 0.902811
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 452.817 23.970 346.324
+pos = 452.267 23.970 345.890
 yaw = 0.902811
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 454.062 23.970 344.746
+pos = 453.512 23.970 344.312
 yaw = 0.902811
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 455.307 23.970 343.168
+pos = 454.757 23.970 342.734
 yaw = 0.902811
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 453.142 23.970 349.141
+pos = 452.593 23.970 348.707
 yaw = 2.473607
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 458.122 23.970 342.829
+pos = 457.573 23.970 342.395
 yaw = 2.473607
 note = двор: thatch
 
@@ -26930,31 +26767,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 492.257 23.970 334.408
+pos = 492.324 23.970 334.065
 yaw = 2.947305
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 490.425 23.970 334.048
+pos = 490.493 23.970 333.704
 yaw = 2.947305
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 488.594 23.970 333.688
+pos = 488.661 23.970 333.344
 yaw = 2.947305
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 492.643 23.970 332.446
+pos = 492.711 23.970 332.103
 yaw = 4.518102
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 487.148 23.970 331.365
+pos = 487.216 23.970 331.021
 yaw = 4.518102
 note = двор: hut
 
@@ -26984,37 +26821,37 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 278.165 23.970 473.516
+pos = 278.039 23.970 473.843
 yaw = 5.915635
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 280.041 23.970 474.239
+pos = 279.915 23.970 474.565
 yaw = 5.915635
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 281.916 23.970 474.961
+pos = 281.791 23.970 475.288
 yaw = 5.915635
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 283.792 23.970 475.683
+pos = 283.666 23.970 476.010
 yaw = 5.915635
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 277.446 23.970 475.383
+pos = 277.321 23.970 475.709
 yaw = 1.203246
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 284.949 23.970 478.272
+pos = 284.824 23.970 478.598
 yaw = 1.203246
 note = двор: thatch
 
@@ -27032,31 +26869,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 310.332 23.970 454.188
+pos = 310.921 23.970 454.567
 yaw = 4.140504
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 309.322 23.970 455.758
+pos = 309.910 23.970 456.137
 yaw = 4.140504
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 308.311 23.970 457.327
+pos = 308.900 23.970 457.706
 yaw = 4.140504
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 308.650 23.970 453.106
+pos = 309.239 23.970 453.484
 yaw = 5.711300
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 305.619 23.970 457.815
+pos = 306.208 23.970 458.193
 yaw = 5.711300
 note = двор: hut
 
@@ -27074,31 +26911,31 @@ note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 214.200 23.970 487.779
+pos = 214.038 23.970 488.089
 yaw = 5.803671
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 215.856 23.970 488.640
+pos = 215.695 23.970 488.950
 yaw = 5.803671
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 217.512 23.970 489.501
+pos = 217.351 23.970 489.812
 yaw = 5.803671
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 213.277 23.970 489.553
+pos = 213.116 23.970 489.864
 yaw = 1.091282
 note = двор: hut
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 218.246 23.970 492.137
+pos = 218.084 23.970 492.447
 yaw = 1.091282
 note = двор: hut
 
@@ -27128,37 +26965,37 @@ note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 302.279 23.970 487.649
+pos = 301.947 23.970 487.760
 yaw = 5.033714
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 302.914 23.970 489.556
+pos = 302.582 23.970 489.667
 yaw = 5.033714
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 303.549 23.970 491.463
+pos = 303.217 23.970 491.574
 yaw = 5.033714
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 304.184 23.970 493.370
+pos = 303.852 23.970 493.481
 yaw = 5.033714
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 300.382 23.970 488.281
+pos = 300.050 23.970 488.391
 yaw = 0.321325
 note = двор: thatch
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 302.921 23.970 495.909
+pos = 302.589 23.970 496.020
 yaw = 0.321325
 note = двор: thatch
 
@@ -27188,49 +27025,49 @@ note = двор: barn
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 299.087 23.970 468.601
+pos = 299.077 23.970 467.901
 yaw = 0.013688
 note = двор: barn
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 301.253 23.970 468.571
+pos = 301.243 23.970 467.871
 yaw = 0.013688
 note = двор: barn
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 303.419 23.970 468.542
+pos = 303.410 23.970 467.842
 yaw = 0.013688
 note = двор: barn
 
 [house]
 file = assets/houses/furn-fence-gate.dfh
-pos = 305.586 23.970 468.512
+pos = 305.576 23.970 467.812
 yaw = 0.013688
 note = двор: barn
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 307.752 23.970 468.482
+pos = 307.743 23.970 467.782
 yaw = 0.013688
 note = двор: barn
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 309.919 23.970 468.453
+pos = 309.909 23.970 467.753
 yaw = 0.013688
 note = двор: barn
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 299.114 23.970 470.601
+pos = 299.104 23.970 469.901
 yaw = 1.584484
 note = двор: barn
 
 [house]
 file = assets/houses/furn-fence2.dfh
-pos = 312.113 23.970 470.423
+pos = 312.103 23.970 469.723
 yaw = 1.584484
 note = двор: barn
 
@@ -27668,12 +27505,6 @@ note = фонарь у двери: granary
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 338.847 23.017 404.456
-yaw = 5.213172
-note = фонарь у двери: granary
-
-[house]
-file = assets/houses/furn-lamp-wall.dfh
 pos = 192.913 24.000 172.243
 yaw = 1.026837
 note = фонарь у двери: thatch
@@ -27689,6 +27520,12 @@ file = assets/houses/furn-lamp-wall.dfh
 pos = 190.708 23.004 419.899
 yaw = 0.713769
 note = фонарь у двери: thatch
+
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 325.949 24.000 409.749
+yaw = 5.038052
+note = фонарь у двери: granary
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
@@ -28388,13 +28225,13 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 100.451 24.400 294.249
+pos = 100.451 24.399 294.249
 yaw = 0.021966
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 101.650 24.397 294.223
+pos = 101.650 24.390 294.223
 yaw = 0.021514
 note = бордюр тропы
 
@@ -28412,7 +28249,7 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 105.246 24.390 294.147
+pos = 105.246 24.382 294.147
 yaw = 0.020093
 note = бордюр тропы
 
@@ -28430,13 +28267,13 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 113.634 24.370 293.993
+pos = 113.634 24.360 293.993
 yaw = 0.015944
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 114.832 24.366 293.974
+pos = 114.832 24.360 293.974
 yaw = 0.015184
 note = бордюр тропы
 
@@ -28448,37 +28285,37 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 117.228 24.360 293.938
+pos = 117.228 24.352 293.938
 yaw = 0.013516
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 118.425 24.360 293.922
+pos = 118.425 24.350 293.922
 yaw = 0.012551
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 119.623 24.358 293.907
+pos = 119.623 24.350 293.907
 yaw = 0.011515
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 120.820 24.350 293.893
+pos = 120.820 24.346 293.893
 yaw = 0.010369
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 122.017 24.350 293.881
+pos = 122.017 24.340 293.881
 yaw = 0.009088
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 123.213 24.350 293.870
+pos = 123.213 24.340 293.870
 yaw = 0.007637
 note = бордюр тропы
 
@@ -28490,349 +28327,349 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 125.604 24.340 293.854
+pos = 125.604 24.330 293.854
 yaw = 0.004108
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 126.799 24.340 293.849
+pos = 126.799 24.330 293.849
 yaw = 0.001882
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 127.992 24.340 293.846
+pos = 127.992 24.330 293.846
 yaw = 6.282436
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 129.184 24.332 293.847
+pos = 129.184 24.322 293.847
 yaw = 6.279170
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 130.375 24.330 293.852
+pos = 130.375 24.320 293.852
 yaw = 6.275454
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 131.567 24.320 293.861
+pos = 131.567 24.318 293.861
 yaw = 6.271900
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 132.758 24.320 293.875
+pos = 132.758 24.310 293.875
 yaw = 6.268601
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 133.951 24.315 293.892
+pos = 133.951 24.305 293.892
 yaw = 6.265551
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 135.144 24.310 293.913
+pos = 135.144 24.300 293.913
 yaw = 6.262745
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 136.337 24.301 293.937
+pos = 136.337 24.300 293.937
 yaw = 6.260176
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 137.531 24.300 293.965
+pos = 137.531 24.290 293.965
 yaw = 6.257863
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 142.312 24.280 294.100
+pos = 142.312 24.270 294.100
 yaw = 6.250982
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 143.509 24.270 294.138
+pos = 143.509 24.269 294.138
 yaw = 6.249839
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 144.706 24.270 294.178
+pos = 144.706 24.260 294.178
 yaw = 6.248936
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 145.904 24.265 294.219
+pos = 145.904 24.255 294.219
 yaw = 6.248262
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 147.102 24.260 294.261
+pos = 147.102 24.250 294.261
 yaw = 6.247816
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 148.301 24.251 294.304
+pos = 148.301 24.250 294.304
 yaw = 6.247597
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 149.500 24.250 294.346
+pos = 149.500 24.240 294.346
 yaw = 6.247605
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 150.700 24.247 294.389
+pos = 150.700 24.237 294.389
 yaw = 6.247841
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 151.900 24.240 294.431
+pos = 151.900 24.230 294.431
 yaw = 6.248303
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 153.101 24.233 294.473
+pos = 153.101 24.223 294.473
 yaw = 6.248989
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 154.303 24.230 294.514
+pos = 154.303 24.220 294.514
 yaw = 6.249900
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 155.505 24.220 294.554
+pos = 155.505 24.219 294.554
 yaw = 6.251039
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 156.707 24.220 294.593
+pos = 156.707 24.210 294.593
 yaw = 6.252412
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 157.911 24.215 294.630
+pos = 157.911 24.205 294.630
 yaw = 6.254003
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 159.115 24.210 294.665
+pos = 159.115 24.200 294.665
 yaw = 6.255821
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 160.319 24.201 294.698
+pos = 160.319 24.200 294.698
 yaw = 6.257866
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 161.524 24.200 294.729
+pos = 161.524 24.190 294.729
 yaw = 6.260139
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 162.730 24.197 294.757
+pos = 162.730 24.187 294.757
 yaw = 6.262664
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 163.937 24.190 294.781
+pos = 163.937 24.180 294.781
 yaw = 6.265401
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 165.144 24.183 294.803
+pos = 165.144 24.173 294.803
 yaw = 6.268370
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 166.352 24.180 294.821
+pos = 166.352 24.170 294.821
 yaw = 6.271572
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 167.560 24.170 294.835
+pos = 167.560 24.168 294.835
 yaw = 6.275011
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 168.769 24.170 294.845
+pos = 168.769 24.160 294.845
 yaw = 6.278700
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 169.978 24.164 294.850
+pos = 169.978 24.160 294.850
 yaw = 6.282378
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 171.186 24.160 294.851
+pos = 171.186 24.152 294.851
 yaw = 0.002558
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 172.394 24.160 294.848
+pos = 172.394 24.150 294.848
 yaw = 0.005741
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 173.601 24.158 294.841
+pos = 173.601 24.148 294.841
 yaw = 0.008738
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 174.808 24.150 294.830
+pos = 174.808 24.140 294.830
 yaw = 0.011546
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 176.014 24.150 294.816
+pos = 176.014 24.140 294.816
 yaw = 0.014160
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 177.220 24.142 294.799
+pos = 177.220 24.140 294.799
 yaw = 0.016583
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 178.426 24.140 294.779
+pos = 178.426 24.130 294.779
 yaw = 0.018801
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 179.630 24.140 294.757
+pos = 179.630 24.130 294.757
 yaw = 0.020811
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 184.444 24.127 294.644
+pos = 184.444 24.120 294.644
 yaw = 0.026781
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 185.645 24.120 294.612
+pos = 185.645 24.110 294.612
 yaw = 0.027750
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 186.847 24.120 294.579
+pos = 186.847 24.110 294.579
 yaw = 0.028508
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 188.048 24.113 294.545
+pos = 188.048 24.110 294.545
 yaw = 0.029057
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 189.248 24.110 294.510
+pos = 189.248 24.101 294.510
 yaw = 0.029393
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 190.448 24.110 294.474
+pos = 190.448 24.100 294.474
 yaw = 0.029519
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 191.647 24.107 294.439
+pos = 191.647 24.097 294.439
 yaw = 0.029439
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 192.846 24.100 294.404
+pos = 192.846 24.090 294.404
 yaw = 0.029152
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 194.044 24.100 294.369
+pos = 194.044 24.090 294.369
 yaw = 0.028663
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 195.242 24.092 294.334
+pos = 195.242 24.090 294.334
 yaw = 0.027971
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 196.439 24.090 294.301
+pos = 196.439 24.080 294.301
 yaw = 0.027075
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 197.636 24.090 294.269
+pos = 197.636 24.080 294.269
 yaw = 0.025989
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 198.833 24.086 294.237
+pos = 198.833 24.076 294.237
 yaw = 0.024711
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 200.029 24.080 294.208
+pos = 200.029 24.070 294.208
 yaw = 0.023246
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 201.224 24.080 294.180
+pos = 201.224 24.070 294.180
 yaw = 0.021597
 note = бордюр тропы
 
@@ -28844,79 +28681,79 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 203.614 24.070 294.131
+pos = 203.614 24.060 294.131
 yaw = 0.017746
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 204.809 24.070 294.109
+pos = 204.809 24.060 294.109
 yaw = 0.015572
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 206.003 24.064 294.091
+pos = 206.003 24.060 294.091
 yaw = 0.013229
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 207.197 24.060 294.075
+pos = 207.197 24.052 294.075
 yaw = 0.010704
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 208.390 24.060 294.062
+pos = 208.390 24.050 294.062
 yaw = 0.008050
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 209.584 24.058 294.053
+pos = 209.584 24.050 294.053
 yaw = 0.005412
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 210.779 24.050 294.046
+pos = 210.779 24.046 294.046
 yaw = 0.003335
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 211.974 24.050 294.042
+pos = 211.974 24.040 294.042
 yaw = 0.001440
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 213.170 24.050 294.040
+pos = 213.170 24.040 294.040
 yaw = 6.282855
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 214.366 24.050 294.041
+pos = 214.366 24.040 294.041
 yaw = 6.281204
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 215.562 24.050 294.043
+pos = 215.562 24.040 294.043
 yaw = 6.279665
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 216.758 24.050 294.047
+pos = 216.758 24.040 294.047
 yaw = 6.278243
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 217.955 24.044 294.053
+pos = 217.955 24.040 294.053
 yaw = 6.276932
 note = бордюр тропы
 
@@ -29516,7 +29353,7 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 102.744 24.399 289.298
+pos = 102.744 24.390 289.298
 yaw = 3.163106
 note = бордюр тропы
 
@@ -29534,13 +29371,13 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 106.347 24.390 289.224
+pos = 106.347 24.383 289.224
 yaw = 3.161685
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 107.548 24.381 289.201
+pos = 107.548 24.380 289.201
 yaw = 3.161179
 note = бордюр тропы
 
@@ -29552,19 +29389,19 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 109.950 24.380 289.156
+pos = 109.950 24.377 289.156
 yaw = 3.160089
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 111.152 24.380 289.134
+pos = 111.152 24.370 289.134
 yaw = 3.159508
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 112.353 24.372 289.113
+pos = 112.353 24.370 289.113
 yaw = 3.158886
 note = бордюр тропы
 
@@ -29576,7 +29413,7 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 114.756 24.370 289.074
+pos = 114.756 24.360 289.074
 yaw = 3.157537
 note = бордюр тропы
 
@@ -29588,19 +29425,19 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 121.969 24.350 288.981
+pos = 121.969 24.346 288.981
 yaw = 3.151961
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 123.172 24.350 288.970
+pos = 123.172 24.340 288.970
 yaw = 3.150681
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 124.376 24.350 288.961
+pos = 124.376 24.340 288.961
 yaw = 3.149229
 note = бордюр тропы
 
@@ -29612,151 +29449,151 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 126.784 24.340 288.949
+pos = 126.784 24.330 288.949
 yaw = 3.145701
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 132.822 24.320 288.975
+pos = 132.822 24.318 288.975
 yaw = 3.130308
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 134.030 24.320 288.993
+pos = 134.030 24.310 288.993
 yaw = 3.127008
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 135.237 24.314 289.014
+pos = 135.237 24.304 289.014
 yaw = 3.123958
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 136.444 24.310 289.039
+pos = 136.444 24.300 289.039
 yaw = 3.121152
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 137.650 24.300 289.066
+pos = 137.650 24.299 289.066
 yaw = 3.118584
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 138.855 24.300 289.097
+pos = 138.855 24.290 289.097
 yaw = 3.116270
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 140.059 24.295 289.130
+pos = 140.059 24.285 289.130
 yaw = 3.114196
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 141.263 24.290 289.165
+pos = 141.263 24.280 289.165
 yaw = 3.112359
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 142.467 24.281 289.202
+pos = 142.467 24.271 289.202
 yaw = 3.110758
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 143.670 24.279 289.241
+pos = 143.670 24.270 289.241
 yaw = 3.109390
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 144.872 24.270 289.281
+pos = 144.872 24.267 289.281
 yaw = 3.108247
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 146.073 24.270 289.322
+pos = 146.073 24.260 289.322
 yaw = 3.107344
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 147.274 24.263 289.364
+pos = 147.274 24.253 289.364
 yaw = 3.106670
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 148.474 24.260 289.407
+pos = 148.474 24.250 289.407
 yaw = 3.106224
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 149.674 24.250 289.449
+pos = 149.674 24.249 289.449
 yaw = 3.106005
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 150.873 24.250 289.492
+pos = 150.873 24.240 289.492
 yaw = 3.106012
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 152.072 24.245 289.534
+pos = 152.072 24.235 289.534
 yaw = 3.106249
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 153.270 24.240 289.576
+pos = 153.270 24.230 289.576
 yaw = 3.106710
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 154.468 24.231 289.617
+pos = 154.468 24.230 289.617
 yaw = 3.107396
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 155.665 24.230 289.657
+pos = 155.665 24.220 289.657
 yaw = 3.108307
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 156.862 24.227 289.696
+pos = 156.862 24.217 289.696
 yaw = 3.109447
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 158.058 24.220 289.732
+pos = 158.058 24.210 289.732
 yaw = 3.110819
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 159.253 24.213 289.767
+pos = 159.253 24.203 289.767
 yaw = 3.112410
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 160.448 24.210 289.800
+pos = 160.448 24.200 289.800
 yaw = 3.114228
 note = бордюр тропы
 
@@ -29768,289 +29605,289 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 162.837 24.200 289.858
+pos = 162.837 24.190 289.858
 yaw = 3.118546
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 164.031 24.196 289.882
+pos = 164.031 24.186 289.882
 yaw = 3.121071
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 165.224 24.190 289.903
+pos = 165.224 24.180 289.903
 yaw = 3.123808
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 166.416 24.182 289.921
+pos = 166.416 24.180 289.921
 yaw = 3.126777
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 167.608 24.180 289.935
+pos = 167.608 24.170 289.935
 yaw = 3.129980
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 168.800 24.178 289.945
+pos = 168.800 24.168 289.945
 yaw = 3.133418
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 169.991 24.170 289.950
+pos = 169.991 24.160 289.950
 yaw = 3.137107
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 171.182 24.164 289.951
+pos = 171.182 24.160 289.951
 yaw = 3.140786
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 172.374 24.160 289.948
+pos = 172.374 24.152 289.948
 yaw = 3.144150
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 173.566 24.160 289.941
+pos = 173.566 24.150 289.941
 yaw = 3.147333
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 174.758 24.158 289.931
+pos = 174.758 24.148 289.931
 yaw = 3.150331
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 175.951 24.150 289.917
+pos = 175.951 24.140 289.917
 yaw = 3.153139
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 177.145 24.150 289.900
+pos = 177.145 24.140 289.900
 yaw = 3.155752
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 178.339 24.143 289.880
+pos = 178.339 24.140 289.880
 yaw = 3.158175
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 179.533 24.140 289.858
+pos = 179.533 24.131 289.858
 yaw = 3.160394
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 180.728 24.140 289.833
+pos = 180.728 24.130 289.833
 yaw = 3.162404
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 181.923 24.137 289.806
+pos = 181.923 24.127 289.806
 yaw = 3.164209
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 183.119 24.130 289.777
+pos = 183.119 24.120 289.777
 yaw = 3.165806
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 184.315 24.130 289.746
+pos = 184.315 24.120 289.746
 yaw = 3.167195
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 185.512 24.121 289.714
+pos = 185.512 24.120 289.714
 yaw = 3.168374
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 186.709 24.120 289.681
+pos = 186.709 24.110 289.681
 yaw = 3.169343
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 187.907 24.120 289.647
+pos = 187.907 24.110 289.647
 yaw = 3.170101
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 189.105 24.115 289.612
+pos = 189.105 24.110 289.612
 yaw = 3.170650
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 190.304 24.110 289.577
+pos = 190.304 24.103 289.577
 yaw = 3.170985
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 191.503 24.110 289.541
+pos = 191.503 24.100 289.541
 yaw = 3.171112
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 192.702 24.109 289.506
+pos = 192.702 24.099 289.506
 yaw = 3.171031
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 193.903 24.100 289.471
+pos = 193.903 24.090 289.471
 yaw = 3.170745
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 195.103 24.100 289.436
+pos = 195.103 24.090 289.436
 yaw = 3.170255
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 196.304 24.093 289.403
+pos = 196.304 24.090 289.403
 yaw = 3.169564
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 197.506 24.090 289.370
+pos = 197.506 24.081 289.370
 yaw = 3.168668
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 198.708 24.090 289.339
+pos = 198.708 24.080 289.339
 yaw = 3.167581
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 199.911 24.087 289.309
+pos = 199.911 24.077 289.309
 yaw = 3.166303
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 201.115 24.080 289.281
+pos = 201.115 24.070 289.281
 yaw = 3.164839
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 202.318 24.080 289.255
+pos = 202.318 24.070 289.255
 yaw = 3.163190
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 203.523 24.071 289.231
+pos = 203.523 24.070 289.231
 yaw = 3.161343
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 204.727 24.070 289.210
+pos = 204.727 24.060 289.210
 yaw = 3.159338
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 205.932 24.070 289.191
+pos = 205.932 24.060 289.191
 yaw = 3.157165
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 207.138 24.065 289.175
+pos = 207.138 24.055 289.175
 yaw = 3.154822
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 208.344 24.060 289.162
+pos = 208.344 24.050 289.162
 yaw = 3.152296
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 209.551 24.060 289.153
+pos = 209.551 24.050 289.153
 yaw = 3.149643
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 210.757 24.058 289.146
+pos = 210.757 24.050 289.146
 yaw = 3.147005
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 211.962 24.050 289.142
+pos = 211.962 24.046 289.142
 yaw = 3.144928
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 213.167 24.050 289.140
+pos = 213.167 24.040 289.140
 yaw = 3.143033
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 214.371 24.050 289.141
+pos = 214.371 24.040 289.141
 yaw = 3.141263
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 215.575 24.050 289.143
+pos = 215.575 24.040 289.143
 yaw = 3.139612
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 216.779 24.050 289.147
+pos = 216.779 24.040 289.147
 yaw = 3.138072
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 217.982 24.050 289.153
+pos = 217.982 24.040 289.153
 yaw = 3.136651
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 219.186 24.044 289.161
+pos = 219.186 24.040 289.161
 yaw = 3.135339
 note = бордюр тропы
 
@@ -31046,31 +30883,31 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 222.440 24.040 286.384
+pos = 222.440 24.030 286.384
 yaw = 4.705040
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 222.312 24.040 295.984
+pos = 222.312 24.030 295.984
 yaw = 4.692743
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 222.288 24.032 297.184
+pos = 222.288 24.022 297.184
 yaw = 4.691730
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 222.263 24.020 298.384
+pos = 222.263 24.010 298.384
 yaw = 4.690839
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 222.238 24.008 299.584
+pos = 222.238 24.000 299.584
 yaw = 4.690067
 note = бордюр тропы
 
@@ -32000,31 +31837,31 @@ note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 222.331 24.040 287.584
+pos = 222.331 24.030 287.584
 yaw = 1.563447
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 222.188 24.040 297.182
+pos = 222.188 24.030 297.182
 yaw = 1.551151
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 222.163 24.032 298.382
+pos = 222.163 24.022 298.382
 yaw = 1.550137
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12b.dfh
-pos = 222.138 24.020 299.581
+pos = 222.138 24.010 299.581
 yaw = 1.549247
 note = бордюр тропы
 
 [house]
 file = assets/houses/furn-curb12.dfh
-pos = 222.111 24.008 300.781
+pos = 222.111 24.000 300.781
 yaw = 1.548474
 note = бордюр тропы
 
@@ -35527,15 +35364,6 @@ flicker = 0.14
 note = фонарь у двери: granary
 
 [light]
-pos = 338.530 25.357 404.834
-color = 0.826 0.572 0.328
-radius_m = 3.66
-casts_shadow = 0
-softness = 0.5
-flicker = 0.12
-note = фонарь у двери: granary
-
-[light]
 pos = 193.399 26.340 172.328
 color = 0.972 0.708 0.427
 radius_m = 4.02
@@ -35561,6 +35389,15 @@ casts_shadow = 0
 softness = 0.5
 flicker = 0.16
 note = фонарь у двери: thatch
+
+[light]
+pos = 325.571 26.340 410.067
+color = 1.000 0.765 0.455
+radius_m = 3.67
+casts_shadow = 0
+softness = 0.5
+flicker = 0.17
+note = фонарь у двери: granary
 
 [light]
 pos = 218.536 26.340 419.021
