@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 13:55:00
+Last updated: 27:08:2026 - 01:55:00
 Module: engine/world
 File: engine/world/sources/HouseStairs.cpp
 
@@ -10,7 +10,7 @@ Responsibility:
   блоки с зазорами.
 
 Key items:
-- build_stairs / build_stairs_contour; HOUSE_STAIR_RISE_M.
+- build_stairs / build_stairs_contour; подступёнок (rise) и линия пандуса (nosing).
 
 Dependencies:
 - Uses: HouseMeshDetail.h
@@ -48,9 +48,23 @@ UPD:
   передних кромок (MeshPart.collider_only — симметрия mb.collider=false),
   картинка — прежние ступени. Стандартное решение индустрии; 92/92, судья
   ходит по маршам домов по пандусу.
+- 27:08:2026 - 01:55:00: ПОДСТУПЁНОК СТАЛ СВОЙСТВОМ МАРША (rise), А ПАНДУС —
+  ВЫБОРОМ ЛИНИИ (nosing), и оба заведены критом владельца: «лестницы стоят
+  криво, прямо у входа и надо их перепрыгивать; слишком длинные они, должны
+  быть круче». ЗАМЕР по выпечке (dfn_stairs_check, новый прибор): у ВСЕХ
+  открытых маршей полки ходимая поверхность пандуса выходила на ПОДСТУПЁНОК
+  выше обоих концов — «на входе +0.155, на выходе −0.155» в доме Житнова.
+  Это и есть то, через что перепрыгивают, и это НЕ дефект уличных маршей:
+  их генератор города сажает ровно с этой поправкой. Отсюда не смена
+  умолчания, а свойство. Внутридомовые объявляют rise=0.28 и nosing=1.
+  Плюс НИЖНЯЯ ГРАНИЦА ЧИСЛА СТУПЕНЕЙ по PLAYER_STEP_HEIGHT: с ростом
+  подступёнка округление ВНИЗ на коротком марше стало способно выдать
+  ступень выше той, на которую контроллер поднимается сам.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
+
+#include "engine/core/config/sources/Constants.h"
 
 #include <algorithm>
 #include <cmath>
@@ -62,7 +76,6 @@ namespace {
 
 } // namespace
 
-inline constexpr float HOUSE_STAIR_RISE_M = 0.175f;
 inline constexpr float HOUSE_STRINGER_BAND_M = 0.26f; ///< высота тетивы
 inline constexpr float HOUSE_STRINGER_TH_M = 0.045f;  ///< толщина тетивы
 
@@ -82,7 +95,21 @@ void build_stairs(const Element& e, const ElementParams& p, glm::vec3 a, glm::ve
     }
     const glm::vec3 dir{d.x / run, 0.0f, d.z / run};
     const glm::vec3 side = glm::normalize(glm::cross(dir, glm::vec3{0.0f, 1.0f, 0.0f}));
-    const int steps = std::max(1, static_cast<int>(std::round(rise_total / HOUSE_STAIR_RISE_M)));
+    // ЧИСЛО СТУПЕНЕЙ: округление до целого от «подъём / подступёнок», где
+    // подступёнок — свой у марша (p.rise) либо жилой по умолчанию.
+    //
+    // НИЖНЯЯ ГРАНИЦА ВЫВЕДЕНА, А НЕ НАЗНАЧЕНА: округление ВНИЗ на коротком
+    // марше поднимает фактический подступёнок выше заказанного (при одной
+    // ступени — вдвое), и он может перевалить `PLAYER_STEP_HEIGHT` — высоту,
+    // на которую контроллер поднимается сам. Ступень выше неё непроходима
+    // ровно так же, как стена: закрывать это глазами нечем, и потому число
+    // ступеней снизу связано ТЕМ ЖЕ порогом, а не надеждой на округление.
+    const float step_m = p.rise > HOUSE_GEOM_EPS ? p.rise : HOUSE_STAIR_RISE_M;
+    const int by_rise = static_cast<int>(std::round(rise_total / step_m));
+    const int by_step = static_cast<int>(
+        std::ceil(rise_total / static_cast<float>(dfn::config::PLAYER_STEP_HEIGHT)
+                  - 1e-4f));
+    const int steps = std::max({1, by_rise, by_step});
     const float rise = rise_total / static_cast<float>(steps);
     const float tread = run / static_cast<float>(steps);
     const std::uint32_t quad[6] = {0, 1, 2, 0, 2, 3};
@@ -168,10 +195,25 @@ void build_stairs(const Element& e, const ElementParams& p, glm::vec3 a, glm::ve
     // Вайтрана, 21.08). Гладкая наклонная плоскость через верхние кромки —
     // стандартное решение индустрии; она ЧИСТО ФИЗИЧЕСКАЯ (collider_only):
     // картинка остаётся честными ступенями, ходьба идёт по пандусу 26°.
+    //
+    // ПО ЧЕМУ ИМЕННО ИДЁТ ПАНДУС — ЭТО ВТОРОЕ РЕШЕНИЕ, И ОНО НЕ ОДНО НА ВСЕХ
+    // (правка 27.08, крит владельца «надо их перепрыгивать, чтобы пройти»).
+    // Честных линий ровно две:
+    //   ЗАДНИЕ ВЕРХНИЕ УГЛЫ ступеней (nosing=0, наследие): нога никогда не
+    //     утопает в нарисованной ступени, но ходимая поверхность выходит на
+    //     ПОДСТУПЁНОК выше и пола внизу, и площадки наверху. У уличного марша
+    //     эту ступеньку снимает посадка: генератор города опускает якорь на
+    //     «подступёнок − 0.02» с обоих концов и держит рядом таблицу поправок
+    //     на каждый рецепт (tools/gen_city.py). Поэтому умолчание остаётся
+    //     этим — смена сдвинула бы каждый уличный марш обоих городов молча.
+    //   НОСКИ (nosing=1): пандус приходит ВРОВЕНЬ с полом и с площадкой, а
+    //     нога утопает в ступени не глубже полуподступёнка. Внутри дома
+    //     правильна только эта: там марш стоит у самой двери, и ступенька в
+    //     подступёнок на входе — ровно то, через что владелец перепрыгивал.
     if (p.open > 0.5f) {
         mb.flush_part();
         mb.collider_only = true;
-        const glm::vec3 lift{0.0f, rise - 0.18f, 0.0f};
+        const glm::vec3 lift{0.0f, p.nosing > 0.5f ? -0.16f : rise - 0.18f, 0.0f};
         const glm::vec3 lo = a + lift;
         const glm::vec3 hi = a + dir * run + glm::vec3{0.0f, rise_total, 0.0f} + lift;
         const glm::vec3 loop[4] = {lo - side * half_w, lo + side * half_w,

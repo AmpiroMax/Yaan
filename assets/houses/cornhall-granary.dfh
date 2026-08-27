@@ -77,8 +77,8 @@ vertex v75 free -0.7700 3.5800 5.6000
 vertex v76 free 7.9700 3.5800 5.6000
 vertex v77 free 2.9000 0.0000 7.6000
 vertex v78 free 4.3000 0.0000 7.6000
-vertex v79 free 4.3000 1.0200 5.6500
-vertex v80 free 2.9000 1.0200 5.6500
+vertex v79 free 4.3000 1.0200 5.7300
+vertex v80 free 2.9000 1.0200 5.7300
 line e1 v1 v2 style=- radius=0.24 sides=8 mat=3 tone=1 wear=0.55
 line e2 v3 v4 style=- radius=0.46 sides=8 mat=3 tone=1 wear=0.55
 line e3 v5 v6 style=- radius=0.24 sides=8 mat=3 tone=1 wear=0.55
@@ -101,7 +101,7 @@ surface e19 v37 v38 v39 v40 style=- closed=1 thickness=0.16 mat=1 tone=1 wear=0.
 surface e20 v40 v37 style=- height=2.9 thickness=0.24 mat=1 tone=1 clad=1 wear=0.55
 surface e21 v39 v40 style=- height=2.9 thickness=0.24 mat=1 tone=1 clad=1 wear=0.55
 surface e22 v37 v38 style=- height=2.9 thickness=0.24 mat=1 tone=1 clad=1 wear=0.55
-surface e23 v38 v39 style=- height=2.9 thickness=0.24 mat=1 tone=1 clad=1 wear=0.55 doors=1 porch=1
+surface e23 v38 v39 style=- height=2.9 thickness=0.24 mat=1 tone=1 clad=1 wear=0.55 doors=1
 surface e24 v41 v42 style=- height=2.05 thickness=0.05 mat=1 tone=2 door=1 hinge=0
 surface e25 v43 v44 v45 v46 style=- closed=1 thickness=0.40 mat=6 tone=1 wear=0.5
 surface e26 v44 v43 v47 v48 style=- closed=1 thickness=0.40 mat=6 tone=1 wear=0.5

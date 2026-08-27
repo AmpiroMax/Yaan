@@ -25,14 +25,14 @@ vertex v23 free 10.0000 3.4250 8.0000
 vertex v24 free 0.0000 3.4250 8.0000
 vertex v25 free 8.0000 3.4250 8.0000
 vertex v26 free 8.0000 3.4250 0.0000
-vertex v27 free 8.0000 3.4250 3.0000
-vertex v28 free 10.0000 3.4250 3.0000
-vertex v29 free 8.0000 3.2400 3.0000
+vertex v27 free 8.0000 3.4250 4.7600
+vertex v28 free 10.0000 3.4250 4.7600
+vertex v29 free 8.0000 3.2400 4.7600
 vertex v30 free 8.0000 3.2400 8.0000
-vertex v31 free 8.3000 0.5250 7.6000
-vertex v32 free 9.7000 0.5250 7.6000
-vertex v33 free 9.7000 3.4250 3.2000
-vertex v34 free 8.3000 3.4250 3.2000
+vertex v31 free 8.3000 0.6450 7.6000
+vertex v32 free 9.7000 0.6450 7.6000
+vertex v33 free 9.7000 3.4850 4.7600
+vertex v34 free 8.3000 3.4850 4.7600
 vertex v35 free 3.0000 0.5250 8.0000
 vertex v36 free 3.0000 0.5250 9.3000
 vertex v37 free 7.0000 0.5250 9.3000
@@ -124,7 +124,7 @@ surface e24 v24 v23 style=- height=2.6 thickness=0.28 mat=5 tone=0 clad=1 window
 surface e25 v22 v24 v25 v26 style=- closed=1 thickness=0.12 mat=1 tone=1 beams=1
 surface e26 v26 v27 v28 v21 style=- closed=1 thickness=0.12 mat=1 tone=1 beams=1
 line e27 v29 v30 style=- radius=0.125 form=square mat=0 tone=2 wear=0.65
-surface e28 v31 v32 v33 v34 style=- closed=1 thickness=0.1 fill=6 open=1 mat=1 tone=1 wear=0.65
+surface e28 v31 v32 v33 v34 style=- closed=1 thickness=0.1 fill=6 open=1 rise=0.28 nosing=1 mat=1 tone=1 wear=0.65
 surface e29 v35 v36 v37 v38 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1 wear=0.68
 line e30 v39 v40 style=- radius=0.1 mat=0 tone=2
 line e31 v41 v42 style=- radius=0.1 mat=0 tone=2

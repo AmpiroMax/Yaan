@@ -34,14 +34,14 @@ vertex v32 free 14.0000 3.0000 7.0000
 vertex v33 free 14.0000 3.0000 0.0000
 vertex v34 free 2.0000 3.0000 7.0000
 vertex v35 free 2.0000 3.0000 15.0000
-vertex v36 free 0.0000 3.0000 9.2000
-vertex v37 free 2.0000 3.0000 9.2000
+vertex v36 free 0.0000 3.0000 11.0600
+vertex v37 free 2.0000 3.0000 11.0600
 vertex v38 free 0.0000 3.0000 14.2000
 vertex v39 free 2.0000 3.0000 14.2000
-vertex v40 free 0.3500 0.0000 14.0000
-vertex v41 free 1.7500 0.0000 14.0000
-vertex v42 free 1.7500 3.0000 9.4000
-vertex v43 free 0.3500 3.0000 9.4000
+vertex v40 free 0.3500 0.1200 14.0000
+vertex v41 free 1.7500 0.1200 14.0000
+vertex v42 free 1.7500 3.0600 11.0600
+vertex v43 free 0.3500 3.0600 11.0600
 vertex v44 free 8.0000 0.0000 9.2000
 vertex v45 free 8.0000 2.7500 9.2000
 vertex v46 free 10.6000 0.0000 9.2000
@@ -185,7 +185,7 @@ surface e36 v27 v28 v32 v33 style=- closed=1 thickness=0.12 mat=1 tone=1 beams=1
 surface e37 v34 v35 v30 v31 style=- closed=1 thickness=0.12 mat=1 tone=1 beams=1
 surface e38 v28 v36 v37 v34 style=- closed=1 thickness=0.12 mat=1 tone=1
 surface e39 v38 v29 v35 v39 style=- closed=1 thickness=0.12 mat=1 tone=1
-surface e40 v40 v41 v42 v43 style=- closed=1 thickness=0.1 fill=6 open=1 mat=1 tone=1 wear=0.3
+surface e40 v40 v41 v42 v43 style=- closed=1 thickness=0.1 fill=6 open=1 rise=0.28 nosing=1 mat=1 tone=1 wear=0.3
 line e41 v44 v45 style=- radius=0.12 mat=0 tone=2
 line e42 v46 v47 style=- radius=0.12 mat=0 tone=2
 line e43 v48 v49 style=- radius=0.09 form=square mat=0 tone=2

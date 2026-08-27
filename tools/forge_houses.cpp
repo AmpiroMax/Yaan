@@ -1,6 +1,6 @@
 /*
 Created: 20:08:2026 - 13:40:00
-Last updated: 24:08:2026 - 01:20:00
+Last updated: 27:08:2026 - 11:20:22
 Module: tools
 File: tools/forge_houses.cpp
 
@@ -541,6 +541,7 @@ UPD:
   ровно как ленту, и потолок ряда — не потолок стенки.
   Прежние 163 .dfh байт-в-байт (shasum до и после — 0 расхождений); в
   INDEX.txt прибавилась колонка wpoly, довод — в tools/house_manifest.h.
+- 27:08:2026 - 11:20:22: координатор: известная находка судьи лестниц у frame-replica названа в руке (демо-стенд, стропило режет марш; не чинится сознательно — боевые рецепты чисты).
 */
 
 #include "engine/world/sources/HouseFile.h"
@@ -1095,6 +1096,14 @@ void forge_frame(const char* file) {
     }
     // Марш: низ у (7.6, 0), верх у (4.2, 3.25) — движение на запад вдоль
     // северной стены, ширина 1.2.
+    //
+    // ИЗВЕСТНАЯ НАХОДКА СУДЬИ ЛЕСТНИЦ (27.08, не чинится сознательно): просвет
+    // 0.584 м над 18-й ступенью — стропильная балка кровли (x=4.5) режет марш
+    // по всей его длине, диагональ идёт вдоль z и уходит от любого сдвига
+    // створа. Это ДЕМО-СТЕНД каркаса (полка demo, ни в одном городе не стоит,
+    // карта houses/demo снята из меню 25.08); переставлять антресоль ради
+    // стенда значит переделывать демонстрацию, которую он показывает. У
+    // БОЕВЫХ рецептов находок судьи ноль — приёмка меряется по ним.
     {
         const VertexId a = f.v(7.6f, 0.0f, 0.3f);
         const VertexId b = f.v(7.6f, 0.0f, 1.5f);
@@ -3248,25 +3257,39 @@ static void forge_keep(const char* file) {
                         {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
                          {"beams", "1"}});
     }
+    // МАРШ РАЗВЁРНУТ И СТАЛ 45-ГРАДУСНЫМ, А КРОМКА ВЕРХНЕГО ПОЛА ЕДЕТ ЗА НИМ
+    // (правка 27.08, и первым это нашёл судья, а не чтение кода).
+    //
+    // ЧТО СТОЯЛО: марш шёл С ЮГА (z 13.4) НА СЕВЕР и кончался на z 0.7, а
+    // кромка верхнего пола лежала на z 5.5, то есть ПОЗАДИ поднявшегося и в
+    // четырёх с лишним метрах от него. Марш выводил В ПУСТОТУ: наверху не на
+    // что было ступить. Приёмка этого не видела, потому что мерила просвет над
+    // ступенями (2.218, честные) и не спрашивала, ЕСТЬ ЛИ площадка.
+    // ЧТО СТОИТ: подножие у северной стены, ход на юг, и верх приходит ровно
+    // на кромку пола — она считается ОТ НЕГО (§13: марш и проём кладёт одна
+    // рука). Ход 6.31 вместо 12.70: колодец перестал занимать зал по диагонали.
+    const float KS_LO = 0.12f;          // верх плиты стилобата (плоскость 0.02)
+    const float KS_HI = Y2 + 0.075f;    // верх настила верхнего зала
+    const float KS_FOOT = 0.9f;         // от внутренней грани северной стены
+    const float KS_TOP = KS_FOOT + (KS_HI - KS_LO);
     {
-        const VertexId a = f.v(0.0f, Y2, 5.5f);
+        const VertexId a = f.v(0.0f, Y2, KS_TOP);
         const VertexId b = f.v(0.0f, Y2, D);
         const VertexId c = f.v(4.7f, Y2, D);
-        const VertexId d = f.v(4.7f, Y2, 5.5f);
+        const VertexId d = f.v(4.7f, Y2, KS_TOP);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
                          {"beams", "1"}});
     }
-    // Марш в верхний зал: 6.35 на 12.7 — тот же уклон 26.6 гр., что у
-    // проверенной уличной лестницы-6 (по ней бот ходит).
     {
-        const VertexId a = f.v(1.0f, 0.0f, 13.4f);
-        const VertexId b = f.v(4.2f, 0.0f, 13.4f);
-        const VertexId c = f.v(4.2f, Y2, 0.7f);
-        const VertexId d = f.v(1.0f, Y2, 0.7f);
+        const VertexId a = f.v(1.0f, KS_LO, KS_FOOT);
+        const VertexId b = f.v(4.2f, KS_LO, KS_FOOT);
+        const VertexId c = f.v(4.2f, KS_HI, KS_TOP);
+        const VertexId d = f.v(1.0f, KS_HI, KS_TOP);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.12"}, {"fill", "6"}, {"open", "1"},
-                         {"mat", "1"}, {"tone", "1"}, {"wear", "0.35"}});
+                         {"rise", "0.28"}, {"nosing", "1"}, {"mat", "1"},
+                         {"tone", "1"}, {"wear", "0.35"}});
     }
 
     // ---------------- нижние скаты к фонарю -------------------------------
@@ -3587,24 +3610,32 @@ static void forge_keep_small(const char* file) {
                         {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
                          {"beams", "1"}});
     }
+    // ТА ЖЕ ПРАВКА, ЧТО У БОЛЬШОГО ЗАМКА (27.08): марш разворачивается
+    // подножием к северной стене, идёт на юг под 45 гр. и приходит РОВНО на
+    // кромку верхнего пола, которая считается от него. Прежде он кончался на
+    // z 1.2, а пол начинался на 7.2 — поднявшийся выходил в пустоту.
+    const float KS_LO = YS + 0.06f;     // верх паркета (плоскость YS)
+    const float KS_HI = Y2 + 0.075f;    // верх настила верхнего зала
+    const float KS_FOOT = 1.2f;
+    const float KS_TOP = KS_FOOT + (KS_HI - KS_LO);
     {
-        const VertexId a = f.v(0.0f, Y2, 7.2f);
+        const VertexId a = f.v(0.0f, Y2, KS_TOP);
         const VertexId b = f.v(0.0f, Y2, D);
         const VertexId c = f.v(4.0f, Y2, D);
-        const VertexId d = f.v(4.0f, Y2, 7.2f);
+        const VertexId d = f.v(4.0f, Y2, KS_TOP);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.15"}, {"mat", "1"}, {"tone", "1"},
                          {"beams", "1"}});
     }
-    // Марш в верхний зал: 3.0 на 6.0 — тот же уклон 26.6 гр.
     {
-        const VertexId a = f.v(1.0f, YS, 7.2f);
-        const VertexId b = f.v(3.4f, YS, 7.2f);
-        const VertexId c = f.v(3.4f, Y2, 1.2f);
-        const VertexId d = f.v(1.0f, Y2, 1.2f);
+        const VertexId a = f.v(1.0f, KS_LO, KS_FOOT);
+        const VertexId b = f.v(3.4f, KS_LO, KS_FOOT);
+        const VertexId c = f.v(3.4f, KS_HI, KS_TOP);
+        const VertexId d = f.v(1.0f, KS_HI, KS_TOP);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.12"}, {"fill", "6"}, {"open", "1"},
-                         {"mat", "1"}, {"tone", "1"}, {"wear", "0.35"}});
+                         {"rise", "0.28"}, {"nosing", "1"}, {"mat", "1"},
+                         {"tone", "1"}, {"wear", "0.35"}});
     }
 
     // ---------------- нижние полы к фонарю --------------------------------
@@ -3754,6 +3785,14 @@ static void forge_house_large(Aging age) {
         {"clad", "1"}, {"windows", "3"}, {"shutters", age.shutters()},
         {"wear", age.w(0.3f)}});
     // ---------- междуэтажный настил с проёмом над маршем ----------
+    // КРОМКА ПРОЁМА СЧИТАЕТСЯ ОТ ВЕРХА МАРША (правка 27.08): марш стал
+    // 45-градусным, ход укоротился с 4.40 до 2.96, и верх ушёл с z 3.20 на
+    // 4.76. Кромка, оставленная числом 3.0, оставила бы поднявшегося В
+    // ВОЗДУХЕ в 1.76 м от настила — судья это и назвал.
+    const float ST_LO = Y1 + 0.12f;     // верх паркета (плоскость Y1+0.06)
+    const float ST_HI = Y2 + 0.06f;     // верх настила (плоскость Y2)
+    const float ST_FOOT = 7.6f;
+    const float ST_TOP = ST_FOOT - (ST_HI - ST_LO);
     {
         const VertexId a = f.v(0.0f, Y2, 0.0f);
         const VertexId b = f.v(0.0f, Y2, D);
@@ -3765,8 +3804,8 @@ static void forge_house_large(Aging age) {
     }
     {
         const VertexId a = f.v(8.0f, Y2, 0.0f);
-        const VertexId b = f.v(8.0f, Y2, 3.0f);
-        const VertexId c = f.v(W, Y2, 3.0f);
+        const VertexId b = f.v(8.0f, Y2, ST_TOP);
+        const VertexId c = f.v(W, Y2, ST_TOP);
         const VertexId d = f.v(W, Y2, 0.0f);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.12"}, {"mat", "1"}, {"tone", "1"},
@@ -3778,18 +3817,27 @@ static void forge_house_large(Aging age) {
     // балки читаются обломанными. Сечение и высота — ровно балочные
     // (Y2 − 0.185 ± 0.125), поэтому ригель ловит их торцы телом, а верхом
     // упирается в изнанку настила.
-    (void)f.beam(f.v(8.0f, Y2 - 0.185f, 3.0f), f.v(8.0f, Y2 - 0.185f, D),
+    (void)f.beam(f.v(8.0f, Y2 - 0.185f, ST_TOP), f.v(8.0f, Y2 - 0.185f, D),
                  {{"radius", "0.125"}, {"form", "square"}, {"mat", "0"},
                   {"tone", "2"}, {"wear", age.w(0.3f)}});
-    // Марш вдоль восточной стены на север: 4.4 м хода на 2.9 подъёма (33°).
+    // МАРШ ВДОЛЬ ВОСТОЧНОЙ СТЕНЫ НА СЕВЕР, 45 ГР. (правка 27.08, крит владельца
+    // «слишком длинные они, должны быть круче»). Прежде: ход 4.4 на подъём 2.9,
+    // то есть 33 гр.; теперь ход РАВЕН подъёму, и марш короче на 1.44 м.
+    //
+    // ОБА КОНЦА САДЯТСЯ НА ТО, ПО ЧЕМУ ХОДЯТ, А НЕ НА ПЛОСКОСТИ ПЛИТ. Плита
+    // растёт в обе стороны от своей плоскости: пол лежит плоскостью на Y1+0.06
+    // и верхом на Y1+0.12, настил — плоскостью на Y2 и верхом на Y2+0.06.
+    // Прежние якоря стояли на Y1 и Y2, и судья мерил ступеньку +0.151 на входе
+    // и −0.091 на выходе — по 12 и 6 см в никуда.
     {
-        const VertexId a = f.v(8.3f, Y1, 7.6f);
-        const VertexId b = f.v(9.7f, Y1, 7.6f);
-        const VertexId c = f.v(9.7f, Y2, 3.2f);
-        const VertexId d = f.v(8.3f, Y2, 3.2f);
+        const VertexId a = f.v(8.3f, ST_LO, ST_FOOT);
+        const VertexId b = f.v(9.7f, ST_LO, ST_FOOT);
+        const VertexId c = f.v(9.7f, ST_HI, ST_TOP);
+        const VertexId d = f.v(8.3f, ST_HI, ST_TOP);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.1"}, {"fill", "6"}, {"open", "1"},
-                         {"mat", "1"}, {"tone", "1"}, {"wear", age.w(0.3f)}});
+                         {"rise", "0.28"}, {"nosing", "1"}, {"mat", "1"},
+                         {"tone", "1"}, {"wear", age.w(0.3f)}});
     }
     // ---------- КРЫЛЬЦО: площадка на уровне порога + марш на землю ----------
     {
@@ -3934,19 +3982,29 @@ static void forge_manor(Aging age) {
                               : Params{{"thickness", "0.12"}, {"mat", "1"},
                                        {"tone", "1"}});
     };
+    // МАРШ КРЫЛА — 45 ГР., И ПЛОЩАДКА ЕДЕТ ЗА НИМ (правка 27.08). Прежде ход
+    // 4.6 на подъём 3.0 (33 гр.), верх на z 9.4; теперь ход равен подъёму, и
+    // верх приходит на 11.06. КРОМКА ПЛОЩАДКИ СЧИТАЕТСЯ ОТ ВЕРХА МАРША, а не
+    // стоит числом: разъехавшись, они дают либо дыру под ступившим, либо
+    // потолок, в который упирается поднимающийся (HOUSES.md §13 — марш и проём
+    // кладёт одна рука).
+    const float ST_LO = 0.12f;          // верх половой плиты (плоскость 0.06)
+    const float ST_HI = H1 + 0.06f;     // верх настила (плоскость H1)
+    const float ST_RUN = ST_HI - ST_LO; // 45 гр.: ход равен подъёму
+    const float ST_TOP = 14.0f - ST_RUN;
     deck(0.0f, 0.0f, AX, AZ, true);       // весь главный корпус
     deck(2.0f, AZ, BX, BZ, true);         // крыло, восточная полоса
-    deck(0.0f, AZ, 2.0f, 9.2f, false);    // площадка над верхом марша
+    deck(0.0f, AZ, 2.0f, ST_TOP, false);  // площадка над верхом марша
     deck(0.0f, 14.2f, 2.0f, BZ, false);   // южный кусок за маршем
     {
-        // Марш вдоль западной стены крыла: 4.6 м хода на 3.0 подъёма (33°).
-        const VertexId a = f.v(0.35f, 0.0f, 14.0f);
-        const VertexId b = f.v(1.75f, 0.0f, 14.0f);
-        const VertexId c = f.v(1.75f, H1, 9.4f);
-        const VertexId d = f.v(0.35f, H1, 9.4f);
+        const VertexId a = f.v(0.35f, ST_LO, 14.0f);
+        const VertexId b = f.v(1.75f, ST_LO, 14.0f);
+        const VertexId c = f.v(1.75f, ST_HI, ST_TOP);
+        const VertexId d = f.v(0.35f, ST_HI, ST_TOP);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.1"}, {"fill", "6"}, {"open", "1"},
-                         {"mat", "1"}, {"tone", "1"}, {"wear", age.w(0.3f)}});
+                         {"rise", "0.28"}, {"nosing", "1"}, {"mat", "1"},
+                         {"tone", "1"}, {"wear", age.w(0.3f)}});
     }
     // ---------- НАВЕС НАД УГЛОВЫМ ВХОДОМ ----------
     for (const float px : {8.0f, 10.6f}) {
@@ -4066,11 +4124,23 @@ static void forge_barn(Aging age) {
                         {{"thickness", "0.12"}, {"fill", "5"}, {"mat", "1"},
                          {"tone", "2"}, {"beams", "1"}, {"wear", age.w(0.5f)}});
     }
+    // ПЛОЩАДКА ВОСТОЧНОГО КРАЯ СЕНОВАЛА — ЕЁ ЮЖНАЯ КРОМКА СЧИТАЕТСЯ ОТ ВЕРХА
+    // МАРША (правка 27.08). Марш стал 45-градусным, ход укоротился с 3.7 до
+    // 2.56, и верх ушёл с z 4.2 на 5.34; кромка, оставленная числом, дала бы
+    // ступившему дыру под ногой. Заодно ВЫИГРАН ПРОСВЕТ: конёк стоит на z 6.0,
+    // северный скат падает к земле, и каждый метр к югу поднимает кровлю над
+    // головой на 0.68 м — судья мерил над прежним верхом 1.386 при норме 1.9,
+    // над новым 2.4.
+    const float LOFT = 2.6f;              // плоскость настила сеновала
+    const float LOFT_TOP = LOFT + 0.06f;  // по чему по нему ходят
+    const float LOFT_LO = 0.10f;          // верх земляного пола (плоскость 0.05)
+    const float LOFT_RUN = LOFT_TOP - LOFT_LO;
+    const float LOFT_Z = 7.9f - LOFT_RUN;
     {
-        const VertexId a = f.v(9.2f, 2.6f, 3.4f);
-        const VertexId b = f.v(9.2f, 2.6f, 4.2f);
-        const VertexId c = f.v(11.4f, 2.6f, 4.2f);
-        const VertexId d = f.v(11.4f, 2.6f, 3.4f);
+        const VertexId a = f.v(9.2f, LOFT, 3.4f);
+        const VertexId b = f.v(9.2f, LOFT, LOFT_Z);
+        const VertexId c = f.v(11.4f, LOFT, LOFT_Z);
+        const VertexId d = f.v(11.4f, LOFT, 3.4f);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.12"}, {"fill", "5"}, {"mat", "1"},
                          {"tone", "2"}, {"wear", age.w(0.5f)}});
@@ -4083,16 +4153,16 @@ static void forge_barn(Aging age) {
                  {{"radius", "0.11"}, {"form", "square"}, {"mat", "0"},
                   {"tone", "2"}});
     {
-        // Марш на сеновал: 3.7 м хода на 2.6 подъёма (35°) — круче жилого,
-        // но это лестница амбара, и невидимый пандус открытых ступеней
-        // держит её проходимой.
-        const VertexId a = f.v(9.6f, 0.0f, 7.9f);
-        const VertexId b = f.v(11.0f, 0.0f, 7.9f);
-        const VertexId c = f.v(11.0f, 2.6f, 4.2f);
-        const VertexId d = f.v(9.6f, 2.6f, 4.2f);
+        // Марш на сеновал: 45 гр., ход равен подъёму. Оба конца — на том, по
+        // чему ходят: низ на верху земляного пола, верх на верху настила.
+        const VertexId a = f.v(9.6f, LOFT_LO, 7.9f);
+        const VertexId b = f.v(11.0f, LOFT_LO, 7.9f);
+        const VertexId c = f.v(11.0f, LOFT_TOP, LOFT_Z);
+        const VertexId d = f.v(9.6f, LOFT_TOP, LOFT_Z);
         (void)f.contour({a, b, c, d},
                         {{"thickness", "0.1"}, {"fill", "6"}, {"open", "1"},
-                         {"mat", "1"}, {"tone", "1"}, {"wear", age.w(0.4f)}});
+                         {"rise", "0.28"}, {"nosing", "1"}, {"mat", "1"},
+                         {"tone", "1"}, {"wear", age.w(0.4f)}});
     }
     // ---------- СТОЙЛА под низким скатом ----------
     for (const float px : {2.4f, 4.8f, 7.2f}) {
