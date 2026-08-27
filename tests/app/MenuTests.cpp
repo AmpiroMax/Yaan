@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:44:00
-Last updated: 27:08:2026 - 20:33:38
+Last updated: 27:08:2026 - 21:36:43
 Module: tests/app
 File: tests/app/MenuTests.cpp
 
@@ -105,6 +105,21 @@ UPD:
   вторую половину дефекта, которой на кадре не было видно: на 320×180
   последняя строка стояла на четыре пикселя ниже кадра, то есть
   ненажимаемой.
+- 27:08:2026 - 21:36:43: НАСТРОЙКИ РАЗЛОЖЕНЫ ПО ГРУППАМ, и рукав переписан
+  вслед. Три вещи, каждая своя:
+  * select() стал select_on(страница, строка): «выбрать сглаживание» — это
+    теперь два вопроса, а не один, и рукав, ходивший к строке одним числом,
+    молча жал бы соседнюю на другой странице.
+  * Случай про выход из настроек стал утверждением О КОЛИЧЕСТВЕ ДВЕРЕЙ: наружу
+    ведёт ровно одна, и SettingsDone эмитит только она. Оба берега проверены —
+    подстраницы возвращают в оглавление и НЕ сохраняют (иначе один поход в
+    настройки писал бы файл трижды), оглавление сохраняет обоими выходами.
+  * ПРИБОР РАСКЛАДКИ ПЕРЕПИСАН ВТОРОЙ РАЗ, и первая редакция была неправа. Она
+    требовала, чтобы список доходил до середины кадра, — и покраснела на
+    странице звука, у которой четыре строки и нет причин доходить куда-либо.
+    Прибор мерил ДЛИНУ СПИСКА, когда предмет — КЕГЛЬ (правило 41). Теперь
+    утверждается, что буквы падают не больше чем на одну ступень лестницы, а
+    ступень берётся тем же вызовом, каким её берёт раскладка.
 */
 
 #include <doctest/doctest.h>
@@ -161,18 +176,25 @@ constexpr size_t ROOT_ROW_COUNT = static_cast<size_t>(dfn::app::RootRow::Count);
 // сообщил об этом как «страница калибровки не открывается» — правдивый красный,
 // называющий не тот предмет. Ровно тот же отказ, что уже был у строк корня
 // 14.08 и записан выше. Починено тем же механизмом: имя одно на код и на прибор.
-constexpr int ROW_RESOLUTION = static_cast<int>(dfn::app::SettingsRow::Resolution);
-constexpr int ROW_MSAA = static_cast<int>(dfn::app::SettingsRow::Msaa);
-constexpr int ROW_PALETTE = static_cast<int>(dfn::app::SettingsRow::Palette);
-constexpr int ROW_HEAD_BOB = static_cast<int>(dfn::app::SettingsRow::HeadBob);
-constexpr int ROW_BRIGHTNESS = static_cast<int>(dfn::app::SettingsRow::Brightness);
-constexpr int ROW_CONTROLS = static_cast<int>(dfn::app::SettingsRow::Controls);
-constexpr int ROW_BACK = static_cast<int>(dfn::app::SettingsRow::Back);
-constexpr int ROW_WINDOW = static_cast<int>(dfn::app::SettingsRow::Window);
-constexpr int ROW_FULLSCREEN = static_cast<int>(dfn::app::SettingsRow::Fullscreen);
-constexpr int ROW_MUSIC = static_cast<int>(dfn::app::SettingsRow::MusicVolume);
-constexpr int ROW_SFX = static_cast<int>(dfn::app::SettingsRow::SfxVolume);
-constexpr int ROW_VOICE = static_cast<int>(dfn::app::SettingsRow::VoiceVolume);
+// ОГЛАВЛЕНИЕ ГРУПП (заказ владельца 28.08: видео / аудио / управление).
+constexpr int GROUP_VIDEO = static_cast<int>(dfn::app::SettingsRow::Video);
+constexpr int GROUP_AUDIO = static_cast<int>(dfn::app::SettingsRow::Audio);
+constexpr int GROUP_CONTROLS = static_cast<int>(dfn::app::SettingsRow::Controls);
+constexpr int GROUP_BACK = static_cast<int>(dfn::app::SettingsRow::Back);
+// ГРУППА «ВИДЕО».
+constexpr int ROW_RESOLUTION = static_cast<int>(dfn::app::VideoRow::Resolution);
+constexpr int ROW_MSAA = static_cast<int>(dfn::app::VideoRow::Msaa);
+constexpr int ROW_PALETTE = static_cast<int>(dfn::app::VideoRow::Palette);
+constexpr int ROW_HEAD_BOB = static_cast<int>(dfn::app::VideoRow::HeadBob);
+constexpr int ROW_BRIGHTNESS = static_cast<int>(dfn::app::VideoRow::Brightness);
+constexpr int ROW_VIDEO_BACK = static_cast<int>(dfn::app::VideoRow::Back);
+constexpr int ROW_WINDOW = static_cast<int>(dfn::app::VideoRow::Window);
+constexpr int ROW_FULLSCREEN = static_cast<int>(dfn::app::VideoRow::Fullscreen);
+// ГРУППА «ЗВУК».
+constexpr int ROW_MUSIC = static_cast<int>(dfn::app::AudioRow::MusicVolume);
+constexpr int ROW_SFX = static_cast<int>(dfn::app::AudioRow::SfxVolume);
+constexpr int ROW_VOICE = static_cast<int>(dfn::app::AudioRow::VoiceVolume);
+constexpr int ROW_AUDIO_BACK = static_cast<int>(dfn::app::AudioRow::Back);
 // ЛЕСТНИЦА ГРОМКОСТИ: одиннадцать ступеней по десятой. Проверяется КРАТНОСТЬ,
 // а не диапазон — «0..1» пропустило бы непрерывный ползунок, то есть ровно то
 // решение, от которого страница отказалась (правило 38: утверждается исход).
@@ -185,11 +207,20 @@ bool legal_volume(float v) {
     return std::abs(tenths - static_cast<float>(static_cast<int>(tenths + 0.5f))) < 1e-3f;
 }
 
-void select(MenuModel& m, int row) {
-    m.open(MenuPage::Settings); // selection resets to 0
+// СТРАНИЦА ПЛЮС СТРОКА, потому что строк на одной странице больше нет: заказ
+// 28.08 разложил настройки по группам, и «выбрать сглаживание» — это теперь два
+// вопроса, а не один. Имя страницы приходит снаружи по той же причине, по
+// которой номера строк живут в заголовке: рукав, ходивший к строке счётом
+// нажатий, уже дважды молча жал соседнюю.
+void select_on(MenuModel& m, MenuPage page, int row) {
+    m.open(page); // selection resets to 0
     for (int i = 0; i < row; ++i) {
         m.move(1);
     }
+}
+void select(MenuModel& m, int row) { select_on(m, MenuPage::SettingsVideo, row); }
+void select_audio(MenuModel& m, int row) {
+    select_on(m, MenuPage::SettingsAudio, row);
 }
 
 void select_root(MenuModel& m, int row) {
@@ -356,7 +387,7 @@ TEST_CASE("две громкости — две ручки, и ни одна н�
     // прошла бы любую проверку диапазона и провалила бы эту.
     MenuModel m = launched();
 
-    select(m, ROW_MUSIC);
+    select_audio(m, ROW_MUSIC);
     const float sfx_before = m.settings().sfx_volume;
     for (int i = 0; i < VOLUME_RUNGS + 3; ++i) { // больше нажатий, чем ступеней: круг — это тоже утверждение
         m.adjust(+1);
@@ -374,7 +405,7 @@ TEST_CASE("две громкости — две ручки, и ни одна н�
     }
     CHECK(m.settings().music_volume == doctest::Approx(music_at_start));
 
-    select(m, ROW_SFX);
+    select_audio(m, ROW_SFX);
     const float music_before = m.settings().music_volume;
     for (int i = 0; i < VOLUME_RUNGS + 3; ++i) {
         m.adjust(-1); // и назад тоже: лестница с одним рабочим направлением — половина лестницы
@@ -386,7 +417,7 @@ TEST_CASE("две громкости — две ручки, и ни одна н�
     // вести себя как настройка: крутиться по той же лестнице и не задевать
     // соседей. Ползунок, который «пока не считается», — это ползунок, который
     // придётся чинить вместе с первой репликой.
-    select(m, ROW_VOICE);
+    select_audio(m, ROW_VOICE);
     const float music_kept = m.settings().music_volume;
     const float sfx_kept = m.settings().sfx_volume;
     for (int i = 0; i < VOLUME_RUNGS + 3; ++i) {
@@ -398,7 +429,7 @@ TEST_CASE("две громкости — две ручки, и ни одна н�
 
     // НОЛЬ ДОСТИЖИМ, И ЭТО НЕ ПРИДИРКА. «Играть без музыки» — способ играть, и
     // ползунок, у которого нет нуля, отвечает на это «поставь потише».
-    select(m, ROW_MUSIC);
+    select_audio(m, ROW_MUSIC);
     bool saw_zero = false;
     for (int i = 0; i < VOLUME_RUNGS; ++i) {
         m.adjust(-1);
@@ -432,13 +463,18 @@ TEST_CASE("страница знает, стоит ли она над живым
     REQUIRE(m.activate() == MenuAction::None);
     REQUIRE(m.page() == MenuPage::Settings);
     CHECK_FALSE(m.over_world());
-    m.set_selection(static_cast<size_t>(dfn::app::SettingsRow::Controls));
+    m.set_selection(static_cast<size_t>(GROUP_CONTROLS));
     REQUIRE(m.activate() == MenuAction::None);
     REQUIRE(m.page() == MenuPage::Controls);
     CHECK_FALSE(m.over_world());
-    m.set_selection(0);
+    // И ЧЕРЕЗ ГРУППУ ВИДЕО — на два уровня вглубь: оглавление -> видео ->
+    // калибровка. Цепочка возвратов длиннее на звено, и звено это новое.
     m.open(MenuPage::Settings);
-    m.set_selection(static_cast<size_t>(dfn::app::SettingsRow::Brightness));
+    m.set_selection(static_cast<size_t>(GROUP_VIDEO));
+    REQUIRE(m.activate() == MenuAction::None);
+    REQUIRE(m.page() == MenuPage::SettingsVideo);
+    CHECK_FALSE(m.over_world());
+    m.set_selection(static_cast<size_t>(ROW_BRIGHTNESS));
     REQUIRE(m.activate() == MenuAction::None);
     REQUIRE(m.page() == MenuPage::Calibrate);
     CHECK_FALSE(m.over_world());
@@ -453,15 +489,22 @@ TEST_CASE("страница знает, стоит ли она над живым
     REQUIRE(p.activate() == MenuAction::None);
     REQUIRE(p.page() == MenuPage::Settings);
     CHECK(p.over_world());
-    p.set_selection(static_cast<size_t>(dfn::app::SettingsRow::Controls));
+    p.set_selection(static_cast<size_t>(GROUP_CONTROLS));
     REQUIRE(p.activate() == MenuAction::None);
     REQUIRE(p.page() == MenuPage::Controls);
     CHECK(p.over_world());
     p.open(MenuPage::Settings);
-    p.set_selection(static_cast<size_t>(dfn::app::SettingsRow::Brightness));
+    p.set_selection(static_cast<size_t>(GROUP_AUDIO));
+    REQUIRE(p.activate() == MenuAction::None);
+    REQUIRE(p.page() == MenuPage::SettingsAudio);
+    CHECK(p.over_world()); // громкость, открытая из паузы, — всё ещё пауза
+    p.open(MenuPage::Settings);
+    p.set_selection(static_cast<size_t>(GROUP_VIDEO));
+    REQUIRE(p.activate() == MenuAction::None);
+    p.set_selection(static_cast<size_t>(ROW_BRIGHTNESS));
     REQUIRE(p.activate() == MenuAction::None);
     REQUIRE(p.page() == MenuPage::Calibrate);
-    CHECK(p.over_world()); // калибровка из настроек из паузы — всё ещё пауза
+    CHECK(p.over_world()); // калибровка из видео из паузы — всё ещё пауза
 
     // И ВЫХОД В КОРЕНЬ ЗАКРЫВАЕТ ОТВЕТ: иначе музыка не запелась бы после
     // «Выйти в меню», и жалоба звучала бы как «после игры меню молчит».
@@ -522,15 +565,34 @@ TEST_CASE("the restart warning fires for the renderer's rows and not for the liv
     CHECK_FALSE(m.needs_restart());
 }
 
-TEST_CASE("every exit from the settings page saves") {
-    MenuModel m = launched();
-    select(m, ROW_BACK);
+TEST_CASE("наружу из настроек ведёт РОВНО ОДНА дверь, и она сохраняет") {
+    // ПОСЛЕ РАЗБИВКИ ПО ГРУППАМ ЭТО СТАЛО УТВЕРЖДЕНИЕМ О КОЛИЧЕСТВЕ, а не
+    // только о сохранении. Страниц настроек три, и если бы SettingsDone эмитила
+    // каждая, один поход в настройки писал бы файл трижды; если бы не эмитила
+    // ни одна из подстраниц — так и должно быть, — но и оглавление забыло бы,
+    // получилось бы «настройки не сохраняются». Проверяются оба берега.
+    MenuModel m;
+    m.set_settings(MenuSettings{});
+    select_on(m, MenuPage::Settings, GROUP_BACK);
     CHECK(m.activate() == MenuAction::SettingsDone);
     CHECK(m.page() == MenuPage::Root);
 
-    m = launched();
+    m.open(MenuPage::Settings);
     CHECK(m.back() == MenuAction::SettingsDone); // Escape, from any row
     CHECK(m.page() == MenuPage::Root);
+
+    // КОНТРОЛЬ: подстраницы НЕ сохраняют и НЕ выходят наружу — они возвращают
+    // в оглавление. Обе двери каждой, и Enter по «назад», и Escape.
+    for (const MenuPage page : {MenuPage::SettingsVideo, MenuPage::SettingsAudio}) {
+        const int back_row = page == MenuPage::SettingsVideo ? ROW_VIDEO_BACK
+                                                             : ROW_AUDIO_BACK;
+        select_on(m, page, back_row);
+        CHECK(m.activate() == MenuAction::None);
+        CHECK(m.page() == MenuPage::Settings);
+        m.open(page);
+        CHECK(m.back() == MenuAction::None);
+        CHECK(m.page() == MenuPage::Settings);
+    }
 }
 
 TEST_CASE("Enter on a value row is the same verb as right, and Back is not a value") {
@@ -539,11 +601,11 @@ TEST_CASE("Enter on a value row is the same verb as right, and Back is not a val
     const bool before = m.settings().palette;
     CHECK(m.activate() == MenuAction::None);
     CHECK(m.settings().palette != before);
-    CHECK(m.page() == MenuPage::Settings); // still here: Enter turned a dial
+    CHECK(m.page() == MenuPage::SettingsVideo); // still here: Enter turned a dial
 
     // THE CONTROL: adjust() on a row that is not a value must be a no-op, or
     // "Enter cycles" would have eaten the exit.
-    select(m, ROW_BACK);
+    select(m, ROW_VIDEO_BACK);
     const MenuSettings snapshot = m.settings();
     m.adjust(+1);
     CHECK(m.settings().internal_w == snapshot.internal_w);
@@ -558,7 +620,10 @@ TEST_CASE("the calibration page returns to whichever page opened it") {
     CHECK(m.activate() == MenuAction::None);
     CHECK(m.page() == MenuPage::Calibrate);
     CHECK(m.back() == MenuAction::CalibrationDone);
-    CHECK(m.page() == MenuPage::Settings);
+    // ВОЗВРАЩАЕТСЯ В ГРУППУ, ИЗ КОТОРОЙ ЕЁ ОТКРЫЛИ, а не в оглавление: «Порог
+    // яркости» — строка видео, и игрок, покрутивший дальше сглаживание,
+    // обнаружил бы себя на шаг выше того места, где стоял.
+    CHECK(m.page() == MenuPage::SettingsVideo);
 
     // THE CONTROL: opened from anywhere else, it goes back to the root.
     MenuModel r;
@@ -646,6 +711,10 @@ TEST_CASE("настройка, повёрнутая в паузе, ВИДНА и
     const MenuSettings from_pause = m.settings();
     CHECK(from_pause.window_w != launched.window_w);
     CHECK(from_pause.fullscreen != launched.fullscreen);
+    // ДВА ESC, А НЕ ОДИН: группа возвращает в оглавление, оглавление —
+    // наружу. Наружу ведёт ровно одна дверь, и SettingsDone эмитит только она.
+    CHECK(m.back() == MenuAction::None);
+    CHECK(m.page() == MenuPage::Settings);
     CHECK(m.back() == MenuAction::SettingsDone);
     CHECK(m.page() == MenuPage::Pause);
 
@@ -663,7 +732,8 @@ TEST_CASE("настройка, повёрнутая в паузе, ВИДНА и
     select(m, ROW_MSAA);
     m.adjust(+1);
     const uint32_t from_root = m.settings().msaa;
-    CHECK(m.back() == MenuAction::SettingsDone);
+    CHECK(m.back() == MenuAction::None);          // видео -> оглавление
+    CHECK(m.back() == MenuAction::SettingsDone);  // оглавление -> наружу
     m.open(MenuPage::Pause);
     m.set_selection(static_cast<size_t>(dfn::app::PauseRow::Settings));
     REQUIRE(m.activate() == MenuAction::None);
@@ -757,43 +827,53 @@ TEST_CASE("the rows are laid out inside the frame, one box each, without overlap
     }
 }
 
-TEST_CASE("страница настроек занимает страницу, а не жмётся в верхнюю четверть") {
+TEST_CASE("страницы значений не съёживаются: кегль падает не больше чем на ступень") {
     // ЭТОТ СЛУЧАЙ ЗАВЕДЁН ПО КАДРУ, КОТОРЫЙ ПОКАЗАЛ ОТКАЗ, и он про то, чего
     // соседний раскладочный случай не мог увидеть ПО ПОСТРОЕНИЮ — тот
     // утверждает «коробки внутри кадра и не пересекаются», а съёжившийся до
     // нечитаемых букв список удовлетворяет обоим условиям с запасом. Он ещё и
-    // не смотрел на страницу настроек вовсе: только Root и Pause.
+    // не смотрел на страницы настроек вовсе: только Root и Pause.
     //
     // ЧТО СЛОМАЛОСЬ. settings_layout ужимал КЕГЛЬ, пока строки не поместятся, и
     // ужимал для этого переменную `h` — из которой брались И ступень лестницы,
     // И нижняя граница кадра. Каждый проход опускал буквы на ступень и поднимал
     // «низ» на пятую часть: условие гналось за собственным ответом. Пока строк
     // было девять, цикл не крутился ни разу и дефект был невидим; двенадцатая
-    // (третий ползунок звука) его запустила.
+    // (третий ползунок звука) его запустила, и список схлопнулся в верхнюю
+    // четверть кадра при нормальном заголовке.
     //
-    // УТВЕРЖДАЕТСЯ ИСХОД, А НЕ МЕХАНИЗМ (правило 38): список обязан ДОХОДИТЬ до
-    // середины кадра. Сорвавшийся цикл кончал его на 38 % высоты, здоровая
-    // раскладка — на 75 %.
+    // УТВЕРЖДАЕТСЯ РАЗМЕР БУКВ, А НЕ ДЛИНА СПИСКА, и это ВТОРАЯ редакция
+    // прибора: первая требовала, чтобы список доходил до середины кадра, — и
+    // покраснела на странице звука, у которой четыре строки и нет причин
+    // доходить куда бы то ни было (правило 41: прибор мерил длину, когда
+    // предмет — КЕГЛЬ). Страница вправе спуститься на ступень лестницы, чтобы
+    // поместиться; сорвавшийся цикл спускался на несколько.
     MenuModel m;
     m.set_settings(MenuSettings{});
-    m.open(MenuPage::Settings);
-    for (const auto& [w, h] : {std::pair{1920, 1080}, std::pair{1280, 720},
-                               std::pair{640, 360}, std::pair{320, 180}}) {
-        CAPTURE(w);
-        CAPTURE(h);
-        const auto boxes = dfn::app::menu_row_boxes(w, h, m);
-        REQUIRE(boxes.size() == m.item_count());
-        for (size_t i = 0; i < boxes.size(); ++i) {
-            CAPTURE(i);
-            CHECK(boxes[i].h > 0);
-            CHECK(boxes[i].y >= 0);
-            CHECK(boxes[i].y + boxes[i].h <= h); // ни одна строка не за кадром
-            if (i > 0) {
-                CHECK(boxes[i].y >= boxes[i - 1].y + boxes[i - 1].h);
+    for (const MenuPage page : {MenuPage::SettingsVideo, MenuPage::SettingsAudio}) {
+        m.open(page);
+        for (const auto& [w, h] : {std::pair{1920, 1080}, std::pair{1280, 720},
+                                   std::pair{640, 360}, std::pair{320, 180}}) {
+            CAPTURE(static_cast<int>(page));
+            CAPTURE(w);
+            CAPTURE(h);
+            const auto boxes = dfn::app::menu_row_boxes(w, h, m);
+            REQUIRE(boxes.size() == m.item_count());
+            // ОДНА СТУПЕНЬ ВНИЗ РАЗРЕШЕНА, дальше — отказ. Ступень берётся тем
+            // же способом, каким её берёт раскладка, а не числом отсюда: копия
+            // лестницы в приборе разъехалась бы с лестницей в коде.
+            const int floor_h = dfn::app::ui_cap_height(
+                dfn::app::ui_px(h * 4 / 5, dfn::app::UiText::Item));
+            for (size_t i = 0; i < boxes.size(); ++i) {
+                CAPTURE(i);
+                CHECK(boxes[i].h >= floor_h);
+                CHECK(boxes[i].y >= 0);
+                CHECK(boxes[i].y + boxes[i].h <= h); // ни одна строка не за кадром
+                if (i > 0) {
+                    CHECK(boxes[i].y >= boxes[i - 1].y + boxes[i - 1].h);
+                }
             }
         }
-        const auto& last = boxes.back();
-        CHECK(last.y + last.h >= h / 2);
     }
 }
 
