@@ -1,0 +1,456 @@
+#!/usr/bin/env python3
+#
+# Created: 27:08:2026 - 22:17:42
+# Last updated: 27:08:2026 - 22:22:09
+# File: tools/check_commit_builds.py
+#
+# Responsibility:
+# - Answer ONE question about a commit: СОБЕРЁТСЯ ЛИ ОН У ТОГО, КТО ЕГО НЕ
+#   ПИСАЛ. Not "does the working tree build" — that question is answered by
+#   `cmake --build` and it is a different question on a SHARED tree, where the
+#   working copy holds several waves at once and every one of them is missing
+#   from HEAD until its author commits.
+#
+# КАК ЗАПУСКАТЬ:
+#   python3 tools/check_commit_builds.py                 # HEAD
+#   python3 tools/check_commit_builds.py --sha ee031b0   # любой коммит
+#   python3 tools/check_commit_builds.py --build-dir build_music
+#   python3 tools/check_commit_builds.py --range 9c8cafb..HEAD   # цепочка целиком
+#   python3 tools/check_commit_builds.py --self-test     # три руки, см. ниже
+# Exit code 0 — чисто; 1 — не собирается; 2 — проверить не удалось.
+#
+# ЧТО ОН ДЕЛАЕТ, В ОДНОЙ СТРОКЕ: разворачивает ДЕРЕВО КОММИТА в отдельный
+# git worktree и гоняет по нему `clang++ -fsyntax-only` на тех TU, до которых
+# коммит дотянулся. Команду компиляции берёт готовую, из
+# build*/compile_commands.json, и переставляет в ней ТОЛЬКО `-I<корень репо>` на
+# дерево коммита: третьи стороны и генерённые каталоги от коммита не зависят и
+# остаются общими — поэтому bgfx не пересобирается и минут здесь нет.
+#
+# ЦЕНА, ЗАМЕРЕНА: 0.33 с на лёгком TU (MenuArt.cpp) и 0.53–2.06 с на тяжёлом
+# (Menu.cpp — три прогона рукава подряд дали 2.06, 1.08 и 0.53), Homebrew
+# clang 22, RelWithDebInfo. Холодный и тёплый прогон неразличимы (1.02 против
+# 1.06) — упирается в разбор заголовков, не в диск; вчетверо разошлись прогоны
+# при РАЗНОЙ ЗАГРУЗКЕ общей машины, где рядом собираются чужие зоны.
+# Разворот worktree — ещё несколько секунд на 1843 файла. Итого рукав целиком,
+# с тремя развёртываниями, 12 с.
+#
+# И ЧИСЛО В ЭТОЙ СТРОКЕ УЖЕ ОДИН РАЗ ПРОТУХЛО, ПОКА ПРИБОР ПИСАЛСЯ. Первый
+# замер дал 0.53–0.56 с на том же Menu.cpp — но это был Menu.cpp ДО того, как
+# в него легли две волны сразу (поле искр и группы настроек), то есть на четыреста
+# строк короче. Замер не был неверным, он состарился за час; поймано тем, что
+# рукав печатает своё время рядом, и оно не сошлось с шапкой вчетверо. Мораль
+# ровно та же, что у правила 16 про метки: число, переписанное из памяти, а не
+# перемеренное, врёт тихо. Здесь оно врало в БЕЗОПАСНУЮ сторону, что хуже.
+#
+# ЧТО ИЗ ЭТОГО СЛЕДУЕТ И ЧТО НЕТ. Следует: застава может быть НЕ выборочной —
+# секунда на TU не жалко платить на каждом коммите, трогающем .h/.cpp. Не
+# следует: «ровно полсекунды». Величина растёт с весом TU и скачет от загрузки
+# общей машины (в одном прогоне рукава тот же файл дал 2.06 с, пока рядом
+# собиралась чужая зона). Порядок величины — СЕКУНДЫ, а не минуты, — вот что
+# здесь несущее.
+#
+# Dependencies:
+# - Uses: Python stdlib, git, готовый build*/compile_commands.json.
+# - Used by: человек и агент перед `git commit --only` в общем дереве; CI.
+#
+# AI Agents Notice:
+# - Follow docs/ARCHITECTURE.md strictly.
+#
+# ПОЧЕМУ ЭТОТ ПРИБОР ВООБЩЕ ЕСТЬ — ДВА СЛУЧАЯ ОДНОГО ВЕЧЕРА (27.08.2026).
+# Правило, которое он стережёт: КОММИТ ОБЯЗАН СОБИРАТЬСЯ У ТОГО, КТО ЕГО НЕ
+# ПИСАЛ. Разрез волны по файлам между агентами законен ровно до тех пор, пока
+# каждая половина собирается сама по себе; «мои строки, его строки» — это про
+# АВТОРСТВО, и собираемость из него не следует.
+#
+#   1. ВЫПУЩЕН. Волну «настройки по группам» разрезали по файлам между двумя
+#      агентами: один унёс Menu.cpp, у второго остался Menu.h с новыми
+#      перечислениями. Между ee031b0 и aae1bc9 дерево не собиралось —
+#      девятнадцать обращений к именам, которых в заголовке того коммита ещё
+#      нет. Находка и замер — bigworld-menufx.
+#   2. ПОЙМАН. Часом позже App.h обзавёлся `#include "DoorAim.h"` от третьей
+#      волны, а сам DoorAim.{h,cpp} лежал незакоммиченным. Готовые App.cpp и
+#      App.h не легли: коммит собрался бы у автора и не собрался бы ни у кого
+#      другого. Дождались чужого коммита и легли следом.
+#
+# И ГЛАВНОЕ, ЧЕМУ НАУЧИЛИ ЭТИ ДВА СЛУЧАЯ ВМЕСТЕ. Первой заставой предлагался
+# grep по включениям («есть ли такой файл в дереве коммита»). Он ловит случай 2
+# и СЛЕП К СЛУЧАЮ 1: Menu.h в том коммите ЕСТЬ, он лишь старый, а дефект был не
+# «файла нет», а «имени нет в файле». Обратная проверка (`git ls-files`) слепа
+# симметрично. Правило, продаваемое вместе с проверкой, которая его не ловит,
+# хуже правила без проверки — поэтому здесь не grep, а компилятор: общее у двух
+# случаев не имя и не файл, а СОБИРАЕМОСТЬ, и её не выражает никакой поиск по
+# тексту. Признание про слепую проверку — bigworld-menufx; проверка компилятором
+# и три руки ниже — bigworld-music.
+#
+# ЧЕГО ЭТОТ ПРИБОР НЕ ЛОВИТ, СКАЗАНО ЗАРАНЕЕ (урок tools/header_check.py: у
+# прибора, чьи дыры не названы, зелёный отчёт принимают за доказательство):
+#   * ЛИНКОВКУ. `-fsyntax-only` не зовёт компоновщик, поэтому объявленная и
+#     нигде не определённая функция пройдёт. Ловится сборкой, и это осознанный
+#     размен: полсекунды против минут.
+#   * TU, КОТОРЫХ НЕТ В compile_commands.json — новый файл, ещё не попавший в
+#     CMake. Такие НЕ пропускаются молча: они перечисляются в отчёте и делают
+#     ответ «проверить не удалось» (код 2), а не «всё хорошо».
+#   * ВКЛЮЧЕНИЯ ПОД #if И СОБРАННЫЕ МАКРОСОМ — замыкание строится текстовым
+#     разбором `#include "..."`. В этом дереве таких нет; появятся — прибор
+#     недосчитает TU и об этом никто не узнает.
+#   * ЧУЖИЕ ЗОНЫ СБОРКИ: берётся ОДИН набор флагов (одна конфигурация). Коммит,
+#     ломающий только Apple clang или только Debug, отсюда не виден.
+#   * УНАСЛЕДОВАННУЮ ПОЛОМКУ — и это САМАЯ ВАЖНАЯ ИЗ ДЫР, потому что её легко
+#     принять за зелёный ответ. Проверка отвечает «не сломал ли ЭТОТ коммит то,
+#     что тронул», а НЕ «собирается ли дерево». Разница измерена (находка
+#     bigworld-menufx, 27.08): то окно оказалось шириной в ТРИ коммита, и один
+#     из них — ee031b0 -> 847f020 -> 9c8cafb -> закрылось на aae1bc9.
+#       - 847f020 не трогал ни одного спорного файла и всё равно несобираем: он
+#         унаследовал сломанный HEAD. То есть «я положил только свои файлы» не
+#         защищает НИ ОТ ЧЕГО.
+#       - 9c8cafb — волна мебели, к меню отношения не имеющая. Её втянуло в окно
+#         тем, что она встала следом: цена ложится не на того, кто окно открыл,
+#         а на случайного соседа, и это ЕГО коммит найдёт бисект.
+#     Для этой дыры есть --range A..B: он берёт ОБЪЕДИНЕНИЕ изменённых файлов по
+#     всей цепочке и проверяет их против дерева B. «Собрал ли я лично» и «здорово
+#     ли дерево» — два разных вопроса, и второй задаётся только так.
+#
+# UPD:
+# - 27:08:2026 - 22:22:09: Создан по решению координатора. ПРАВИЛО, которое
+#   прибор стережёт («коммит обязан собираться у того, кто его не писал»), —
+#   находка bigworld-menufx: он же выпустил первый случай, он же его нашёл, он
+#   же измерил (девятнадцать обращений к именам, которых в заголовке того
+#   коммита нет) и он же признал, что первая предложенная им застава слепа к
+#   его собственному дефекту. ПРОВЕРКА КОМПИЛЯТОРОМ и три руки рукава —
+#   bigworld-music; цена измерена дважды и независимо: 0.53-0.56 с у автора
+#   прибора, 0.59-0.61 с у menufx своим скриптом на том же коммите.
+#   ЦЕНА ПЕРЕМЕРЕНА ПЕРЕД САМОЙ УКЛАДКОЙ: первая цифра (0.53 с) состарилась за
+#   час — см. блок про цену выше. Рук в рукаве стало ЧЕТЫРЕ: --range появился
+#   после спецификации, в ответ на измерение menufx, а ключ без руки — это ровно
+#   то, за что этот прибор и ругает предыдущую заставу.
+#   ШИРИНА ОКНА (три коммита, из них один чужой и невиновный) — измерение
+#   menufx уже после того, как прибор был написан; из-за него в шапке появилась
+#   дыра «унаследованная поломка» и ключ --range, а вывод перестал говорить
+#   «самодостаточен» и стал говорить «не ломает того, что тронул».
+#   И ОТДЕЛЬНО, ПРО КОНТРОЛЬНУЮ РУКУ. За один вечер инструмент соврал своему
+#   автору ТРИЖДЫ (tr, стиравший символы вместо префикса; grep, молчавший на
+#   своём же дефекте; цикл, переиспользовавший один путь worktree и выдавший
+#   ровный столбец «0.03 с, 2 ошибки» на всех коммитах подряд). Все три раза
+#   ловила не догадка, а ФОРМА ОТВЕТА рядом с контрольной рукой. Поэтому рука 2
+#   здесь не формальность: без неё две красные доказывают только, что автор
+#   умеет ломать компилятор.
+
+import argparse
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+
+# Каталоги ЭТОГО дерева. Всё остальное (_deps, bgfx) от коммита не зависит и в
+# замыкание не входит — именно поэтому проверка стоит полсекунды, а не минуты.
+OUR_ROOTS = ("engine/", "games/", "tests/", "tools/")
+SOURCE_SUFFIXES = (".cpp", ".h", ".hpp", ".cc", ".cxx")
+INCLUDE_RE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.M)
+
+
+def run(cmd, **kw):
+    return subprocess.run(cmd, capture_output=True, text=True, **kw)
+
+
+def repo_root() -> Path:
+    r = run(["git", "rev-parse", "--show-toplevel"])
+    if r.returncode != 0:
+        sys.exit("не репозиторий git")
+    return Path(r.stdout.strip())
+
+
+def pick_build_dir(root: Path, given: str | None) -> Path:
+    """Каталог сборки, из которого берутся флаги. ЛЮБОЙ годится: нужны только
+    -I и -std, а они у всех зон одинаковы. Читается ТОЛЬКО на чтение — чужой
+    каталог сборки этим не портится."""
+    if given:
+        p = (root / given) if not os.path.isabs(given) else Path(given)
+        if not (p / "compile_commands.json").is_file():
+            sys.exit(f"в {p} нет compile_commands.json")
+        return p
+    cands = sorted(root.glob("build*/compile_commands.json"),
+                   key=lambda p: p.stat().st_mtime, reverse=True)
+    if not cands:
+        sys.exit("не нашёл ни одного build*/compile_commands.json — "
+                 "сконфигурируй любую свою сборку и повтори")
+    return cands[0].parent
+
+
+def changed_files(sha: str) -> list[str]:
+    r = run(["git", "show", "--name-only", "--pretty=format:", sha])
+    if r.returncode != 0:
+        sys.exit(f"не читается коммит {sha}")
+    return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+
+
+def changed_in_range(rng: str) -> list[str]:
+    """ОБЪЕДИНЕНИЕ изменённого по цепочке. Отвечает на второй вопрос — «здорово
+    ли дерево», — которого не видит покоммитная проверка: коммит, не тронувший
+    ни одного спорного файла, наследует сломанный HEAD и несобираем вместе с
+    ним."""
+    r = run(["git", "diff", "--name-only", rng])
+    if r.returncode != 0:
+        sys.exit(f"не читается диапазон {rng}")
+    return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+
+
+def tree_files(tree: Path) -> list[str]:
+    out = []
+    for rootdir in OUR_ROOTS:
+        base = tree / rootdir
+        if not base.is_dir():
+            continue
+        for p in base.rglob("*"):
+            if p.is_file() and p.suffix in SOURCE_SUFFIXES:
+                out.append(str(p.relative_to(tree)))
+    return out
+
+
+def affected_tus(tree: Path, changed: list[str]) -> list[str]:
+    """TU, до которых коммит дотянулся: изменённые .cpp плюс все .cpp, чьё
+    ЗАМЫКАНИЕ ВКЛЮЧЕНИЙ содержит изменённый заголовок. Замыкание строится по
+    нашему дереву текстом — третьи стороны наших заголовков не включают, и это
+    то самое допущение, которое делает проверку дешёвой."""
+    ours = [c for c in changed if c.startswith(OUR_ROOTS)
+            and c.endswith(SOURCE_SUFFIXES)]
+    if not ours:
+        return []
+    files = tree_files(tree)
+    includes: dict[str, set[str]] = {}
+    for f in files:
+        try:
+            text = (tree / f).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        includes[f] = {m for m in INCLUDE_RE.findall(text) if m.startswith(OUR_ROOTS)}
+
+    tainted = set(ours)
+    grew = True
+    while grew:  # пока множество растёт: заголовок тянет заголовок тянет .cpp
+        grew = False
+        for f, incs in includes.items():
+            if f not in tainted and (incs & tainted):
+                tainted.add(f)
+                grew = True
+    return sorted(f for f in tainted if f.endswith((".cpp", ".cc", ".cxx")))
+
+
+def syntax_command(cc: list[dict], root: Path, tree: Path, rel: str) -> list[str] | None:
+    """Готовая команда компиляции, переделанная в синтаксическую проверку
+    ПРОТИВ ДЕРЕВА КОММИТА. Переставляется ровно один флаг — -I корня репозитория;
+    всё остальное (третьи стороны, генерённые каталоги) от коммита не зависит."""
+    entry = next((e for e in cc if e["file"].endswith("/" + rel)), None)
+    if entry is None:
+        return None
+    args = shlex.split(entry.get("command") or " ".join(entry["arguments"]))
+    out, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+            continue
+        if a in ("-o", "-MF", "-MT", "-MQ"):
+            skip = True
+            continue
+        if a == "-c" or a.startswith("@") or a.startswith("-fmodule") \
+           or a.startswith("-fdeps") or a in ("-MD", "-MMD"):
+            continue          # объектник, карта модулей и файлы зависимостей не нужны
+        if a.endswith("/" + rel):
+            continue          # исходник подставим свой, из дерева коммита
+        if a == "-I" + str(root):
+            a = "-I" + str(tree)
+        out.append(a)
+    out += ["-fsyntax-only", str(tree / rel)]
+    return out
+
+
+def check_tree(tree: Path, root: Path, cc: list[dict], tus: list[str],
+               verbose: bool) -> tuple[list[str], list[str], float]:
+    """Возвращает (ошибки, непроверенные TU, секунды)."""
+    errors, unchecked = [], []
+    began = time.monotonic()
+    for rel in tus:
+        cmd = syntax_command(cc, root, tree, rel)
+        if cmd is None:
+            unchecked.append(rel)
+            continue
+        r = run(cmd)
+        if r.returncode != 0:
+            first = [ln for ln in r.stderr.splitlines() if ": error:" in ln
+                     or ": fatal error:" in ln]
+            errors.extend(first[:4] or [f"{rel}: компилятор вернул {r.returncode}"])
+        elif verbose:
+            print(f"  ok  {rel}")
+    return errors, unchecked, time.monotonic() - began
+
+
+class Worktree:
+    """Дерево КОММИТА, развёрнутое рядом. git stash здесь запрещён: каталог
+    общий, и спрятать чужие незакоммиченные файлы значит сломать чужую работу."""
+
+    def __init__(self, root: Path, sha: str):
+        self.root, self.sha = root, sha
+        self.path = Path(tempfile.mkdtemp(prefix="dfn-commit-check-"))
+
+    def __enter__(self) -> Path:
+        shutil.rmtree(self.path, ignore_errors=True)
+        r = run(["git", "-C", str(self.root), "worktree", "add", "--detach",
+                 str(self.path), self.sha])
+        if r.returncode != 0:
+            sys.exit("не развернулось дерево коммита:\n" + r.stderr)
+        return self.path
+
+    def __exit__(self, *exc):
+        run(["git", "-C", str(self.root), "worktree", "remove", "--force",
+             str(self.path)])
+        shutil.rmtree(self.path, ignore_errors=True)
+        run(["git", "-C", str(self.root), "worktree", "prune"])
+
+
+def check_commit(root: Path, build: Path, sha: str, verbose: bool,
+                 rng: str | None = None) -> int:
+    cc = json.loads((build / "compile_commands.json").read_text())
+    if rng:
+        changed = changed_in_range(rng)
+        sha = rng.split("..")[-1] or "HEAD"   # дерево КОНЦА цепочки
+    else:
+        changed = changed_files(sha)
+    with Worktree(root, sha) as tree:
+        tus = affected_tus(tree, changed)
+        if not tus:
+            print(f"{sha}: ни одного нашего TU не затронуто — проверять нечего")
+            return 0
+        print(f"{sha}: изменено файлов {len(changed)}, "
+              f"затронуто TU {len(tus)}; флаги из {build.name}")
+        errors, unchecked, secs = check_tree(tree, root, cc, tus, verbose)
+        # Пути временного дерева в отчёте — шум: читателю нужен файл и строка,
+        # а не то, в какой каталог его сегодня развернули.
+        errors = [e.replace(str(tree) + "/", "") for e in errors]
+
+    if errors:
+        print(f"\nКОММИТ НЕ СОБЕРЁТСЯ У ТОГО, КТО ЕГО НЕ ПИСАЛ ({secs:.1f} с):")
+        for e in errors[:20]:
+            print("  " + e)
+        return 1
+    if unchecked:
+        # ГРОМКО, А НЕ МОЛЧА: это ровно та половина, из-за которой предыдущая
+        # застава оказалась слепа к своему же дефекту.
+        print(f"\nПРОВЕРИТЬ НЕ УДАЛОСЬ: {len(unchecked)} TU нет в "
+              f"compile_commands.json (сконфигурируй сборку заново):")
+        for u in unchecked[:10]:
+            print("  " + u)
+        return 2
+    # ФОРМУЛИРОВКА ВЫВЕРЕНА: не «дерево собирается», а «не сломал того, что
+    # тронул». Второе — правда, первое — то полуутверждение, из-за которого
+    # 847f020 и был объявлен самодостаточным своим же автором.
+    print(f"не ломает того, что тронул: {len(tus)} TU чисты за {secs:.1f} с "
+          f"({secs / max(1, len(tus)):.2f} с на TU)")
+    if not rng:
+        print("  (это НЕ значит «дерево собирается» — унаследованную поломку "
+              "видит только --range, см. шапку)")
+    return 0
+
+
+# --- РУКАВ ------------------------------------------------------------------
+# Три руки, и средняя из них — КОНТРОЛЬ (правило 30). Без неё две красные
+# доказывали бы только, что автор умеет ломать компилятор.
+SELF_TEST_BROKEN_SHA = "ee031b0"   # тот самый несобираемый коммит, случай 1
+# НЕВИНОВНЫЙ СОСЕД: волна мебели, вставшая внутрь чужого окна. Своих файлов не
+# ломала, ни одного спорного не трогала — и несобираема вместе с деревом.
+SELF_TEST_INHERITED_SHA = "9c8cafb"
+
+
+def self_test(root: Path, build: Path) -> int:
+    cc = json.loads((build / "compile_commands.json").read_text())
+    ok = True
+
+    def say(name, passed, detail=""):
+        nonlocal ok
+        ok = ok and passed
+        print(f"[{'ПРОШЛА' if passed else 'КРАСНАЯ'}] {name}{detail}")
+
+    # РУКА 1: коммит, разрезанный по файлам между агентами. Красный ПО ИМЕНИ —
+    # заголовок в дереве ЕСТЬ, но он старый и нужного перечисления в нём нет.
+    if run(["git", "-C", str(root), "cat-file", "-e", SELF_TEST_BROKEN_SHA + "^{commit}"]).returncode:
+        say("рука 1 (разрез волны, красный по имени)", False,
+            f" — коммита {SELF_TEST_BROKEN_SHA} нет в этом клоне")
+    else:
+        with Worktree(root, SELF_TEST_BROKEN_SHA) as tree:
+            errs, _, _ = check_tree(tree, root, cc, ["engine/app/sources/Menu.cpp"], False)
+        hit = any("VideoRow" in e or "SettingsRow" in e for e in errs)
+        say("рука 1 (разрез волны, красный по ИМЕНИ)", hit,
+            "" if hit else f" — ждал имя, получил: {errs[:1]}")
+
+    # РУКА 2, КОНТРОЛЬНАЯ: то же самое на HEAD, где дерево заведомо собирается.
+    with Worktree(root, "HEAD") as tree:
+        errs, unchecked, secs = check_tree(tree, root, cc,
+                                           ["engine/app/sources/Menu.cpp"], False)
+        say("рука 2 (КОНТРОЛЬ: HEAD зелён)", not errs and not unchecked,
+            f" — {secs:.2f} с на TU" if not errs else f" — {errs[:1]}")
+
+        # РУКА 3: зависимость от файла, которого в дереве коммита НЕТ. Так
+        # выглядел бы промах с DoorAim.h, если бы его закоммитили: App.h его
+        # включает, а сам он лежал незакоммиченным. Восстановлен МЕХАНИЗМОМ, а
+        # не историей — заголовок выбирается из живого замыкания и удаляется,
+        # поэтому рука не сгниёт, когда DoorAim.h однажды переименуют.
+        victim = None
+        for inc in INCLUDE_RE.findall((tree / "engine/app/sources/App.h").read_text()):
+            if inc.startswith(OUR_ROOTS) and (tree / inc).is_file():
+                victim = inc
+                break
+        if victim is None:
+            say("рука 3 (красный по ФАЙЛУ)", False, " — не нашёл, что удалить")
+        else:
+            (tree / victim).unlink()
+            errs, _, _ = check_tree(tree, root, cc, ["engine/app/sources/App.cpp"], False)
+            hit = any("file not found" in e or "не найден" in e for e in errs)
+            say("рука 3 (незакоммиченная зависимость, красный по ФАЙЛУ)", hit,
+                f" — убран {victim}" if hit else f" — ждал 'file not found', получил: {errs[:1]}")
+
+    # РУКА 4: УНАСЛЕДОВАННАЯ ПОЛОМКА, и она про то, чего первые три не видят.
+    # 9c8cafb своих файлов не ломал; покоммитная проверка на нём молчит и права
+    # — вопрос «сломал ли я» и вопрос «здорово ли дерево» разные. Рука держит
+    # ОБА ответа сразу: --sha зелён, --range на той же точке красен. Без второй
+    # половины это была бы проверка, доказывающая, что она умеет молчать.
+    if run(["git", "-C", str(root), "cat-file", "-e",
+            SELF_TEST_INHERITED_SHA + "^{commit}"]).returncode:
+        say("рука 4 (унаследованная поломка)", False,
+            f" — коммита {SELF_TEST_INHERITED_SHA} нет в этом клоне")
+    else:
+        with Worktree(root, SELF_TEST_INHERITED_SHA) as tree:
+            own = affected_tus(tree, changed_files(SELF_TEST_INHERITED_SHA))
+            e_own, _, _ = check_tree(tree, root, cc, own, False)
+            rng_files = changed_in_range(f"{SELF_TEST_BROKEN_SHA}~1..{SELF_TEST_INHERITED_SHA}")
+            e_rng, _, _ = check_tree(tree, root, cc, affected_tus(tree, rng_files), False)
+        say("рука 4a (свои файлы у невиновного соседа чисты)", not e_own,
+            "" if not e_own else f" — {e_own[:1]}")
+        say("рука 4b (--range видит унаследованную поломку)", bool(e_rng),
+            "" if e_rng else " — ждал красный, получил зелёный")
+
+    print("\nрукав пройден" if ok else "\nРУКАВ КРАСНЫЙ")
+    return 0 if ok else 1
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--sha", default="HEAD")
+    ap.add_argument("--range", dest="rng", default=None,
+                    help="A..B — объединение изменённого по цепочке против дерева B")
+    ap.add_argument("--build-dir", default=None)
+    ap.add_argument("--self-test", action="store_true")
+    ap.add_argument("-v", "--verbose", action="store_true")
+    a = ap.parse_args()
+    root = repo_root()
+    build = pick_build_dir(root, a.build_dir)
+    if a.self_test:
+        return self_test(root, build)
+    return check_commit(root, build, a.sha, a.verbose, a.rng)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
