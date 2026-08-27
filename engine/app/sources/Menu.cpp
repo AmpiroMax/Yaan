@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 27:08:2026 - 14:00:00
+Last updated: 27:08:2026 - 12:02:02
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -118,6 +118,14 @@ UPD:
     квадрат…») и предупреждение о перезапуске. Это не инструкции по клавишам,
     а задача экрана и состояние настройки; без первых страница превращается в
     три серых квадрата без вопроса.
+- 27:08:2026 - 12:02:02: ОДИН КЕГЛЬ НА ВСЕ ПУНКТЫ ВСЕХ СТРАНИЦ (заказ владельца
+  27.08: «слово ПРОДОЛЖИТЬ бОльшим шрифтом написано, чем остальные — поправить
+  и сделать одинаково везде»). Снят big_px и вся арифметика «i == 0»: роль
+  «пункт-акцент» давала первому пункту корня и паузы ступень 96 px против
+  60 px, ровно 1.6 раза. Лестница ролей осталась целиком, ушла одна роль.
+  Раскладочный случай прошлого дня этого не видел ПО ПОСТРОЕНИЮ: он утверждал
+  непересечение коробок, а коробка в 1.6 раза выше соседей ни с кем не
+  пересекается; новый случай в app_menu утверждает равенство напрямую.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -354,18 +362,13 @@ constexpr render::Color STUDIO_MARK{96, 104, 118};    // the corner signature
 // 1920x1080, and a layout in absolute pixels only holds at the size it was
 // eyeballed on.
 struct ListMetrics {
-    int item_px = 1;  // кегль ОБЫЧНОГО пункта -- один на всю страницу
-    int big_px = 1;   // кегль первого пункта там, где он крупнее (корень, пауза)
+    int item_px = 1;  // кегль ЛЮБОГО пункта -- один на всю страницу и на все страницы
     int blurb_px = 1; // кегль подписи под пунктом
     int gap = 4;      // vertical air between rows
     int edge = 0;     // the column's right edge (right-aligned pages)
     int top = 0;      // y of the first row's ink
     int total = 0;    // height of the whole block
 };
-
-[[nodiscard]] int row_px(const ListMetrics& m, size_t i) {
-    return i == 0 ? m.big_px : m.item_px;
-}
 
 // Высота ЯЩИКА строки. Прописная, а не полная высота строки: выносных элементов
 // в наших пунктах почти нет, и блок, сложенный по line_height, стоит заметно
@@ -379,19 +382,19 @@ struct ListMetrics {
     // that the letters are not read against the bezel.
     m.edge = w - std::max(6, w / 12);
     const int rows = static_cast<int>(n);
-    // ДВА РАЗМЕРА НА СПИСОК, И ОБА ИЗ ОДНОЙ ЛЕСТНИЦЫ (UiFont.h). Раньше здесь
-    // считался множитель блочного шрифта от h/180, и «пункт» получался разным
-    // на разных страницах — жалоба владельца 27.08. Пропорции образца те же,
-    // что были: пункт около 4 % высоты кадра по прописной, крупный первый —
-    // около 6 %; они теперь записаны один раз, в долях роли.
+    // ОДИН РАЗМЕР НА ВСЕ ПУНКТЫ ВСЕХ СТРАНИЦ, из лестницы ролей (UiFont.h).
+    // Крупный первый пункт был задумкой по образцу Skyrim и ОТМЕНЁН владельцем
+    // 27.08 дословно: «слово ПРОДОЛЖИТЬ бОльшим шрифтом написано, чем
+    // остальные — поправить и сделать одинаково везде». Лестница ролей
+    // осталась целиком (заголовок / пункт / подпись / мелочь); ушла ровно одна
+    // роль — «пункт-акцент», и вместе с ней вся арифметика «i == 0».
     m.item_px = px_for(h, UiText::Item);
-    m.big_px = px_for(h, UiText::Accent);
     m.blurb_px = px_for(h, UiText::Caption);
     for (;;) {
         m.gap = std::max(2, row_box_h(m.item_px) * 5 / 8);
         m.total = 0;
         for (int i = 0; i < rows; ++i) {
-            m.total += row_box_h(i == 0 ? m.big_px : m.item_px) + m.gap;
+            m.total += row_box_h(m.item_px) + m.gap;
         }
         m.total = std::max(0, m.total - m.gap); // no gap after the last row
         // A BLOCK THAT DOES NOT FIT IS THE FAILURE THIS LOOP EXISTS FOR: the
@@ -404,12 +407,10 @@ struct ListMetrics {
             break;
         }
         const int smaller = px_for(h * 4 / 5, UiText::Item);
-        const int smaller_big = px_for(h * 4 / 5, UiText::Accent);
         if (smaller >= m.item_px) {
             break; // лестница кончилась: ниже честно ничего нет
         }
         m.item_px = smaller;
-        m.big_px = smaller_big;
         m.blurb_px = px_for(h * 4 / 5, UiText::Caption);
         h = h * 4 / 5;
     }
@@ -836,15 +837,11 @@ struct ListPlan {
     p.right_aligned = page_is_right_aligned(model.page());
     const size_t n = model.item_count();
     p.m = list_metrics(w, h, n);
-    // The first row is the largest on the two pages that have a "main" action
-    // (the reference's CONTINUE, our Продолжить); a picker has no such row and
-    // a list where one entry is bigger reads as that entry being special.
-    if (!p.right_aligned) {
-        p.m.big_px = p.m.item_px;
-    }
     p.blurb_px = p.m.blurb_px;
 
-    const auto row_h = [&](size_t i) { return row_box_h(row_px(p.m, i)); };
+    // Ящик строки один и тот же у всех строк -- индекс остаётся в подписи,
+    // потому что подпись есть не у каждой.
+    const auto row_h = [&](size_t) { return row_box_h(p.m.item_px); };
     const auto blurb_h = [&](size_t i) {
         return menu_row(model, i).blurb.empty()
                    ? 0
@@ -878,20 +875,19 @@ struct ListPlan {
             }
             scratch_h = scratch_h * 4 / 5;
             p.m.item_px = smaller;
-            p.m.big_px = smaller;
             p.blurb_px = px_for(scratch_h, UiText::Caption);
         }
     } else {
         // The title (the pause word) stands above the block; the start screen
         // has none, and draws its emblem instead.
-        p.title_y = std::max(h / 12, p.m.top - row_box_h(p.m.big_px) - p.m.gap * 2);
+        p.title_y = std::max(h / 12, p.m.top - row_box_h(p.m.item_px) - p.m.gap * 2);
     }
 
     p.boxes.reserve(n);
     p.blurb_y.reserve(n);
     int y = p.m.top;
     for (size_t i = 0; i < n; ++i) {
-        const int s = row_px(p.m, i);
+        const int s = p.m.item_px;
         const Row r = menu_row(model, i);
         const int lw = tw_of(r.label, s);
         MenuRowBox b;
@@ -1341,16 +1337,18 @@ namespace {
 // selected row is BRIGHTER and UNDERSCORED. It is deliberately not BIGGER, and
 // that is the one place this screen departs from the reference on purpose: a
 // row that grows under the pointer slides out from under it and pushes its
-// neighbours, so the mouse selects a different row than the eye is on. The
-// first row is the largest at all times instead, which is where the
-// reference's emphasis actually lives.
+// neighbours, so the mouse selects a different row than the eye is on.
+// НИ ОДНА СТРОКА НЕ КРУПНЕЕ ДРУГОЙ. Первый пункт был крупнее (по образцу
+// Skyrim) до 27.08, когда владелец эту задумку отменил: «слово ПРОДОЛЖИТЬ
+// бОльшим шрифтом написано, чем остальные». Выделение теперь несут ровно два
+// признака, и оба у ВЫБРАННОЙ строки: яркость и черта под словом.
 void draw_item_list(render::PixelCanvas& canvas, const MenuModel& model,
                     const ListPlan& p) {
     const size_t n = model.item_count();
     for (size_t i = 0; i < n && i < p.boxes.size(); ++i) {
         const MenuRowBox& b = p.boxes[i];
         const bool sel = (i == model.selection());
-        const int px = row_px(p.m, i);
+        const int px = p.m.item_px;
         const Row r = menu_row(model, i);
         ui_draw_text(canvas, b.x, b.y, r.label, sel ? ITEM_BRIGHT : ITEM_DIM, px,
                      /*shadow=*/true);

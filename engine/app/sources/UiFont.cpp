@@ -1,5 +1,6 @@
 /*
 Created: 27:08:2026 - 03:06:00
+Last updated: 27:08:2026 - 12:02:02
 Module: engine/app
 File: engine/app/sources/UiFont.cpp
 
@@ -13,6 +14,7 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 27:08:2026 - 03:06:00: Создан вместе с заголовком.
+- 27:08:2026 - 12:02:02: Доля роли Accent (0.083) удалена вместе с самой ролью.
 */
 
 #include "engine/app/sources/UiFont.h"
@@ -137,7 +139,6 @@ const Image& atlas_of(const Face& f) {
 // принятых кадров, делённая на 0.70 — высоту прописной PT Serif в долях кегля).
 float role_fraction(UiText role) {
     switch (role) {
-    case UiText::Accent:  return 0.083f; // 1080 -> 90 px, прописная ~63 (5.8 %)
     case UiText::Title:   return 0.070f; // 1080 -> 76
     case UiText::Item:    return 0.056f; // 1080 -> 60 px, прописная ~42 (3.9 %)
     case UiText::Caption: return 0.038f; // 1080 -> 41
