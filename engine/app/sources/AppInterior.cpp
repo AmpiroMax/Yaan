@@ -1,6 +1,6 @@
 /*
 Created: 23:08:2026 - 23:50:00
-Last updated: 27:08:2026 - 14:30:00
+Last updated: 27:08:2026 - 21:40:30
 Module: engine/app
 File: engine/app/sources/AppInterior.cpp
 
@@ -82,6 +82,16 @@ UPD:
   знают комнату как loading_000.png). Пара load_step/load_tick — «отметить
   этап и показать кадр» и «подвинуть долю внутри этапа не чаще 80 мс»: до
   сегодня модель этапов города велась, а кадры не показывались вовсе.
+- 27:08:2026 - 21:40:30: ПРИЦЕЛ ДВЕРЕЙ — РАДИУС И ВЗГЛЯД (крит владельца
+  28.08). Коробка взаимодействия стала ПЛИТОЙ ПО ПОЛОТНУ (повёрнутой вместе с
+  ним, 0.4 м толщиной) вместо куба 1.4x2.2x1.4 вокруг середины створки, а
+  решает всё door_aim(): луч взгляда против прямоугольника створки плюс радиус
+  до её ближайшей точки. РАСТЯЖКА ПРИЦЕЛА СНЯТА: она стояла с 27.08 как плата
+  за кривые спавны, и платы больше нет — перепись 130 локаций обоих городов
+  даёт худший отход точки входа 0.74 м при радиусе 1.2 (промахов 0 из 130), а
+  цена растяжки была ровно той, на которую пожаловался владелец. Обратная дверь
+  ищет СВОЁ ПОЛОТНО среди створок локации и говорит вслух, нашла или нет.
+  Прибор probe_door_aim (DFN_DOOR_AIM_PROBE) и доза DFN_DOOR_AIM=0.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -143,12 +153,85 @@ constexpr float EXIT_PROBE_DOWN_M = 6.0f;
 /// строится.
 constexpr float PLAYER_EYE_M = 1.7f;
 
-/// ЗАПАС, НА КОТОРЫЙ ПРИЦЕЛ ОБРАТНОЙ ДВЕРИ ПЕРЕКРЫВАЕТ ТОЧКУ ВХОДА. Ровно
-/// впритык нельзя: вход в 1.58 м при коробке 1.58 — это попадание в грань, а
-/// грань луч ловит на числах с плавающей точкой через раз.
-constexpr float PORTAL_ENTRY_MARGIN_M = 0.3f;
+/// НАСКОЛЬКО БЛИЗКО К ТОЧКЕ ПЕРЕХОДА ИЩЕТСЯ ЕЁ ПОЛОТНО. Обратный [portal]
+/// пишется генератором В ПРОЁМЕ той же створки, которой дом открывается
+/// снаружи, и «ближайшая створка локации» — это она. 2.5 м — заведомо больше
+/// разброса, с которым генератор ставит точку (замер по 130 локациям обоих
+/// городов: 0.74 м худший случай), и заведомо меньше расстояния до второй
+/// двери в любой комнате.
+constexpr float BACK_LEAF_SEARCH_M = 2.5f;
 
 } // namespace
+
+/// ДОЗА ПРИЦЕЛА (DFN_DOOR_AIM). 1 (умолчание) — радиус ПЛЮС взгляд: плита по
+/// полотну и вердикт door_aim(). 0 — прежний прицел бит-в-бит: куб вокруг
+/// середины створки, радиус 1.6 м, никакой проверки взгляда. Отрицательное
+/// плечо нужно не для красоты: «надпись горит с порога» и «надпись горит
+/// только на дверь» обязаны предъявляться ОДНИМ бинарником (правило 47), иначе
+/// «до» и «после» меряют неделю чужой работы.
+bool App::door_aim_enabled() {
+    static const bool on = [] {
+        const char* e = door_value("DFN_DOOR_AIM");
+        return e == nullptr || *e == '\0' || *e != '0';
+    }();
+    return on;
+}
+
+DoorAim App::doorway_aim(const HouseDoorway& d) {
+    DoorAim a;
+    a.at = d.at;
+    a.normal = d.out_normal;
+    a.half_w = std::max(d.half_w, 0.05f);
+    a.half_h = std::max(d.half_h, 0.05f);
+    a.reach_m = d.reach_m > 0.0f ? d.reach_m : DOOR_REACH_M;
+    a.leaf = true;
+    return a;
+}
+
+DoorAimHit App::door_aim_now(const PortalLink& link) const {
+    DoorAimHit miss;
+    const auto* cam = world_.get<components::CameraPose>(player_);
+    if (cam == nullptr) {
+        return miss;
+    }
+    // ВЗГЛЯД БЕРЁТСЯ ИЗ ТОЙ ЖЕ ПОЗЫ, ЧТО И ЛУЧ ПРИЦЕЛА (CameraPose, которую
+    // пишет post_step), и по той же конвенции: рыск 0 смотрит в -Z,
+    // положительный — по часовой сверху, положительный тангаж — вверх. Формула
+    // повторяет InteractionSystem::view_direction и render::direction_from —
+    // обе внутренние для своих файлов; расхождение здесь означало бы, что
+    // подсказка загорается не там, куда указывает перекрестье.
+    const float cp = std::cos(cam->pitch);
+    const glm::vec3 dir{std::sin(cam->yaw) * cp, std::sin(cam->pitch),
+                        -std::cos(cam->yaw) * cp};
+    return door_aim(link.aim, cam->position, dir);
+}
+
+void App::filter_door_hover() {
+    if (!door_aim_enabled() || !world_.has_resource<components::HoverTarget>()) {
+        return;
+    }
+    auto& hover = world_.resource<components::HoverTarget>();
+    if (hover.prompt_key == 0 || !world_.alive(hover.entity)) {
+        return;
+    }
+    for (const PortalLink& link : portals_) {
+        if (link.entity != hover.entity) {
+            continue;
+        }
+        // ЛУЧ ПРИЦЕЛА УЖЕ ПОПАЛ В ТЕЛО ДВЕРИ — И ЭТОГО МАЛО. Jolt считает луч,
+        // НАЧАТЫЙ ВНУТРИ выпуклого тела, попаданием на нулевой доле: голова,
+        // оказавшаяся внутри коробки прицела, зажигала подсказку под любым
+        // углом, включая взгляд в противоположную стену. Ровно это владелец и
+        // прислал 28.08 («захожу в дом — сразу горит „выйти"»). Плита по
+        // полотну делает такое положение головы невозможным у запечатанной
+        // створки, но у ДЕКОРАТИВНОЙ проём сквозной и в нём стоят — значит
+        // одной геометрии тела мало, и вердикт выносится здесь.
+        if (!door_aim_now(link).ok) {
+            hover = components::HoverTarget{};
+        }
+        return;
+    }
+}
 
 void App::present_loading_frame(const char* shot_stem) {
     if (renderer_ == nullptr || window_ == nullptr) {
@@ -323,44 +406,44 @@ void App::spawn_scene_portals(const world::SceneDoc& doc, bool interior,
                                              .scale = glm::vec3{1.0f}});
         const std::uint64_t action =
             serialization::fnv1a64(P.to + "@" + std::to_string(i));
-        // ИЗ ЛОКАЦИИ ВСЕГДА МОЖНО ВЫЙТИ ТУДА, ОТКУДА В НЕЁ ВОШЛИ. Это
-        // инвариант движка, а не пожелание к содержимому: игрок, запертый
-        // внутри дома, не может ни выйти, ни внятно пожаловаться, и ровно
-        // это владелец и прислал 27.08. Композиция вправе поставить точку
-        // входа не строго перед полотном (у Житнова x172z286 она в 1.58 м
-        // вбок от обратной двери при радиусе прицела 1.10 — и оттуда двери
-        // не было видно НИ ПОД КАКИМ углом), но цена такой вольности —
-        // молчаливая ловушка, и платить её игроку нельзя.
+        // ПРИЦЕЛ ОБРАТНОЙ ДВЕРИ — ЭТО ЕЁ ПОЛОТНО, А НЕ ШАР ВОКРУГ ТОЧКИ.
+        // РАСТЯЖКА СНЯТА (она стояла здесь с 27.08: радиус дотягивался до
+        // точки входа, если та стояла вбок от створки). Растяжка была платой
+        // за кривые спавны генератора, и платы этой больше нет: перепись 130
+        // локаций обоих городов даёт худший отход точки входа 0.74 м по
+        // горизонтали при радиусе руки 1.2 — промахов 0 из 130. А цена у неё
+        // была ровно та, на которую владелец пожаловался 28.08: раздутая
+        // коробка накрывала голову вошедшего, и подсказка «Выйти» горела с
+        // порога под любым углом.
         //
-        // ПОЭТОМУ ПРИЦЕЛ ОБРАТНОЙ ДВЕРИ ДОТЯГИВАЕТСЯ ДО ТОЧКИ ВХОДА, а не
-        // до написанного в файле радиуса, если тот не достаёт. Промах
-        // называется вслух: чинить его — генератору города, и молча
-        // растянутый прицел лишил бы его повода.
+        // ГДЕ ВЗЯТЬ ПОЛОТНО. У точки перехода нет ни нормали, ни ширины —
+        // значит створка ищется среди СТВОРОК ЛОКАЦИИ, собранных заливкой из
+        // той же геометрии, что и городские. Не нашлась (стенд, пилот,
+        // композиция без оболочки) — прицел вырождается в конус вокруг точки,
+        // и об этом печатается строка: молчаливое «беру любой угол» вернуло бы
+        // жалобу.
+        DoorAim aim;
+        aim.at = at;
+        aim.reach_m = DOOR_REACH_M;
+        aim.leaf = false;
+        if (interior) {
+            float best = BACK_LEAF_SEARCH_M;
+            for (const HouseDoorway& D : interior_doorways_) {
+                const float dist = glm::length(D.at - at);
+                if (dist < best) {
+                    best = dist;
+                    aim = doorway_aim(D);
+                }
+            }
+        }
         float r = std::max(P.radius_m, 0.4f);
         float half_y = std::max(r, 1.0f);
         float reach = std::max(P.radius_m, 0.5f);
-        if (interior && entry != nullptr && world::portal_is_back(P)) {
-            // Глаз, а не ступни: луч прицела идёт из камеры.
-            const glm::vec3 eye{entry->x, entry->y + PLAYER_EYE_M, entry->z};
-            const glm::vec3 d = eye - at;
-            const float lateral = std::max(std::fabs(d.x), std::fabs(d.z));
-            // ПО ВЫСОТЕ ТОЖЕ. Сегодня глаз вошедшего на 0.8 м выше середины
-            // створки и попадает в коробку с запасом, но «сегодня» — это
-            // свойство нынешних рецептов, а не механики: комната с высоким
-            // порогом или низкой дверью вернула бы ту же ловушку с другой оси.
-            half_y = std::max(half_y, std::fabs(d.y) + PORTAL_ENTRY_MARGIN_M);
-            if (lateral + PORTAL_ENTRY_MARGIN_M > r) {
-                std::fprintf(stderr,
-                             "[интерьер] точка входа в %.2f м вбок от обратной "
-                             "двери при радиусе %.2f — прицел РАСТЯНУТ до %.2f "
-                             "(дефект композиции локации: спавн не перед "
-                             "полотном)\n",
-                             static_cast<double>(lateral),
-                             static_cast<double>(r),
-                             static_cast<double>(lateral + PORTAL_ENTRY_MARGIN_M));
-                r = lateral + PORTAL_ENTRY_MARGIN_M;
-            }
-            reach = std::max(reach, glm::length(d) + PORTAL_ENTRY_MARGIN_M);
+        if (door_aim_enabled()) {
+            // РАДИУС ПРОВЕРЯЕТ ВЕРДИКТ, А НЕ ОБЩАЯ ДАЛЬНОСТЬ ВЗАИМОДЕЙСТВИЯ:
+            // max_use_distance = 0 отдаёт штатное INTERACT_DISTANCE, и тогда
+            // «в радиусе ли я» решается в ОДНОМ месте (door_aim), а не в двух.
+            reach = 0.0f;
         }
         world_.add(id, gameplay::Highlightable{
                            .prompt_key = interior ? "prompt.leave" : "prompt.enter",
@@ -371,6 +454,26 @@ void App::spawn_scene_portals(const world::SceneDoc& doc, bool interior,
         platform::StaticBoxDesc box;
         box.center = at;
         box.half_extents = {r, half_y, r};
+        if (door_aim_enabled()) {
+            // ТЕЛО ПРИЦЕЛА СТАВИТСЯ ИЗ ТОГО ЖЕ ПРЯМОУГОЛЬНИКА, по которому
+            // выносится вердикт: коробка и вердикт не могут разъехаться,
+            // потому что это одни и те же четыре числа.
+            box.center = aim.at;
+            if (aim.leaf) {
+                box.rotation = glm::angleAxis(door_leaf_yaw(aim.normal),
+                                              glm::vec3{0.0f, 1.0f, 0.0f});
+                box.half_extents = {aim.half_w + DOOR_AIM_PAD_M,
+                                    aim.half_h + DOOR_AIM_PAD_M,
+                                    DOOR_AIM_SLAB_HALF_M};
+            } else {
+                // ТОЧКА БЕЗ ПОЛОТНА: коробка остаётся прежней, написанной в
+                // композиции. Она здесь не судья, а лишь то, во что обязан
+                // попасть луч, чтобы вопрос вообще был задан: перехода-точки
+                // не видно в кадре, и сузить его тело значило бы заставить
+                // игрока угадывать невидимое. Решает конус вердикта.
+                box.half_extents = {r, half_y, r};
+            }
+        }
         box.layer = physics::LAYER_INTERACTABLE;
         box.user_data = id.packed();
         const platform::PhysicsBodyHandle body = physics_->create_static_box(box);
@@ -386,7 +489,44 @@ void App::spawn_scene_portals(const world::SceneDoc& doc, bool interior,
         link.index = i;
         link.interior = interior;
         link.entity = id;
+        link.aim = aim;
         portals_.push_back(std::move(link));
+        if (interior && world::portal_is_back(P)) {
+            // ЧЕМ ИМЕННО ЦЕЛИТСЯ ОБРАТНАЯ ДВЕРЬ — В СТРОКЕ. «Полотно найдено»
+            // и «взят конус вокруг точки» дают разное поведение под одной и
+            // той же подсказкой, и без числа их не различить ни в логе, ни
+            // глазами.
+            std::fprintf(stderr,
+                         "[интерьер] прицел обратной двери: %s, полотно "
+                         "(%.2f %.2f %.2f) %.2fx%.2f м, нормаль (%.2f %.2f), "
+                         "радиус %.2f м\n",
+                         aim.leaf ? "ПОЛОТНО" : "точка (створки не нашлось)",
+                         static_cast<double>(aim.at.x),
+                         static_cast<double>(aim.at.y),
+                         static_cast<double>(aim.at.z),
+                         static_cast<double>(aim.half_w * 2.0f),
+                         static_cast<double>(aim.half_h * 2.0f),
+                         static_cast<double>(aim.normal.x),
+                         static_cast<double>(aim.normal.z),
+                         static_cast<double>(aim.reach_m));
+            if (entry != nullptr) {
+                // ДОСТАЁТ ЛИ ПРИЦЕЛ ДО ТОЧКИ ВХОДА — ТЕПЕРЬ ЗАМЕР, А НЕ
+                // ПОПРАВКА. Раньше несовпадение молча растягивало коробку;
+                // теперь оно называется числом и чинится в генераторе, у
+                // которого одного есть на это право.
+                const glm::vec3 eye{entry->x, entry->y + PLAYER_EYE_M, entry->z};
+                const glm::vec3 to_door = glm::normalize(aim.at - eye);
+                const DoorAimHit h = door_aim(aim, eye, to_door);
+                std::fprintf(stderr,
+                             "[интерьер] точка входа: до полотна %.2f м "
+                             "(радиус %.2f) — %s\n",
+                             static_cast<double>(h.distance_m),
+                             static_cast<double>(aim.reach_m),
+                             h.ok ? "дверь берётся рукой"
+                                  : "ДВЕРИ ИЗ ТОЧКИ ВХОДА НЕ ДОСТАТЬ (дефект "
+                                    "композиции локации)");
+            }
+        }
     }
     if (!doc.portals.empty()) {
         // МИРОВАЯ ОТМЕТКА ПЕРВОГО ПЕРЕХОДА — В СТРОКЕ, и это не украшение:
@@ -432,18 +572,34 @@ void App::spawn_house_portals() {
         const char* prompt = D.kind == DoorwayKind::Portal     ? "prompt.enter"
                              : D.kind == DoorwayKind::Locked   ? "prompt.locked"
                                                                : "prompt.open";
+        const DoorAim aim = doorway_aim(D);
         world_.add(id, gameplay::Highlightable{
                            .prompt_key = prompt,
-                           .max_use_distance = D.reach_m});
+                           // Радиус решает вердикт прицела, и только он
+                           // (см. spawn_scene_portals): 0 — штатная дальность.
+                           .max_use_distance =
+                               door_aim_enabled() ? 0.0f : 1.6f});
         world_.add(id, gameplay::Usable{.action = action,
                                         .repeatable = true,
                                         .used = false});
         platform::StaticBoxDesc box;
         box.center = D.at;
-        // Коробка прицела ЧУТЬ БОЛЬШЕ полотна по горизонтали и заметно выше:
-        // человек целится в дверь, а не в её геометрический центр, и створка
-        // в полтора метра ростом ловилась бы только точным попаданием.
-        box.half_extents = {0.7f, 1.1f, 0.7f};
+        if (door_aim_enabled()) {
+            // ТЕЛО ПРИЦЕЛА — ПЛИТА ПО ПОЛОТНУ, повёрнутая вместе с ним.
+            // Прежний куб 1.4x2.2x1.4 вокруг середины створки был вдвое шире
+            // самой двери и, главное, ОБЪЁМОМ: в него входила голова стоящего
+            // в проёме, а луч из нутра выпуклого тела Jolt засчитывает
+            // попаданием на нулевой доле — подсказка загоралась без всякого
+            // взгляда. Плита в 0.4 м толщиной живёт В СТЕНЕ.
+            box.rotation = glm::angleAxis(door_leaf_yaw(aim.normal),
+                                          glm::vec3{0.0f, 1.0f, 0.0f});
+            box.half_extents = {aim.half_w + DOOR_AIM_PAD_M,
+                                aim.half_h + DOOR_AIM_PAD_M,
+                                DOOR_AIM_SLAB_HALF_M};
+        } else {
+            // ОТРИЦАТЕЛЬНОЕ ПЛЕЧО (DFN_DOOR_AIM=0): прежний куб бит-в-бит.
+            box.half_extents = {0.7f, 1.1f, 0.7f};
+        }
         box.layer = physics::LAYER_INTERACTABLE;
         box.user_data = id.packed();
         const platform::PhysicsBodyHandle body = physics_->create_static_box(box);
@@ -479,6 +635,7 @@ void App::spawn_house_portals() {
         // PlayerMovement и InteractionSystem::view_direction).
         link.back_yaw = std::atan2(D.out_normal.x, -D.out_normal.z);
         link.back_set = true;
+        link.aim = aim;
         portals_.push_back(std::move(link));
         open += D.kind == DoorwayKind::Portal ? 1u : 0u;
         decor += D.kind == DoorwayKind::Decorative ? 1u : 0u;
@@ -512,6 +669,137 @@ void App::spawn_house_portals() {
                              std::atan2(D.out_normal.x, -D.out_normal.z)),
                          D.interior.empty() ? "" : " -> ", D.interior.c_str());
         }
+    }
+    probe_door_aim();
+}
+
+void App::probe_door_aim() {
+    // ПРИБОР ПРИЦЕЛА (DFN_DOOR_AIM_PROBE=1). Утверждение волны — «подсказка
+    // горит, когда смотришь на створку, и молчит, когда смотришь на стену
+    // рядом» — это утверждение о ДЕВЯНОСТА ТРЁХ дверях Вайтрана и трёхстах
+    // Житнова, и предъявить его кадром из окна нельзя: кадр показывает одну
+    // дверь под одним углом.
+    //
+    // ЧЕТЫРЕ РУКИ НА КАЖДУЮ СТВОРКУ, и три из них обязаны ПРОВАЛИТЬСЯ
+    // (правило 30): прибор, у которого только положительное плечо, не
+    // отличается от прибора сломанного.
+    //   1. стою у двери, смотрю в полотно      -> подсказка ЕСТЬ
+    //   2. стою там же, смотрю на стену в 0.5 м -> подсказки НЕТ
+    //   3. стою там же, смотрю от дома          -> подсказки НЕТ
+    //   4. стою в 3 м, смотрю в полотно         -> подсказки НЕТ (радиус)
+    // Луч настоящий, по настоящим телам, и вердикт — та же door_aim(), что
+    // работает в игре: прибор, пересчитывающий геометрию по-своему, мерил бы
+    // себя (правило 39).
+    static const bool on = [] {
+        const char* e = door_value("DFN_DOOR_AIM_PROBE");
+        return e != nullptr && *e != '\0' && *e != '0';
+    }();
+    if (!on || physics_ == nullptr || portals_.empty()) {
+        return;
+    }
+    struct Arm {
+        const char* name;
+        std::size_t pass = 0;
+    };
+    Arm arms[4] = {{"смотрю в полотно"},
+                   {"смотрю на стену в 0.5 м"},
+                   {"смотрю от дома"},
+                   {"стою в 3 м"}};
+    std::size_t doors = 0;
+    std::size_t no_body = 0;
+    const float reach_probe = static_cast<float>(config::INTERACT_DISTANCE);
+    for (const PortalLink& link : portals_) {
+        if (!link.house || !link.aim.leaf) {
+            continue;
+        }
+        ++doors;
+        const DoorAim& A = link.aim;
+        const glm::vec3 tangent = door_aim_tangent(A.normal);
+        // ГЛАЗ ТАМ, ГДЕ ВСТАЁТ ВЫШЕДШИЙ, И НА ТОЙ ЖЕ ЗЕМЛЕ: точка выхода
+        // сажается лучом вниз (leave_interior), и прибор обязан стоять там же,
+        // иначе он меряет человека, парящего в воздухе перед дверью.
+        glm::vec3 feet = link.back_at;
+        const platform::RayHit ground = physics_->raycast(
+            {feet.x, feet.y + EXIT_PROBE_UP_M, feet.z}, {0.0f, -1.0f, 0.0f},
+            EXIT_PROBE_UP_M + EXIT_PROBE_DOWN_M, physics::LAYER_STATIC);
+        if (ground.hit) {
+            feet.y = ground.position.y + 0.02f;
+        } else if (const auto h = chunks_.height_at({feet.x, feet.z})) {
+            feet.y = *h + 0.02f;
+        }
+        const glm::vec3 eye{feet.x, feet.y + PLAYER_EYE_M, feet.z};
+        const glm::vec3 far_eye = A.at + A.normal * 3.0f;
+        const glm::vec3 side = A.at + tangent * (A.half_w + 0.5f);
+        const glm::vec3 to_leaf = glm::normalize(A.at - eye);
+        const glm::vec3 setups[4][2] = {
+            {eye, to_leaf},
+            {eye, glm::normalize(side - eye)},
+            {eye, glm::normalize(glm::vec3{A.normal.x, 0.0f, A.normal.z})},
+            {far_eye, glm::normalize(A.at - far_eye)},
+        };
+        const bool want[4] = {true, false, false, false};
+        for (int a = 0; a < 4; ++a) {
+            const glm::vec3 from = setups[a][0];
+            const glm::vec3 dir = setups[a][1];
+            // ПОЛНЫЙ ПУТЬ: тот же луч по тем же телам, что у update_hover, и
+            // тот же вердикт, что у filter_door_hover.
+            const platform::RayHit hit = physics_->raycast(
+                from, dir, reach_probe, physics::LAYER_INTERACTABLE);
+            bool lit = false;
+            if (hit.hit) {
+                const ecs::EntityId target{
+                    static_cast<std::uint32_t>(hit.user_data >> 32),
+                    static_cast<std::uint32_t>(hit.user_data & 0xFFFFFFFFull)};
+                if (target == link.entity) {
+                    // ПРИБОР ПОВТОРЯЕТ ПРАВИЛО СВОЕЙ ДОЗЫ, А НЕ СВОЁ МНЕНИЕ.
+                    // При DFN_DOOR_AIM=0 подсказка загоралась ровно от того,
+                    // что луч попал в тело двери ближе 1.6 м, — и контрольная
+                    // рука обязана мерить ИМЕННО это, иначе «стало лучше»
+                    // предъявляется прибором, который при нулевой дозе меряет
+                    // другую систему (правило 48).
+                    lit = door_aim_enabled() ? door_aim(A, from, dir).ok
+                                             : hit.distance <= 1.6f;
+                }
+            } else if (a == 0) {
+                ++no_body;
+            }
+            if (lit == want[a]) {
+                ++arms[a].pass;
+                continue;
+            }
+            // ПРОВАЛИВШАЯСЯ РУКА НАЗЫВАЕТ СЕБЯ ЧИСЛАМИ. Счёт «31 из 32» без
+            // строки о промахнувшейся створке отправляет искать её глазами по
+            // городу — а искать нужно не дверь, а причину: не достал луч, не
+            // попал в своё тело или не дотянулся радиус.
+            const DoorAimHit v = door_aim(A, from, dir);
+            std::fprintf(stderr,
+                         "[прицел] ПРОМАХ «%s» у полотна (%.1f %.1f %.1f), "
+                         "глаз (%.1f %.1f %.1f)%s: "
+                         "луч %s, радиус %.2f (%s), взгляд %s (u %.2f v %.2f, "
+                         "полотно %.2fx%.2f)\n",
+                         arms[a].name, static_cast<double>(A.at.x),
+                         static_cast<double>(A.at.y), static_cast<double>(A.at.z),
+                         static_cast<double>(from.x), static_cast<double>(from.y),
+                         static_cast<double>(from.z),
+                         ground.hit ? "" : " (опоры под точкой выхода НЕТ)",
+                         hit.hit ? "во что-то попал" : "НЕ ПОПАЛ",
+                         static_cast<double>(v.distance_m),
+                         v.in_reach ? "в радиусе" : "ДАЛЕКО",
+                         v.looking ? "в полотне" : "МИМО",
+                         static_cast<double>(v.u), static_cast<double>(v.v),
+                         static_cast<double>(A.half_w * 2.0f),
+                         static_cast<double>(A.half_h * 2.0f));
+        }
+    }
+    std::fprintf(stderr, "[прицел] створок под прибором: %zu\n", doors);
+    for (const Arm& a : arms) {
+        std::fprintf(stderr, "[прицел] %-24s %zu/%zu\n", a.name, a.pass, doors);
+    }
+    if (no_body > 0) {
+        std::fprintf(stderr,
+                     "[прицел] лучей, не нашедших СВОЁ тело в упор: %zu — тело "
+                     "прицела стоит не на полотне\n",
+                     no_body);
     }
 }
 

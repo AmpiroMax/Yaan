@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 27:08:2026 - 12:58:00
+# Last updated: 27:08:2026 - 21:40:30
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -122,6 +122,9 @@
 #   показывает ОДНУ фазу качания, а бок доски срезается ближней плоскостью в
 #   КРАЙНЕЙ, и у каждого утверждения тут своя контрольная рука (заведомо
 #   плохая раскладка, вторая несоизмеримая ось, другое соотношение сторон).
+# - 27:08:2026 - 21:40:30: app_door_aim — прицел двери (радиус + взгляд). Рукав
+#   линкует только DoorAim.cpp; отвергнутый образец настоящий — поза, в которой
+#   прежний прицел зажигал «Выйти» без всякого взгляда (крит владельца 28.08).
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -303,6 +306,15 @@ if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_doors app/DoorsTests.cpp dfn_core)
     target_sources(app_doors PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
+
+    # ПРИЦЕЛ ДВЕРИ. Своя цель, и линкует она ТОЛЬКО DoorAim.cpp — ни App, ни
+    # окна, ни физики: геометрия «целюсь ли я в это полотно» отделена от них
+    # ровно затем, чтобы её можно было провалить нарочно. Отвергнутый образец
+    # настоящий (поза, в которой прежний прицел зажигал «Выйти» без взгляда), а
+    # не синтетический — правило 30.
+    add_dfn_test(app_door_aim app/DoorAimTests.cpp dfn_core)
+    target_sources(app_door_aim PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/DoorAim.cpp)
 
     # НАСТРОЙКИ. Цель линкует ТОЛЬКО AppSettings.cpp: разбор текста отделён от
     # файла и от окна, и это единственная причина, по которой вынос из App.cpp

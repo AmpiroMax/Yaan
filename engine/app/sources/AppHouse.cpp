@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 27:08:2026 - 10:34:00
+Last updated: 27:08:2026 - 21:40:30
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -105,6 +105,16 @@ UPD:
   AppHouse.cpp, лишь бы сошлась сверка хука, вместо того чтобы разобраться с
   чужой. Поставлено время коммита 9e2c8c9 (10:18:14). Текста записи и кода не
   трогал.
+- 27:08:2026 - 21:40:30: ГАБАРИТ ПОЛОТНА СОБИРАЕТСЯ ВМЕСТЕ С ЕГО СЕРЕДИНОЙ И
+  НОРМАЛЬЮ — из того же ящика тех же треугольников: прицел двери есть
+  ПРЯМОУГОЛЬНИК СТВОРКИ (крит владельца 28.08), и очертить его больше нечем.
+  Ширина берётся ПРОЕКЦИЕЙ сторон мирового ящика на касательную: у повёрнутой
+  створки диагональ ящика заметно шире самого полотна. Радиус руки стал
+  DOOR_REACH_M (1.2 м до ближайшей точки полотна) вместо 1.6 м до его середины.
+  И ВТОРОЙ ПРИЁМНИК: collect_doorways стал указателем doorway_sink, и
+  интерьерный проход складывает створки локации в свой список — не как второй
+  выход наружу (выход по-прежнему один), а как геометрию, по которой изнутри
+  целятся в дверь.
 */
 
 #include "engine/app/sources/App.h"
@@ -564,9 +574,13 @@ void App::upload_house_mesh(bool interior_only) {
     // построителя не должно знать, на кого работает (см. выше про два слота).
     const world::ScenePlacedHouse* cur_place = nullptr;
     std::size_t cur_index = 0;
-    // Створки собираются только у ГОРОДА: у локации свой обратный [portal],
-    // и второй, выведенный из её же оболочки, был бы вторым выходом наружу.
-    bool collect_doorways = true;
+    // КУДА СКЛАДЫВАТЬ СТВОРКИ — УКАЗАТЕЛЬ, А НЕ ФЛАГ, и это второй приёмник, а
+    // не второй счёт (правило 39). Створки локации нужны не как второй выход
+    // наружу (выход по-прежнему один — обратный [portal] композиции), а как
+    // ГЕОМЕТРИЯ ПОЛОТНА: прицелиться в дверь изнутри можно только по створке, а
+    // у точки перехода нет ни нормали, ни ширины. Оболочка локации — тот же
+    // .dfh, что стоит в городе, поэтому полотно здесь настоящее.
+    std::vector<HouseDoorway>* doorway_sink = &house_doorways_;
     if (!interior_only) {
         house_doorways_.clear();
     }
@@ -919,7 +933,7 @@ void App::upload_house_mesh(bool interior_only) {
                 // значило бы тихо отменить обещание: рука, которой мерят
                 // «стало хуже», перестала бы быть тем городом, с которым
                 // сравнивают.
-                if (collect_doorways && cur_place != nullptr && seal_on) {
+                if (doorway_sink != nullptr && cur_place != nullptr && seal_on) {
                     // ГДЕ ДВЕРЬ — ЗНАЕТ ТОЛЬКО ГЕОМЕТРИЯ. Середина габарита
                     // полотна в мировых: генератору для той же точки пришлось
                     // бы заново решать посадку рецепта, поворот размещения и
@@ -969,18 +983,35 @@ void App::upload_house_mesh(bool interior_only) {
                     dw.out_normal = glm::length(flat) > 1e-4f
                                         ? glm::normalize(flat)
                                         : outward;
+                    // ГАБАРИТ ПОЛОТНА — ИЗ ТОГО ЖЕ ЯЩИКА. Прицел двери есть
+                    // ПРЯМОУГОЛЬНИК СТВОРКИ (крит владельца 28.08: подсказка
+                    // только когда «мы на дверь СМОТРИМ, а не на что-то рядом,
+                    // стену»), и очертить его нечем, кроме ширины и высоты
+                    // полотна. Ящик мировой и осевой, поэтому ширина поперёк
+                    // нормали берётся проекцией его сторон на касательную:
+                    // повёрнутая на 30° створка иначе получила бы прицел по
+                    // диагонали своего ящика — заметно шире себя самой.
+                    const glm::vec3 dhalf = (dhi - dlo) * 0.5f;
+                    const glm::vec3 tan_xz = door_aim_tangent(dw.out_normal);
+                    dw.half_w = std::fabs(tan_xz.x) * dhalf.x
+                              + std::fabs(tan_xz.z) * dhalf.z;
+                    dw.half_h = dhalf.y;
                     // РУКА ДОТЯГИВАЕТСЯ ДО СТВОРКИ, А НЕ ДО ЕЁ СЕРЕДИНЫ:
                     // прицел стоит снаружи, полотно 0.05-0.10 м толщиной, и
                     // радиус меряется от центра до плеча человека перед
                     // порогом.
-                    dw.reach_m = 1.6f;
+                    // РАДИУС РУКИ — ОДИН НА ВСЕ ДВЕРИ И НАЗВАН ОДИН РАЗ
+                    // (DoorAim.h). Было 1.6 м от СЕРЕДИНЫ створки; стало 1.2 м
+                    // до её БЛИЖАЙШЕЙ ТОЧКИ, и второй половиной прицела стал
+                    // взгляд.
+                    dw.reach_m = DOOR_REACH_M;
                     dw.scene_index = cur_index;
                     dw.door_index = doors->size(); // номер, который створка сейчас получит
                     dw.kind = !sealed_here ? DoorwayKind::Decorative
                               : cur_place->interior.empty() ? DoorwayKind::Locked
                                                             : DoorwayKind::Portal;
                     dw.interior = cur_place->interior;
-                    house_doorways_.push_back(std::move(dw));
+                    doorway_sink->push_back(std::move(dw));
                 }
                 doors->emplace_back();
                 doors->back().surface = surface;
@@ -1167,7 +1198,12 @@ void App::upload_house_mesh(bool interior_only) {
     collider_indices = &int_indices;
     positions = &interior_positions_;
     collect_exclusions = false;
-    collect_doorways = false;
+    // СТВОРКИ ЛОКАЦИИ — В СВОЙ СПИСОК. Чистится он ЗДЕСЬ, а не под
+    // `if (!interior_only)`: интерьерный проход идёт при всякой заливке, и
+    // список, оставшийся от прошлой комнаты, дал бы прицел «Выйти» по чужому
+    // полотну — ровно та ловушка, которую эта волна закрывает.
+    interior_doorways_.clear();
+    doorway_sink = &interior_doorways_;
     for (const PlacedHouse& ph : interior_houses_) {
         const float c = std::cos(ph.yaw);
         const float sn = std::sin(ph.yaw);

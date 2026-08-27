@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 27:08:2026 - 12:58:00
+# Last updated: 27:08:2026 - 21:40:30
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -114,6 +114,7 @@ if(DFN_APP_READY)
         sources/ChatOverlay.cpp
         sources/Controls.cpp
         sources/DebugOverlay.cpp
+        sources/DoorAim.cpp
         sources/EditorCamera.cpp
         sources/EditorPlant.cpp
         sources/EditorHud.cpp
@@ -176,4 +177,10 @@ endif()
 #   касается ни видеокарты, ни камеры, а герб — меш, программа и свет кадра.
 #   Разрез заодно делает раскладку и темп проверяемыми без окна
 #   (tests/app/MenuEmblemTests.cpp, рукав app_menu_emblem).
+# - 27:08:2026 - 21:40:30: sources/DoorAim.cpp — геометрия прицела двери
+#                          (радиус до полотна и луч взгляда против его
+#                          прямоугольника). Отдельный файл потому, что его
+#                          линкует рукав app_door_aim: в нём нет ни App, ни
+#                          окна, ни физики, и только поэтому вердикт «целюсь ли
+#                          я в дверь» можно провалить нарочно.
 
