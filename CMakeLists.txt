@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 27:08:2026 - 01:20:00
+# Last updated: 27:08:2026 - 15:10:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -92,6 +92,12 @@
 # - 27:08:2026 - 01:20:00: отрицательное плечо приёмки локаций переехало с КОПИИ
 #   Вайтрана на боевой город (И15 волна Б): у самого Вайтрана теперь есть
 #   внутренности, копия wr-int.scene снята, и плечо мерит то, что играется.
+
+# - 27:08:2026 - 15:10:00: dfn_furn_objects — печь полки мебели: чертёж
+#   furn-*.dfh печётся ОДИН РАЗ в объект реестра assets/objects/furniture/*.dfo
+#   (заказ владельца 27.08: кровать — единый запечённый объект, видимый в
+#   перечне). Плюс dfn_interior_check получил dfn_render: судья локации теперь
+#   читает .dfo, чтобы видеть убранство, пришедшее ссылкой [place].
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -281,7 +287,7 @@ target_link_libraries(dfn_scene_check PRIVATE dfn_world dfn_render dfn_core)
 # сцены и по той же причине: прибор, который перестал собираться, обнаруживают
 # в день, когда он нужнее всего.
 add_executable(dfn_interior_check tools/check_interior.cpp)
-target_link_libraries(dfn_interior_check PRIVATE dfn_world dfn_core)
+target_link_libraries(dfn_interior_check PRIVATE dfn_world dfn_render dfn_core)
 
 # ДВЕ ДОЗЫ ОДНОГО ПРИБОРА В ctest (правило 30 и свод И15, дельта-5).
 # Отрицательное плечо: верная локация пилота обязана дать НОЛЬ находок.
@@ -339,5 +345,12 @@ target_link_libraries(dfn_houses PRIVATE dfn_world dfn_core)
 # постройкой, чтобы расставлять их так же, как дома.
 add_executable(dfn_furniture tools/forge_furniture.cpp)
 target_link_libraries(dfn_furniture PRIVATE dfn_world dfn_core)
+
+# ПЕЧЬ ПОЛКИ МЕБЕЛИ (dfn_furn_objects): чертёж furn-*.dfh печётся ОДИН РАЗ в
+# объект реестра assets/objects/furniture/*.dfo — тело, свет и плитки материала
+# посчитаны заранее, город и локация ставят ссылку. Линкует и мир (построитель
+# тела), и рендер (контейнер .dfo), как dfn_assemble.
+add_executable(dfn_furn_objects tools/forge_furniture_objects.cpp)
+target_link_libraries(dfn_furn_objects PRIVATE dfn_world dfn_render dfn_core)
 
 add_executable(dfn_newmap tools/new_map.cpp)

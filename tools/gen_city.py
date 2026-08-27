@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 24:08:2026 - 12:40:00
-# Last updated: 27:08:2026 - 01:20:00
+# Last updated: 27:08:2026 - 15:10:00
 # Module: tools
 # File: tools/gen_city.py
 #
@@ -423,6 +423,19 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# - 27:08:2026 - 15:10:00: КРОВАТИ — ССЫЛКОЙ НА ЗАПЕЧЁННЫЙ ОБЪЕКТ РЕЕСТРА
+#   (заказ владельца 27.08: «хочу видеть подтверждение существования их в
+#   перечне наших объектов... если их обновить — они везде обновятся»).
+#   Предмет, названный в recipes_props.FURN_OBJECT, кладётся строкой [place]
+#   с именем объекта вместо [house] с чертежом — И В ГОРОД, И В ЛОКАЦИЮ;
+#   позиция и поворот те же до разряда. Полка assets/objects/furniture
+#   дописывается в objects= карты (map_objects), если паспорт её не назвал:
+#   карта без полки — это карта, на которой кроватей не находится ни одной.
+#   Раскладка НЕ ТРОНУТА: в таблицах по-прежнему стоит furn-bed.dfh, потому
+#   что раскладка про то, ГДЕ предмет стоит, а не чем он нарисован.
+#   ЗАМЕР PID-копии Вайтрана: 21 ссылка в 18 локациях, чертежей кровати не
+#   осталось ни одного, приёмка dfn_interior_check — те же 6 находок, что и у
+#   боевого выпуска (все шесть про чужую комнату x132z182 и старше волны).
 # СВОЙСТВА РЕЦЕПТОВ, КОТОРЫЕ НЕ ЗАМЕРИТЬ С .dfh (раскладка мебели по комнате,
 # поперечник куста) — общие на все двенадцать городов, паспорт держит только
 # ПОПРАВКИ. Находка пилота Корнхолла №11: обе таблицы лежали в паспорте, а
@@ -1185,7 +1198,15 @@ def furn_put(ff, mx, fy, mz, wyaw, note, lx, ly, lz, lyaw):
     ставит ту же оболочку в начало координат, и обратный поворот был бы
     вторым, приблизительным ответом на вопрос, уже решённый точно."""
     if INT_BUCKET is None:
-        house(ff, mx, fy, mz, wyaw, note)
+        # ЗАПЕЧЁННЫЙ ПРЕДМЕТ — ССЫЛКОЙ, А НЕ ЧЕРТЕЖОМ (заказ владельца 27.08 про
+        # кровати). Тело такого предмета лежит в реестре объектов одним .dfo, и
+        # сцена ставит имя+позицию+поворот; всё, чего в табличке нет, кладётся
+        # чертежом ровно как прежде — байт в байт.
+        obj = recipes_props.FURN_OBJECT.get(ff)
+        if obj is not None:
+            place(obj, mx, fy, mz, wyaw, note)
+        else:
+            house(ff, mx, fy, mz, wyaw, note)
     else:
         INT_BUCKET["items"].append((ff, lx, ly, lz, lyaw, note))
 
@@ -6397,10 +6418,22 @@ def write_interiors():
              "sealed = 1",
              "note = оболочка: тот же чертёж, что снаружи (%s)" % r["name"]]
         for ff, lx, ly, lz, lyaw, note in r["items"]:
-            L += ["", "[house]", "file = assets/houses/%s" % ff,
-                  "pos = %.3f %.3f %.3f" % (lx, ly, lz),
-                  "yaw = %.6f" % math.radians(lyaw),
-                  "note = %s" % note]
+            # ССЫЛКА НА ЗАПЕЧЁННЫЙ ПРЕДМЕТ ИЛИ ЧЕРТЁЖ — по одной табличке на все
+            # города (recipes_props.FURN_OBJECT). Позиция и поворот те же самые
+            # до разряда: меняется НЕ где предмет стоит, а откуда берётся его
+            # тело — из реестра объектов одним .dfo вместо сборки по месту.
+            obj = recipes_props.FURN_OBJECT.get(ff)
+            if obj is not None:
+                L += ["", "[place]", "object = %s" % obj,
+                      "pos = %.3f %.3f %.3f" % (lx, ly, lz),
+                      "yaw = %.6f" % math.radians(lyaw),
+                      "scale = 1",
+                      "note = %s" % note]
+            else:
+                L += ["", "[house]", "file = assets/houses/%s" % ff,
+                      "pos = %.3f %.3f %.3f" % (lx, ly, lz),
+                      "yaw = %.6f" % math.radians(lyaw),
+                      "note = %s" % note]
             n_items += 1
         if r["light"] is not None:
             lx, ly, lz, col, rad, soft, flick, note = r["light"]
@@ -6466,6 +6499,24 @@ def write_relief(rel_path, Hh, relief_paths):
     open(os.path.join(ROOT, rel_path), "w",
          encoding="utf-8").write("\n".join(rel) + "\n")
 
+FURN_SHELF = "assets/objects/furniture"
+
+
+def map_objects():
+    """ПОЛКИ ОБЪЕКТОВ КАРТЫ, И ПОЛКА МЕБЕЛИ СРЕДИ НИХ ВСЕГДА.
+
+    Список полок приходит из паспорта города, но полка мебели — не вкус
+    города: на ней лежат тела предметов, которые генератор ставит ссылкой
+    (recipes_props.FURN_OBJECT), и карта без неё — это карта, на которой
+    кровати не находятся ни в одной комнате. Двенадцать паспортов, каждый из
+    которых обязан помнить эту строку, — двенадцать мест, где её однажды
+    забудут; поэтому она дописывается здесь, если паспорт её не назвал."""
+    shelves = [s for s in CITY.MAP_OBJECTS.split(";") if s.strip()]
+    if FURN_SHELF not in shelves:
+        shelves.append(FURN_SHELF)
+    return ";".join(shelves)
+
+
 def write_map(rel_path):
     """Манифест карты. Все строки — из паспорта; built_commit ставит сборка."""
     open(os.path.join(ROOT, rel_path), "w", encoding="utf-8").write(
@@ -6474,7 +6525,7 @@ def write_map(rel_path):
         f"{CITY.MAP_NOTE}\n"
         f"source = {CITY.MAP_SOURCE}\n"
         f"scene = assets/scenes/{OUT}.scene\n"
-        f"objects = {CITY.MAP_OBJECTS}\n"
+        f"objects = {map_objects()}\n"
         f"description = {CITY.MAP_DESC}\n"
         "built_commit =\n")
 

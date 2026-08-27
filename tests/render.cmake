@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 23:08:2026 - 22:55:00
+# Last updated: 27:08:2026 - 15:10:00
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -62,6 +62,12 @@
 #   контроль — дофиксная формула, выписанная дословно (правило 39).
 # - 23:08:2026 - 22:55:00: render_loading_screen — экран загрузки И15: модель этапов
 #   и разность против контрольной руки, рисующей тот же экран без слов.
+# - 27:08:2026 - 15:10:00: render_object_registry_house — секция HOUS формата .dfo
+#   (куски запечённой постройки с номером плитки). Главный рукав там —
+#   «пустая секция не трогает личность»: иначе 2400+ файлов полок сменили бы
+#   хэш и перестали читаться до перепечки.
+add_dfn_test(render_object_registry_house render/ObjectRegistryHouseTests.cpp
+    dfn_render dfn_core)
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)

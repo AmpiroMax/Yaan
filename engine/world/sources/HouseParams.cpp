@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 24:08:2026 - 00:30:00
+Last updated: 27:08:2026 - 15:10:00
 Module: engine/world
 File: engine/world/sources/HouseParams.cpp
 
@@ -28,6 +28,10 @@ UPD:
 - 23:08:2026 - 18:09:35: ключ glow в таблице параметров (самосвечение детали).
 - 24:08:2026 - 00:30:00: ключ portal в списке чужих свойств (И15): створка с
   portal=1 входит в коллайдер построек, геометрию не меняет.
+- 27:08:2026 - 15:10:00: house_part_tile() — «чем крыт кусок» переехало сюда
+  ДОСЛОВНО из лямбды mat_of загрузчика приложения (заказ владельца 27.08 про
+  кровати в реестре объектов). Ни одного числа не изменено; загрузчик теперь
+  зовёт эту функцию, а кузница объекта — её же, и разойтись им негде.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -82,7 +86,8 @@ std::span<const ParamSlot> param_slots() {
         {"porch", &ElementParams::porch},     {"plinth", &ElementParams::plinth},
         {"roof", &ElementParams::roof},       {"unsupported", &ElementParams::unsupported},
         {"open", &ElementParams::open},       {"beams", &ElementParams::beams},
-        {"glow", &ElementParams::glow},
+        {"glow", &ElementParams::glow},       {"rise", &ElementParams::rise},
+        {"nosing", &ElementParams::nosing},
     };
     return slots;
 }
@@ -231,6 +236,42 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
         else if (kv.first == "sides" || kv.first == "n") { p.sides = got.sides; }
     }
     return p;
+}
+
+HousePartTile house_part_tile(const HouseGraph& graph, const Element& e,
+                              int mat_override, int tone_override) {
+    HousePartTile t;
+    // УМОЛЧАНИЕ ВЫВЕДЕНО ИЗ ВИДА ЭЛЕМЕНТА, а не назначено таблицей: прямая —
+    // это брус (тёсаный, средний тон), поверхность — это стена (штукатурка,
+    // светлая). Рецепт, не сказавший mat, получает то, чем эта деталь бывает
+    // чаще всего.
+    const bool beam = e.kind == ElementKind::Line;
+    t.surface = beam ? 0u : 5u; // HewnTimber : Plaster
+    t.tone = beam ? 1u : 0u;    // Mid : Light
+    const std::string m = graph.param(e.id, "mat");
+    const std::string tn = graph.param(e.id, "tone");
+    if (!m.empty()) {
+        t.surface = static_cast<std::uint32_t>(std::atoi(m.c_str())) % 9u;
+    }
+    if (!tn.empty()) {
+        t.tone = static_cast<std::uint32_t>(std::atoi(tn.c_str())) % 4u;
+    }
+    // СИЛЬНЫЙ ИЗНОС УВОДИТ ТОН В ВЫВЕТРЕННЫЙ РЯД атласа: серость и лишайник
+    // НАРИСОВАНЫ там, а не выдумываются шейдером.
+    const std::string w = graph.param(e.id, "wear");
+    if (!w.empty() && std::strtof(w.c_str(), nullptr) >= 0.7f) {
+        t.tone = 3u; // Weathered
+    }
+    // МАТЕРИАЛ КУСКА ПОВЕРХ МАТЕРИАЛА ЭЛЕМЕНТА — последним словом: стена
+    // собирается ИЗ КУСКОВ (доска фахверка — брус, кирпич — глина, блок —
+    // камень), а элемент по-прежнему один.
+    if (mat_override >= 0) {
+        t.surface = static_cast<std::uint32_t>(mat_override) % 9u;
+    }
+    if (tone_override >= 0) {
+        t.tone = static_cast<std::uint32_t>(tone_override) % 4u;
+    }
+    return t;
 }
 
 } // namespace dfn::world

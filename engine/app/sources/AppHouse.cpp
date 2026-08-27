@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 27:08:2026 - 14:30:00
+Last updated: 27:08:2026 - 15:10:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -88,6 +88,18 @@ UPD:
   определяется точка выхода из локации — по слову владельца, свойство ДВЕРИ,
   а не случайность позы. Габарит постройки поднят из блока пятен травы: он
   теперь нужен двоим, а второй проход по вершинам стоил бы 868 обходов.
+- 27:08:2026 - 15:10:00: ЗАПЕЧЁННЫЙ ПРЕДМЕТ РЕЕСТРА — В ПОТОКИ ПОСТРОЕК (заказ
+  владельца 27.08 про кровати: «хочу видеть подтверждение существования их в
+  перечне наших объектов»). append_objects(): объект с непустой секцией HOUS
+  (.dfo) поворачивается и складывается в ТЕ ЖЕ потоки, ТУ ЖЕ ячейку и тот же
+  коллайдер, что постройка по месту, — ни новой программы, ни нового прохода.
+  Зовётся обоими слотами: город из scene_doc_, локация из interior_doc_ с
+  прибавкой кармана интерьера.
+  ДВЕ ЛЯМБДЫ ВЫНЕСЕНЫ ИЗ append_graph НАРУЖУ (ключ ячейки stream_cell и доза
+  DFN_HOUSE_GLOW): кладущих стало двое, а вторая копия ключа развела бы одну
+  партию отрисовки на две в день, когда кто-нибудь поправит 32 метра.
+  mat_of теперь зовёт world::house_part_tile — то же правило, что читает
+  кузница объекта; ни одного числа не изменено.
 */
 
 #include "engine/app/sources/App.h"
@@ -654,6 +666,20 @@ void App::upload_house_mesh(bool interior_only) {
     // не съесть законную траву у стены снаружи (габарит несёт свес кровли).
     std::vector<glm::vec4> ground_exclusions;
 
+    // ЯЧЕЙКА ПОТОКА И ДОЗА САМОСВЕЧЕНИЯ — ОДНИ НА ОБОИХ КЛАДУЩИХ (постройку по
+    // месту и запечённый предмет реестра). Жили внутри append_graph, пока
+    // кладущий был один; вторая копия ключа ячейки развела бы одну и ту же
+    // партию отрисовки на две в тот день, когда кто-нибудь поправит 32 метра.
+    constexpr float STREAM_CELL_M = 32.0f;
+    const auto stream_cell = [](float v) {
+        return static_cast<std::uint64_t>(
+            std::clamp(static_cast<int>(std::floor(v / STREAM_CELL_M)) + 8, 0, 63));
+    };
+    static const bool glow_on = [] {
+        const char* e = door_value("DFN_HOUSE_GLOW");
+        return (e == nullptr || *e == '\0') || std::strtof(e, nullptr) > 0.5f;
+    }();
+
     const auto append_graph = [&](const world::HouseGraph& graph,
                                   const auto& to_world) {
         const auto t_mesh = tick();
@@ -789,25 +815,16 @@ void App::upload_house_mesh(bool interior_only) {
             };
             return 0xFF000000u | (b(rgb.z) << 16) | (b(rgb.y) << 8) | b(rgb.x);
         };
+        // ЧЕМ КРЫТ КУСОК — СПРАШИВАЕТСЯ У ПОСТРОЙКИ (world::house_part_tile).
+        // Правило умолчаний, ключи mat/tone и «износ уводит в выветренный ряд»
+        // жили здесь лямбдой, пока читатель был один. С выпечкой предмета в
+        // реестр объектов читателей стало двое, и копия правила в кузнице
+        // разошлась бы с домом в первый же день правки (правило 39).
         const auto mat_of = [&](const world::Element& e, std::uint32_t& surface,
                                 std::uint32_t& tone) {
-            const bool beam = e.kind == world::ElementKind::Line;
-            surface = beam ? 0u : 5u; // HewnTimber : Plaster
-            tone = beam ? 1u : 0u;    // Mid : Light
-            const std::string m = graph.param(e.id, "mat");
-            const std::string t = graph.param(e.id, "tone");
-            if (!m.empty()) {
-                surface = static_cast<std::uint32_t>(std::atoi(m.c_str())) % 9u;
-            }
-            if (!t.empty()) {
-                tone = static_cast<std::uint32_t>(std::atoi(t.c_str())) % 4u;
-            }
-            // СИЛЬНЫЙ ИЗНОС УВОДИТ ТОН В ВЫВЕТРЕННЫЙ РЯД атласа: серость и
-            // лишайник нарисованы там, а не выдумываются шейдером.
-            const std::string w = graph.param(e.id, "wear");
-            if (!w.empty() && std::strtof(w.c_str(), nullptr) >= 0.7f) {
-                tone = 3u; // Weathered
-            }
+            const world::HousePartTile t = world::house_part_tile(graph, e);
+            surface = t.surface;
+            tone = t.tone;
         };
         // Штамп вместо переинициализации: remap.assign на каждую часть давал
         // квадратичный разгон (аудит #3, находка 7) — дом с паркетом и кровлей
@@ -992,25 +1009,14 @@ void App::upload_house_mesh(bool interior_only) {
                 // них целиком, габарит потока это честно учтёт.
                 const glm::vec3 anchor =
                     to_world(built.vertices[built.indices[part.index_begin]].pos);
-                constexpr float STREAM_CELL_M = 32.0f;
-                const auto cell = [](float v) {
-                    return static_cast<std::uint64_t>(std::clamp(
-                        static_cast<int>(std::floor(v / STREAM_CELL_M)) + 8, 0,
-                        63));
-                };
                 const std::uint64_t cell_key =
-                    (cell(anchor.x) << 6) | cell(anchor.z);
+                    (stream_cell(anchor.x) << 6) | stream_cell(anchor.z);
                 // САМОСВЕТНАЯ ЧАСТЬ — СВОЙ ПОТОК (24.08, владелец: «свет
                 // должен гореть всегда на любом удалении»): пламя и стекло
                 // фонаря (glow=1 рецепта) рисуются без освещения и горят
                 // независимо от бюджета точечных светов. Дверь-доза
                 // DFN_HOUSE_GLOW: 0 — флаг игнорируется, части живут в
                 // прежних освещённых потоках бит-в-бит.
-                static const bool glow_on = [] {
-                    const char* e = door_value("DFN_HOUSE_GLOW");
-                    return (e == nullptr || *e == '\0')
-                        || std::strtof(e, nullptr) > 0.5f;
-                }();
                 const bool part_glow = glow_on && part.emissive;
                 auto& st = (*streams)[(cell_key << 16)
                                    | (static_cast<std::uint64_t>(surface) << 8)
@@ -1048,6 +1054,69 @@ void App::upload_house_mesh(bool interior_only) {
         }
     };
 
+    // ЗАПЕЧЁННЫЙ ПРЕДМЕТ РЕЕСТРА — В ТЕ ЖЕ ПОТОКИ, ЧТО И ПОСТРОЙКА (заказ
+    // владельца 27.08 про кровати). Объект с непустым списком house несёт
+    // ГОТОВЫЕ куски: вершины уже посчитаны кузницей (та же build_house_mesh,
+    // тот же запечённый AO, те же плитки листа), и здесь остаётся ПОВЕРНУТЬ И
+    // СЛОЖИТЬ. Ради этого секция HOUS и заведена: россыпь сцены рисует четыре
+    // потока БЕЗ материала — плоским вершинным цветом, — и кровать, уехавшая
+    // туда, потеряла бы дерево на глазах у города.
+    //
+    // ПОЧЕМУ ЗДЕСЬ, А НЕ В РОССЫПИ: приёмник у обоих слотов один и тот же
+    // (city_streams / int_streams), и ключ ячейки тот же — значит запечённая
+    // кровать попадает ровно в ту партию отрисовки, в которой ехала бы
+    // построенная по месту. Ни новой программы, ни нового прохода.
+    const auto append_objects = [&](const world::SceneDoc& doc, glm::vec3 origin) {
+        for (const world::Placement& p : doc.placements) {
+            auto it = scene_objects_.find(p.object);
+            if (it == scene_objects_.end()) {
+                std::optional<render::RegistryObject> obj;
+                for (const std::string& shelf : gallery_shelves_) {
+                    obj = render::read_object(std::filesystem::path(shelf)
+                                              / (p.object + ".dfo"));
+                    if (obj) {
+                        break;
+                    }
+                }
+                if (!obj) {
+                    // МОЛЧА: о пропавшем объекте кричит россыпь сцены, и она
+                    // же знает, на каких полках искали. Второй крик той же
+                    // беды из другого места читается как вторая беда.
+                    continue;
+                }
+                it = scene_objects_.emplace(p.object, std::move(*obj)).first;
+            }
+            const render::RegistryObject& obj = it->second;
+            if (obj.house.empty()) {
+                continue; // дерево, куст, деталь набора — не наше дело
+            }
+            for (const render::HouseSubmesh& sub : obj.house) {
+                const std::uint64_t cell_key =
+                    (stream_cell(p.position.x + origin.x) << 6)
+                    | stream_cell(p.position.z + origin.z);
+                const bool sub_glow = glow_on && sub.emissive;
+                auto& st = (*streams)[(cell_key << 16)
+                                   | (static_cast<std::uint64_t>(sub.surface) << 8)
+                                   | (sub_glow ? (1ull << 15) : 0ull) | sub.tone];
+                st.surface = sub.surface;
+                st.tone = sub.tone;
+                st.emissive = sub_glow;
+                const std::size_t before = st.mesh.vertices.size();
+                render::append_transformed(st.mesh, sub.mesh, p.position + origin,
+                                           p.yaw, p.scale);
+                // КОЛЛАЙДЕР ИЗ ТЕХ ЖЕ ТРЕУГОЛЬНИКОВ, что и картинка — то же
+                // правило, что у дома двумя сотнями строк выше. Кровать, в
+                // которую можно войти насквозь, — это кровать, на которой
+                // нельзя сидеть.
+                for (const std::uint32_t i : sub.mesh.indices) {
+                    collider_indices->push_back(
+                        static_cast<std::uint32_t>(positions->size()));
+                    positions->push_back(st.mesh.vertices[before + i].position);
+                }
+            }
+        }
+    };
+
     // ТОЛЬКО ИНТЕРЬЕР (И15): вход в дом не имеет права перестраивать город.
     // 1087 построек Вайтрана — это секунды, а свод даёт на вход полсекунды.
     if (!interior_only) {
@@ -1075,6 +1144,7 @@ void App::upload_house_mesh(bool interior_only) {
         load_tick(static_cast<float>(++houses_done) / houses_total);
     }
     cur_place = nullptr;
+    append_objects(scene_doc_, glm::vec3{0.0f});
     // ЭТАП ЗАКРЫВАЕТСЯ ТАМ, ГДЕ РАБОТА КОНЧИЛАСЬ, а не там, откуда её звали:
     // отсюда видно, что построек больше нет, а из enter_world — только что
     // load_scene_houses вернулась. Отметка идёт в ТОТ ЖЕ список, что и
@@ -1107,6 +1177,11 @@ void App::upload_house_mesh(bool interior_only) {
         });
     }
     cur_place = nullptr;
+    // УБРАНСТВО ЛОКАЦИИ ССЫЛКАМИ — В КАРМАН. Локация живёт километром ниже
+    // города (interior_pocket_), и позиции её оболочек сдвигает туда
+    // enter_interior. Расстановки же приходят из файла СЫРЫМИ, местными
+    // координатами комнаты, — значит карман прибавляем здесь, и ровно один раз.
+    append_objects(interior_doc_, interior_pocket_);
 
     std::size_t n_streams = 0;
     std::size_t n_doors = 0;

@@ -1,6 +1,6 @@
 /*
 Created: 24:08:2026 - 02:00:00
-Last updated: 27:08:2026 - 01:20:00
+Last updated: 27:08:2026 - 15:10:00
 Module: tools
 File: tools/check_interior.cpp
 
@@ -49,9 +49,17 @@ UPD:
   Вайтране рука давала 23 находки там, где всё исправно. Теперь пара
   «sealed + элемент door=1 в чертеже» засчитывается наравне со строкой
   перехода — и это ровно та пара, которую читает движок.
+- 27:08:2026 - 15:10:00: СУДЬЯ УВИДЕЛ УБРАНСТВО, ПРИШЕДШЕЕ ССЫЛКОЙ ([place]).
+  Кровать переехала в реестр объектов (волна 27.08), и до этой правки судья её
+  не видел вовсе: рука 1 проложила бы проход СКВОЗЬ кровать и объявила комнату
+  проходимой, рука 2 промолчала бы о кровати, висящей в воздухе. Проверено
+  обоими плечами на копии боевой локации: поднятая на 2 м ссылочная кровать
+  даёт «РУКА 2 — furn-bed ВЫШЕ пола на 1.98 м», опущенная — ноль находок.
+  Объект без секции HOUS в локации — тоже находка, а не молчание.
 */
 
 #include "engine/core/config/sources/Constants.h"
+#include "engine/render/sources/ObjectRegistry.h"
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseMesh.h"
 #include "engine/world/sources/Scene.h"
@@ -64,6 +72,7 @@ UPD:
 #include <fstream>
 #include <glm/geometric.hpp>
 #include <map>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <string>
@@ -99,6 +108,13 @@ constexpr std::size_t SHADOW_BUDGET = 1;
 struct Tri {
     glm::vec3 a, b, c;
 };
+
+/// ГДЕ ИСКАТЬ ЗАПЕЧЁННЫЕ ПРЕДМЕТЫ. Полка мебели — своя, и она названа здесь
+/// одна: судья локации судит УБРАНСТВО, а деревья и детали набора в комнате
+/// не стоят. Ключ --objects добавляет полки тому, у кого они свои.
+std::vector<std::string> g_shelves{"assets/objects/furniture"};
+
+const std::vector<std::string>& object_shelves() { return g_shelves; }
 
 struct Item {
     std::string file;
@@ -264,6 +280,72 @@ void check_scene_file(const std::string& path) {
         }
         items.push_back(std::move(it));
     }
+
+    // ---- УБРАНСТВО, ПРИШЕДШЕЕ ССЫЛКОЙ НА ОБЪЕКТ РЕЕСТРА ([place], 27.08).
+    // Предмет, чьё тело запечено один раз (assets/objects/furniture/*.dfo),
+    // стоит в локации ИМЕНЕМ, а не чертежом. Судья обязан видеть его тем же
+    // предметом: кровать, которую он не видит, — это кровать, сквозь которую
+    // он проложит проход к очагу и объявит комнату проходимой.
+    //
+    // ПОДОШВА ЗДЕСЬ — НИЗ МЕША, а не начало чертежа: у запечённого предмета
+    // чертежа уже нет, его начало и есть точка постановки. Для кровати это
+    // одно и то же число (её тело идёт от y=0 вверх); для утопленного очага
+    // разница была бы существенной — и очаг ссылкой пока не ставится.
+    for (const dfn::world::Placement& P : doc.placements) {
+        std::optional<dfn::render::RegistryObject> obj;
+        for (const std::string& shelf : object_shelves()) {
+            obj = dfn::render::read_object(std::filesystem::path(shelf)
+                                           / (P.object + ".dfo"));
+            if (obj) {
+                break;
+            }
+        }
+        if (!obj) {
+            finding(path + ": [place] объект \"" + P.object
+                    + "\" не найден ни на одной полке — судить нечем");
+            continue;
+        }
+        Item it;
+        it.file = P.object;
+        it.furniture = true; // ссылкой ставится убранство; оболочка — чертежом
+        glm::vec2 lo{1e9f};
+        glm::vec2 hi{-1e9f};
+        float bottom = 1e9f;
+        std::vector<Tri> mine;
+        for (const dfn::render::HouseSubmesh& sub : obj->house) {
+            for (std::size_t i = 0; i + 2 < sub.mesh.indices.size(); i += 3) {
+                Tri t;
+                t.a = place(sub.mesh.vertices[sub.mesh.indices[i]].position,
+                            P.position, P.yaw);
+                t.b = place(sub.mesh.vertices[sub.mesh.indices[i + 1]].position,
+                            P.position, P.yaw);
+                t.c = place(sub.mesh.vertices[sub.mesh.indices[i + 2]].position,
+                            P.position, P.yaw);
+                mine.push_back(t);
+                for (const glm::vec3& p : {t.a, t.b, t.c}) {
+                    lo = glm::min(lo, {p.x, p.z});
+                    hi = glm::max(hi, {p.x, p.z});
+                    bottom = std::min(bottom, p.y);
+                }
+            }
+        }
+        if (mine.empty()) {
+            // НЕ МОЛЧА: объект без запечённой постройки в локации — это либо
+            // дерево, поставленное в комнату, либо предмет, испечённый мимо
+            // секции HOUS. И то и другое человек обязан увидеть.
+            finding(path + ": [place] объект \"" + P.object
+                    + "\" не несёт запечённой постройки (секция HOUS пуста)");
+            continue;
+        }
+        it.lo = lo;
+        it.hi = hi;
+        it.center = (lo + hi) * 0.5f;
+        it.bottom_y = bottom;
+        it.origin_y = P.position.y;
+        it.tris = std::move(mine);
+        items.push_back(std::move(it));
+    }
+
     if (shell.empty()) {
         finding(path + ": в локации нет оболочки — судить нечего");
         return;

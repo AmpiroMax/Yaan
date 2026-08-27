@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 17:08:2026 - 18:16:18
+Last updated: 27:08:2026 - 15:10:00
 Module: engine/render
 File: engine/render/sources/ObjectRegistry.cpp
 
@@ -32,6 +32,12 @@ UPD:
   четвёртый. Всплыло, когда строительный набор стал текстурным целиком.
   Правило не изменилось — оно теперь называет все потоки, которые стережёт.
 - 17:08:2026 - 18:16:18: measure_object() перенесена сюда из tools/check_scene.cpp без изменений.
+- 27:08:2026 - 15:10:00: ФОРМАТ v3 — СЕКЦИЯ HOUS (куски постройки с номером
+  плитки). Хэш ЛИЧНОСТИ считает её, ТОЛЬКО ЕСЛИ ОНА НЕПУСТА: иначе секция,
+  добавленная сегодня, переверсировала бы 2400+ файлов полок, ни один из
+  которых не изменился. Правило «версия — обещание о том, как читать» здесь
+  прочитано второй раз: v1 сверяется без bark, v2/v3 — с bark, и v3 добавляет
+  постройку только там, где она есть.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -49,7 +55,7 @@ namespace {
 
 /// 'DFNO' — Daggerfall N object file (.dfo).
 inline constexpr uint32_t OBJECT_MAGIC = serialization::make_tag('D', 'F', 'N', 'O');
-inline constexpr uint32_t OBJECT_FORMAT_VERSION = 2; // v2: + BARK stream
+inline constexpr uint32_t OBJECT_FORMAT_VERSION = 3; // v3: + HOUS submeshes
 
 namespace section {
 inline constexpr serialization::SectionTag INFO = serialization::make_tag('I', 'N', 'F', 'O');
@@ -57,6 +63,10 @@ inline constexpr serialization::SectionTag WOOD = serialization::make_tag('W', '
 inline constexpr serialization::SectionTag CARD = serialization::make_tag('C', 'A', 'R', 'D');
 inline constexpr serialization::SectionTag GRND = serialization::make_tag('G', 'R', 'N', 'D');
 inline constexpr serialization::SectionTag BARK = serialization::make_tag('B', 'A', 'R', 'K');
+/// Куски постройки: (surface, tone, emissive) + поток. Одна секция на ВЕСЬ
+/// список, а не по секции на кусок: секция — это раздел формата, а не запись,
+/// и объект из трёх кусков не имеет права заводить три раздела.
+inline constexpr serialization::SectionTag HOUS = serialization::make_tag('H', 'O', 'U', 'S');
 } // namespace section
 
 inline constexpr uint16_t SECTION_VERSION = 1;
@@ -66,9 +76,10 @@ inline constexpr uint16_t SECTION_VERSION = 1;
 /// format's bound, for the same reason.
 inline constexpr uint64_t MAX_ELEMENTS = 16ull * 1024ull * 1024ull;
 
-void write_stream(serialization::BinaryWriter& w, serialization::SectionTag tag,
-                  const MeshData& mesh) {
-    w.begin_section(tag, SECTION_VERSION);
+/// ТЕЛО ПОТОКА БЕЗ СЕКЦИИ. Отдельно от write_stream, потому что у кусков
+/// постройки секция ОДНА на весь список (section::HOUS): раздел формата — это
+/// раздел, а не запись, и объект из трёх кусков не заводит три раздела.
+void write_stream_body(serialization::BinaryWriter& w, const MeshData& mesh) {
     w.write_u32(static_cast<uint32_t>(mesh.vertices.size()));
     for (const platform::Vertex& v : mesh.vertices) {
         w.write_f32(v.position.x);
@@ -85,6 +96,12 @@ void write_stream(serialization::BinaryWriter& w, serialization::SectionTag tag,
     for (const uint32_t i : mesh.indices) {
         w.write_u32(i);
     }
+}
+
+void write_stream(serialization::BinaryWriter& w, serialization::SectionTag tag,
+                  const MeshData& mesh) {
+    w.begin_section(tag, SECTION_VERSION);
+    write_stream_body(w, mesh);
     w.end_section();
 }
 
@@ -146,6 +163,22 @@ uint64_t object_content_hash(const RegistryObject& obj) {
     hash_stream(h, obj.cards);
     hash_stream(h, obj.ground);
     hash_stream(h, obj.bark);
+    // КУСКИ ПОСТРОЙКИ ВХОДЯТ В ЛИЧНОСТЬ, ТОЛЬКО ЕСЛИ ОНИ ЕСТЬ. Хэш — это
+    // личность содержимого, и «у объекта нет постройки» обязано хэшироваться
+    // ровно так же, как хэшировалось до появления секции: иначе один
+    // добавленный раздел молча переверсировал бы все 2400+ файлов полок,
+    // заставив перепечь деревья, набор и таблички, ни один из которых не
+    // изменился ни на вершину. Это тот же довод, по которому имя и
+    // происхождение в хэш не входят.
+    if (!obj.house.empty()) {
+        h.update_u64(obj.house.size());
+        for (const HouseSubmesh& s : obj.house) {
+            h.update_u64(s.surface);
+            h.update_u64(s.tone);
+            h.update_u64(s.emissive ? 1u : 0u);
+            hash_stream(h, s.mesh);
+        }
+    }
     return h.digest();
 }
 
@@ -168,7 +201,8 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
     // sheet) was refused as "a name pointing at nothing". The rule is
     // unchanged; it now names every stream it guards.
     if (obj.wood.vertices.empty() && obj.cards.vertices.empty()
-        && obj.ground.vertices.empty() && obj.bark.vertices.empty()) {
+        && obj.ground.vertices.empty() && obj.bark.vertices.empty()
+        && obj.house.empty()) {
         std::fprintf(stderr, "[dfo] \"%s\": refusing to write an object with no "
                              "streams -- a name pointing at nothing\n",
                      obj.name.c_str());
@@ -186,6 +220,20 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
     write_stream(w, section::CARD, obj.cards);
     write_stream(w, section::GRND, obj.ground);
     write_stream(w, section::BARK, obj.bark);
+    // СЕКЦИЯ ПИШЕТСЯ, ТОЛЬКО ЕСЛИ ЕСТЬ ЧТО ПИСАТЬ. Пустая секция — это лишние
+    // байты в каждом из 2400+ файлов полок и повод для читателя думать, что
+    // объект «какой-то другой»; а перепечь их сегодняшняя правка не должна.
+    if (!obj.house.empty()) {
+        w.begin_section(section::HOUS, SECTION_VERSION);
+        w.write_u32(static_cast<uint32_t>(obj.house.size()));
+        for (const HouseSubmesh& s : obj.house) {
+            w.write_u32(s.surface);
+            w.write_u32(s.tone);
+            w.write_u32(s.emissive ? 1u : 0u);
+            write_stream_body(w, s.mesh);
+        }
+        w.end_section();
+    }
     if (!w.ok()) {
         return false;
     }
@@ -217,6 +265,18 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
             streams_ok = read_stream(r, obj.ground) && streams_ok;
         } else if (s->tag == section::BARK) {
             streams_ok = read_stream(r, obj.bark) && streams_ok;
+        } else if (s->tag == section::HOUS) {
+            const uint32_t count = r.read_u32();
+            if (static_cast<uint64_t>(count) > MAX_ELEMENTS) {
+                return std::nullopt;
+            }
+            obj.house.resize(count);
+            for (HouseSubmesh& sub : obj.house) {
+                sub.surface = r.read_u32();
+                sub.tone = r.read_u32();
+                sub.emissive = r.read_u32() != 0u;
+                streams_ok = read_stream(r, sub.mesh) && streams_ok;
+            }
         }
         // Unknown tags: next_section() steps over them (Rule 7).
     }
@@ -265,9 +325,23 @@ ObjectExtent measure_object(const RegistryObject& obj) {
     scan(obj.cards);
     scan(obj.ground);
     scan(obj.bark);
+    // КУСКИ ПОСТРОЙКИ МЕРЯЮТСЯ КАК СПЛОШНЫЕ, и это не выбор из двух: постройка
+    // и есть то, обо что человек стукается. Без этой пары строк запечённая
+    // кровать отвечала бы судье и призраку редактора габаритом 0x0x0 —
+    // «объект есть, размера у него нет», — и приёмка полки напечатала бы нули
+    // ровно там, где владелец собирается прочесть свой замер.
+    for (const HouseSubmesh& s : obj.house) {
+        scan_solid(s.mesh);
+        scan(s.mesh);
+    }
     float solid_top = 0.0f;
     for (const MeshData* m : {&obj.wood, &obj.bark}) {
         for (const platform::Vertex& v : m->vertices) {
+            solid_top = std::max(solid_top, v.position.y);
+        }
+    }
+    for (const HouseSubmesh& s : obj.house) {
+        for (const platform::Vertex& v : s.mesh.vertices) {
             solid_top = std::max(solid_top, v.position.y);
         }
     }
