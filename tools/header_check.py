@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 27:08:2026 - 23:05:00
+# Last updated: 28:08:2026 - 01:48:50
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -159,6 +159,15 @@ UPD_ENTRY_RE = re.compile(
 #   ОТВЕРГНУТЫЕ СЛУЧАИ контрольных рук (правило 30): .dfh той же кузницы, чей
 #   контракт — строка add_test, которая их зовёт, плюс собственная преамбула
 #   каждого («какое число, с какого живого тела снято, какую руку сторожит»).
+# - 28:08:2026 - 01:48:50: tools/cities/*.natural в SKIP_PATH_RES — НАТУРАЛЬНАЯ
+#   ЗЕМЛЯ ГОРОДА, переехавшая из /tmp в дерево после того, как уборка системы
+#   унесла оба дампа и города вышли без единой строки дельт рельефа (инцидент
+#   28.08, разбор — в шапке tools/gen_city.py). Это ЗАМЕР: сетка SPAN x SPAN
+#   отметок, снятая с движка прибором probe_ground по BARE-выпуску, файл
+#   целиком переписывается одной командой. Рукописная метка времени в нём была
+#   бы числом, которое переписывают, а не перемеряют (правило 16); на вопрос
+#   «какой замер здесь лежит» отвечает sha1, печатаемый КАЖДЫМ прогоном
+#   генератора строкой «ЗЕМЛЯ ЭТОГО ПРОГОНА», и протухнуть он не может.
 SKIP_DIRS = {".git", "target", "node_modules", "dist", ".vite", ".cursor",
              ".claude", "third_party", "__pycache__", ".venv", "_deps",
              # RUN OUTPUT, not source. These are written BY the tools whose
@@ -220,6 +229,15 @@ SKIP_PATH_RES = (
     # weaker answer to the same question, and it would drift the day someone
     # re-measures without touching the geometry.
     re.compile(r"^tests/fixtures/"),
+    # tools/cities/*.natural — ЗАМЕР, А НЕ ИСХОДНИК: сетка SPAN x SPAN отметок
+    # земли, снятая с движка прибором tools/probe_ground.cpp по BARE-выпуску
+    # города (см. шапку tools/gen_city.py, «ПОЛНЫЙ ПРОГОН»). Файл целиком
+    # переписывается ОДНОЙ командой, и рукописная метка времени в нём была бы
+    # ровно тем, что правило 16 запрещает: числом, которое переписывают, а не
+    # перемеряют. На вопрос «какой замер здесь лежит» отвечает sha1, который
+    # генератор печатает строкой «ЗЕМЛЯ ЭТОГО ПРОГОНА» на КАЖДОМ прогоне, —
+    # и он не может протухнуть, потому что считается по содержимому.
+    re.compile(r"^tools/cities/[^/]+\.natural$"),
 )
 # Extensions excluded because the format cannot carry a leading source-header comment
 # (binary, strict JSON, model weights) or is generated output.
