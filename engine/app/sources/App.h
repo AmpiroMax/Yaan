@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 20:10:06
+Last updated: 27:08:2026 - 20:28:48
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -188,6 +188,10 @@ UPD:
   music_volume / sfx_volume, методы update_menu_music() и
   sync_audio_volumes(). ОДИН СЧИТАТЕЛЬ СОСТОЯНИЯ ВМЕСТО ШЕСТИ ПЕРЕХОДОВ —
   довод у объявления метода.
+- 27:08:2026 - 20:28:48: voice_bus_ и voice_volume — ТРЕТЬЯ шина (дополнение
+  заказа того же дня: «три ползунка — музыка, эффекты, РЕЧЬ»). Голосов ещё
+  нет; шина и её настройка заведены заранее, чтобы диалоговая волна подключала
+  голос к готовой ручке, а не заводила ручку заодно с голосом.
 */
 
 #pragma once
@@ -287,6 +291,9 @@ struct AppConfig {
     // sound off rather than down. Both are turned live on the settings page.
     float music_volume = 0.7f;
     float sfx_volume = 1.0f;
+    // РЕЧЬ: шина заведена ВПЕРЁД голосов (заказ владельца). Единица, как у
+    // эффектов — реплика это то, что игрок слушает, а не фон.
+    float voice_volume = 1.0f;
     std::string title_key = "app.title"; // localization key (Rule 5)
 
     // Populates the fields above from settings.cfg (auto-generated with
@@ -1161,6 +1168,12 @@ private:
     // «вся музыка» можно назвать одним словом. И она нужна раньше дакинга:
     // приглушить музыку под реплику можно только тому, у кого есть своя ручка.
     platform::BusHandle music_bus_{};
+    /// ШИНА РЕЧИ, У КОТОРОЙ ПОКА НЕТ НИ ОДНОГО ГОЛОСА. Заведена по заказу
+    /// владельца заранее, и это дешевле, чем кажется: ma_sound_group без
+    /// источников не считает ничего. Зато диалоговая волна не будет заодно
+    /// трогать страницу настроек, файл настроек и их рукава — она подключит
+    /// голос к готовой ручке.
+    platform::BusHandle voice_bus_{};
     gameplay::StepSoundBank sound_bank_{};
     gameplay::WindLoop wind_loop_{};
     gameplay::StepContext step_ctx_{};

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:12:50
-Last updated: 27:08:2026 - 20:16:03
+Last updated: 27:08:2026 - 20:28:48
 Module: tests
 File: tests/app/SettingsTests.cpp
 
@@ -37,6 +37,9 @@ UPD:
   «громко» не заполняет переменную, и разбор, глядящий только на диапазон,
   записал бы мусор — чаще всего ноль, то есть «звук пропал сам»), и то, что
   два ключа кладутся в ДВА поля.
+- 27:08:2026 - 20:28:48: третий ключ voice_volume (речевая шина заведена
+  вперёд голосов). Три РАЗНЫХ числа в круговом прогоне — иначе перепутанные
+  местами поля дают зелёный; и утверждение, что каждый ключ едет в своё поле.
 */
 
 #include <doctest/doctest.h>
@@ -64,6 +67,7 @@ TEST_CASE("круговой прогон настроек не теряет ни
     // получить зелёный.
     a.music_volume = 0.0f;
     a.sfx_volume = 0.3f;
+    a.voice_volume = 0.6f; // три РАЗНЫХ числа: перепутанные поля не дадут зелёный
 
     AppConfig b;
     settings_from_text(settings_to_text(a), b);
@@ -81,6 +85,7 @@ TEST_CASE("круговой прогон настроек не теряет ни
     CHECK(b.black_floor == doctest::Approx(0.08f));
     CHECK(b.music_volume == doctest::Approx(0.0f));
     CHECK(b.sfx_volume == doctest::Approx(0.3f));
+    CHECK(b.voice_volume == doctest::Approx(0.6f));
 
     // И текст СХОДИТСЯ САМ С СОБОЙ: два прогона одного состояния дают один
     // файл, иначе diff настроек перестанет что-либо значить.
@@ -139,6 +144,11 @@ TEST_CASE("неверное значение ОТВЕРГАЕТСЯ, а не п�
     settings_from_text("sfx_volume=0.2\n", cfg);
     CHECK(cfg.sfx_volume == doctest::Approx(0.2f));
     CHECK(cfg.music_volume == doctest::Approx(0.4f)); // соседнее поле не тронуто
+    cfg.voice_volume = 0.9f;
+    settings_from_text("voice_volume=0.1\n", cfg);
+    CHECK(cfg.voice_volume == doctest::Approx(0.1f));
+    CHECK(cfg.sfx_volume == doctest::Approx(0.2f));   // и третий ключ — в третье поле
+    CHECK(cfg.music_volume == doctest::Approx(0.4f));
 }
 
 TEST_CASE("мусор в файле не роняет разбор — файл правит человек") {

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 27:08:2026 - 20:10:06
+Last updated: 27:08:2026 - 20:33:38
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -160,6 +160,30 @@ UPD:
     отделяет, а не от того, за чем он однажды стоял (правило 32).
   * over_world() — ответ на «эта страница над живым миром или над пустотой».
     Считается по цепочке возвратов, довод — в заголовке.
+- 27:08:2026 - 20:28:48: ТРЕТЬЯ СТРОКА ЗВУКА — «Громкость речи» (дополнение
+  заказа того же дня). Лестница у неё та же VOLUME_STEPS: три ползунка,
+  которые ведут себя по-разному, — это три ползунка, из которых игрок помнит
+  один. Довод о строке, у которой пока нечему звучать, — в заголовке.
+- 27:08:2026 - 20:33:38: РАСКЛАДКА СТРАНИЦЫ НАСТРОЕК СРЫВАЛАСЬ, И ТРЕТИЙ
+  ПОЛЗУНОК ЭТО ПОКАЗАЛ. Найдено КАДРОМ приёмки (правило 27), а не
+  рассуждением: на двенадцатой строке список схлопнулся в нечитаемые буквы в
+  верхней четверти кадра при нормальном заголовке.
+  * ПРИЧИНА. Цикл подгонки ужимал переменную `h`, из которой брались И ступень
+    лестницы кеглей, И нижняя граница кадра: каждый проход опускал буквы на
+    ступень и ПОДНИМАЛ низ на пятую часть, то есть условие гналось за
+    собственным ответом. Пока строк было девять, цикл не крутился НИ РАЗУ, и
+    дефект был не «редкий», а невидимый по построению. Разведено: граница — от
+    настоящей высоты кадра, лестница — своей переменной.
+  * ВТОРАЯ ПОЛОВИНА, найденная уже рукавом. На сетке 320×180 лестница кеглей
+    кончается раньше, чем двенадцать строк помещаются, и цикл честно выходил,
+    оставляя последнюю строку на четыре пикселя НИЖЕ кадра — то есть
+    ненажимаемой. Теперь, когда мельчить буквы уже некуда, ужимается
+    МЕЖДУСТРОЧЬЕ (пол — высота прописной: плотнее строки соприкоснулись бы).
+  * И ПРИБОР. Раскладочный случай, который был, не мог этого увидеть ДВАЖДЫ:
+    он утверждал «коробки внутри кадра и не пересекаются» — чему съёжившийся
+    список удовлетворяет с запасом, — и смотрел только на Root и Pause, но не
+    на настройки. Новый случай утверждает ИСХОД: список доходит до середины
+    кадра, на всех четырёх сетках, которые страница предлагает.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -301,6 +325,7 @@ constexpr size_t RowHeadBob = static_cast<size_t>(SettingsRow::HeadBob);
 constexpr size_t RowBrightness = static_cast<size_t>(SettingsRow::Brightness);
 constexpr size_t RowMusicVolume = static_cast<size_t>(SettingsRow::MusicVolume);
 constexpr size_t RowSfxVolume = static_cast<size_t>(SettingsRow::SfxVolume);
+constexpr size_t RowVoiceVolume = static_cast<size_t>(SettingsRow::VoiceVolume);
 constexpr size_t RowControls = static_cast<size_t>(SettingsRow::Controls);
 constexpr size_t RowBack = static_cast<size_t>(SettingsRow::Back);
 constexpr size_t RowCount = static_cast<size_t>(SettingsRow::Count);
@@ -662,6 +687,11 @@ void MenuModel::adjust(int delta) {
             VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.sfx_volume),
                                std::size(VOLUME_STEPS), delta)];
         break;
+    case RowVoiceVolume:
+        settings_.voice_volume =
+            VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.voice_volume),
+                               std::size(VOLUME_STEPS), delta)];
+        break;
     default:
         break; // brightness and back are not values: Enter is their only verb
     }
@@ -1015,21 +1045,55 @@ struct SettingsLayout {
     L.step = row + row / 2;
     // the last two rows are verbs (open a page, leave), not values
     L.gap_before_verbs = row / 2;
-    // ВСЕ СТРОКИ ОБЯЗАНЫ ПОМЕСТИТЬСЯ. Страница выросла на две строки (окно и
-    // полный экран), и без этой проверки последние две ушли бы за низ кадра —
-    // ровно тот отказ, который экран управления уже один раз выпустил.
-    while (L.item_px > 0
+    // ВСЕ СТРОКИ ОБЯЗАНЫ ПОМЕСТИТЬСЯ, и цикл ниже ужимает КЕГЛЬ, пока они не
+    // помещаются в кадр.
+    //
+    // ГРАНИЦА СЧИТАЕТСЯ ОТ НАСТОЯЩЕЙ ВЫСОТЫ КАДРА И НЕ ДВИГАЕТСЯ. Раньше цикл
+    // ужимал саму `h` — ту переменную, из которой брались И ступень лестницы,
+    // И нижняя граница, — то есть каждый проход опускал кегль на ступень и
+    // ПОДНИМАЛ низ кадра на пятую часть. Условие гналось за собственным
+    // ответом, и, пока строк было девять, никто этого не видел: страница
+    // помещалась с первого раза, цикл не крутился ни разу. Двенадцатая строка
+    // (третий ползунок звука) заставила его крутиться — и он сорвался в
+    // несколько проходов подряд, оставив список нечитаемыми буквами в верхней
+    // четверти кадра при нормальном заголовке. Снято КАДРОМ приёмки, а не
+    // рассуждением.
+    //
+    // Обе величины теперь разведены: `bottom` — от кадра, `ladder_h` — только
+    // для выбора ступени. Цикл монотонно спускается по лестнице кеглей и
+    // останавливается либо когда список поместился, либо когда лестница
+    // кончилась (ступень перестала уменьшаться).
+    const int bottom = h - h / 12;
+    int ladder_h = h;
+    while (L.item_px > 1
            && L.first_y + static_cast<int>(RowCount) * L.step + L.gap_before_verbs
-                  > h - h / 12) {
-        const int smaller = px_for(h * 4 / 5, UiText::Item);
+                  > bottom) {
+        ladder_h = ladder_h * 4 / 5;
+        const int smaller = px_for(ladder_h, UiText::Item);
         if (smaller >= L.item_px) {
-            break;
+            break; // лестница кончилась: мельче честно не бывает
         }
         L.item_px = smaller;
         const int r = std::max(1, ui_cap_height(L.item_px));
         L.step = r + r / 2;
         L.gap_before_verbs = r / 2;
-        h = h * 4 / 5;
+    }
+    // И ЕСЛИ ЛЕСТНИЦА КОНЧИЛАСЬ, А СТРОКИ ВСЁ РАВНО НЕ ВЛЕЗЛИ, УЖИМАЕТСЯ
+    // МЕЖДУСТРОЧЬЕ, А НЕ БУКВЫ. На сетке 320×180 кегль упирается в свою нижнюю
+    // ступень раньше, чем двенадцать строк помещаются, — и цикл выше честно
+    // выходил, оставляя последнюю строку на четыре пикселя ниже кадра. Это не
+    // «почти влезло»: строка за кадром не рисуется и НЕ НАЖИМАЕТСЯ, а
+    // раскладка — единственная карта, которая есть у мыши.
+    //
+    // Междустрочье — 1.5 высоты прописной, то есть половина шага это воздух, и
+    // воздух отдаётся первым. Пол — сама высота прописной: плотнее строки уже
+    // соприкоснулись бы, а два соприкоснувшихся текста читаются как поломка
+    // обоих (тот же довод, что у плашки паузы).
+    const int rows = static_cast<int>(RowCount);
+    const int span = bottom - L.first_y - L.gap_before_verbs;
+    const int cap = std::max(1, ui_cap_height(L.item_px));
+    if (L.step * rows > span) {
+        L.step = std::max(cap, span / rows);
     }
     return L;
 }
@@ -1209,6 +1273,8 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
     const std::string music_vol = (s.music_volume <= 0.0f) ? off : std::string(buf);
     std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.sfx_volume) * 100.0);
     const std::string sfx_vol = (s.sfx_volume <= 0.0f) ? off : std::string(buf);
+    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.voice_volume) * 100.0);
+    const std::string voice_vol = (s.voice_volume <= 0.0f) ? off : std::string(buf);
 
     struct Row {
         std::string_view label;
@@ -1229,6 +1295,7 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
         {loc("menu.settings.brightness"), bright},
         {loc("menu.settings.music"), music_vol},
         {loc("menu.settings.sfx"), sfx_vol},
+        {loc("menu.settings.voice"), voice_vol},
         {loc("menu.controls"), {}},
         {loc("menu.back"), {}},
     };

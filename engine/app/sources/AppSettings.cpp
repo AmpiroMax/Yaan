@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:07:24
-Last updated: 27:08:2026 - 20:10:06
+Last updated: 27:08:2026 - 20:28:48
 Module: engine/app
 File: engine/app/sources/AppSettings.cpp
 
@@ -25,6 +25,10 @@ UPD:
   в v мусор, а тихо подставленная громкость 0 — это «звук пропал сам».
   ЗАГОЛОВОК ФАЙЛА БОЛЬШЕ НЕ ГОВОРИТ «graphics settings»: в нём теперь есть
   строка, которую не видно.
+- 27:08:2026 - 20:28:48: voice_volume — третья шина (дополнение заказа того же
+  дня). Голосов в движке ещё нет, и строка всё равно пишется в файл: настройка,
+  появляющаяся вместе с первой репликой, начнёт жизнь с умолчания и сотрёт то,
+  что игрок выбрал заранее.
 */
 
 #include "engine/app/sources/AppSettings.h"
@@ -79,12 +83,15 @@ std::string settings_to_text(const AppConfig& cfg) {
         // множители, 1 = как записано (Rule 14). Ноль — законное значение и
         // ПИШЕТСЯ как ноль: «выключил музыку» обязано переживать перезапуск,
         // иначе это не настройка, а пауза.
-        << "# music_volume / sfx_volume: громкость двух шин, 0..1 (линейный\n"
-        << "#   множитель, 1 = как записано). Музыка — заглавная тема; эффекты —\n"
-        << "#   шаги, прыжки, всплески, ветер. Меняются на странице настроек и\n"
-        << "#   применяются на лету, пока ползунок крутится.\n"
+        << "# music_volume / sfx_volume / voice_volume: громкость трёх шин, 0..1\n"
+        << "#   (линейный множитель, 1 = как записано). Музыка — заглавная тема;\n"
+        << "#   эффекты — шаги, прыжки, всплески, ветер; речь — реплики, которых\n"
+        << "#   в движке ещё НЕТ: шина и её ползунок заведены заранее, по заказу\n"
+        << "#   владельца, чтобы первая же реплика попала в уже настроенную\n"
+        << "#   громкость. Меняются на странице настроек, на лету.\n"
         << "music_volume=" << cfg.music_volume << "\n"
         << "sfx_volume=" << cfg.sfx_volume << "\n"
+        << "voice_volume=" << cfg.voice_volume << "\n"
         << "# show_menu: 1 = start in the menu and pick a demo map,\n"
         << "#            0 = drop straight into the world.\n"
         << "show_menu=" << (cfg.show_menu ? 1 : 0) << '\n';
@@ -150,7 +157,8 @@ void settings_from_text(const std::string& text, AppConfig& cfg) {
             if (std::sscanf(value.c_str(), "%f", &v) == 1 && v >= 0.0f && v <= 2.0f) {
                 cfg.head_bob = v;
             }
-        } else if (key == "music_volume" || key == "sfx_volume") {
+        } else if (key == "music_volume" || key == "sfx_volume"
+                   || key == "voice_volume") {
             // ГРОМКО И НИКОГДА К БЛИЖАЙШЕМУ — та же доктрина, что у окна и
             // сглаживания выше. И ВТОРАЯ ПОЛОВИНА ПРОВЕРКИ ВАЖНЕЕ ПЕРВОЙ: без
             // "== 1" строка music_volume=громко оставила бы в v неинициализи-
@@ -158,7 +166,9 @@ void settings_from_text(const std::string& text, AppConfig& cfg) {
             // за которое некого спросить.
             float v = 0.0f;
             const bool read = std::sscanf(value.c_str(), "%f", &v) == 1;
-            float& field = (key == "music_volume") ? cfg.music_volume : cfg.sfx_volume;
+            float& field = (key == "music_volume")  ? cfg.music_volume
+                           : (key == "sfx_volume")   ? cfg.sfx_volume
+                                                     : cfg.voice_volume;
             if (read && v >= 0.0f && v <= 1.0f) {
                 field = v;
             } else {

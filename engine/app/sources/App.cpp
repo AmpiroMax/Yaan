@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 20:10:06
+Last updated: 27:08:2026 - 20:28:48
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -684,6 +684,15 @@ UPD:
     main_theme.ogg сведена для титров и оставлена запасным ходом с громкой
     строкой в лог: перепутать их — единственный способ получить «провал между
     проходами», ради отсутствия которого заказ и делался.
+- 27:08:2026 - 20:28:48: ТРЕТЬЯ ШИНА — РЕЧЬ (дополнение заказа того же дня:
+  «три ползунка — музыка, эффекты, РЕЧЬ»). Голосов в движке ещё нет, и это
+  ПРЯМО отменяет довод, стоявший в init час назад: «шина без единого звука —
+  это ползунок, который ничего не делает». Ответ на него — доктрина корневого
+  экрана (26.08): спрятанный пункт неотличим от несуществующего, а ползунок,
+  который появится вместе с первой репликой, начнёт жизнь с умолчания и сотрёт
+  то, что игрок уже выбрал. Шина настоящая, настройка персистится, цена
+  нулевая. Довод переписан на месте, а не удалён: отменённое рассуждение
+  дороже молчания.
 */
 
 #include "engine/app/sources/App.h"
@@ -1103,15 +1112,26 @@ bool App::init(const AppConfig& config) {
         audio_ = platform::create_null_audio();
         (void)audio_->init();
     }
-    // ДВЕ ШИНЫ ОТ МАСТЕРА, И ЭТО ВСЯ АРХИТЕКТУРА МИКШЕРА НА СЕГОДНЯ. Эффекты
-    // (шаги, прыжки, всплески, ветер) — одна ветка, музыка — другая, каждая со
-    // своей ручкой. Голос и окружение из контракта IAudio НЕ заводятся заранее:
-    // шина без единого звука — это строка на странице настроек, которая ничего
-    // не делает, и игрок узнаёт об этом, покрутив её впустую.
+    // ТРИ ШИНЫ ОТ МАСТЕРА, И ЭТО ВСЯ АРХИТЕКТУРА МИКШЕРА НА СЕГОДНЯ. Эффекты
+    // (шаги, прыжки, всплески, ветер), музыка, речь — три ветки, три ручки.
+    //
+    // РЕЧЕВАЯ ШИНА ЗАВЕДЕНА ВПЕРЁД ГОЛОСОВ, ПО ЗАКАЗУ ВЛАДЕЛЬЦА, и это прямо
+    // отменяет довод, который стоял здесь час назад («шина без единого звука —
+    // это ползунок, который ничего не делает»). Довод был не пустой, и ответ на
+    // него — доктрина корневого экрана (26.08): спрятанный пункт неотличим от
+    // несуществующего. Ползунок настоящий — он крутит настоящую шину и
+    // переживает перезапуск; на шине пока просто тихо, и первая же реплика
+    // попадёт в громкость, которую игрок выбрал заранее, а не в умолчание.
+    // Цена нулевая: ma_sound_group без источников не считает ничего.
+    //
+    // Шина ОКРУЖЕНИЯ из контракта IAudio по-прежнему не заводится: её никто не
+    // просил, и в отличие от речи у неё нет ни ползунка, ни обещания.
     sfx_bus_ = audio_->create_bus({});
     music_bus_ = audio_->create_bus({});
+    voice_bus_ = audio_->create_bus({});
     audio_->set_bus_volume(sfx_bus_, config.sfx_volume);
     audio_->set_bus_volume(music_bus_, config.music_volume);
+    audio_->set_bus_volume(voice_bus_, config.voice_volume);
     sound_bank_ = gameplay::load_step_sound_bank(
         *audio_, "games/daggerfall_n/assets/audio", sfx_bus_);
     gameplay::wire_step_audio(bus_, *audio_, sound_bank_);
@@ -1181,6 +1201,7 @@ bool App::init(const AppConfig& config) {
     ms.head_bob = config.head_bob;
     ms.music_volume = config.music_volume;
     ms.sfx_volume = config.sfx_volume;
+    ms.voice_volume = config.voice_volume;
     menu_.set_settings(ms);
 
     // Rule 5: every user-facing string comes from here and nowhere else.
@@ -3419,6 +3440,10 @@ void App::sync_audio_volumes() {
     if (s.sfx_volume != config_.sfx_volume) {
         config_.sfx_volume = s.sfx_volume;
         audio_->set_bus_volume(sfx_bus_, config_.sfx_volume);
+    }
+    if (s.voice_volume != config_.voice_volume) {
+        config_.voice_volume = s.voice_volume;
+        audio_->set_bus_volume(voice_bus_, config_.voice_volume);
     }
 }
 
