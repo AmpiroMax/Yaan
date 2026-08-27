@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 20:28:48
+Last updated: 27:08:2026 - 20:38:39
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -693,6 +693,7 @@ UPD:
   то, что игрок уже выбрал. Шина настоящая, настройка персистится, цена
   нулевая. Довод переписан на месте, а не удалён: отменённое рассуждение
   дороже молчания.
+- 27:08:2026 - 20:38:39: звук снова ВКЛЮЧЁН по умолчанию — переворот 14.08 был временным по просьбе владельца, время вышло его же заказом музыки в меню; DFN_AUDIO теперь двусторонняя (=0 глушит, =1 включает), DFN_NULL_AUDIO не тронута.
 */
 
 #include "engine/app/sources/App.h"
@@ -891,12 +892,18 @@ AppConfig AppConfig::from_env() {
     // DFN_NULL_AUDIO stays and still means what it always meant. It is written
     // into recipes already on disk, and a door that quietly stops existing
     // makes every recipe naming it a lie.
-    cfg.use_null_audio = true;
+    // ЗВУК СНОВА ВКЛЮЧЁН ПО УМОЛЧАНИЮ (28.08.2026). Переворот 14.08 был
+    // ВРЕМЕННЫМ по просьбе владельца («выключи звук на время»); время вышло
+    // его же заказом — заглавная тема в главном меню на репите. Дверь
+    // DFN_AUDIO осталась и работает в обе стороны: =0 глушит, =1 включает
+    // поверх любого умолчания; DFN_NULL_AUDIO по-прежнему значит то же, что
+    // всегда (рецепты с её именем не становятся ложью).
+    cfg.use_null_audio = false;
     if (const char* na = door_value("DFN_NULL_AUDIO"); na && na[0] == '1') {
         cfg.use_null_audio = true;
     }
-    if (const char* a = door_value("DFN_AUDIO"); a && a[0] == '1') {
-        cfg.use_null_audio = false;
+    if (const char* a = door_value("DFN_AUDIO"); a && a[0] != 0) {
+        cfg.use_null_audio = (a[0] == '0');
     }
     // SAID OUT LOUD, because an engine that is silent AND silent about being
     // silent is the mute zero this whole harness exists to refuse: the next
@@ -904,7 +911,7 @@ AppConfig AppConfig::from_env() {
     // nobody broke, and would be right to.
     if (cfg.use_null_audio) {
         std::fprintf(stderr,
-                     "[audio] SILENT by default (user request, 14.08.2026) -- "
+                     "[audio] SILENT (DFN_NULL_AUDIO/DFN_AUDIO=0) -- "
                      "set DFN_AUDIO=1 for sound\n");
     }
     if (const char* np = door_value("DFN_NULL_PHYSICS"); np && np[0] == '1') {
