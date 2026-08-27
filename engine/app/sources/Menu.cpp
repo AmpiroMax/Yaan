@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 27:08:2026 - 12:58:00
+Last updated: 27:08:2026 - 20:10:06
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -143,6 +143,23 @@ UPD:
     подошвой за нижний край — так не виден срез ствола (свойство исходного
     силуэта, docs/reports/heraldry-3d.html §7), — и места под ним не
     осталось вовсе.
+- 27:08:2026 - 20:10:06: ДВЕ СТРОКИ ЗВУКА НА СТРАНИЦЕ НАСТРОЕК И ЧИНОВНЫЙ
+  ПРОБЕЛ (заказ владельца через музыкальную сессию: громкость музыки и
+  эффектов регулируется отдельно).
+  * Строки «Громкость музыки» и «Громкость эффектов» стоят между яркостью и
+    управлением: сначала всё про картинку, потом всё про звук, потом переходы.
+    Лестница у обеих одна — VOLUME_STEPS, одиннадцать ступеней по десятой;
+    ноль показывается словом «выкл», как у покачивания, потому что «0 %»
+    читается как сломанная строка, а не как выбор.
+  * ПРОБЕЛ ПЕРЕД ГЛАГОЛАМИ ПЕРЕСТАЛ БЫТЬ ПРОБЕЛОМ ПОСЛЕ ЯРКОСТИ. Поле
+    называлось по соседу (gap_after_brightness) и приколото было к нему же
+    (`i > RowBrightness`) — то есть страница верила, что яркость всегда
+    последнее значение. Две строки звука сделали это неправдой в первый же
+    день, и старое условие разрезало бы список посередине. Теперь пробел
+    отсчитывается ОТ ПЕРВОГО ГЛАГОЛА (`i >= RowControls`) — от того, что он
+    отделяет, а не от того, за чем он однажды стоял (правило 32).
+  * over_world() — ответ на «эта страница над живым миром или над пустотой».
+    Считается по цепочке возвратов, довод — в заголовке.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -260,6 +277,13 @@ constexpr uint32_t MSAA_STEPS[] = {0, 2, 4, 8};
 // of the motion, not a small one -- so it is a rung of its own, not the bottom
 // of a slider the player has to hunt for.
 constexpr float BOB_STEPS[] = {0.0f, 0.5f, 1.0f, 1.5f, 2.0f};
+// ГРОМКОСТЬ — СТУПЕНЬКАМИ ПО ДЕСЯТОЙ, а не непрерывным ползунком, и по той же
+// причине, по которой ступеньки у всего остального на этой странице: страница
+// управляется четырьмя клавишами, а не мышью с захватом. Одиннадцать ступеней
+// проходятся за десять нажатий и каждая из них — значение, которое можно
+// назвать вслух и записать в файл, не пряча за ним 0.6999999.
+constexpr float VOLUME_STEPS[] = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f,
+                                  0.6f, 0.7f, 0.8f, 0.9f, 1.0f};
 
 // The rows of the settings page, named once. Their ORDER is the order of the
 // picture: what the frame is drawn on, then what is done to it, then how it
@@ -275,6 +299,8 @@ constexpr size_t RowMsaa = static_cast<size_t>(SettingsRow::Msaa);
 constexpr size_t RowPalette = static_cast<size_t>(SettingsRow::Palette);
 constexpr size_t RowHeadBob = static_cast<size_t>(SettingsRow::HeadBob);
 constexpr size_t RowBrightness = static_cast<size_t>(SettingsRow::Brightness);
+constexpr size_t RowMusicVolume = static_cast<size_t>(SettingsRow::MusicVolume);
+constexpr size_t RowSfxVolume = static_cast<size_t>(SettingsRow::SfxVolume);
 constexpr size_t RowControls = static_cast<size_t>(SettingsRow::Controls);
 constexpr size_t RowBack = static_cast<size_t>(SettingsRow::Back);
 constexpr size_t RowCount = static_cast<size_t>(SettingsRow::Count);
@@ -626,9 +652,37 @@ void MenuModel::adjust(int delta) {
         settings_.head_bob = BOB_STEPS[cycle(nearest_rung(BOB_STEPS, settings_.head_bob),
                                              std::size(BOB_STEPS), delta)];
         break;
+    case RowMusicVolume:
+        settings_.music_volume =
+            VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.music_volume),
+                               std::size(VOLUME_STEPS), delta)];
+        break;
+    case RowSfxVolume:
+        settings_.sfx_volume =
+            VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.sfx_volume),
+                               std::size(VOLUME_STEPS), delta)];
+        break;
     default:
         break; // brightness and back are not values: Enter is their only verb
     }
+}
+
+// СТОИТ ЛИ СТРАНИЦА НАД ЖИВЫМ МИРОМ — по цепочке возвратов, а не по флагу
+// (довод в заголовке). Цепочка коротка и вся здесь: управление возвращается в
+// настройки, калибровка и настройки — туда, откуда их открыли, и корнем
+// оказывается либо Root, либо Pause.
+bool MenuModel::over_world() const {
+    MenuPage p = page_;
+    if (p == MenuPage::Controls) {
+        p = MenuPage::Settings; // единственный вход, значит и единственный выход
+    }
+    if (p == MenuPage::Calibrate) {
+        p = calibrate_return_;
+    }
+    if (p == MenuPage::Settings) {
+        p = settings_return_;
+    }
+    return p == MenuPage::Pause;
 }
 
 void MenuModel::move(int delta) {
@@ -938,7 +992,12 @@ struct SettingsLayout {
     int title_y = 0;
     int first_y = 0;
     int step = 0;
-    int gap_after_brightness = 0;
+    // ПРОБЕЛ ПЕРЕД ГЛАГОЛАМИ, а не «после яркости». Поле называлось по СОСЕДУ,
+    // и сосед сменился в тот же день, когда страница выросла на звук: яркость
+    // перестала быть последним значением, а пробел остался приколот к ней и
+    // разрезал бы страницу посередине. Имя теперь говорит, ЧТО отделяется
+    // (строки-значения от строк-переходов), и переживает любую новую настройку.
+    int gap_before_verbs = 0;
 };
 
 [[nodiscard]] SettingsLayout settings_layout(int h) {
@@ -954,13 +1013,13 @@ struct SettingsLayout {
     L.title_y = h / 8;
     L.first_y = L.title_y + std::max(1, ui_cap_height(L.title_px)) + row;
     L.step = row + row / 2;
-    // the two rows below the dial are verbs, not values
-    L.gap_after_brightness = row / 2;
+    // the last two rows are verbs (open a page, leave), not values
+    L.gap_before_verbs = row / 2;
     // ВСЕ СТРОКИ ОБЯЗАНЫ ПОМЕСТИТЬСЯ. Страница выросла на две строки (окно и
     // полный экран), и без этой проверки последние две ушли бы за низ кадра —
     // ровно тот отказ, который экран управления уже один раз выпустил.
     while (L.item_px > 0
-           && L.first_y + static_cast<int>(RowCount) * L.step + L.gap_after_brightness
+           && L.first_y + static_cast<int>(RowCount) * L.step + L.gap_before_verbs
                   > h - h / 12) {
         const int smaller = px_for(h * 4 / 5, UiText::Item);
         if (smaller >= L.item_px) {
@@ -969,7 +1028,7 @@ struct SettingsLayout {
         L.item_px = smaller;
         const int r = std::max(1, ui_cap_height(L.item_px));
         L.step = r + r / 2;
-        L.gap_after_brightness = r / 2;
+        L.gap_before_verbs = r / 2;
         h = h * 4 / 5;
     }
     return L;
@@ -977,8 +1036,11 @@ struct SettingsLayout {
 
 [[nodiscard]] int settings_row_y(const SettingsLayout& L, size_t i) {
     int y = L.first_y + static_cast<int>(i) * L.step;
-    if (i > RowBrightness) {
-        y += L.gap_after_brightness;
+    // ОТ ПЕРВОГО ГЛАГОЛА, а не «после яркости»: пробел отделяет настройки от
+    // переходов, и когда между яркостью и управлением встали две строки
+    // звука, старое условие разрезало бы страницу по яркости.
+    if (i >= RowControls) {
+        y += L.gap_before_verbs;
     }
     return y;
 }
@@ -1141,6 +1203,12 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
     std::snprintf(buf, sizeof(buf), "%.2f",
                   static_cast<double>(model.black_floor() / SHADE_STEP));
     const std::string bright = (model.black_floor() <= 0.0f) ? off : std::string(buf);
+    // ГРОМКОСТЬ В ПРОЦЕНТАХ, а ноль — словом «выкл». Ровно как у покачивания
+    // выше: «0 %» читается как сломанная строка, «выкл» — как выбор.
+    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.music_volume) * 100.0);
+    const std::string music_vol = (s.music_volume <= 0.0f) ? off : std::string(buf);
+    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.sfx_volume) * 100.0);
+    const std::string sfx_vol = (s.sfx_volume <= 0.0f) ? off : std::string(buf);
 
     struct Row {
         std::string_view label;
@@ -1159,6 +1227,8 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
          s.palette ? loc("menu.settings.on") : loc("menu.settings.off")},
         {loc("menu.settings.bob"), bob},
         {loc("menu.settings.brightness"), bright},
+        {loc("menu.settings.music"), music_vol},
+        {loc("menu.settings.sfx"), sfx_vol},
         {loc("menu.controls"), {}},
         {loc("menu.back"), {}},
     };

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 12:58:00
+Last updated: 27:08:2026 - 20:10:06
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -182,6 +182,12 @@ UPD:
   один раз при первом показе корня и живёт до конца прогона: 8.5 МБ на
   полке и одна пара буферов дешевле, чем перезаливать их на каждом входе в
   меню.
+- 27:08:2026 - 20:10:06: МУЗЫКАЛЬНАЯ ШИНА И ЗАГЛАВНАЯ ТЕМА В МЕНЮ (заказ
+  владельца через музыкальную сессию: «заглавная тема играет в главном меню
+  на репите»). Поля music_bus_ / menu_theme_ / menu_music_, настройки
+  music_volume / sfx_volume, методы update_menu_music() и
+  sync_audio_volumes(). ОДИН СЧИТАТЕЛЬ СОСТОЯНИЯ ВМЕСТО ШЕСТИ ПЕРЕХОДОВ —
+  довод у объявления метода.
 */
 
 #pragma once
@@ -274,6 +280,13 @@ struct AppConfig {
     // palette shade step, because a default of zero would show the player, on
     // his first launch, exactly the darkness this setting exists to answer.
     float black_floor = static_cast<float>(config::BLACK_FLOOR_LEVEL);
+    // settings.cfg music_volume / sfx_volume: the two mixer buses, as linear
+    // multipliers (Rule 14). MUSIC IS NOT BORN AT 1.0 and effects are: the
+    // theme is a mastered track that would sit on top of a footstep, and a
+    // first launch where the menu drowns the game teaches the player to turn
+    // sound off rather than down. Both are turned live on the settings page.
+    float music_volume = 0.7f;
+    float sfx_volume = 1.0f;
     std::string title_key = "app.title"; // localization key (Rule 5)
 
     // Populates the fields above from settings.cfg (auto-generated with
@@ -470,6 +483,17 @@ private:
     void on_quick_remark();
     void on_map();
     void on_menu_pause();
+    /// ЗАГЛАВНАЯ ТЕМА: ОДНО МЕСТО, ГДЕ РЕШАЕТСЯ, ИГРАЕТ ЛИ ОНА. Зовётся каждый
+    /// кадр и приводит звук к тому, чего требует нынешний экран, — а не
+    /// расставляется вызовами start/stop по шести переходам (пункт меню, пауза,
+    /// возврат в корень, сброс сессии, выход из редактора, закрытие карты).
+    /// Шесть точек — это шесть шансов забыть одну; забытая даёт музыку поверх
+    /// игры, и найдут её ушами, а не сборкой (правило 32).
+    void update_menu_music();
+    /// Громкость двух шин из черновика страницы настроек — ЖИВЬЁМ. Отдельно от
+    /// SettingsDone нарочно: SettingsDone случается на ВЫХОДЕ со страницы, а
+    /// громкость — единственная настройка, которую нельзя выбрать глазами.
+    void sync_audio_volumes();
     void on_fullscreen();
     void on_cursor_toggle();
     void on_build_menu();
@@ -1131,9 +1155,24 @@ private:
 
     // Step feel + audio (sim's zone, wired here).
     platform::BusHandle sfx_bus_{};
+    // МУЗЫКАЛЬНАЯ ШИНА — ВТОРАЯ ВЕТКА ОТ МАСТЕРА, а не громкость на голосе.
+    // Ползунок обязан работать по всему, что играет как музыка, включая то,
+    // чего ещё нет (боевые слои, стингеры); шина — единственное место, где
+    // «вся музыка» можно назвать одним словом. И она нужна раньше дакинга:
+    // приглушить музыку под реплику можно только тому, у кого есть своя ручка.
+    platform::BusHandle music_bus_{};
     gameplay::StepSoundBank sound_bank_{};
     gameplay::WindLoop wind_loop_{};
     gameplay::StepContext step_ctx_{};
+    /// ЗАГЛАВНАЯ ТЕМА. Загружается один раз при старте (полный декод в память,
+    /// ~37 МБ на 1:36 — решение записано в docs/DECISIONS.md и в шапке
+    /// бэкенда) и живёт до конца прогона: перезаливать её на каждом входе в
+    /// меню значило бы платить декодом за каждый выход из мира.
+    platform::SoundHandle menu_theme_{};
+    /// Играющий экземпляр темы, если он есть. Пустая ручка = меню молчит, и
+    /// это ЕДИНСТВЕННОЕ состояние музыки, которое приложение хранит: чего
+    /// хочет кадр, считает update_menu_music() из страницы меню.
+    platform::MusicHandle menu_music_{};
 
     // First-person body (character's zone, wired here).
     anim::Rig body_rig_{};

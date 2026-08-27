@@ -1,11 +1,11 @@
 /*
 Created: 18:08:2026 - 18:07:24
-Last updated: 27:08:2026 - 14:00:00
+Last updated: 27:08:2026 - 20:10:06
 Module: engine/app
 File: engine/app/sources/AppSettings.cpp
 
 Responsibility:
-- Разбор и печать настроек графики. Устройство — в заголовке.
+- Разбор и печать настроек: картинка и звук. Устройство — в заголовке.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -18,6 +18,13 @@ UPD:
   настройкой страницы графики (заказ владельца 27.08) и обязан переживать
   запуск. Отвергается ГРОМКО и никогда к ближайшему — тот же довод, что у msaa:
   окно 40×20 открылось бы, и игрок увидел бы не настройку, а поломку.
+- 27:08:2026 - 20:10:06: Строки music_volume и sfx_volume — громкость двух шин
+  (заказ владельца через музыкальную сессию). Отвергаются ГРОМКО и никогда к
+  ближайшему, тем же доводом, что окно и msaa; отдельно проверяется, что
+  число вообще прочиталось: sscanf на «громко» вернул бы 0 полей и оставил бы
+  в v мусор, а тихо подставленная громкость 0 — это «звук пропал сам».
+  ЗАГОЛОВОК ФАЙЛА БОЛЬШЕ НЕ ГОВОРИТ «graphics settings»: в нём теперь есть
+  строка, которую не видно.
 */
 
 #include "engine/app/sources/AppSettings.h"
@@ -36,7 +43,7 @@ constexpr const char* SETTINGS_PATH = "settings.cfg";
 
 std::string settings_to_text(const AppConfig& cfg) {
     std::ostringstream out;
-    out << "# Daggerfall N graphics settings (auto-generated; edit freely)\n"
+    out << "# Daggerfall N settings — picture and sound (auto-generated; edit freely)\n"
         // ОКНО — ЭТО НЕ СЕТКА РЕНДЕРА, и файл обязан говорить это словами: две
         // строки с числами вида WxH рядом друг с другом иначе читаются как
         // опечатка одной. Строка появилась 27.08 вместе со страницей графики:
@@ -68,6 +75,16 @@ std::string settings_to_text(const AppConfig& cfg) {
         << "#   and unplayable on most monitors. The start menu has a\n"
         << "#   calibration page that sets this by eye.\n"
         << "min_brightness=" << cfg.black_floor << "\n"
+        // ЗВУК. Две шины и два числа: музыка и всё, что издаёт мир. Линейные
+        // множители, 1 = как записано (Rule 14). Ноль — законное значение и
+        // ПИШЕТСЯ как ноль: «выключил музыку» обязано переживать перезапуск,
+        // иначе это не настройка, а пауза.
+        << "# music_volume / sfx_volume: громкость двух шин, 0..1 (линейный\n"
+        << "#   множитель, 1 = как записано). Музыка — заглавная тема; эффекты —\n"
+        << "#   шаги, прыжки, всплески, ветер. Меняются на странице настроек и\n"
+        << "#   применяются на лету, пока ползунок крутится.\n"
+        << "music_volume=" << cfg.music_volume << "\n"
+        << "sfx_volume=" << cfg.sfx_volume << "\n"
         << "# show_menu: 1 = start in the menu and pick a demo map,\n"
         << "#            0 = drop straight into the world.\n"
         << "show_menu=" << (cfg.show_menu ? 1 : 0) << '\n';
@@ -132,6 +149,23 @@ void settings_from_text(const std::string& text, AppConfig& cfg) {
             float v = 1.0f;
             if (std::sscanf(value.c_str(), "%f", &v) == 1 && v >= 0.0f && v <= 2.0f) {
                 cfg.head_bob = v;
+            }
+        } else if (key == "music_volume" || key == "sfx_volume") {
+            // ГРОМКО И НИКОГДА К БЛИЖАЙШЕМУ — та же доктрина, что у окна и
+            // сглаживания выше. И ВТОРАЯ ПОЛОВИНА ПРОВЕРКИ ВАЖНЕЕ ПЕРВОЙ: без
+            // "== 1" строка music_volume=громко оставила бы в v неинициализи-
+            // рованный мусор, и «звук пропал сам собой» стало бы поведением,
+            // за которое некого спросить.
+            float v = 0.0f;
+            const bool read = std::sscanf(value.c_str(), "%f", &v) == 1;
+            float& field = (key == "music_volume") ? cfg.music_volume : cfg.sfx_volume;
+            if (read && v >= 0.0f && v <= 1.0f) {
+                field = v;
+            } else {
+                std::fprintf(stderr,
+                             "[settings] %s=%s ОТВЕРГНУТО (нужно число 0..1); "
+                             "оставляю %.2f\n",
+                             key.c_str(), value.c_str(), static_cast<double>(field));
             }
         } else if (key == "min_brightness") {
             float v = 0.0f;

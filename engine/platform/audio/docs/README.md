@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 10:08:2026 - 02:27:07
+Last updated: 27:08:2026 - 20:21:01
 -->
 <!--
 UPD:
@@ -10,6 +10,11 @@ UPD:
 - 10:08:2026 - 02:27:07: Audio bring-up (landscape stage, в12): miniaudio
   backend implemented (0.11.22, FetchContent GIT_SHALLOW); placeholder sound
   generator in tools/. set_bus_reverb is a DOCUMENTED v1 no-op.
+- 27:08:2026 - 20:21:01: Ogg Vorbis (stb_vorbis from the pinned miniaudio
+  checkout), music layers are no longer spatialized, and the FULL-DECODE
+  ruling for music is written down with its measured price. Two of the three
+  defects named in docs/reports/music-research.html §8 are closed; streaming
+  (defect #1) is deliberately still open and now says so out loud.
 -->
 
 # engine/platform/audio
@@ -50,6 +55,46 @@ audio.update(listener_pose);                  // once per frame
   the app then falls back to null (Rule 3).
 - `sources/null/` — runnable mode: silent success, inert handles,
   `is_playing()` false.
+
+## Formats, and the one that had to be added
+
+WAV, MP3 and FLAC come with miniaudio. **Ogg Vorbis does not** — and Vorbis is
+the only format the music pipeline produces (q5–q6; MP3 is ruled out because
+its encoder padding puts a gap in every loop). miniaudio *ships* a complete
+Vorbis data source, gated on `#ifdef STB_VORBIS_INCLUDE_STB_VORBIS_H`; all that
+was missing was compiling stb_vorbis. `sources/miniaudio/StbVorbis.cpp` does
+that in one TU and carries the provenance and licence (stb_vorbis v1.22, Sean
+Barrett, MIT **or** public domain, taken from `extras/` of the miniaudio
+checkout we already pin — not copied into `third_party/`, so there is one pin
+and one version). `MiniaudioAudio.cpp` includes it with `STB_VORBIS_HEADER_ONLY`
+**before** `MINIAUDIO_IMPLEMENTATION`, and an `#error` on `MA_HAS_VORBIS` makes
+the wrong order a build failure instead of a game with no music.
+
+## Music is decoded whole, and this is the known ruling
+
+`load_sound()` decodes everything up front (`MA_SOUND_FLAG_DECODE`), music
+included. **Measured on the title theme** (main_theme_loop.ogg, 96.0 s stereo,
+1.4 MB on disk): 102 ms to load, 32.3 MB resident as f32 at the device's
+44.1 kHz. That is the accepted price for one track (owner's ruling, relayed
+through the music session), and it buys a music path that has no second version
+of itself today.
+
+**It does not scale, and the number where it stops is known**: four four-minute
+adaptive LAYERS would be ~370 MB. Streaming (`MA_SOUND_FLAG_STREAM |
+NO_SPATIALIZATION | NO_PITCH`) is defect #1 of
+`docs/reports/music-research.html` §8; it needs a separate load path, which is
+an `IAudio` change, which is a group sync (Rule 26). It waits for the stage
+that actually needs layers.
+
+Two other notes from the same pass:
+
+- `play_music()` **disables spatialization** on every layer. miniaudio
+  spatializes by default, so before this the music was an emitter at the world
+  origin — panned and attenuated by where the player stood. Nobody had heard it
+  because nothing had ever called `play_music`.
+- Loop points are not needed for the menu theme: the loop cut is trimmed to the
+  musical length with the reverb tail wrapped onto the head, so the loop point
+  IS the end of the file and plain `looping = true` is gapless.
 
 ## Placeholder sounds
 

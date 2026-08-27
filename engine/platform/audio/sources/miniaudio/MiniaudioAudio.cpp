@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 01:53:17
+Last updated: 27:08:2026 - 20:00:24
 Module: engine/platform/audio
 File: engine/platform/audio/sources/miniaudio/MiniaudioAudio.cpp
 
@@ -18,7 +18,9 @@ Key items:
 
 Dependencies:
 - Uses: interfaces/IAudio.h, miniaudio 0.11.22 (FetchContent, pinned; the
-  implementation macro lives HERE and nowhere else).
+  implementation macro lives HERE and nowhere else), stb_vorbis v1.22 from the
+  same pinned checkout (compiled in sources/miniaudio/StbVorbis.cpp; see that
+  file for provenance and licence).
 - Used by: engine/app wiring (create_miniaudio_audio), audio tests.
 
 Notes:
@@ -35,6 +37,20 @@ Notes:
 - unload_sound stops any voices still playing that sound before dropping the
   cached buffer: a voice outliving its buffer would read freed memory, and
   "your one-shot dies when you unload its sound" is the least surprising rule.
+- OGG VORBIS: miniaudio decodes WAV/MP3/FLAC by itself and carries a full
+  ma_stbvorbis data source that only switches on when stb_vorbis has been
+  included BEFORE the implementation — which the include order below does.
+  Nothing else about this file changes: .ogg becomes a format load_sound
+  simply opens. The decoder's own TU is sources/miniaudio/StbVorbis.cpp, and
+  its licence and provenance are written there.
+- MUSIC IS DECODED WHOLE, ON PURPOSE AND FOR NOW (owner's order, relayed
+  through the music session; the
+  streaming path is defect #1 of docs/reports/music-research.html §8 and is a
+  contract change, so it waits for a group sync). The main theme is 1:36, which
+  is ~37 MB of f32 stereo at the device rate — the price of a single decoded
+  track, paid once, against a music path that would have to exist in two
+  versions today. Four four-minute LAYERS would be ~370 MB and that is exactly
+  when streaming stops being optional.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -45,13 +61,42 @@ AI Agents Notice (must follow):
 UPD:
 - 10:08:2026 - 01:53:17: Stage 3 audio bring-up — full backend v1 (playback,
                          variation, buses, 3D, layered music; reverb no-op).
+- 27:08:2026 - 20:00:24: OGG VORBIS, and music that is really 2D
+  (owner's order, relayed through the music session: the title theme loops in the main menu).
+  1. stb_vorbis is included ahead of the implementation, which is the whole of
+     the change: miniaudio's own Vorbis data source is written and shipped, it
+     was simply compiled out. Until today load_sound("*.ogg") returned an
+     invalid handle and said nothing about why — the format the music pipeline
+     produces was the one format the engine could not open.
+  2. play_music() now DISABLES SPATIALIZATION on every layer. It never did,
+     and miniaudio spatializes by default: the music sat at world origin and
+     was panned and attenuated by where the listener stood. Nobody had heard
+     it, because nothing had ever been played through play_music — the bug was
+     shipped in the same commit that wrote "false = 2D (UI, music stingers)"
+     into the contract. Fixed as a mechanism, not for the menu's case:
+     ANY caller of play_music wants a track, not an emitter.
 */
 
 #include "engine/platform/audio/sources/miniaudio/CreateMiniaudioAudio.h"
 
+// ORDER IS THE FEATURE, NOT A STYLE CHOICE. miniaudio enables its Vorbis data
+// source on `#ifdef STB_VORBIS_INCLUDE_STB_VORBIS_H`, which stb_vorbis defines
+// when it is included — so this include MUST precede MINIAUDIO_IMPLEMENTATION.
+// Move it below and .ogg stops loading, silently and with no compile error.
+// HEADER_ONLY: the implementation half is compiled once, in StbVorbis.cpp.
+#define STB_VORBIS_HEADER_ONLY
+#include "stb_vorbis.c" // NOLINT — a .c include IS the documented stb usage
+
 #define MA_NO_GENERATION // no waveform/noise generators; we decode files only
 #define MINIAUDIO_IMPLEMENTATION
 #include <miniaudio.h>
+
+// AND THE ORDER IS CHECKED, not trusted. miniaudio defines MA_HAS_VORBIS only
+// if it saw stb_vorbis first; without this line the failure mode is a game that
+// builds, runs, and has no music, which is the kind of defect that costs a day.
+#ifndef MA_HAS_VORBIS
+#error "stb_vorbis must be included BEFORE MINIAUDIO_IMPLEMENTATION, or .ogg will not load"
+#endif
 
 #include <chrono>
 #include <memory>
@@ -295,6 +340,12 @@ public:
                 != MA_SUCCESS) {
                 continue;
             }
+            // 2D, ALWAYS. miniaudio spatializes by default, so without this a
+            // music layer is an emitter standing at the world origin: panned,
+            // attenuated, and quieter the further the player walks from (0,0,0).
+            // The contract has said "music is 2D" since day one; the backend
+            // simply never said it to miniaudio.
+            ma_sound_set_spatialization_enabled(s.get(), MA_FALSE);
             ma_sound_set_looping(s.get(), MA_TRUE);
             ma_sound_set_volume(s.get(), music->layers.empty() ? 1.0f : 0.0f);
             music->layers.push_back(std::move(s));

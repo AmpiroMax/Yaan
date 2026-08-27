@@ -1,6 +1,6 @@
 /*
 Created: 13:08:2026 - 19:44:00
-Last updated: 27:08:2026 - 11:44:42
+Last updated: 27:08:2026 - 20:16:03
 Module: tests/app
 File: tests/app/MenuTests.cpp
 
@@ -82,6 +82,15 @@ UPD:
   выше соседей ни с кем не пересекается. Контроль случая — равенство высоты
   коробки прописной РОЛИ «пункт»: без него «все строки одинаковы» проходит и
   для одинаково неверного кегля.
+- 27:08:2026 - 20:16:03: ДВА СЛУЧАЯ ЗВУКА (заказ владельца через музыкальную
+  сессию). Первый — про ДВЕ ручки: утверждается не диапазон 0..1, а (а)
+  кратность десятой, потому что «0..1» пропустило бы непрерывный ползунок, от
+  которого страница отказалась, и (б) НЕЗАВИСИМОСТЬ — одна общая громкость,
+  разложенная на две строки, прошла бы любую проверку диапазона и падает
+  здесь. Второй — про over_world(): страница настроек выглядит одинаково с
+  корня и из паузы, и только цепочка возвратов знает, откуда пришли. Без
+  этого случая тема запевала бы поверх мира, поставленного на паузу, и нашли
+  бы это ушами.
 */
 
 #include <doctest/doctest.h>
@@ -89,6 +98,7 @@ UPD:
 #include "engine/app/sources/Menu.h"
 #include "engine/app/sources/UiFont.h"
 
+#include <cmath>
 #include <utility>
 
 using dfn::app::BrowseTarget;
@@ -146,6 +156,19 @@ constexpr int ROW_CONTROLS = static_cast<int>(dfn::app::SettingsRow::Controls);
 constexpr int ROW_BACK = static_cast<int>(dfn::app::SettingsRow::Back);
 constexpr int ROW_WINDOW = static_cast<int>(dfn::app::SettingsRow::Window);
 constexpr int ROW_FULLSCREEN = static_cast<int>(dfn::app::SettingsRow::Fullscreen);
+constexpr int ROW_MUSIC = static_cast<int>(dfn::app::SettingsRow::MusicVolume);
+constexpr int ROW_SFX = static_cast<int>(dfn::app::SettingsRow::SfxVolume);
+// ЛЕСТНИЦА ГРОМКОСТИ: одиннадцать ступеней по десятой. Проверяется КРАТНОСТЬ,
+// а не диапазон — «0..1» пропустило бы непрерывный ползунок, то есть ровно то
+// решение, от которого страница отказалась (правило 38: утверждается исход).
+constexpr int VOLUME_RUNGS = 11;
+bool legal_volume(float v) {
+    if (v < 0.0f || v > 1.0f) {
+        return false;
+    }
+    const float tenths = v * 10.0f;
+    return std::abs(tenths - static_cast<float>(static_cast<int>(tenths + 0.5f))) < 1e-3f;
+}
 
 void select(MenuModel& m, int row) {
     m.open(MenuPage::Settings); // selection resets to 0
@@ -309,6 +332,112 @@ TEST_CASE("settings rows land only on legal values, and wrap") {
         const uint32_t v = m.settings().msaa;
         CHECK((v == 0 || v == 2 || v == 4 || v == 8));
     }
+}
+
+TEST_CASE("две громкости — две ручки, и ни одна не трогает чужую") {
+    // ЗАКАЗ ВЛАДЕЛЬЦА через музыкальную сессию: «громкость музыки» и
+    // «громкость эффектов» — ДВЕ строки. Утверждение здесь не «строки есть», а
+    // «они независимы»: одна общая громкость, разложенная на две строки,
+    // прошла бы любую проверку диапазона и провалила бы эту.
+    MenuModel m = launched();
+
+    select(m, ROW_MUSIC);
+    const float sfx_before = m.settings().sfx_volume;
+    for (int i = 0; i < VOLUME_RUNGS + 3; ++i) { // больше нажатий, чем ступеней: круг — это тоже утверждение
+        m.adjust(+1);
+        CHECK(legal_volume(m.settings().music_volume));
+        CHECK(m.settings().sfx_volume == sfx_before); // КОНТРОЛЬ: соседняя ручка не двинулась
+    }
+    // Полный круг возвращает туда, откуда начали, — в обе стороны.
+    const float music_at_start = m.settings().music_volume;
+    for (int i = 0; i < VOLUME_RUNGS; ++i) {
+        m.adjust(+1);
+    }
+    CHECK(m.settings().music_volume == doctest::Approx(music_at_start));
+    for (int i = 0; i < VOLUME_RUNGS; ++i) {
+        m.adjust(-1);
+    }
+    CHECK(m.settings().music_volume == doctest::Approx(music_at_start));
+
+    select(m, ROW_SFX);
+    const float music_before = m.settings().music_volume;
+    for (int i = 0; i < VOLUME_RUNGS + 3; ++i) {
+        m.adjust(-1); // и назад тоже: лестница с одним рабочим направлением — половина лестницы
+        CHECK(legal_volume(m.settings().sfx_volume));
+        CHECK(m.settings().music_volume == doctest::Approx(music_before));
+    }
+
+    // НОЛЬ ДОСТИЖИМ, И ЭТО НЕ ПРИДИРКА. «Играть без музыки» — способ играть, и
+    // ползунок, у которого нет нуля, отвечает на это «поставь потише».
+    select(m, ROW_MUSIC);
+    bool saw_zero = false;
+    for (int i = 0; i < VOLUME_RUNGS; ++i) {
+        m.adjust(-1);
+        saw_zero = saw_zero || m.settings().music_volume == 0.0f;
+    }
+    CHECK(saw_zero);
+
+    // И ГРОМКОСТЬ НЕ ТРЕБУЕТ ПЕРЕЗАПУСКА — она применяется живьём. КОНТРОЛЬ
+    // рядом: сетка рендера его требует, то есть предупреждение вообще работает.
+    CHECK_FALSE(m.needs_restart());
+    select(m, ROW_RESOLUTION);
+    m.adjust(+1);
+    CHECK(m.needs_restart());
+}
+
+TEST_CASE("страница знает, стоит ли она над живым миром") {
+    // Нужно музыке: заглавная тема принадлежит стартовому экрану, а пауза —
+    // это мир, поставленный на паузу. Утверждение — про ВЛОЖЕННЫЕ страницы:
+    // «настройки» и «управление» выглядят одинаково с обеих сторон, и только
+    // цепочка возвратов знает, откуда игрок пришёл.
+    MenuModel m;
+    m.set_settings(MenuSettings{});
+
+    m.open(MenuPage::Root);
+    CHECK_FALSE(m.over_world());
+    m.open(MenuPage::Splash);
+    CHECK_FALSE(m.over_world());
+
+    // С КОРНЯ: настройки и всё, что из них открывается, — не над миром.
+    select_root(m, ROOT_SETTINGS);
+    REQUIRE(m.activate() == MenuAction::None);
+    REQUIRE(m.page() == MenuPage::Settings);
+    CHECK_FALSE(m.over_world());
+    m.set_selection(static_cast<size_t>(dfn::app::SettingsRow::Controls));
+    REQUIRE(m.activate() == MenuAction::None);
+    REQUIRE(m.page() == MenuPage::Controls);
+    CHECK_FALSE(m.over_world());
+    m.set_selection(0);
+    m.open(MenuPage::Settings);
+    m.set_selection(static_cast<size_t>(dfn::app::SettingsRow::Brightness));
+    REQUIRE(m.activate() == MenuAction::None);
+    REQUIRE(m.page() == MenuPage::Calibrate);
+    CHECK_FALSE(m.over_world());
+
+    // С ПАУЗЫ: та же страница, другой ответ. Это и есть предмет случая —
+    // страница одна, а стоит она над разным.
+    MenuModel p;
+    p.set_settings(MenuSettings{});
+    p.open(MenuPage::Pause);
+    CHECK(p.over_world());
+    p.set_selection(static_cast<size_t>(dfn::app::PauseRow::Settings));
+    REQUIRE(p.activate() == MenuAction::None);
+    REQUIRE(p.page() == MenuPage::Settings);
+    CHECK(p.over_world());
+    p.set_selection(static_cast<size_t>(dfn::app::SettingsRow::Controls));
+    REQUIRE(p.activate() == MenuAction::None);
+    REQUIRE(p.page() == MenuPage::Controls);
+    CHECK(p.over_world());
+    p.open(MenuPage::Settings);
+    p.set_selection(static_cast<size_t>(dfn::app::SettingsRow::Brightness));
+    REQUIRE(p.activate() == MenuAction::None);
+    REQUIRE(p.page() == MenuPage::Calibrate);
+    CHECK(p.over_world()); // калибровка из настроек из паузы — всё ещё пауза
+
+    // И ВЫХОД В КОРЕНЬ ЗАКРЫВАЕТ ОТВЕТ: иначе музыка не запелась бы после
+    // «Выйти в меню», и жалоба звучала бы как «после игры меню молчит».
+    p.open(MenuPage::Root);
+    CHECK_FALSE(p.over_world());
 }
 
 TEST_CASE("a hand-edited settings.cfg value lands on the nearest legal rung") {

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 01:53:17
+Last updated: 27:08:2026 - 20:16:03
 Module: tests (sim zone)
 File: tests/sim/AudioTests.cpp
 
@@ -27,6 +27,12 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:53:17: Created with the audio bring-up.
+- 27:08:2026 - 20:16:03: OGG VORBIS. Until today the only format the music
+  pipeline produces was the only format the engine could not open, and nothing
+  in this file would have noticed: every case here loads a .wav. The new case
+  loads the title theme, plays it looped through a music bus and stops it —
+  and its control is about the FORMAT, not the path (a missing .ogg must fail
+  too, or "it loaded" means only "load_sound returned something").
 */
 
 #include <doctest/doctest.h>
@@ -144,4 +150,52 @@ TEST_CASE("step sound bank loads the full placeholder set") {
     gameplay::update_wind_loop(*audio, wind, 0.5f);
     CHECK(audio->is_playing(wind.voice));
     audio->stop(wind.voice);
+}
+
+// OGG VORBIS, WHICH THE ENGINE COULD NOT OPEN UNTIL TODAY. The music pipeline
+// produces exactly one format (docs/reports/music-research.html §7: Vorbis q5,
+// because MP3's encoder padding puts a gap in every loop), and miniaudio's
+// built-in decoders are WAV/MP3/FLAC — so this case is the whole of "the
+// decoder is wired". It fails loudly if anyone reorders the two includes at the
+// top of MiniaudioAudio.cpp, which is the one edit that silently unwires it.
+TEST_CASE("miniaudio: the title theme is an .ogg, and .ogg now loads") {
+    platform::IAudio* audio = audio_or_skip();
+    if (audio == nullptr) {
+        MESSAGE("no audio device: the decoder is compiled in either way");
+        return;
+    }
+    const std::string music = std::string(DFN_REPO_ROOT)
+                              + "/games/daggerfall_n/assets/audio/music/";
+
+    // CONTROL FIRST (Rule 30), and it is a control about the FORMAT, not about
+    // the path: a missing .ogg must not produce a handle either, or "it loaded"
+    // would mean nothing more than "load_sound returns something".
+    CHECK(!audio->load_sound(music + "no_such_theme.ogg").valid());
+
+    // ПЕТЛЕВАЯ НАРЕЗКА — та, что играет в меню. Именно она названа константой
+    // в App.cpp, и именно её отсутствие превратило бы музыку меню в тишину.
+    const platform::SoundHandle loop = audio->load_sound(music + "main_theme_loop.ogg");
+    REQUIRE(loop.valid());
+    // И версия с затуханием — запасной ход того же кода. Обе обязаны читаться:
+    // запасной ход, который не грузится, — это не запасной ход.
+    CHECK(audio->load_sound(music + "main_theme.ogg").valid());
+
+    // ЗАЦИКЛЕННОЕ ВОСПРОИЗВЕДЕНИЕ ЧЕРЕЗ МУЗЫКАЛЬНУЮ ШИНУ — то, что делает меню.
+    // Утверждается ИСХОД (правило 38): после паузы, много большей любого
+    // буфера, музыка всё ещё играет, а после stop_music с фейдом — уже нет.
+    const platform::BusHandle music_bus = audio->create_bus({});
+    audio->set_bus_volume(music_bus, 0.0f); // тихо: у сборочной машины нет ушей
+    const platform::SoundHandle layers[] = {loop};
+    const platform::MusicHandle handle = audio->play_music({layers, 1}, music_bus);
+    REQUIRE(handle.valid());
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    audio->update({});
+
+    // Затухание в ноль секунд: рукав проверяет, что stop_music ДОВОДИТСЯ до
+    // сноса, а не что секунда длится секунду — время здесь мерил бы сон, а не
+    // предмет. Длительность фейда живёт в App (MENU_MUSIC_FADE_OUT_S).
+    audio->stop_music(handle, 0.0f);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    audio->update({}); // music sweep: доигравшая тема снимается здесь
+    audio->stop_music(handle, 0.0f); // снятая ручка: безопасный no-op (контракт)
 }
