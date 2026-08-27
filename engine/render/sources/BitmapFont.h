@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:32:07
-Last updated: 09:08:2026 - 23:32:07
+Last updated: 27:08:2026 - 15:10:00
 Module: engine/render
 File: engine/render/sources/BitmapFont.h
 
@@ -51,6 +51,10 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 23:32:07: Created. The project's first font (BOARD.md named it
   the main bottleneck: four finished features blocked on one missing asset).
+- 27:08:2026 - 15:10:00: draw_text/text_width_px берут ЦЕЛЫЙ множитель пикселя.
+  Холст интерфейса вырос с 640 до 1920 (FullHD, 27.08), и всё, что рисуется
+  этим шрифтом 1:1, стало вчетверо мельче вчерашнего на том же экране. Довод
+  за целый множитель — у самого параметра.
 */
 
 #pragma once
@@ -117,16 +121,24 @@ struct FontAtlas {
 /// unmapped ones — a missing character still takes its space).
 [[nodiscard]] int text_glyph_count(std::string_view utf8);
 
-/// Pixel width of the string when drawn: glyph count * FONT_CELL_W, i.e.
-/// including the trailing 1 px gap. Use it for right/centre alignment.
-[[nodiscard]] int text_width_px(std::string_view utf8);
+/// Pixel width of the string when drawn: glyph count * FONT_CELL_W * scale,
+/// i.e. including the trailing 1 px gap. Use it for right/centre alignment.
+[[nodiscard]] int text_width_px(std::string_view utf8, int scale = 1);
 
 /// Draws `utf8` with the first cell's top-left at (x, y). With `shadow` the
 /// whole string is first drawn at (x+1, y+1) in `shadow_color`, which is what
 /// makes 5 px letters readable over terrain of any value. Returns the advance
 /// in pixels (== text_width_px), so a caller can chain runs of two colours.
+///
+/// `scale` — ЦЕЛЫЙ множитель пикселя, и целый он не по лени: дробный давал бы
+/// растяжку с округлением, а у шрифта в 5 px ширины округление съедает штрих
+/// целиком. Заведён 27.08, когда холст интерфейса вырос с 640 до 1920 (заказ
+/// владельца про FullHD): текст, рисуемый 1:1, стал вчетверо мельче того же
+/// текста вчера, и это касается КАЖДОГО потребителя блочного шрифта, а не
+/// одного экрана — поэтому множитель живёт здесь, а не у вызывающего.
 int draw_text(PixelCanvas& canvas, int x, int y, std::string_view utf8,
-              Color color, bool shadow = false, Color shadow_color = Color{0, 0, 0});
+              Color color, bool shadow = false, Color shadow_color = Color{0, 0, 0},
+              int scale = 1);
 
 /// VERIFICATION ONLY (Rule 27, gated by DFN_FONT_PROBE) — draws every glyph the
 /// font claims to have onto a dark plate, plus a row of characters it does NOT

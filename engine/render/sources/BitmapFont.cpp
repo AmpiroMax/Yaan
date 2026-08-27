@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 23:32:07
-Last updated: 09:08:2026 - 23:32:07
+Last updated: 27:08:2026 - 15:10:00
 Module: engine/render
 File: engine/render/sources/BitmapFont.cpp
 
@@ -27,6 +27,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 23:32:07: Created.
+- 27:08:2026 - 15:10:00: целый множитель пикселя у draw_text/text_width_px; тень
+  смещается на множитель. При scale == 1 — прежний вывод бит-в-бит.
 */
 
 #include "engine/render/sources/BitmapFont.h"
@@ -348,20 +350,24 @@ int text_glyph_count(std::string_view utf8) {
     return count;
 }
 
-int text_width_px(std::string_view utf8) {
-    return text_glyph_count(utf8) * FONT_CELL_W;
+int text_width_px(std::string_view utf8, int scale) {
+    return text_glyph_count(utf8) * FONT_CELL_W * (scale > 0 ? scale : 1);
 }
 
 int draw_text(PixelCanvas& canvas, int x, int y, std::string_view utf8, Color color,
-              bool shadow, Color shadow_color) {
+              bool shadow, Color shadow_color, int scale) {
     const FontAtlas& atlas = font_atlas();
+    const int s = scale > 0 ? scale : 1;
     // A 1 px offset copy underneath, not an 8-way halo: at 5 px tall a full
     // dilation closes the counters of a, e, о and the string turns to mush.
+    // ТЕНЬ СМЕЩАЕТСЯ НА МНОЖИТЕЛЬ, а не на пиксель: на увеличенном тексте
+    // однопиксельная тень не читается как тень — она читается как грязь на
+    // краю штриха.
     const int passes = shadow ? 2 : 1;
     for (int pass = 0; pass < passes; ++pass) {
         const bool is_shadow = shadow && pass == 0;
         const Color ink = is_shadow ? shadow_color : color;
-        const int ox = is_shadow ? 1 : 0;
+        const int ox = is_shadow ? s : 0;
         int pen = x;
         size_t pos = 0;
         while (pos < utf8.size()) {
@@ -369,15 +375,24 @@ int draw_text(PixelCanvas& canvas, int x, int y, std::string_view utf8, Color co
             const int slot = font_slot_for_codepoint(cp);
             for (int gy = 0; gy < FONT_CELL_H; ++gy) {
                 for (int gx = 0; gx < FONT_CELL_W; ++gx) {
-                    if (atlas.ink(slot, gx, gy)) {
-                        canvas.put(pen + gx + ox, y + gy + ox, ink);
+                    if (!atlas.ink(slot, gx, gy)) {
+                        continue;
+                    }
+                    // Пиксель шрифта — квадрат s×s. При s == 1 это ровно
+                    // прежний put, бит-в-бит: увеличение не имеет права
+                    // изменить ни одного кадра, который его не просил.
+                    for (int ry = 0; ry < s; ++ry) {
+                        for (int rx = 0; rx < s; ++rx) {
+                            canvas.put(pen + gx * s + rx + ox,
+                                       y + gy * s + ry + ox, ink);
+                        }
                     }
                 }
             }
-            pen += FONT_CELL_W;
+            pen += FONT_CELL_W * s;
         }
     }
-    return text_width_px(utf8);
+    return text_width_px(utf8, s);
 }
 
 namespace {

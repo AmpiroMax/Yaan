@@ -1,6 +1,6 @@
 /*
 Created: 23:08:2026 - 22:40:00
-Last updated: 27:08:2026 - 14:30:00
+Last updated: 27:08:2026 - 15:10:00
 Module: engine/render
 File: engine/render/sources/LoadingScreen.cpp
 
@@ -25,6 +25,11 @@ UPD:
 - 27:08:2026 - 14:30:00: полоса встаёт ПОД списком (было: прибита к h/2 + 64).
   Отметка подходила пяти этапам входа в дом и наехала на девятый этап загрузки
   города в тот же день, когда их стало девять.
+- 27:08:2026 - 15:10:00: РАЗМЕР БУКВЫ — ДОЛЯ ЭКРАНА. Холст интерфейса вырос
+  сегодня с 640×360 до FullHD, и экран, нарисованный 1:1, стал вчетверо мельче
+  вчерашнего на том же мониторе. Множитель = h / 360 (высота холста, на которой
+  вёрстка сочинялась): на ней он равен единице и кадр прежний бит-в-бит.
+  Отступы и полоса умножаются вместе с буквой — иначе вёрстка расползлась бы.
 */
 
 #include "engine/render/sources/LoadingScreen.h"
@@ -126,49 +131,60 @@ void LoadingScreen::draw(PixelCanvas& canvas) const {
     }
     canvas.clear(BACKGROUND);
 
+    // РАЗМЕР БУКВЫ — ДОЛЯ ЭКРАНА, А НЕ ЧИСЛО ПИКСЕЛЕЙ. Холст интерфейса вырос
+    // 27.08 с 640 до 1920 (FullHD), и текст, нарисованный 1:1, стал вчетверо
+    // мельче вчерашнего на том же мониторе: экран загрузки читался бы как
+    // мелкий шрифт договора рядом с меню, набранным антиквой в 60 px.
+    // Отсчёт от 360 — высоты прежнего холста, на которой вёрстка и
+    // сочинялась: на ней множитель равен единице и кадр совпадает с прежним
+    // бит-в-бит, а на любом большем холсте буква занимает ту же долю высоты.
+    const int scale = std::max(1, h / 360);
+    const int line = FONT_CELL_H * scale;
     const auto centered = [&](int y, const std::string& text, Color c) {
-        const int x = (w - text_width_px(text)) / 2;
-        draw_text(canvas, x, y, text, c, /*shadow=*/true);
+        const int x = (w - text_width_px(text, scale)) / 2;
+        draw_text(canvas, x, y, text, c, /*shadow=*/true, Color{0, 0, 0}, scale);
     };
 
-    int y = h / 2 - 70;
+    int y = h / 2 - 70 * scale;
     centered(y, title_, TITLE);
-    y += FONT_CELL_H + 4;
+    y += line + 4 * scale;
     if (!subtitle_.empty()) {
         centered(y, subtitle_, SUBTITLE);
     }
-    y += FONT_CELL_H + 6;
+    y += line + 6 * scale;
     canvas.hline(w / 4, y, w / 2, RULE_LINE);
-    y += 10;
+    y += 10 * scale;
 
     // ЭТАПЫ СЛЕВА, ЧИСЛА СПРАВА, в одной колонке — так глаз ловит, какой из
     // них дорог, не читая ни одной строки целиком.
     const int left = w / 4;
     const int right = w - w / 4;
-    for (const LoadStage& s : stages_) {
-        const Color c = s.done ? STAGE_DONE : STAGE_NOW;
-        draw_text(canvas, left, y, s.what, c, /*shadow=*/true);
-        if (s.done) {
+    for (const LoadStage& st : stages_) {
+        const Color c = st.done ? STAGE_DONE : STAGE_NOW;
+        draw_text(canvas, left, y, st.what, c, /*shadow=*/true, Color{0, 0, 0}, scale);
+        if (st.done) {
             char num[32] = {};
-            std::snprintf(num, sizeof(num), "%.0f ms", s.ms);
+            std::snprintf(num, sizeof(num), "%.0f ms", st.ms);
             const std::string n(num);
-            draw_text(canvas, right - text_width_px(n), y, n, c, true);
+            draw_text(canvas, right - text_width_px(n, scale), y, n, c, true,
+                      Color{0, 0, 0}, scale);
         }
-        y += FONT_CELL_H + 2;
+        y += line + 2 * scale;
     }
 
     // ПОЛОСА. Три прямоугольника — рамка, ложе, заливка: заливка никогда не
     // касается фона напрямую (та же выкройка, что у полос состояния HUD).
     const int bar_w = w / 2;
-    const int bar_h = 8;
+    const int bar_h = 8 * scale;
     const int bar_x = (w - bar_w) / 2;
     // ПОЛОСА СТОИТ ПОД СПИСКОМ, А НЕ НА ФИКСИРОВАННОЙ ОТМЕТКЕ. Прибитая к
     // h/2 + 64, она подходила при пяти этапах входа в дом и НАЕХАЛА на девятый
     // этап загрузки города в тот же день, когда их стало девять (кадр приёмки
     // 27.08: «мир готов» перечёркнут заливкой). Место под список — величина
     // переменная, и вычислять её надо, а не помнить.
-    const int bar_y = std::max(h / 2 + 64, y + 10);
-    canvas.fill_rect(bar_x - 1, bar_y - 1, bar_w + 2, bar_h + 2, BAR_FRAME);
+    const int bar_y = std::max(h / 2 + 64 * scale, y + 10 * scale);
+    canvas.fill_rect(bar_x - scale, bar_y - scale, bar_w + 2 * scale,
+                     bar_h + 2 * scale, BAR_FRAME);
     canvas.fill_rect(bar_x, bar_y, bar_w, bar_h, BACKGROUND);
     const int filled =
         static_cast<int>(static_cast<float>(bar_w) * progress() + 0.5f);
@@ -180,7 +196,7 @@ void LoadingScreen::draw(PixelCanvas& canvas) const {
     // жалующийся «долго грузится», обязан иметь возможность назвать число.
     char total[48] = {};
     std::snprintf(total, sizeof(total), "%.0f ms", elapsed_ms());
-    centered(bar_y + bar_h + 6, std::string(total), SUBTITLE);
+    centered(bar_y + bar_h + 6 * scale, std::string(total), SUBTITLE);
 }
 
 std::string LoadingScreen::report() const {
