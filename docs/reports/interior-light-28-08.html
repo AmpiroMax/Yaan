@@ -1,0 +1,399 @@
+<!doctype html>
+<!--
+Created: 28:08:2026 - 01:15:00
+Last updated: 28:08:2026 - 01:15:00
+Module: docs/reports
+File: docs/reports/interior-light-28-08.html
+
+Responsibility:
+- Приёмка волны СВЕТА ИНТЕРЬЕРОВ по криту владельца 28.08 («в домах слишком
+  темно»). Референс — его же девятнадцать скриншотов Skyrim в
+  images_examples/houses_indoors, промеренные числом; наши кадры до/после из
+  ОДНОГО бинарника через дозу DFN_INTERIOR_LIGHT. Кадры «после» —
+  docs/reports/interior-light-28-08/.
+
+Dependencies:
+- Uses: docs/reports/stairs-28-08.html (те же четыре дома), tools/
+  measure_interior_light.py (прибор), images_examples/houses_indoors
+  (референс владельца, в гит не кладётся — .gitignore).
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly. Каждое число здесь — прогон, а не
+  оценка; страница не правится задним числом, к ней дописывается UPD.
+- РЕФЕРЕНСНЫЕ КАРТИНКИ SKYRIM НЕ ЛЕЖАТ В РЕПОЗИТОРИИ и лежать не будут:
+  .gitignore держит images_examples/ со словами «Third-party reference
+  screenshots (Morrowind/Oblivion/Skyrim) — look targets, not ours to ship».
+  Ссылки на них здесь ОТНОСИТЕЛЬНЫЕ и работают у того, у кого папка есть.
+-->
+<!--
+UPD:
+- 28:08:2026 - 01:15:00: Создан вместе с дверью DFN_INTERIOR_LIGHT: замер
+  референса владельца (19 кадров), причина темноты арифметикой, четыре зала
+  до/после, ночная рука, отрицательное плечо дозы, честный список того, что
+  не сделано (окна, пересвет пламени).
+-->
+
+<html lang="ru"><head><meta charset="utf-8">
+<title>В домах было темно — и это было число, а не впечатление</title>
+<style>
+:root{--bg:#17140f;--fg:#e8ddc9;--dim:#a2977f;--line:#3a3227;--acc:#d9a441;--good:#8fbf6a;--bad:#d07a5a;--cool:#7fa8c9}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 Georgia,"Times New Roman",serif}
+main{max-width:1120px;margin:0 auto;padding:32px 24px 80px}
+h1{font-size:30px;line-height:1.25;margin:0 0 6px}
+h2{font-size:21px;margin:46px 0 12px;border-bottom:1px solid var(--line);padding-bottom:6px}
+h3{font-size:17px;margin:26px 0 8px;color:var(--acc)}
+.sub{color:var(--dim);margin:0 0 28px}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14.5px}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#201c15;color:var(--acc);font-weight:normal}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.g{color:var(--good)}.b{color:var(--bad)}.c{color:var(--cool)}
+figure{margin:22px 0}
+img{width:100%;border:1px solid var(--line);display:block}
+figcaption{color:var(--dim);font-size:14px;margin-top:8px}
+code{background:#201c15;padding:1px 5px;border-radius:3px;font-size:13.5px}
+pre{background:#201c15;border:1px solid var(--line);padding:12px 14px;overflow-x:auto;font-size:13px;line-height:1.5}
+.big{font-size:34px;color:var(--acc);font-variant-numeric:tabular-nums}
+.cards{display:flex;flex-wrap:wrap;gap:14px;margin:18px 0}
+.card{flex:1 1 210px;border:1px solid var(--line);padding:14px 16px;background:#1d1913}
+.card div{color:var(--dim);font-size:14px}
+blockquote{border-left:3px solid var(--acc);margin:14px 0;padding:2px 0 2px 16px;color:var(--dim)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0}
+.pair figure{margin:0}
+.miss{border:1px dashed var(--line);padding:10px 14px;color:var(--dim);font-size:14px;background:#1b1712}
+</style></head><body><main>
+
+<h1>В домах было темно — и это было число, а не впечатление</h1>
+<p class="sub">Волна света интерьеров по криту владельца 28.08: «здорово стало,
+но <b>в домах слишком темно</b>, надо что-то со светом сделать; посмотри ещё раз
+скрины из внутреннего убранства Скайрима». Собрано <code>build_ilight</code>
+(Ninja, RelWithDebInfo, clang из Homebrew); <code>build_lead</code> не
+трогался. Обе руки каждого сравнения — <b>из одного бинарника</b>, через дозу
+<code>DFN_INTERIOR_LIGHT</code>.</p>
+
+<div class="cards">
+  <div class="card"><div>площади кадра было ниже порога видимости</div>
+    <span class="big b">41&nbsp;%</span><div>стало <span class="g">6&nbsp;%</span> (ветхий дом Житнова)</div></div>
+  <div class="card"><div>тёмный угол, свет в глаз</div>
+    <span class="big">0.0046 → 0.0180</span><div>было 100 % пикселей угла ниже порога, стало 0 %</div></div>
+  <div class="card"><div>медиана кадра против референса владельца</div>
+    <span class="big">0.007–0.018 → 0.025–0.078</span><div>его 19 кадров Skyrim: 0.011–0.058</div></div>
+  <div class="card"><div>контраст очаг/угол</div>
+    <span class="big">5.6× → 8.6×</span><div>у него медиана 106× — не дотянуто, см. §7</div></div>
+</div>
+
+<h2>1. Референс — не «скрины из интернета», а его собственная папка</h2>
+
+<p>Слово «<b>ещё раз</b>» в крите — указание на то, что уже лежит в дереве:
+<code>images_examples/houses_indoors</code>, девятнадцать скриншотов интерьеров
+Skyrim, которые владелец собрал сам. Они и стали референсом. Дополнительно
+поднята документация Creation Kit и разбор мод-сообщества (ELFX, Relighting
+Skyrim, Luminosity) — оттуда взяты не числа, а <i>устройство</i>.</p>
+
+<h3>Что говорит устройство (цитаты, а не пересказ)</h3>
+<table>
+<tr><th>Утверждение</th><th>Источник</th></tr>
+<tr><td>Затухание точечного света в Skyrim: <code>atten = 1 − (d/r)²</code>, жёсткий ноль на радиусе. Само сообщество называет его «crude falloff… very bright in the center with harsh edges»</td><td>Community Shaders, <code>InverseSquareLighting.hlsli</code>; страница мода Inverse Square Lighting</td></tr>
+<tr><td>Ambient интерьера — не константа, а <b>шестиосевой куб</b>: <code>max(0, mul(DirectionalAmbient, float4(normal,1)))</code>. У ambient есть направление</td><td>Community Shaders, <code>package/Shaders/Lighting.hlsl</code></td></tr>
+<tr><td>«Setting the RGB values to 0,0,0 <b>may cause the lighting to turn completely off</b>… should be avoided» — чёрный ambient в интерьере запрещён прямо</td><td>CK wiki, <code>Lighting_Template</code></td></tr>
+<tr><td>Directional light ячейки существует, «<b>to simulate bounced light</b>»</td><td>там же</td></tr>
+<tr><td>«<b>Light bounces off the environment to fill space, so don't expect pitch black dungeons.</b>»</td><td>Luminosity (мод), страница описания</td></tr>
+<tr><td>ELFX: «<b>All light sources emit light, even the windows in interiors</b>»; ELFX-Enhancer добавляет «darkened interiors… slight increased contrast»</td><td>Enhanced Lights and FX</td></tr>
+<tr><td>Ванильный порок — не уровень, а расстановка: «light emitting from the center of two sources, <b>light produced without a source</b>»</td><td>Relighting Skyrim</td></tr>
+<tr><td>Радиус носимого факела <b>512 юнитов = 7.31 м</b>, Fade 1.35; типичный Fade источника «around 1.00 to 2.50»</td><td>гайд Steam по факелам; CK wiki, <code>Light</code></td></tr>
+<tr><td>Ambient интерьера 15 (из 255) — «as dark as you can go <b>without requiring a torch</b>»; 25 — «dark but playable»; 5 — «not pitch black, but it might as well be»</td><td>Skyrim Lighting Tweaks, журнал версий</td></tr>
+</table>
+
+<p><b>Одно предупреждение, чтобы им не воспользовались как числом:</b> поле
+«Ambient» в шаблоне освещения ячейки — <b>обманка</b>. CK wiki: «This value is
+<i>only</i> used by the 'Set From Ambient' button for the Directional Ambient.
+<b>It has no impact on the actual lighting.</b>» Тот, кто возьмёт «ambient
+Skyrim» из этого поля, возьмёт число, которое движок не читает.</p>
+
+<h3>Числа референса — промерены прибором, а не выписаны</h3>
+
+<p>Девятнадцать кадров владельца прогнаны через
+<code>tools/measure_interior_light.py</code>. Шкала —
+<b>перцептивная</b>, и это не украшение: наш кадр уходит на экран
+<b>без гамма-кодирования</b> (ни одного <code>BGFX_TEXTURE_SRGB</code> в
+бэкенде — grep даёт ноль), а монитор читает его как sRGB. Значит свет,
+доходящий до глаза, — это sRGB-декод байта; сравнивать сырые байты со
+сжатыми в sRGB скриншотами Skyrim значит завысить себя втрое.</p>
+
+<table>
+<tr><th>Величина (свет в глаз, линейно)</th><th class="n">мин</th><th class="n">медиана</th><th class="n">макс</th></tr>
+<tr><td>медиана кадра — «сколько света в комнате вообще»</td><td class="n">0.0109</td><td class="n">0.0277</td><td class="n">0.0583</td></tr>
+<tr><td>p05 — «тёмный угол»</td><td class="n">0.0001</td><td class="n">0.0034</td><td class="n">0.0129</td></tr>
+<tr><td>контраст p95/p05</td><td class="n">21</td><td class="n">106</td><td class="n">3499</td></tr>
+</table>
+
+<p>Читается это так: <b>комната в Skyrim в целом ТЁМНАЯ</b> (медиана 0.028 —
+это примерно 3 % от белого), <b>угол там ещё темнее нашего</b> (0.0034), и
+всё держится на <b>огромном контрасте</b>: очаг и окно уходят в пересвет,
+а от них комната и читается. Ни один из девятнадцати кадров не садится в
+настоящий чёрный — минимальная p05 равна 0.0001, но не нулю.</p>
+
+<div class="pair">
+<figure><img src="../../images_examples/houses_indoors/image copy 14.png" alt="очаг Skyrim">
+<figcaption><b>Референс владельца, очаг.</b> Стены — <span class="c">холодный
+серо-зелёный ambient</span>, огонь — оранжевый пересвет. Именно этот разрыв
+даёт «очаг греет»: тьму поднимает НЕ тот цвет, каким горит огонь.
+p50 0.0414, контраст 98×.</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 17.png" alt="богатый зал Skyrim">
+<figcaption><b>Референс владельца, богатый зал.</b> Углы читаемы, но заметно
+темнее середины; два бра — тёплые точки поверх холодного общего света.
+p50 0.0356, контраст 21×.</figcaption></figure>
+</div>
+
+<h2>2. Почему было темно: одна строка арифметики</h2>
+
+<p>Причина оказалась не «мало ламп» и не «слабый огонь». Локация писала
+<code>ambient = 0.10</code>, а <code>dfn_surface_light</code> умножает ambient
+на <b>запечённую небесную видимость</b> вершины. У запечатанной комнаты она
+сидит РОВНО НА ПОЛУ <code>FLOOR = 0.30</code>
+(<code>engine/world/sources/HouseMesh.cpp</code>), и сидит по построению:
+все шестнадцать лучей запекания идут в <b>верхнюю полусферу</b> и упираются в
+собственную кровлю.</p>
+
+<pre>общий свет комнаты = 0.10 · 0.30 = 0.03 от альбедо
+    штукатурка (альбедо ~0.5) → 0.015 → <b>4 люма из 255</b></pre>
+
+<p>Четыре люма при шаге 64-цветной палитры в 20 люма — это не «тускло», это
+<b>ненарисовано</b>. Всё, что было видно на кадре, рисовал один очаг. Отсюда и
+измеренные 41 % площади кадра ниже порога видимости.</p>
+
+<blockquote>Отсюда же и ответ на «почему не поднять яркость ламп». Лампа
+добавляет свет ТАМ, ГДЕ ОНА СТОИТ, и любое её усиление сначала выжигает пятно
+под собой. Угол — это ровно то место, куда ни одна лампа не достаёт.</blockquote>
+
+<h2>3. Что сделано, числами</h2>
+
+<p>Всё — за дозой <code>DFN_INTERIOR_LIGHT</code> (0..1, умолчание 1),
+строка 90 в таблице <code>engine/app/sources/AppDoors.cpp</code>. Правка живёт
+в <code>App::enter_interior</code>: генераторы, паспорта городов и сами
+локации <b>не тронуты</b>.</p>
+
+<table>
+<tr><th>Что</th><th>Было</th><th>Стало</th><th>Почему именно так</th></tr>
+<tr><td>Общий свет комнаты, день</td><td class="n">0.10 нейтральный</td><td class="n">0.30 × (0.90, 0.94, 1.00)</td><td>Днём за стеной небо — тон уходит в <span class="c">холодное</span>. Если поднимать тьму тем же оранжевым, каким горит огонь, комната станет ярче, а <b>огонь перестанет читаться источником</b> (см. кадр референса выше).</td></tr>
+<tr><td>Общий свет комнаты, ночь</td><td class="n">0.10 нейтральный</td><td class="n">0.17 × (1.00, 0.82, 0.62)</td><td>Ночью светит уже не небо, а отражённый от стен собственный огонь дома: ниже и <b>теплее</b>. Переход по высоте солнца, полоса 0..0.20 (11.5° над горизонтом).</td></tr>
+<tr><td>Очаг: радиус</td><td class="n">×1.00</td><td class="n">×0.85</td><td><b>Уменьшается, и это замер.</b> Генератор даёт радиус ПО ЗАЛУ — 8.46 м в семиметровой комнате, 14.24 м в постоялом дворе, — а затухание у нас smoothstep по линейному окну: комната целиком сидит в пологой верхушке кривой и получает почти одно и то же число. «Огонь не греет» значило не «тускло», а <b>«ровно»</b>.</td></tr>
+<tr><td>Очаг: яркость</td><td class="n">×1.00</td><td class="n">×2.35</td><td>Подъём p95: у владельца 0.13..0.85, у нас до правки 0.014..0.038.</td></tr>
+<tr><td>Очаг: мягкость</td><td class="n">0.25</td><td class="n">0.40</td><td>Большой открытый огонь огибает форму (wrap-диффуз). <b>Выше не поднята нарочно:</b> мягкость заодно кладёт затухание положе и работает ПРОТИВ градиента, ради которого сжат радиус — проба на 0.55 съела половину выигранного контраста.</td></tr>
+<tr><td>Свеча/светец: радиус и яркость</td><td class="n">×1.00</td><td class="n">×1.15 / ×1.25</td><td>Точка, а не второй очаг. Подсвечник, спорящий яркостью с огнём зала, — ровно та ошибка, за которую ругают ванильный Skyrim.</td></tr>
+<tr><td>Доза мерцания достаёт до комнаты</td><td>город — да, локация — нет</td><td>обе</td><td>Побочная починка: <code>DFN_LIGHT_FLICKER</code> обещала «ровный свет бит-в-бит», и обещание кончалось на пороге дома. Умолчание 1.0 умножает на единицу — прежний кадр по построению.</td></tr>
+</table>
+
+<p><b>Разбор огня по роли — по имени, а не по числам.</b> Локация НАЗЫВАЕТ свои
+огни: <code>gen_city</code> пишет <code>[light].note</code> — «очаг: …»,
+«светец яруса: …». Запасная рука для рукописных локаций (стенда, пилота) — по
+<b>мягкости</b>: это единственное поле, которого не касается экземплярная дрожь
+генератора, и оно разделяет надёжно (открытый огонь 0.15..0.25, фитиль и стекло
+0.45..0.65).</p>
+
+<h2>4. Четыре дома: до и после</h2>
+
+<p>Те же четыре дома, что в <a href="stairs-28-08.html">отчёте о лестницах</a>,
+плюс два вайтрановских. Рецепт кадра целиком:</p>
+
+<pre>DFN_MENU=0 DFN_AUDIO=0 DFN_NULL_AUDIO=1 DFN_OPEN_MAP=cities/&lt;город&gt; \
+DFN_INTERIOR=assets/scenes/int/&lt;город&gt;/&lt;слаг&gt;.scene \
+DFN_INTERIOR_LIGHT=&lt;0 либо 1&gt; DFN_INTERIOR_FADE=0 DFN_TIME_OF_DAY=0.5 \
+DFN_HUD=0 DFN_CROSSHAIR=0 DFN_SHOT_AFTER=90 DFN_CAPTURE_DIR=&lt;куда&gt; \
+./build_ilight/engine/app/dfn_app</pre>
+
+<table>
+<tr><th>Зал</th><th class="n">медиана байта<br>до → после</th><th class="n">ниже порога 20<br>до → после</th><th class="n">медиана, свет в глаз<br>до → после</th><th class="n">контраст p95/p05<br>до → после</th></tr>
+<tr><td>Житнов x248z210, ветхий дом окраины</td><td class="n">22.7 → 49.7</td><td class="n"><span class="b">41.5 %</span> → <span class="g">6.4 %</span></td><td class="n">0.0084 → <b>0.0315</b></td><td class="n">9.7 → 18.2</td></tr>
+<tr><td>Житнов x246z170, постоялый двор</td><td class="n">36.0 → 78.9</td><td class="n">6.3 % → <span class="g">0.1 %</span></td><td class="n">0.0177 → <b>0.0780</b></td><td class="n">5.2 → 7.8</td></tr>
+<tr><td>Вайтран x128z152, таверна</td><td class="n">31.0 → 74.4</td><td class="n"><span class="b">25.6 %</span> → <span class="g">1.8 %</span></td><td class="n">0.0137 → <b>0.0692</b></td><td class="n">15.6 → 24.2</td></tr>
+<tr><td>Вайтран x129z106, Йоррваскр</td><td class="n">19.7 → 43.9</td><td class="n"><span class="b">53.5 %</span> → <span class="g">6.7 %</span></td><td class="n">0.0068 → <b>0.0251</b></td><td class="n">5.9 → 11.0</td></tr>
+<tr><td><i>референс владельца, 19 кадров Skyrim</i></td><td class="n">—</td><td class="n">—</td><td class="n"><i>0.0109 .. 0.0583</i></td><td class="n"><i>21 .. 3499</i></td></tr>
+</table>
+
+<p><b>Главное чтение таблицы.</b> До правки <b>три зала из четырёх были темнее
+САМОГО ТЁМНОГО кадра владельца</b> (0.0068, 0.0084, 0.0137 против его минимума
+0.0109 — два строго ниже, третий вплотную). После правки все четыре лежат в
+его полосе. Это и есть смысл слова «темно», сказанный числом.</p>
+
+<div class="pair">
+<figure><img src="interior-light-28-08/old-before.jpg" alt="ветхий дом, до">
+<figcaption><b>ДО.</b> Житнов x248z210, доза 0. Потолок, балки и левый угол —
+чёрные пятна; огонь очага виден, а света от него нет.</figcaption></figure>
+<figure><img src="interior-light-28-08/old-after.jpg" alt="ветхий дом, после">
+<figcaption><b>ПОСЛЕ.</b> Тот же кадр, доза 1, тот же бинарник. Пол под очагом
+— тёплое пятно с внятным краем, дальний угол и испод лестницы темнее
+середины, но читаются.</figcaption></figure>
+</div>
+
+<div class="pair">
+<figure><img src="interior-light-28-08/hall-before.jpg" alt="Йоррваскр, до">
+<figcaption><b>ДО.</b> Вайтран x129z106, Йоррваскр. 53.5 % площади кадра ниже
+порога видимости — больше половины зала не нарисовано.</figcaption></figure>
+<figure><img src="interior-light-28-08/hall-after.jpg" alt="Йоррваскр, после">
+<figcaption><b>ПОСЛЕ.</b> Скамьи, столбы и дальняя стена читаются, очаг держит
+середину. Сравнить с <code>images_examples/houses_indoors/image copy 17.png</code>
+выше: тот же расклад — тёмные края, светлая середина.</figcaption></figure>
+</div>
+
+<div class="pair">
+<figure><img src="interior-light-28-08/tavern-before.jpg" alt="таверна, до">
+<figcaption><b>ДО.</b> Вайтран x128z152, таверна.</figcaption></figure>
+<figure><img src="interior-light-28-08/tavern-after.jpg" alt="таверна, после">
+<figcaption><b>ПОСЛЕ.</b> Столб и балки получили форму: испод темнее верха —
+это тот самый <code>fill</code>, который был в модели всегда и при ambient 0.03
+стоил доли люмы.</figcaption></figure>
+</div>
+
+<div class="pair">
+<figure><img src="interior-light-28-08/inn-before.jpg" alt="постоялый двор, до">
+<figcaption><b>ДО.</b> Житнов x246z170, постоялый двор ярмарочных
+ворот.</figcaption></figure>
+<figure><img src="interior-light-28-08/inn-after.jpg" alt="постоялый двор, после">
+<figcaption><b>ПОСЛЕ.</b> Самый яркий зал набора, и это честно: у него ДВА
+очага, и второй горит в 0.4 м за спиной у точки входа (радиус 12.13 м). Именно
+он и держит медиану 0.078 — верхний край полосы владельца.</figcaption></figure>
+</div>
+
+<h3>Замер по коробкам, а не по кадру целиком</h3>
+
+<p>Коробки поставлены ОДИН РАЗ, по геометрии, на контрольной руке, и обе руки
+читаются по ТЕМ ЖЕ пикселям (правило 47: прибор не имеет права искать свой
+предмет по величине, которую проверяет).</p>
+
+<table>
+<tr><th>Коробка (Житнов x248z210)</th><th class="n">медиана байта до → после</th><th class="n">ниже порога до → после</th><th class="n">свет в глаз до → после</th></tr>
+<tr><td>пол перед очагом</td><td class="n">44.7 → 109.9</td><td class="n">0 % → 0 %</td><td class="n">0.0259 → 0.1556</td></tr>
+<tr><td>дальний угол слева внизу</td><td class="n">14.6 → 36.4</td><td class="n"><span class="b">100 %</span> → <span class="g">0 %</span></td><td class="n">0.0046 → 0.0180</td></tr>
+<tr><td>потолочный настил</td><td class="n">28.6 → 62.3</td><td class="n">0 % → 0 %</td><td class="n">0.0110 → 0.0509</td></tr>
+</table>
+
+<p>Угол, у которого <b>сто процентов</b> пикселей лежало ниже порога
+различимости, теперь не имеет там ни одного. Контраст очаг/угол
+<b>5.6× → 8.6×</b>.</p>
+
+<h2>5. День и ночь — наш ответ про окна</h2>
+
+<p>Полноценного света из проёма у нас быть не может, и это <b>устройство, а не
+лень</b>: окна дома <b>глухие</b> (<code>PartForgeWalls</code> ставит в проём
+вставку <code>Pane</code>), а запекание небесной видимости стреляет только
+вверх и стену с окном от глухой стены не отличает вовсе. Что оказалось
+доступно без нового прохода:</p>
+
+<ol>
+<li><b>Час суток.</b> Днём общий свет выше и холоднее (в щели, ставни и
+вставки снаружи льётся дневное небо), ночью ниже и теплее, и очаг остаётся
+единственным хозяином кадра.</li>
+<li><b>Направление, которое в модели уже было и было невидимо.</b>
+<code>fill = 1 + FILL_SUN · dot(n, азимут солнца)</code> даёт стене,
+обращённой к солнцу, 1.30 против 0.70 у противоположной — <b>1.86 крат</b>.
+При ambient 0.03 эта разница составляла 0.7 люмы, то есть не
+существовала; теперь она видна.</li>
+</ol>
+
+<table>
+<tr><th>Житнов x248z210, доза 1</th><th class="n">ambient</th><th class="n">медиана байта</th><th class="n">ниже порога</th><th class="n">медиана, свет в глаз</th></tr>
+<tr><td>полдень (<code>DFN_TIME_OF_DAY=0.5</code>)</td><td class="n"><span class="c">0.324 0.338 0.360</span></td><td class="n">49.7</td><td class="n">6.4 %</td><td class="n">0.0315</td></tr>
+<tr><td>полночь (<code>DFN_TIME_OF_DAY=0.0</code>)</td><td class="n">0.200 0.164 0.124</td><td class="n">42.3</td><td class="n">14.1 %</td><td class="n">0.0234</td></tr>
+</table>
+
+<figure><img src="interior-light-28-08/old-night.jpg" alt="тот же зал ночью">
+<figcaption><b>Тот же зал в полночь.</b> Общий свет ушёл в тёплое и осел; доля
+кадра ниже порога выросла с 6.4 % до 14.1 %, и это замысел — ночью дом должен
+жить очагом.</figcaption></figure>
+
+<h3>Одна починка по дороге, без которой ночная рука была ложной</h3>
+
+<p>Первая версия читала час суток из <code>env.sun_direction.y</code> и
+получала <b>0.67 (полдень) при <code>DFN_TIME_OF_DAY=0.0</code></b>. Причина
+названа в самой петле кадра: <code>apply_sky_time</code> не зовётся, пока мир
+подвешен (у локации нет неба), а вход по двери <code>DFN_INTERIOR</code>
+случается ДО ПЕРВОГО КАДРА — окружение держало ещё умолчание структуры. Ночная
+рука была неотличима от дневной и показывала бы «день/ночь работает» на двух
+одинаковых кадрах. Считается теперь ровно то же, что считает петля: доля суток
+из <code>game_seconds_</code> и та же функция
+<code>render::sun_direction_at</code> (правило 35 — один хозяин у геометрии
+солнца).</p>
+
+<h2>6. Отрицательное плечо: доза 0 — прежний кадр</h2>
+
+<p>Утверждение проверено двумя способами, и оба нужны.</p>
+
+<p><b>По построению.</b> При дозе 0 общий свет считается как
+<code>0.10f + (x − 0.10f)·0.0f</code> — точный <code>0.10f</code> для любого
+конечного <code>x</code>, — а ветка поправки огней вся стоит под
+<code>if (ilight &gt; 0.0f)</code>.</p>
+
+<p><b>Прогоном.</b> Собран бинарник HEAD (моих трёх файлов нет вовсе), сняты
+те же кадры, сравнены с дозой 0 финальной сборки:</p>
+
+<table>
+<tr><th>Сравнение</th><th class="n">Δ медианы</th><th class="n">Δ p10</th></tr>
+<tr><td>HEAD против дозы 0 — Житнов x248z210</td><td class="n">−0.07</td><td class="n">0.00</td></tr>
+<tr><td>HEAD против дозы 0 — Йоррваскр</td><td class="n">+0.07</td><td class="n">0.00</td></tr>
+<tr><td><b>шум прибора:</b> две руки ОДНОГО бинарника, одна доза</td><td class="n">±0.06</td><td class="n">0.00</td></tr>
+</table>
+
+<p><b>И честная оговорка, которая дороже самой таблицы.</b> Побитового
+сравнения кадров здесь предъявить нельзя, и вот почему: <b>кадр интерьера сам
+по себе не воспроизводим</b>. Две руки одного бинарника с одними дверями дают
+2.67 млн различающихся байт при максимуме 69. Причина найдена и она не в
+мерцании (с <code>DFN_LIGHT_FLICKER=0</code> расхождение остаётся): игрок
+<b>всё ещё оседает на пол</b> после телепорта, и на девяностом кадре его
+<code>pos_y</code> отличается между прогонами на 1.3&nbsp;мм — сайдкары двух
+снимков расходятся ровно в этой строке. Полтора миллиметра камеры сдвигают
+каждый пиксель. Поэтому здесь сказано не «бит-в-бит», а «<b>разница равна
+собственному шуму прибора</b>», и это единственное, что кадром доказуемо.</p>
+
+<h2>7. Что НЕ сделано, и это не оговорка задним числом</h2>
+
+<div class="miss">
+<p><b>1. Контраст не дотянут, и он дотягивается не ambient'ом.</b> У владельца
+контраст p95/p05 медианно <b>106×</b>, у нас после правки 7..24×. Разрыв —
+это <b>пересвет</b>, которого у нашей шкалы нет вовсе: у него в кадре горит
+само пламя и светится оконная вставка, у нас самая яркая точка кадра — это
+пол под очагом. Лечится это не светом, а двумя вещами: свечением тела огня
+(<code>glow</code> уже есть у <code>furn-fire</code>, но он рисуется альбедо
+без пересвета) и светящейся вставкой окна.</p>
+<p><b>2. Свет из окна как источник — не сделан.</b> Разобрано почему:
+вставка <code>Pane</code> глухая и строится ПОДЧАСТЬЮ стенного элемента, а
+не своим элементом, — то есть у неё нет своего признака
+<code>emissive</code>; запекание видимости стреляет только вверх и окна не
+знает. Это две правки в чужих зонах (<code>PartForgeWalls</code> и
+<code>HouseMesh</code>), и делать их наспех внутри волны света я не стал.
+<b>Это самая дорогая из оставшихся вещей и самая заметная</b> — см. кадр
+<code>images_examples/houses_indoors/image copy 3.png</code>, где окно и есть
+весь свет комнаты.</p>
+<p><b>3. Ambient у нас без направления.</b> В Skyrim он шестиосевой куб
+(<code>DirectionalAmbient</code>), у нас — одно число, которому форму придаёт
+только <code>fill</code> и запечённое AO. Днём это заметно на потолке: он
+ровнее, чем на референсе.</p>
+<p><b>4. Йоррваскр остался у нижнего края полосы</b> (0.0251 при минимуме
+владельца 0.0109 и медиане 0.0277). Это зал 30 м длиной с ОДНИМ очагом
+посередине: ему нужны не большие числа, а <b>вторые огни</b> — это работа
+генератора, а не дозы.</p>
+</div>
+
+<h2>8. Проверки</h2>
+
+<table>
+<tr><th>Что</th><th>Результат</th></tr>
+<tr><td><code>ctest --test-dir build_ilight -j8</code></td><td class="g">109/109 прошли</td></tr>
+<tr><td><code>python3 tools/gen_city.py whiterun --check</code></td><td>сцена <span class="g">байт-в-байт</span>, карта <span class="g">байт-в-байт</span>, локации <span class="g">байт-в-байт</span>; <code>.relief</code> <span class="b">расходится</span> — <b>не эта волна</b>: генераторов и ассетов правка не касалась, у файла в дереве формат <code>dh</code>, а прогон пишет <code>mat</code>. Находка зоны рельефа.</td></tr>
+<tr><td><code>python3 tools/gen_city.py cornhall --check</code></td><td>то же самое: три предмета выпуска из четырёх байт-в-байт, <code>.relief</code> расходится тем же форматом.</td></tr>
+<tr><td>Таблица дверей</td><td>89 → <b>90</b>, длина массива пересчитана <code>grep -c '^    {"DFN_'</code>, а не прибавлена к запомненной.</td></tr>
+</table>
+
+<h2>9. Что где лежит</h2>
+<table>
+<tr><th>Файл</th><th>Что в нём</th></tr>
+<tr><td><code>engine/app/sources/AppInterior.cpp</code></td><td>блок «СВЕТ ИНТЕРЬЕРА»: разбор причины, все числа с выводом, <code>flame_of()</code>, применение дозы.</td></tr>
+<tr><td><code>engine/app/sources/AppDoors.cpp</code></td><td>строка <code>DFN_INTERIOR_LIGHT</code>.</td></tr>
+<tr><td><code>engine/app/sources/App.h</code></td><td><code>interior_light_dose()</code>.</td></tr>
+<tr><td><code>tools/measure_interior_light.py</code></td><td>прибор: гистограмма кадра и коробок, перцептивная шкала, полоса референса.</td></tr>
+<tr><td><code>docs/reports/interior-light-28-08/</code></td><td>десять кадров приёмки.</td></tr>
+<tr><td><code>images_examples/houses_indoors/</code></td><td>референс владельца. В гит не кладётся (<code>.gitignore</code>).</td></tr>
+</table>
+
+</main></body></html>
