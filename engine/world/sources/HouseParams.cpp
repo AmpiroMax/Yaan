@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 27:08:2026 - 10:34:00
+Last updated: 27:08:2026 - 22:25:00
 Module: engine/world
 File: engine/world/sources/HouseParams.cpp
 
@@ -37,6 +37,10 @@ UPD:
   AppHouse.cpp, лишь бы сошлась сверка хука, вместо того чтобы разобраться с
   чужой. Поставлено время коммита 9e2c8c9 (10:18:14). Текста записи и кода не
   трогал.
+- 27:08:2026 - 22:25:00: ключ riser в таблице параметров (подступёнок-щит
+  открытого марша). Одна строка в param_slots: таблица — единственное место,
+  где свойство становится читаемым, и вторая копия правила разбора здесь была
+  бы ровно тем, что аудит #3 уже находил.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -92,7 +96,7 @@ std::span<const ParamSlot> param_slots() {
         {"roof", &ElementParams::roof},       {"unsupported", &ElementParams::unsupported},
         {"open", &ElementParams::open},       {"beams", &ElementParams::beams},
         {"glow", &ElementParams::glow},       {"rise", &ElementParams::rise},
-        {"nosing", &ElementParams::nosing},
+        {"nosing", &ElementParams::nosing}, {"riser", &ElementParams::riser},
     };
     return slots;
 }

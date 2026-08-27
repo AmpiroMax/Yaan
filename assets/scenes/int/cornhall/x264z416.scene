@@ -9,7 +9,7 @@ world_span_m = 64
 
 [spawn]
 name = door
-pos = 5.075 0.660 14.200
+pos = 5.075 0.720 14.200
 yaw = 0.000000
 note = сразу за порогом, лицом в комнату
 
@@ -22,361 +22,382 @@ note = оболочка: тот же чертёж, что снаружи (пос
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 2.300 0.560 0.650
+pos = 2.300 0.620 0.650
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 2.700 0.760 1.050
+pos = 2.700 0.820 1.050
 yaw = 0.645772
 note = огонь очага: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 4.100 0.560 0.700
+pos = 4.100 0.620 0.700
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 0.700 0.560 2.600
+pos = 0.700 0.620 2.600
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.560 2.100
+pos = 0.800 0.620 2.100
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.560 3.600
+pos = 0.800 0.620 3.600
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 0.700 0.560 5.100
+pos = 0.700 0.620 5.100
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.560 4.600
+pos = 0.800 0.620 4.600
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.560 6.100
+pos = 0.800 0.620 6.100
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 0.700 0.560 7.600
+pos = 0.700 0.620 7.600
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.560 7.100
+pos = 0.800 0.620 7.100
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.560 8.600
+pos = 0.800 0.620 8.600
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 0.700 0.560 10.100
+pos = 0.700 0.620 10.100
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.560 9.600
+pos = 0.800 0.620 9.600
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.560 11.100
+pos = 0.800 0.620 11.100
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 6.450 0.560 2.200
+pos = 6.450 0.620 2.200
 yaw = 4.712389
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 6.450 0.560 4.400
+pos = 6.450 0.620 4.400
 yaw = 4.712389
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 5.700 0.560 6.200
+pos = 5.700 0.620 6.200
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 4.200 0.560 7.100
+pos = 4.200 0.620 7.100
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 4.200 0.560 8.000
+pos = 4.200 0.620 8.000
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 0.600 0.560 12.400
+pos = 0.600 0.620 12.400
 yaw = 0.000000
 scale = 1
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-hearth.dfh
-pos = 2.300 0.560 13.100
+pos = 2.300 0.620 13.100
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-fire.dfh
-pos = 2.700 0.760 13.500
+pos = 2.700 0.820 13.500
 yaw = 0.645772
 note = огонь очага: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 4.200 0.560 12.600
+pos = 4.200 0.620 12.600
 yaw = 0.000000
 note = убранство: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 0.400 4.920 0.500
+pos = 0.400 4.980 0.500
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 0.400 4.920 2.600
+pos = 0.400 4.980 2.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 0.400 4.920 4.700
+pos = 0.400 4.980 4.700
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 0.400 4.920 6.800
+pos = 0.400 4.980 6.800
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 2.200 4.920 0.500
+pos = 2.200 4.980 0.500
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 2.200 4.920 2.600
+pos = 2.200 4.980 2.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 3.600 4.920 0.600
+pos = 3.600 4.980 0.600
 yaw = 0.000000
 note = убранство яруса: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 3.600 4.920 1.500
+pos = 3.600 4.980 1.500
 yaw = 0.000000
 note = убранство яруса: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 3.500 4.920 3.200
+pos = 3.500 4.980 3.200
 yaw = 0.000000
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 8.000 4.920 0.500
-yaw = 0.000000
-scale = 1
-note = убранство яруса: постоялый двор скотных ворот
-
-[place]
-object = furn-bed
-pos = 9.600 4.920 0.500
+pos = 8.000 4.980 0.500
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 8.000 4.920 2.600
+pos = 9.600 4.980 0.500
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 9.600 4.920 2.600
+pos = 8.000 4.980 2.600
+yaw = 0.000000
+scale = 1
+note = убранство яруса: постоялый двор скотных ворот
+
+[place]
+object = furn-bed
+pos = 9.600 4.980 2.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-table.dfh
-pos = 8.000 4.920 5.200
+pos = 8.000 4.980 5.200
 yaw = 0.000000
 note = убранство яруса: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 8.100 4.920 6.200
+pos = 8.100 4.980 6.200
 yaw = 0.000000
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 8.000 4.920 11.600
-yaw = 0.000000
-scale = 1
-note = убранство яруса: постоялый двор скотных ворот
-
-[place]
-object = furn-bed
-pos = 9.600 4.920 11.600
+pos = 8.000 4.980 11.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 2.200 7.920 0.500
+pos = 9.600 4.980 11.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 2.200 7.920 2.600
+pos = 2.200 7.980 0.500
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 2.200 7.920 4.700
+pos = 2.200 7.980 2.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 2.200 7.920 6.800
+pos = 2.200 7.980 4.700
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 4.000 7.920 0.500
+pos = 2.200 7.980 6.800
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 4.000 7.920 2.600
+pos = 4.000 7.980 0.500
+yaw = 0.000000
+scale = 1
+note = убранство яруса: постоялый двор скотных ворот
+
+[place]
+object = furn-bed
+pos = 4.000 7.980 2.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 5.400 7.920 5.200
+pos = 5.400 7.980 5.200
 yaw = 0.000000
 note = убранство яруса: постоялый двор скотных ворот
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 5.500 7.920 7.000
+pos = 5.500 7.980 7.000
 yaw = 0.000000
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 8.000 7.920 0.500
+pos = 8.000 7.980 0.500
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 9.600 7.920 0.500
+pos = 9.600 7.980 0.500
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 8.000 7.920 2.600
+pos = 8.000 7.980 2.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 9.600 7.920 2.600
+pos = 9.600 7.980 2.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 8.000 7.920 11.600
+pos = 8.000 7.980 11.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
 
 [place]
 object = furn-bed
-pos = 2.200 7.920 12.600
+pos = 2.200 7.980 12.600
 yaw = 0.000000
 scale = 1
 note = убранство яруса: постоялый двор скотных ворот
+
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 4.860 4.980 3.290
+yaw = 0.000000
+note = светец яруса: постоялый двор скотных ворот
+
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 5.040 7.980 3.850
+yaw = 0.000000
+note = светец яруса: постоялый двор скотных ворот
 
 [light]
-pos = 3.000 1.490 13.800
+pos = 3.000 1.550 1.350
+color = 0.940 0.500 0.196
+radius_m = 12.92
+casts_shadow = 0
+softness = 0.25
+flicker = 0.46
+note = очаг: постоялый двор скотных ворот
+
+[light]
+pos = 3.000 1.550 13.800
 color = 1.000 0.579 0.235
 radius_m = 11.98
 casts_shadow = 0
@@ -384,13 +405,31 @@ softness = 0.25
 flicker = 0.54
 note = очаг: постоялый двор скотных ворот
 
+[light]
+pos = 5.040 6.680 3.750
+color = 0.852 0.566 0.293
+radius_m = 5.36
+casts_shadow = 0
+softness = 0.45
+flicker = 0.24
+note = светец яруса: постоялый двор скотных ворот
+
+[light]
+pos = 5.220 9.680 4.310
+color = 1.000 0.634 0.309
+radius_m = 4.73
+casts_shadow = 0
+softness = 0.45
+flicker = 0.31
+note = светец яруса: постоялый двор скотных ворот
+
 [air]
 fog_start = 40
 fog_end = 120
 ambient = 0.10
 
 [portal]
-at = 5.075 1.560 14.700
+at = 5.075 1.620 14.700
 radius_m = 1.10
 to = ^back
 note = обратная дверь

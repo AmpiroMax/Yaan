@@ -188,6 +188,12 @@ pos = 8.900 4.580 6.000
 yaw = 0.000000
 note = убранство яруса: arcade
 
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 6.420 4.580 2.540
+yaw = 0.000000
+note = светец яруса: arcade
+
 [light]
 pos = 2.400 1.070 1.200
 color = 0.940 0.488 0.187
@@ -196,6 +202,15 @@ casts_shadow = 0
 softness = 0.25
 flicker = 0.46
 note = очаг: arcade
+
+[light]
+pos = 6.600 6.280 3.000
+color = 1.000 0.702 0.370
+radius_m = 5.26
+casts_shadow = 0
+softness = 0.45
+flicker = 0.32
+note = светец яруса: arcade
 
 [air]
 fog_start = 40

@@ -105,6 +105,15 @@ yaw = 4.712389
 note = убранство: ХРАМ
 
 [light]
+pos = 1.700 1.055 1.300
+color = 0.969 0.532 0.215
+radius_m = 13.04
+casts_shadow = 0
+softness = 0.25
+flicker = 0.48
+note = очаг: ХРАМ
+
+[light]
 pos = 10.300 1.055 1.300
 color = 1.000 0.535 0.200
 radius_m = 11.05

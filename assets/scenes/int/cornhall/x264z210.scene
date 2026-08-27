@@ -248,6 +248,18 @@ pos = 5.500 6.310 8.600
 yaw = 0.000000
 note = убранство яруса: manor
 
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 2.940 3.510 2.340
+yaw = 0.000000
+note = светец яруса: manor
+
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 4.520 6.310 2.290
+yaw = 0.000000
+note = светец яруса: manor
+
 [light]
 pos = 4.000 1.500 1.200
 color = 0.984 0.525 0.207
@@ -256,6 +268,24 @@ casts_shadow = 0
 softness = 0.25
 flicker = 0.49
 note = очаг: manor
+
+[light]
+pos = 3.120 5.210 2.800
+color = 0.896 0.576 0.289
+radius_m = 4.80
+casts_shadow = 0
+softness = 0.45
+flicker = 0.26
+note = светец яруса: manor
+
+[light]
+pos = 4.700 8.010 2.750
+color = 0.934 0.581 0.282
+radius_m = 5.40
+casts_shadow = 0
+softness = 0.45
+flicker = 0.27
+note = светец яруса: manor
 
 [air]
 fog_start = 40

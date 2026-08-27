@@ -137,6 +137,12 @@ pos = 5.550 3.510 0.600
 yaw = 0.000000
 note = убранство яруса: house
 
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 2.090 3.510 1.580
+yaw = 0.000000
+note = светец яруса: house
+
 [light]
 pos = 3.250 1.500 1.200
 color = 1.000 0.520 0.192
@@ -145,6 +151,15 @@ casts_shadow = 0
 softness = 0.25
 flicker = 0.53
 note = очаг: house
+
+[light]
+pos = 2.270 5.210 2.040
+color = 1.000 0.710 0.359
+radius_m = 4.95
+casts_shadow = 0
+softness = 0.45
+flicker = 0.34
+note = светец яруса: house
 
 [air]
 fog_start = 40

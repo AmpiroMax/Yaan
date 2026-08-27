@@ -183,6 +183,18 @@ yaw = 0.000000
 scale = 1
 note = убранство яруса: jetty
 
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 3.400 3.520 2.790
+yaw = 0.000000
+note = светец яруса: jetty
+
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 3.310 6.320 2.420
+yaw = 0.000000
+note = светец яруса: jetty
+
 [light]
 pos = 3.500 1.500 1.200
 color = 1.000 0.622 0.250
@@ -191,6 +203,24 @@ casts_shadow = 0
 softness = 0.25
 flicker = 0.59
 note = очаг: jetty
+
+[light]
+pos = 3.580 5.220 3.250
+color = 0.880 0.592 0.310
+radius_m = 4.89
+casts_shadow = 0
+softness = 0.45
+flicker = 0.25
+note = светец яруса: jetty
+
+[light]
+pos = 3.490 8.020 2.880
+color = 0.875 0.586 0.305
+radius_m = 5.26
+casts_shadow = 0
+softness = 0.45
+flicker = 0.25
+note = светец яруса: jetty
 
 [air]
 fog_start = 40

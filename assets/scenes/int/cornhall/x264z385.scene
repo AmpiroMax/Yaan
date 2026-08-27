@@ -101,6 +101,12 @@ pos = 2.650 3.510 3.600
 yaw = 0.000000
 note = убранство яруса: thatch
 
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 0.970 3.510 2.160
+yaw = 0.000000
+note = светец яруса: thatch
+
 [light]
 pos = 3.250 1.500 1.200
 color = 0.867 0.454 0.176
@@ -109,6 +115,15 @@ casts_shadow = 0
 softness = 0.25
 flicker = 0.41
 note = очаг: thatch
+
+[light]
+pos = 1.150 5.210 2.620
+color = 1.000 0.629 0.300
+radius_m = 5.28
+casts_shadow = 0
+softness = 0.45
+flicker = 0.31
+note = светец яруса: thatch
 
 [air]
 fog_start = 40

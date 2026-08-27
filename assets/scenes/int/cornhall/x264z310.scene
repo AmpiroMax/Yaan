@@ -112,7 +112,7 @@ note = убранство: РАТУША
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 0.700 0.160 0.700
+pos = 11.450 0.160 1.850
 yaw = 0.000000
 note = убранство: РАТУША
 
@@ -124,7 +124,7 @@ note = убранство: РАТУША
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 0.800 0.160 7.400
+pos = 7.400 0.160 4.830
 yaw = 0.000000
 note = убранство: РАТУША
 
@@ -208,15 +208,21 @@ note = убранство яруса: РАТУША
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 12.000 4.890 7.600
+pos = 5.250 4.890 1.850
 yaw = 0.000000
 note = убранство яруса: РАТУША
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 12.900 4.890 7.600
+pos = 6.150 4.890 1.850
 yaw = 0.000000
 note = убранство яруса: РАТУША
+
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 8.090 4.890 3.280
+yaw = 0.000000
+note = светец яруса: РАТУША
 
 [light]
 pos = 7.500 1.090 1.300
@@ -226,6 +232,15 @@ casts_shadow = 0
 softness = 0.25
 flicker = 0.58
 note = очаг: РАТУША
+
+[light]
+pos = 8.270 6.590 3.740
+color = 1.000 0.669 0.315
+radius_m = 5.28
+casts_shadow = 0
+softness = 0.45
+flicker = 0.34
+note = светец яруса: РАТУША
 
 [air]
 fog_start = 40

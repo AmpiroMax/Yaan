@@ -59,7 +59,7 @@ note = убранство: old
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 4.600 0.570 6.800
+pos = 5.200 0.570 0.600
 yaw = 0.000000
 note = убранство: old
 
@@ -100,6 +100,12 @@ pos = 2.650 3.510 3.600
 yaw = 0.000000
 note = убранство яруса: old
 
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 1.230 3.510 1.410
+yaw = 0.000000
+note = светец яруса: old
+
 [light]
 pos = 3.250 1.500 1.200
 color = 0.928 0.482 0.185
@@ -108,6 +114,15 @@ casts_shadow = 0
 softness = 0.25
 flicker = 0.45
 note = очаг: old
+
+[light]
+pos = 1.410 5.210 1.870
+color = 0.921 0.612 0.317
+radius_m = 4.90
+casts_shadow = 0
+softness = 0.45
+flicker = 0.27
+note = светец яруса: old
 
 [air]
 fog_start = 40

@@ -40,7 +40,7 @@ note = убранство: ПИВОВАРНЯ
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 0.700 0.160 0.700
+pos = 3.400 0.160 0.700
 yaw = 0.000000
 note = убранство: ПИВОВАРНЯ
 
@@ -124,7 +124,7 @@ note = убранство: ПИВОВАРНЯ
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 0.600 4.280 0.600
+pos = 3.300 4.280 0.600
 yaw = 0.000000
 note = убранство яруса: ПИВОВАРНЯ
 
@@ -212,6 +212,12 @@ pos = 7.900 4.280 6.600
 yaw = 0.000000
 note = убранство яруса: ПИВОВАРНЯ
 
+[house]
+file = assets/houses/furn-lamp-wall.dfh
+pos = 3.440 4.280 2.260
+yaw = 0.000000
+note = светец яруса: ПИВОВАРНЯ
+
 [light]
 pos = 5.500 1.090 1.300
 color = 0.940 0.496 0.193
@@ -220,6 +226,15 @@ casts_shadow = 0
 softness = 0.25
 flicker = 0.46
 note = очаг: ПИВОВАРНЯ
+
+[light]
+pos = 3.620 5.980 2.720
+color = 1.000 0.690 0.329
+radius_m = 4.57
+casts_shadow = 0
+softness = 0.45
+flicker = 0.35
+note = светец яруса: ПИВОВАРНЯ
 
 [air]
 fog_start = 40

@@ -120,4 +120,4 @@ line e38 v71 v72 style=- radius=0.08 mat=0 tone=2
 line e39 v71 v73 style=- radius=0.08 mat=0 tone=2
 line e40 v74 v75 style=- radius=0.08 mat=0 tone=2
 line e41 v74 v76 style=- radius=0.08 mat=0 tone=2
-surface e42 v77 v78 v79 v80 style=- closed=1 thickness=0.1 fill=6 open=1 mat=1 tone=1 wear=0.55
+surface e42 v77 v78 v79 v80 style=- closed=1 thickness=0.1 fill=6 open=1 nosing=1 mat=1 tone=1 wear=0.55

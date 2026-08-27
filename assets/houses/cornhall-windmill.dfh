@@ -157,7 +157,7 @@ line e31 v51 v52 style=- radius=0.08 mat=0 tone=2
 line e32 v51 v53 style=- radius=0.08 mat=0 tone=2
 line e33 v54 v55 style=- radius=0.08 mat=0 tone=2
 line e34 v54 v56 style=- radius=0.08 mat=0 tone=2
-surface e35 v57 v58 v59 v60 style=- closed=1 thickness=0.12 fill=6 open=1 mat=1 tone=2 wear=0.55
+surface e35 v57 v58 v59 v60 style=- closed=1 thickness=0.12 fill=6 open=1 nosing=1 mat=1 tone=2 wear=0.55
 line e36 v61 v62 style=- radius=0.13 form=square mat=0 tone=2 wear=0.55
 line e37 v63 v64 style=- radius=0.24 form=square mat=0 tone=2 wear=0.55
 line e38 v64 v65 style=- radius=0.11 form=square mat=0 tone=2 wear=0.55
