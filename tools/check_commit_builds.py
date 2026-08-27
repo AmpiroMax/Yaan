@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 27:08:2026 - 22:17:42
-# Last updated: 27:08:2026 - 22:22:09
+# Last updated: 27:08:2026 - 22:31:19
 # File: tools/check_commit_builds.py
 #
 # Responsibility:
@@ -95,6 +95,21 @@
 #     недосчитает TU и об этом никто не узнает.
 #   * ЧУЖИЕ ЗОНЫ СБОРКИ: берётся ОДИН набор флагов (одна конфигурация). Коммит,
 #     ломающий только Apple clang или только Debug, отсюда не виден.
+#   * ЗАПУСК ИЗ ЧУЖОГО git worktree — БЫЛА ЗЕЛЁНАЯ ДЫРА, ПОЧИНЕНА (найдена
+#     bigworld-menufx). Корень для подстановки -I брался из
+#     `git rev-parse --show-toplevel`, то есть у ЗАПУСКАЮЩЕГО, и сравнивался с
+#     путём из compile_commands.json ТОЧНО. Из другого рабочего дерева того же
+#     репозитория подстановка не срабатывала ни разу, включения разрешались
+#     против ГЛАВНОГО рабочего каталога — с чужими незакоммиченными файлами, —
+#     и прибор отвечал «чисто» на коммите, который из главного дерева называл
+#     несобираемым. Ни предупреждения, ни кода 2: зелёный отчёт, то есть
+#     враньё в безопасную сторону, которое эта же шапка называет худшим.
+#     Воспроизведено им на одном sha и одном --build-dir и подтверждено
+#     числами: VideoRow в Menu.h дерева ee031b0 — 0 вхождений, в главном
+#     каталоге — 2. Не экзотика: агентов здесь запускают с isolation worktree.
+#     Починено ДВАЖДЫ, потому что одной починки мало: корень читается из самой
+#     базы (cc_repo_root), И подстановки считаются — ноль подстановок даёт код
+#     2 «проверить не удалось», а не зелёный. Держат руки 5 и 5b.
 #   * УНАСЛЕДОВАННУЮ ПОЛОМКУ — и это САМАЯ ВАЖНАЯ ИЗ ДЫР, потому что её легко
 #     принять за зелёный ответ. Проверка отвечает «не сломал ли ЭТОТ коммит то,
 #     что тронул», а НЕ «собирается ли дерево». Разница измерена (находка
@@ -134,6 +149,18 @@
 #   ловила не догадка, а ФОРМА ОТВЕТА рядом с контрольной рукой. Поэтому рука 2
 #   здесь не формальность: без неё две красные доказывают только, что автор
 #   умеет ломать компилятор.
+# - 27:08:2026 - 22:31:19: ПОЧИНЕНА ЗЕЛЁНАЯ ДЫРА, найденная bigworld-menufx
+#   в первый же час жизни прибора: ответ зависел от того, из какого каталога
+#   его запустили (подробности — в списке названных дыр выше). Корень для
+#   флагов теперь читается из compile_commands.json, а не из cwd; подстановки
+#   считаются, и ноль подстановок — это код 2, а не зелёный. Рук стало семь:
+#   5 (ответ не зависит от cwd, код руки его) и 5b (сам предохранитель).
+#   И РУКА 5b ПОКРАСНЕЛА НА ВЕРНОМ ПОВЕДЕНИИ — искала «не сработала» в строке,
+#   где стоит «НЕ сработала». Проверка, чувствительная к регистру чужого
+#   текста, проверяет текст, а не предмет; сверяется теперь по «подстановка».
+#   Это четвёртое за вечер враньё инструмента своему автору и третье, которое
+#   поймала форма ответа рядом (0 ошибок, 1 непроверенный — числа были верны,
+#   красным был вердикт).
 
 import argparse
 import json
@@ -180,6 +207,29 @@ def pick_build_dir(root: Path, given: str | None) -> Path:
         sys.exit("не нашёл ни одного build*/compile_commands.json — "
                  "сконфигурируй любую свою сборку и повтори")
     return cands[0].parent
+
+
+def cc_repo_root(cc: list[dict], fallback: Path) -> Path:
+    """КОРЕНЬ РЕПОЗИТОРИЯ ПО МНЕНИЮ САМОЙ БАЗЫ, а не по текущему каталогу.
+    Раньше он брался из `git rev-parse --show-toplevel`, то есть у ЗАПУСКАЮЩЕГО,
+    и подстановка -I сравнивалась с ним точно: из чужого git worktree она не
+    срабатывала ни разу, включения разрешались против ГЛАВНОГО рабочего каталога
+    с чужими незакоммиченными файлами, и прибор отвечал ЗЕЛЁНЫМ на красном
+    коммите (дыра найдена bigworld-menufx, см. шапку). База знает правду: пути
+    в ней абсолютные и записаны тем, кто конфигурировал сборку."""
+    counts: dict[str, int] = {}
+    for e in cc:
+        f = e.get("file", "")
+        for r in OUR_ROOTS:
+            marker = "/" + r
+            if marker in f:
+                counts[f.split(marker)[0]] = counts.get(f.split(marker)[0], 0) + 1
+                break
+    if not counts:
+        print("ВНИМАНИЕ: корень репозитория не выводится из compile_commands.json, "
+              f"беру текущий ({fallback})", file=sys.stderr)
+        return fallback
+    return Path(max(counts.items(), key=lambda kv: kv[1])[0])
 
 
 def changed_files(sha: str) -> list[str]:
@@ -241,7 +291,8 @@ def affected_tus(tree: Path, changed: list[str]) -> list[str]:
     return sorted(f for f in tainted if f.endswith((".cpp", ".cc", ".cxx")))
 
 
-def syntax_command(cc: list[dict], root: Path, tree: Path, rel: str) -> list[str] | None:
+def syntax_command(cc: list[dict], root: Path, tree: Path,
+                   rel: str) -> tuple[list[str], int] | None:
     """Готовая команда компиляции, переделанная в синтаксическую проверку
     ПРОТИВ ДЕРЕВА КОММИТА. Переставляется ровно один флаг — -I корня репозитория;
     всё остальное (третьи стороны, генерённые каталоги) от коммита не зависит."""
@@ -249,7 +300,7 @@ def syntax_command(cc: list[dict], root: Path, tree: Path, rel: str) -> list[str
     if entry is None:
         return None
     args = shlex.split(entry.get("command") or " ".join(entry["arguments"]))
-    out, skip = [], False
+    out, skip, hits = [], False, 0
     for a in args:
         if skip:
             skip = False
@@ -264,20 +315,32 @@ def syntax_command(cc: list[dict], root: Path, tree: Path, rel: str) -> list[str
             continue          # исходник подставим свой, из дерева коммита
         if a == "-I" + str(root):
             a = "-I" + str(tree)
+            hits += 1
         out.append(a)
     out += ["-fsyntax-only", str(tree / rel)]
-    return out
+    # ЧИСЛО ПОДСТАНОВОК ВОЗВРАЩАЕТСЯ НАРУЖУ, и это половина починки той самой
+    # зелёной дыры. Ноль подстановок значит, что включения разрешатся не против
+    # дерева коммита, а против чьего-то рабочего каталога, — то есть прибор
+    # проверит НЕ ТО. Такой ответ не имеет права быть зелёным, и вызывающий
+    # кладёт этот TU в «проверить не удалось» (код 2). Один раз уже стоило
+    # зелёного отчёта на заведомо красном коммите.
+    return out, hits
 
 
 def check_tree(tree: Path, root: Path, cc: list[dict], tus: list[str],
-               verbose: bool) -> tuple[list[str], list[str], float]:
-    """Возвращает (ошибки, непроверенные TU, секунды)."""
+               verbose: bool) -> tuple[list[str], list[tuple[str, str]], float]:
+    """Возвращает (ошибки, непроверенные TU с причиной, секунды)."""
     errors, unchecked = [], []
     began = time.monotonic()
     for rel in tus:
-        cmd = syntax_command(cc, root, tree, rel)
-        if cmd is None:
-            unchecked.append(rel)
+        made = syntax_command(cc, root, tree, rel)
+        if made is None:
+            unchecked.append((rel, "нет в compile_commands.json"))
+            continue
+        cmd, hits = made
+        if hits == 0:
+            unchecked.append((rel, "подстановка -I на дерево коммита НЕ сработала "
+                                   "— проверялся бы чужой рабочий каталог"))
             continue
         r = run(cmd)
         if r.returncode != 0:
@@ -315,6 +378,7 @@ class Worktree:
 def check_commit(root: Path, build: Path, sha: str, verbose: bool,
                  rng: str | None = None) -> int:
     cc = json.loads((build / "compile_commands.json").read_text())
+    flag_root = cc_repo_root(cc, root)   # корень ФЛАГОВ — из базы, не из cwd
     if rng:
         changed = changed_in_range(rng)
         sha = rng.split("..")[-1] or "HEAD"   # дерево КОНЦА цепочки
@@ -327,7 +391,7 @@ def check_commit(root: Path, build: Path, sha: str, verbose: bool,
             return 0
         print(f"{sha}: изменено файлов {len(changed)}, "
               f"затронуто TU {len(tus)}; флаги из {build.name}")
-        errors, unchecked, secs = check_tree(tree, root, cc, tus, verbose)
+        errors, unchecked, secs = check_tree(tree, flag_root, cc, tus, verbose)
         # Пути временного дерева в отчёте — шум: читателю нужен файл и строка,
         # а не то, в какой каталог его сегодня развернули.
         errors = [e.replace(str(tree) + "/", "") for e in errors]
@@ -340,10 +404,9 @@ def check_commit(root: Path, build: Path, sha: str, verbose: bool,
     if unchecked:
         # ГРОМКО, А НЕ МОЛЧА: это ровно та половина, из-за которой предыдущая
         # застава оказалась слепа к своему же дефекту.
-        print(f"\nПРОВЕРИТЬ НЕ УДАЛОСЬ: {len(unchecked)} TU нет в "
-              f"compile_commands.json (сконфигурируй сборку заново):")
-        for u in unchecked[:10]:
-            print("  " + u)
+        print(f"\nПРОВЕРИТЬ НЕ УДАЛОСЬ: {len(unchecked)} TU:")
+        for rel, why in unchecked[:10]:
+            print(f"  {rel} — {why}")
         return 2
     # ФОРМУЛИРОВКА ВЫВЕРЕНА: не «дерево собирается», а «не сломал того, что
     # тронул». Второе — правда, первое — то полуутверждение, из-за которого
@@ -367,6 +430,7 @@ SELF_TEST_INHERITED_SHA = "9c8cafb"
 
 def self_test(root: Path, build: Path) -> int:
     cc = json.loads((build / "compile_commands.json").read_text())
+    flag_root = cc_repo_root(cc, root)
     ok = True
 
     def say(name, passed, detail=""):
@@ -381,14 +445,14 @@ def self_test(root: Path, build: Path) -> int:
             f" — коммита {SELF_TEST_BROKEN_SHA} нет в этом клоне")
     else:
         with Worktree(root, SELF_TEST_BROKEN_SHA) as tree:
-            errs, _, _ = check_tree(tree, root, cc, ["engine/app/sources/Menu.cpp"], False)
+            errs, _, _ = check_tree(tree, flag_root, cc, ["engine/app/sources/Menu.cpp"], False)
         hit = any("VideoRow" in e or "SettingsRow" in e for e in errs)
         say("рука 1 (разрез волны, красный по ИМЕНИ)", hit,
             "" if hit else f" — ждал имя, получил: {errs[:1]}")
 
     # РУКА 2, КОНТРОЛЬНАЯ: то же самое на HEAD, где дерево заведомо собирается.
     with Worktree(root, "HEAD") as tree:
-        errs, unchecked, secs = check_tree(tree, root, cc,
+        errs, unchecked, secs = check_tree(tree, flag_root, cc,
                                            ["engine/app/sources/Menu.cpp"], False)
         say("рука 2 (КОНТРОЛЬ: HEAD зелён)", not errs and not unchecked,
             f" — {secs:.2f} с на TU" if not errs else f" — {errs[:1]}")
@@ -407,7 +471,7 @@ def self_test(root: Path, build: Path) -> int:
             say("рука 3 (красный по ФАЙЛУ)", False, " — не нашёл, что удалить")
         else:
             (tree / victim).unlink()
-            errs, _, _ = check_tree(tree, root, cc, ["engine/app/sources/App.cpp"], False)
+            errs, _, _ = check_tree(tree, flag_root, cc, ["engine/app/sources/App.cpp"], False)
             hit = any("file not found" in e or "не найден" in e for e in errs)
             say("рука 3 (незакоммиченная зависимость, красный по ФАЙЛУ)", hit,
                 f" — убран {victim}" if hit else f" — ждал 'file not found', получил: {errs[:1]}")
@@ -424,13 +488,41 @@ def self_test(root: Path, build: Path) -> int:
     else:
         with Worktree(root, SELF_TEST_INHERITED_SHA) as tree:
             own = affected_tus(tree, changed_files(SELF_TEST_INHERITED_SHA))
-            e_own, _, _ = check_tree(tree, root, cc, own, False)
+            e_own, _, _ = check_tree(tree, flag_root, cc, own, False)
             rng_files = changed_in_range(f"{SELF_TEST_BROKEN_SHA}~1..{SELF_TEST_INHERITED_SHA}")
-            e_rng, _, _ = check_tree(tree, root, cc, affected_tus(tree, rng_files), False)
+            e_rng, _, _ = check_tree(tree, flag_root, cc, affected_tus(tree, rng_files), False)
         say("рука 4a (свои файлы у невиновного соседа чисты)", not e_own,
             "" if not e_own else f" — {e_own[:1]}")
         say("рука 4b (--range видит унаследованную поломку)", bool(e_rng),
             "" if e_rng else " — ждал красный, получил зелёный")
+
+    # РУКА 5: ОТВЕТ НЕ ЗАВИСИТ ОТ ТОГО, ОТКУДА ПРИБОР ЗАПУЩЕН. Код руки —
+    # bigworld-menufx, он же нашёл дыру. Она держит не путь, а ОТВЕТ: тот же
+    # sha, тот же build-dir, другой cwd — ответ обязан совпасть с рукой 1.
+    # До починки прибор, запущенный из чужого git worktree, отвечал ЗЕЛЁНЫМ на
+    # заведомо красном коммите: подстановка -I сравнивалась с корнем ПО CWD, из
+    # чужого дерева не срабатывала ни разу, и включения читались из главного
+    # рабочего каталога — то есть из чужих незакоммиченных файлов.
+    with Worktree(root, "HEAD") as alien:
+        r = run([sys.executable, str(root / "tools/check_commit_builds.py"),
+                 "--sha", SELF_TEST_BROKEN_SHA, "--build-dir", str(build)],
+                cwd=str(alien))
+        say("рука 5 (ответ не зависит от cwd)", r.returncode == 1,
+            "" if r.returncode == 1 else f" — из чужого дерева вернул {r.returncode}")
+
+        # РУКА 5b: САМ ПРЕДОХРАНИТЕЛЬ. Даже если корень однажды снова разойдётся
+        # (сменится форма флагов, придёт другая система сборки), ноль подстановок
+        # обязан давать «проверить не удалось», а не зелёный. Проверяется прямо:
+        # заведомо неверный корень -> TU уходит в непроверенные, ошибок ноль.
+        errs, unchecked, _ = check_tree(alien, Path("/nowhere-at-all"), cc,
+                                        ["engine/app/sources/Menu.cpp"], False)
+        # Сверяется по «подстановка», а не по всей фразе: первая редакция руки
+        # искала «не сработала» в строке, где стоит «НЕ сработала», и покраснела
+        # на верном поведении (0 ошибок, 1 непроверенный). Рука, чувствительная
+        # к регистру чужого текста, проверяет текст, а не предмет.
+        guarded = not errs and len(unchecked) == 1 and "подстановка" in unchecked[0][1]
+        say("рука 5b (ноль подстановок -> НЕ зелёный, а «не удалось»)", guarded,
+            "" if guarded else f" — получил ошибок {len(errs)}, непроверенных {len(unchecked)}")
 
     print("\nрукав пройден" if ok else "\nРУКАВ КРАСНЫЙ")
     return 0 if ok else 1
