@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 27:08:2026 - 12:02:02
+Last updated: 27:08:2026 - 12:58:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -126,6 +126,23 @@ UPD:
   Раскладочный случай прошлого дня этого не видел ПО ПОСТРОЕНИЮ: он утверждал
   непересечение коробок, а коробка в 1.6 раза выше соседей ни с кем не
   пересекается; новый случай в app_menu утверждает равенство напрямую.
+- 27:08:2026 - 12:58:00: ПЛОСКИЙ ГЕРБ-КРУГ УШЁЛ С КОРНЕВОЙ СТРАНИЦЫ (заказ
+  владельца 27.08: «объёмный золотой дуб — кайф, берём»). Стояло
+  draw_image_fit(cached_png(BRAND_SEAL_PNG), …, 0.82f) — готовый PNG
+  пергамента в коробке h/2, погашенный до 0.82, чтобы белый диск не был
+  самым ярким предметом кадра. Теперь герб — НАСТОЯЩИЙ МЕШ, и рисует его не
+  холст, а кадр (MenuEmblem.h + RenderSystem::set_screen_prop, отправка
+  ПОСЛЕ наложения холста). Гасить его альфой больше не нужно: яркость
+  назначает свет.
+  * ЭТОТ ФАЙЛ ПРО 3D НЕ ЗНАЕТ НИЧЕГО и ничего для герба не резервирует:
+    чёрное поле осталось сплошным, пылинки плывут ЗА гербом. Из MenuEmblem.h
+    читаются ровно доли центра — чтобы название стояло на оси герба и не
+    разъехалось с ним при первой правке композиции (правило 39).
+  * НАЗВАНИЕ ПЕРЕЕХАЛО НАВЕРХ. Оно стояло ПОД эмблемой, пока та была диском
+    в половину высоты; объёмный дуб занимает 0.94 высоты кадра и уходит
+    подошвой за нижний край — так не виден срез ствола (свойство исходного
+    силуэта, docs/reports/heraldry-3d.html §7), — и места под ним не
+    осталось вовсе.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -148,6 +165,9 @@ UPD:
 #include "engine/app/sources/IntroVideo.h"
 #include "engine/app/sources/Localization.h"
 #include "engine/app/sources/MenuArt.h"
+// Доли центра герба: название корневой страницы стоит на его оси. Только
+// константы заголовка — рисованием герба этот файл не занимается.
+#include "engine/app/sources/MenuEmblem.h"
 #include "engine/app/sources/PngImage.h"
 #include "engine/app/sources/UiFont.h"
 #include "engine/core/serialization/sources/ContentHash.h"
@@ -1437,29 +1457,33 @@ void draw_root(render::PixelCanvas& canvas, const MenuModel& model) {
     canvas.clear(SCREEN_BLACK);
     draw_dust(canvas, model.time(), dust_count(w, h));
 
-    // THE EMBLEM'S BOX IS A FRACTION OF THE HEIGHT, never of the width: a wide
-    // frame must move it sideways, not inflate it. Centre-left and above the
-    // middle, so the wordmark beneath it has its own air.
+    // ГЕРБА ЗДЕСЬ БОЛЬШЕ НЕТ, И ЭТО НЕ ПРОПУЩЕННАЯ СТРОКА (заказ владельца
+    // 27.08: «объёмный золотой дуб — кайф, берём»). Стояло:
+    //     draw_image_fit(canvas, cached_png(BRAND_SEAL_PNG), …, 0.82f)
+    // — готовый PNG-круг пергамента, вписанный в коробку h/2. Он ушёл целиком
+    // вместе с непрозрачностью 0.82, которой его гасили, чтобы белый диск не
+    // был самым ярким предметом кадра: у золотого меша этой беды нет, его
+    // яркость назначает СВЕТ, а не множитель альфы.
     //
-    // AND IT IS COMPOSITED AT LESS THAN FULL OPACITY. The seal is a PARCHMENT
-    // disc -- nearly white -- and on true black at full strength it reads as a
-    // moon rather than as an emblem: the first frame of this screen had the
-    // brightest object on it be a background element, with the item column, the
-    // thing the player has to read, a good deal dimmer. Taking it down to 0.82
-    // puts it where the reference's sigil sits: present, large, and NOT the
-    // brightest thing in the frame.
-    const int box = h / 2;
-    const int cx = w * 17 / 50;
-    const int cy = h * 7 / 16;
-    draw_image_fit(canvas, cached_png(BRAND_SEAL_PNG), cx - box / 2, cy - box / 2, box,
-                   box, 0.82f);
+    // Теперь герб — НАСТОЯЩИЙ МЕШ, и рисует его не холст, а кадр: App
+    // посылает его через RenderSystem::set_screen_prop ПОСЛЕ наложения этого
+    // холста, поэтому здесь ему не нужно ни места, ни дыры — чёрное поле
+    // остаётся сплошным, а пылинки плывут ЗА гербом. Раскладка (доли кадра,
+    // высота, глубина) и свет живут в MenuEmblem.h; здесь читаются только
+    // доли центра, чтобы название стояло на оси герба и не разъехалось с ним
+    // при первой же правке композиции (правило 39).
+    const int cx = static_cast<int>(static_cast<float>(w) * OAK_CENTER_X_FRAC);
 
-    // The game's name under the emblem, spaced out: it is a wordmark here, not
-    // a sentence, and the tracking is what makes five px letters read as one.
+    // НАЗВАНИЕ ПЕРЕЕХАЛО НАД ГЕРБ. Оно стояло ПОД эмблемой, пока та
+    // была диском в половину высоты; объёмный дуб занимает почти весь кадр по
+    // высоте и уходит подошвой ЗА НИЖНИЙ КРАЙ (так не виден срез ствола —
+    // свойство исходного силуэта, docs/reports/heraldry-3d.html §7), так что
+    // места под ним нет вовсе. Над кроной название читается девизом на
+    // гербовой ленте, а не подписью к картинке.
     const int title_px = px_for(h, UiText::Title);
     const std::string_view title = loc("app.title");
     const int tw = tw_of(title, title_px);
-    ui_draw_text(canvas, cx - tw / 2, cy + box / 2 + h / 24, title, TITLE, title_px,
+    ui_draw_text(canvas, cx - tw / 2, h / 24, title, TITLE, title_px,
                  /*shadow=*/true);
 
     draw_item_list(canvas, model, plan_list(w, h, model));

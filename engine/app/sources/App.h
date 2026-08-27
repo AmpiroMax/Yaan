@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 12:02:02
+Last updated: 27:08:2026 - 12:58:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -177,6 +177,11 @@ UPD:
   рабочая рука. Три метода: cam_collide_enabled (доза), cam_probe_step и
   cam_probe_report (прибор, меряющий ЛУЧОМ то, чем стрела управляет через
   сферкаст).
+- 27:08:2026 - 12:58:00: menu_emblem_ / menu_lights_ / menu_cost_ms_ — поля
+  объёмного герба главного меню (заказ владельца 27.08). Герб заливается
+  один раз при первом показе корня и живёт до конца прогона: 8.5 МБ на
+  полке и одна пара буферов дешевле, чем перезаливать их на каждом входе в
+  меню.
 */
 
 #pragma once
@@ -201,6 +206,7 @@ UPD:
 #include "engine/editor/sources/EditorUi.h"
 #include "engine/app/sources/TrajectoryRecord.h"
 #include "engine/app/sources/Menu.h"
+#include "engine/app/sources/MenuEmblem.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
@@ -401,6 +407,14 @@ private:
     std::string loading_map_name_;
     uint32_t active_stand_ = 0;
     int menu_shot_frames_ = 0; // DFN_MENU_SHOT flush counter
+    /// ОБЪЁМНЫЙ ГЕРБ ГЛАВНОГО МЕНЮ (заказ владельца 27.08). Меш заливается
+    /// один раз при первом показе корня и живёт до конца прогона: 214 тыс.
+    /// треугольников дешевле держать, чем перезаливать на каждом входе.
+    MenuEmblem menu_emblem_;
+    /// Два источника кадра меню — свои, не мировые (см. light_menu_screen).
+    std::vector<render::RenderSystem::ExtraLight> menu_lights_;
+    /// Замер цены кадра меню (DFN_MENU_COST): длительности render() в мс.
+    std::vector<float> menu_cost_ms_;
     // WHERE THE POINTER WAS ON THE PREVIOUS MENU FRAME. The menu takes both the
     // arrows and the mouse (owner, 26.08), and hover may only move the
     // selection when the pointer ACTUALLY MOVED -- otherwise a hand resting on

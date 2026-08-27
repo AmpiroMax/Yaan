@@ -1,5 +1,6 @@
 /*
 Created: 27:08:2026 - 00:31:05
+Last updated: 27:08:2026 - 12:58:00
 Module: engine/app
 File: engine/app/sources/MenuArt.h
 
@@ -41,6 +42,11 @@ UPD:
   (UiFont.h, заказ владельца 27.08). Здесь живут только вписывание картинки,
   пылинки и ЗАПАСНАЯ нарисованная заставка — на случай, когда актив интро не
   собран.
+- 27:08:2026 - 12:58:00: BRAND_SEAL_PNG СНЯТА — герб главного меню стал
+  объёмным мешем (заказ владельца 27.08), и путь к плоскому кругу остался без
+  единого читателя. Снят, а не оставлен: строка без читателя переживает любой
+  рефакторинг и потом читается как забытая. Сам файл на месте — из соседнего
+  силуэта печётся меш, а по размерному ряду сверяется декодер .png.
 */
 
 #pragma once
@@ -57,7 +63,15 @@ struct Image;
 // here so a file that moves is one edit rather than a hunt: the emblem of the
 // Yaan Empire in the middle of the start screen, the studio's mark at launch
 // and small in the corner.
-inline constexpr const char* BRAND_SEAL_PNG = "assets/branding/oak_seal/oak_seal_1024.png";
+// --- BRAND_SEAL_PNG: СНЯТА ---------------------------------------------------
+// Здесь стояла строка пути "assets/branding/oak_seal/oak_seal_1024.png" —
+// плоский герб-круг в центре главного меню. Заказ владельца 27.08 заменил его
+// объёмным мешем (MenuEmblem.h: HERALDRY_OAK_DFO), и константа осталась без
+// единого читателя. СНЯТА, А НЕ ОСТАВЛЕНА «на всякий случай»: путь без
+// читателя следующий агент примет за забытое и включит обратно.
+// САМ ФАЙЛ НА МЕСТЕ и снимать его нельзя: из соседнего oak_silhouette_black.png
+// печётся меш, размерный ряд числится в assets/branding/README.txt, а
+// tests/app/PngImageTests.cpp сверяет по этим файлам свой декодер .png.
 inline constexpr const char* BRAND_SPIRAL_ICON_PNG =
     "assets/branding/spiral_logo/spiral_icon_transparent_256.png";
 inline constexpr const char* BRAND_SPIRAL_FULL_PNG =

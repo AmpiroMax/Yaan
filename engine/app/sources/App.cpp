@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 12:02:42
+Last updated: 27:08:2026 - 12:58:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -633,6 +633,27 @@ UPD:
   Итог прибора печатается в shutdown(), а не в конце run(): из run() есть выход
   по кадру-снимку и по гейту прогулки, и строка на одном из них у остальных не
   печаталась бы вовсе.
+- 27:08:2026 - 12:58:00: ОБЪЁМНЫЙ ГЕРБ В ГЛАВНОМ МЕНЮ (заказ владельца
+  27.08: «объёмный золотой дуб — кайф, берём»). Ветка меню на КОРНЕВОЙ
+  странице теперь: ставит свет экрана (light_menu_screen), сужает объектив
+  до OAK_MENU_FOV_DEG, кладёт герб в RenderSystem::set_screen_prop — и
+  ВОЗВРАЩАЕТ окружение и поле зрения сразу после кадра. Возврат не
+  вежливость: игровой кадр солнце переписывает сам, а вот интерьер
+  (AppInterior) держит своё окружение МЕЖДУ кадрами, и меню, открытое из
+  комнаты, унесло бы её свет с собой.
+  * ПАУЗА БЕЗ ГЕРБА — решение по образцу: в Skyrim сигил живёт на лице игры,
+    а пауза это столбец строк поверх мира, куда игрок вернётся.
+  * СВЕТ СТАВИТСЯ НА ВСЯКОМ КАДРЕ КОРНЯ, А ГЕРБ ЗА ДВЕРЬЮ, и это разделение
+    сделано РАДИ ЗАМЕРА. Первая версия гасила свет вместе с гербом, и рука
+    DFN_MENU_OAK=0 меряла тогда разницу двух РАЗНЫХ кадров, а не цену меша.
+    Дверь трёхзначна: 1 / 0 / none — свет с гербом, свет без герба, ничего.
+  * DFN_MENU_COST=<кадров> — цена кадра меню числом. Замер (обе руки из
+    одной сборки, DFN_VSYNC=0, 1500 кадров, первые 20 выброшены): минимум
+    1.488 мс с гербом и 1.488 мс без него, медианы 1.714 и 1.704 мс. То
+    есть 214 тыс. треугольников герба НЕ ВИДНЫ в кадре меню: он упирается в
+    ежекадровую заливку холста 1920x1080 и в увеличение, а не в геометрию.
+  * Снос меша в shutdown(): буфер живёт вне мира, unload_world() его не
+    видит, и без строки прогон закрывался с «1 mesh handle still live».
 */
 
 #include "engine/app/sources/App.h"
@@ -3605,7 +3626,103 @@ int App::run() {
             editor_ui_.end_frame();
             draw_menu(render_system_.hud(), menu_);
             render_system_.set_hud_visible(true);
+
+            // --- ОБЪЁМНЫЙ ГЕРБ ГЛАВНОГО МЕНЮ (заказ владельца 27.08) --------
+            // ТОЛЬКО НА КОРНЕ. Пауза остаётся без герба, и это решение по
+            // образцу: в Skyrim сигил живёт на лице игры, а экран паузы —
+            // это столбец строк поверх мира, куда игрок вернётся. Герб там
+            // спорил бы с миром за глубину и за внимание.
+            //
+            // ОКРУЖЕНИЕ СОХРАНЯЕТСЯ И ВОЗВРАЩАЕТСЯ. Свет экрана меню — не
+            // свет мира: игровой кадр каждый раз переписывает солнце из
+            // своих часов, а вот интерьер (AppInterior) держит своё
+            // окружение МЕЖДУ кадрами, и меню, открытое из комнаты, унесло
+            // бы её свет с собой.
+            // СВЕТ ЭКРАНА СТАВИТСЯ НА ВСЯКОМ КАДРЕ КОРНЯ, А ГЕРБ — ЗА ДВЕРЬЮ,
+            // и это разделение сделано ради ЗАМЕРА. Первая версия гасила
+            // свет вместе с гербом, и рука DFN_MENU_OAK=0 меряла тогда не
+            // цену меша, а разницу двух РАЗНЫХ кадров: без света экрана
+            // солнце окружения остаётся поднятым, бэкенд строит два каскада
+            // теней для мира, которого никто не видит, и «контрольный» кадр
+            // выходил на 4.4 мс ДОРОЖЕ подопытного. Теперь у обеих рук
+            // одинаково всё, кроме одного submit'а.
+            //
+            // ДВЕРЬ ТРЁХЗНАЧНА, И ТРЕТЬЕ ЗНАЧЕНИЕ — ЭТО ТРЕТЬЯ РУКА ЗАМЕРА:
+            //   1 (дефолт) — свет экрана и герб;
+            //   0          — свет экрана без герба (цена ОДНОГО меша);
+            //   none       — ни того, ни другого, то есть кадр меню такой,
+            //                каким он был до этой волны (цена самого света).
+            // Все три выходят из ОДНОЙ сборки (правило 47): пара, снятая с
+            // двух разных двоичных файлов, доказывает только то, что они
+            // разные.
+            const bool oak_page = menu_.page() == MenuPage::Root;
+            const char* oak_door = door_value("DFN_MENU_OAK");
+            const bool oak_screen = oak_page
+                                    && (oak_door == nullptr
+                                        || std::strcmp(oak_door, "none") != 0);
+            const bool oak_on = oak_screen
+                                && (oak_door == nullptr || *oak_door != '0');
+            platform::RenderEnvironment saved_env{};
+            const float saved_fov = camera_.fov_y();
+            bool env_saved = false;
+            if (oak_screen) {
+                saved_env = render_system_.environment();
+                env_saved = true;
+                // ДЛИННЫЙ ОБЪЕКТИВ НА ОДИН КАДР (см. OAK_MENU_FOV_DEG).
+                // Холст меню от этого не двигается ни на пиксель: он вписан
+                // в пирамиду по построению (draw_overlay считает половину
+                // высоты из того же поля зрения).
+                camera_.set_projection(glm::radians(OAK_MENU_FOV_DEG),
+                                       camera_.aspect_ratio(),
+                                       camera_.near_plane(), camera_.far_plane());
+                light_menu_screen(render_system_.environment(), camera_,
+                                  menu_lights_);
+                render_system_.set_transient_lights(menu_lights_);
+                if (oak_on && menu_emblem_.ensure_loaded(*renderer_)) {
+                    render_system_.set_screen_prop(
+                        menu_emblem_.screen_prop(camera_, menu_.time()));
+                }
+            }
+            const auto render_started = std::chrono::steady_clock::now();
             render_system_.render(world_, *renderer_, camera_, 0.0f);
+            if (env_saved) {
+                render_system_.environment() = saved_env;
+                render_system_.set_transient_lights({});
+                camera_.set_projection(saved_fov, camera_.aspect_ratio(),
+                                       camera_.near_plane(), camera_.far_plane());
+            }
+            // ЦЕНА КАДРА МЕНЮ ЧИСЛОМ (DFN_MENU_COST=<кадров>). Две руки —
+            // с гербом и с DFN_MENU_OAK=0 — и есть весь замер: одна
+            // длительность сама по себе не говорит, сколько стоит герб.
+            if (const char* cost = door_value("DFN_MENU_COST");
+                cost != nullptr && *cost != '\0') {
+                const int want = std::max(1, std::atoi(cost));
+                menu_cost_ms_.push_back(
+                    std::chrono::duration<float, std::milli>(
+                        std::chrono::steady_clock::now() - render_started)
+                        .count());
+                // Первые кадры выброшены: в них живут заливка меша, компиляция
+                // конвейеров и первый снимок холста, то есть не цена кадра.
+                if (static_cast<int>(menu_cost_ms_.size()) >= want + 20) {
+                    std::vector<float> tail(menu_cost_ms_.begin() + 20,
+                                            menu_cost_ms_.end());
+                    double sum = 0.0;
+                    for (const float v : tail) {
+                        sum += static_cast<double>(v);
+                    }
+                    std::sort(tail.begin(), tail.end());
+                    std::fprintf(stderr,
+                                 "[меню] цена кадра: %zu кадров, среднее %.3f мс, "
+                                 "медиана %.3f мс, минимум %.3f мс (герб %s, "
+                                 "%u треугольников)\n",
+                                 tail.size(), sum / static_cast<double>(tail.size()),
+                                 static_cast<double>(tail[tail.size() / 2]),
+                                 static_cast<double>(tail.front()),
+                                 oak_on ? "есть" : "снят",
+                                 menu_emblem_.triangles());
+                    window_->request_close();
+                }
+            }
             // VERIFICATION HOOK (Rule 27): a menu nobody can photograph is a
             // menu nobody can verify. DFN_MENU_SHOT=<path> captures one frame
             // of whichever page is showing and closes.
@@ -5089,6 +5206,9 @@ void App::shutdown() {
         // Before the renderer: the interface owns bgfx resources (its program,
         // its font atlas) that must be destroyed while bgfx is still up.
         editor_ui_.shutdown();
+        // Герб меню — буфер вне мира: unload_world() его не видит, и без этой
+        // строки прогон закрывался с «1 mesh handle still live».
+        menu_emblem_.release(*renderer_);
         render_system_.shutdown(*renderer_);
         renderer_->shutdown();
     }

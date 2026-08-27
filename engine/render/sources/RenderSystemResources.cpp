@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 27:08:2026 - 14:30:00
+Last updated: 27:08:2026 - 12:58:00
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -94,6 +94,12 @@ UPD:
   — угол открытой двери называет зона app. Сжатие списка на пустой створке
   сдвинуло бы каждый следующий номер, а по номеру app открывает КОНКРЕТНОЕ
   полотно: игрок жал бы одну дверь, а открывалась бы соседняя.
+- 27:08:2026 - 12:58:00: overlay_depth_m() — расстояние до холста экрана
+  ОДНИМ определением. Оно стояло выражением внутри draw_overlay, пока
+  читатель был один; второй (зона app, ставящая объёмный герб меню перед
+  холстом) — ровно тот момент, когда копия арифметики становится теневой
+  копией правила (правило 39). Поведение не изменилось ни на бит: та же
+  формула, вызванная из того же места.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -832,6 +838,10 @@ void RenderSystem::set_internal_resolution(uint32_t width, uint32_t height) {
     }
 }
 
+float RenderSystem::overlay_depth_m(const FirstPersonCamera& camera) {
+    return std::max(camera.near_plane(), 0.01f) * 1.5f;
+}
+
 void RenderSystem::draw_overlay(platform::IRenderer& renderer, const PixelCanvas& canvas,
                                 const FirstPersonCamera& camera, float alpha,
                                 bool blended) {
@@ -864,7 +874,7 @@ void RenderSystem::draw_overlay(platform::IRenderer& renderer, const PixelCanvas
     // internal pixel and the point sampler stays crisp (an overscan factor
     // duplicated pixel columns and softened the map). Depth test LESS lets it
     // cover every earlier submit.
-    const float depth = std::max(camera.near_plane(), 0.01f) * 1.5f;
+    const float depth = overlay_depth_m(camera);
     const float half_h = depth * std::tan(camera.fov_y() * 0.5f);
     const float half_w = half_h * camera.aspect_ratio();
     const glm::mat4 model = glm::inverse(camera.view(alpha))

@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 27:08:2026 - 02:25:00
+# Last updated: 27:08:2026 - 12:58:00
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -115,6 +115,13 @@
 # - 27:08:2026 - 02:25:00: app_png — свой читатель .png (герб и знак студии в меню);
 #   MenuArt.cpp и PngImage.cpp дописаны в app_menu: раскладка строк, по которой
 #   ходит и мышь, меряет ШИРИНУ КРУПНОГО текста, то есть тянет за собой шрифт.
+# - 27:08:2026 - 12:58:00: app_menu_emblem — объёмный герб главного меню. Свой
+#   рукав, а не случай в app_menu: там меряется РАЗМЕТКА ХОЛСТА, здесь —
+#   арифметика в осях камеры и свет кадра, то есть другой предмет и другие
+#   зависимости. Держит ровно то, чего кадр приёмки держать не может: кадр
+#   показывает ОДНУ фазу качания, а бок доски срезается ближней плоскостью в
+#   КРАЙНЕЙ, и у каждого утверждения тут своя контрольная рука (заведомо
+#   плохая раскладка, вторая несоизмеримая ось, другое соотношение сторон).
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -145,6 +152,17 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/UiFont.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DebugOverlay.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
+
+    # ОБЪЁМНЫЙ ГЕРБ ГЛАВНОГО МЕНЮ. Свой рукав, а не случай в app_menu: там
+    # меряется РАЗМЕТКА ХОЛСТА, а здесь — арифметика в осях камеры и свет
+    # кадра, то есть другой предмет и другие зависимости (dfn_render).
+    # Держит ровно то, чего кадр приёмки держать не может: кадр показывает
+    # ОДНУ фазу качания, а бок доски срезается ближней плоскостью в КРАЙНЕЙ.
+    add_dfn_test(app_menu_emblem app/MenuEmblemTests.cpp dfn_render dfn_core)
+    target_sources(app_menu_emblem PRIVATE
+        # AppDoors.cpp: фаза качания читается через таблицу дверей (слой 2).
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/MenuEmblem.cpp)
 
     # ЧТЕНИЕ .png — ОТДЕЛЬНЫЙ РУКАВ, потому что предмет отдельный: разжатие и
     # расфильтровка не про меню, а про формат. Ожидаемые пиксели получены

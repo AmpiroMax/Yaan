@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 23:08:2026 - 23:50:00
+# Last updated: 27:08:2026 - 12:58:00
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -123,6 +123,7 @@ if(DFN_APP_READY)
         sources/MapCatalog.cpp
         sources/Menu.cpp
         sources/MenuArt.cpp
+        sources/MenuEmblem.cpp
         sources/PngImage.cpp
         sources/TrajectoryRecord.cpp
         sources/UiFont.cpp)
@@ -169,4 +170,10 @@ endif()
 # - 23:08:2026 - 23:50:00: AppInterior.cpp — переход в интерьер-локацию и обратно
 #                          (И15 волна А): карман, подвес, второй слот, портал,
 #                          экран загрузки, точка возврата.
+# - 27:08:2026 - 12:58:00: MenuEmblem.cpp — объёмный герб главного меню (заказ
+#   владельца 27.08). Отдельный файл, а не десять строк в Menu.cpp, по той же
+#   причине, по которой отделены слои разбора: Menu.cpp рисует ХОЛСТ и не
+#   касается ни видеокарты, ни камеры, а герб — меш, программа и свет кадра.
+#   Разрез заодно делает раскладку и темп проверяемыми без окна
+#   (tests/app/MenuEmblemTests.cpp, рукав app_menu_emblem).
 

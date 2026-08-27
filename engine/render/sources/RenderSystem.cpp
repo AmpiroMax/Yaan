@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 14:30:00
+Last updated: 27:08:2026 - 12:58:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -190,6 +190,12 @@ UPD:
   : open_angle (заказ владельца 27.08 про декоративные/межкомнатные двери).
   Створка с mesh_id 0 пропускается — это место пустой двери в списке, см.
   fill_house_slot.
+- 27:08:2026 - 12:58:00: Отправка screen_prop_ сразу за наложением холста —
+  герб главного меню. Матрица приходит в ОСЯХ КАМЕРЫ и здесь переводится в
+  мир: холст висит перед глазом, и предмет обязан висеть там же, где бы ни
+  стояла камера в момент выхода в меню. Слот снимается сразу после отправки
+  (живёт один кадр, как временные светы): игровой кадр, который его не
+  ставил, не должен унаследовать герб от последнего кадра меню.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1369,6 +1375,18 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             draw_font_specimen(hud_);
         }
         draw_overlay(renderer, hud_, camera, alpha, true);
+    }
+
+    // ГЕРБ ГЛАВНОГО МЕНЮ — ПОСЛЕ ХОЛСТА И ПОТОМУ ПОВЕРХ НЕГО (см. ScreenProp).
+    // Матрица приходит в осях камеры и здесь переводится в мир: холст меню
+    // висит перед глазом, и предмет обязан висеть там же, где бы ни стояла
+    // камера в момент выхода в меню.
+    if (screen_prop_.valid()) {
+        renderer.submit(platform::MeshHandle{screen_prop_.mesh},
+                        platform::ProgramHandle{screen_prop_.program},
+                        glm::inverse(camera.view(alpha)) * screen_prop_.in_camera,
+                        platform::TextureHandle{});
+        screen_prop_ = ScreenProp{};
     }
 
     // Map screen: last submit of the frame, opaque, covering everything. The

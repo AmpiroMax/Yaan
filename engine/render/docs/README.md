@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:16:00
-Last updated: 14:08:2026 - 18:04:27-->
+Last updated: 27:08:2026 - 12:58:00-->
 <!--
 UPD:
 - 09:08:2026 - 00:16:00: Stage-1 state: public headers only (camera, render system, tour, debug draw).
@@ -15,6 +15,7 @@ UPD:
 - 10:08:2026 - 00:00:47: BitmapFont (the project's first glyphs: fixed-cell 6x9 atlas, ASCII + Cyrillic, a solid block for anything unmapped) + the transparent HUD layer that carries a prompt over the world. Also: water bodies merged into world-grid buckets after 17336 one-mesh-per-pond uploads exhausted bgfx's handle pool and crashed the game at exit, and GPU mesh-handle accounting so that budget is visible before it is spent.
 - 12:08:2026 - 22:45:00: CloudModel entered the key types (it had never been listed) with the R3.3 change: `cloud_lod_residual` and the renormalisation of the coverage field onto the mean/SD that SURVIVE its own LOD. `cloud_field_fixed_sd` is the shipped-until-now form, kept as the control the distribution tests reject — measured, at 0.50 cells/px it drew 0.0000 of the plane for a requested cover of 0.15 and 1.0000 for 0.60.
 - 14:08:2026 - 18:04:27: В28 pick_id — the ECS entity submit now stamps `DrawParams::pick_id = EntityId.index + 1`, so `center_pick()` names the entity under the crosshair (was always 0). Index is the stable, mappable half of {index, generation}; +1 keeps a real slot-0 entity out of the `0 = unnamed` sentinel, and the editor overlay inverts with (id-1). World geometry and any viewmodel draw stay 0.
+- 27:08:2026 - 12:58:00: `RenderSystem::ScreenProp` / `set_screen_prop` / `overlay_depth_m` — ONE MESH OVER THE SCREEN CANVAS, for the main menu's 3D emblem (owner's order 27.08). A slot rather than a path: the menu screen has no world and no entities, and needs exactly one mesh submitted AFTER the canvas blit. `overlay_depth_m` was carved out of `draw_overlay` because its readers became two (Rule 39). See "Key types" for the two rejected alternatives — submitting before the canvas, and punching a hole in it — neither of which is visible in the code that shipped.
 -->
 
 # engine/render
@@ -50,6 +51,23 @@ harness (Rule 27), and debug-draw helpers. Never touches bgfx (Rule 1).
   blitted by `RenderSystem::draw_overlay`. Screen-agnostic on purpose: the
   planned start menu draws through the same two calls. `clear_transparent()`
   makes it a HUD instead of a screen.
+- `RenderSystem::ScreenProp` + `set_screen_prop` (27.08) — ONE MESH DRAWN OVER
+  THE SCREEN CANVAS, today the main menu's 3D emblem (`engine/app/sources/
+  MenuEmblem.*`). The transform arrives in CAMERA AXES and is composed with
+  `inverse(view)` here, so the prop hangs in front of the eye wherever the
+  camera happens to stand. Submitted immediately AFTER the HUD blit, which
+  puts it on top: the scene view is `Sequential`, and the canvas quad is
+  blended and writes no depth. It lives ONE frame and is cleared on submit,
+  like the transient lights — a playing frame must not inherit the emblem from
+  the last menu frame. The two rejected alternatives, kept here because they
+  are not visible in the code: submitting BEFORE the canvas (menu pages clear
+  it opaque, so not one pixel would show) and punching a hole in the canvas
+  (nothing is guaranteed to be behind it — leaving a game to the main menu
+  does not unload the world).
+- `RenderSystem::overlay_depth_m(camera)` — how far in front of the eye the
+  screen canvas hangs, ONE definition (Rule 39). It was an expression inside
+  `draw_overlay` while that was its only reader; the emblem, which has to sit
+  in front of the canvas, is the second.
 - `dfn::render::BitmapFont` (`sources/BitmapFont.h`) — THE FONT. A fixed-cell
   6x9 atlas (5x8 ink plus the built-in gaps, so the cell IS the advance),
   printable ASCII + the whole Cyrillic alphabet + « » — (166 codepoints),
