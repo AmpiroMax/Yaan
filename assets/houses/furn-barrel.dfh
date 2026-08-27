@@ -1,28 +1,28 @@
 # dfh 1
 vertex v1 free 0.6300 0.0000 0.3500
 vertex v2 free 0.5480 0.0000 0.1520
-vertex v3 free 0.5833 0.4200 0.1167
-vertex v4 free 0.6800 0.4200 0.3500
-vertex v5 free 0.5480 0.8000 0.1520
-vertex v6 free 0.6300 0.8000 0.3500
+vertex v3 free 0.5833 0.4600 0.1167
+vertex v4 free 0.6800 0.4600 0.3500
+vertex v5 free 0.5480 0.8800 0.1520
+vertex v6 free 0.6300 0.8800 0.3500
 vertex v7 free 0.3500 0.0000 0.0700
-vertex v8 free 0.3500 0.4200 0.0200
-vertex v9 free 0.3500 0.8000 0.0700
+vertex v8 free 0.3500 0.4600 0.0200
+vertex v9 free 0.3500 0.8800 0.0700
 vertex v10 free 0.1520 0.0000 0.1520
-vertex v11 free 0.1167 0.4200 0.1167
-vertex v12 free 0.1520 0.8000 0.1520
+vertex v11 free 0.1167 0.4600 0.1167
+vertex v12 free 0.1520 0.8800 0.1520
 vertex v13 free 0.0700 0.0000 0.3500
-vertex v14 free 0.0200 0.4200 0.3500
-vertex v15 free 0.0700 0.8000 0.3500
+vertex v14 free 0.0200 0.4600 0.3500
+vertex v15 free 0.0700 0.8800 0.3500
 vertex v16 free 0.1520 0.0000 0.5480
-vertex v17 free 0.1167 0.4200 0.5833
-vertex v18 free 0.1520 0.8000 0.5480
+vertex v17 free 0.1167 0.4600 0.5833
+vertex v18 free 0.1520 0.8800 0.5480
 vertex v19 free 0.3500 0.0000 0.6300
-vertex v20 free 0.3500 0.4200 0.6800
-vertex v21 free 0.3500 0.8000 0.6300
+vertex v20 free 0.3500 0.4600 0.6800
+vertex v21 free 0.3500 0.8800 0.6300
 vertex v22 free 0.5480 0.0000 0.5480
-vertex v23 free 0.5833 0.4200 0.5833
-vertex v24 free 0.5480 0.8000 0.5480
+vertex v23 free 0.5833 0.4600 0.5833
+vertex v24 free 0.5480 0.8800 0.5480
 vertex v25 free 0.5338 0.0450 0.1662
 vertex v26 free 0.3500 0.0450 0.0900
 vertex v27 free 0.1662 0.0450 0.1662
@@ -31,14 +31,14 @@ vertex v29 free 0.1662 0.0450 0.5338
 vertex v30 free 0.3500 0.0450 0.6100
 vertex v31 free 0.5338 0.0450 0.5338
 vertex v32 free 0.6100 0.0450 0.3500
-vertex v33 free 0.5621 0.8150 0.1379
-vertex v34 free 0.3500 0.8150 0.0500
-vertex v35 free 0.1379 0.8150 0.1379
-vertex v36 free 0.0500 0.8150 0.3500
-vertex v37 free 0.1379 0.8150 0.5621
-vertex v38 free 0.3500 0.8150 0.6500
-vertex v39 free 0.5621 0.8150 0.5621
-vertex v40 free 0.6500 0.8150 0.3500
+vertex v33 free 0.5621 0.8950 0.1379
+vertex v34 free 0.3500 0.8950 0.0500
+vertex v35 free 0.1379 0.8950 0.1379
+vertex v36 free 0.0500 0.8950 0.3500
+vertex v37 free 0.1379 0.8950 0.5621
+vertex v38 free 0.3500 0.8950 0.6500
+vertex v39 free 0.5621 0.8950 0.5621
+vertex v40 free 0.6500 0.8950 0.3500
 surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.040 mat=1 tone=2 wear=0.45
 surface e2 v4 v3 v5 v6 style=- closed=1 thickness=0.040 mat=1 tone=2 wear=0.45
 surface e3 v2 v7 v8 v3 style=- closed=1 thickness=0.040 mat=1 tone=2 wear=0.45
