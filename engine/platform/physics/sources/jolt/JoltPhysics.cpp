@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 22:08:2026 - 20:10:00
+Last updated: 27:08:2026 - 12:02:02
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -81,6 +81,12 @@ UPD:
   конвейера с голой репродукцией можно было поймать только цифрами изнутри.
 - 22:08:2026 - 20:10:00: [char] ground печатает имя состояния (on/steep/unsupported/air):
   сырой EGroundState с OnGround == 0 приёмка прочла как непрерывный срыв.
+- 27:08:2026 - 12:02:02: sphere_cast: свёрнутая сфера через NarrowPhaseQuery::CastShape.
+  Задние грани СЧИТАЮТСЯ ТВЁРДЫМИ (CollideWithBackFaces): оболочка интерьера и
+  земля — односторонние сетки, и с умолчанием «игнорировать заднюю грань» щуп
+  камеры сообщал бы «чисто» ровно там, где стена и стоит. mReturnDeepestPoint
+  оставлен включённым, потому что контракт требует отвечать «нельзя двигаться
+  вовсе» при перекрытии на старте, а не «путь свободен».
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -97,11 +103,14 @@ UPD:
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/RayCast.h>
+#include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
+#include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
@@ -610,6 +619,46 @@ public:
             result.normal = to_glm(body.GetWorldSpaceSurfaceNormal(
                 hit.mSubShapeID2, ray.GetPointOnRay(hit.mFraction)));
             result.user_data = body.GetUserData();
+        }
+        return result;
+    }
+
+    RayHit sphere_cast(const glm::vec3& origin, const glm::vec3& direction, float radius,
+                       float max_distance, CollisionMask mask) const override {
+        RayHit result;
+        if (!system_ || max_distance <= 0.0f || radius <= 0.0f) {
+            return result;
+        }
+        const JPH::SphereShape sphere(radius);
+        const JPH::RShapeCast cast(&sphere, JPH::Vec3::sReplicate(1.0f),
+                                   JPH::RMat44::sTranslation(JPH::RVec3(to_jph(origin))),
+                                   to_jph(direction * max_distance));
+        // BACK FACES ARE SOLID. Interior shells and terrain are one-sided
+        // meshes; with the default (ignore back faces) a sweep that starts on
+        // the outside — or a wall whose winding faces away — reports clear, and
+        // the camera goes exactly where this call exists to stop it.
+        JPH::ShapeCastSettings settings;
+        settings.mBackFaceModeTriangles = JPH::EBackFaceMode::CollideWithBackFaces;
+        settings.mBackFaceModeConvex = JPH::EBackFaceMode::CollideWithBackFaces;
+        // Jolt's own "started penetrating" answer, kept rather than filtered:
+        // the contract says an overlapping start reports distance 0.
+        settings.mReturnDeepestPoint = true;
+        JPH::ClosestHitCollisionCollector<JPH::CastShapeCollector> collector;
+        const MaskBodyFilter body_filter{body_masks_, mask};
+        system_->GetNarrowPhaseQuery().CastShape(cast, settings, JPH::RVec3::sZero(),
+                                                 collector, {}, {}, body_filter);
+        if (!collector.HadHit()) {
+            return result;
+        }
+        result.hit = true;
+        // mFraction is along the sweep, so the distance is to the sphere CENTRE
+        // at contact -- which is what the interface promises the caller.
+        result.distance = std::max(0.0f, collector.mHit.mFraction * max_distance);
+        result.position = to_glm(collector.mHit.mContactPointOn2);
+        result.normal = -to_glm(collector.mHit.mPenetrationAxis.Normalized());
+        JPH::BodyLockRead lock(system_->GetBodyLockInterface(), collector.mHit.mBodyID2);
+        if (lock.Succeeded()) {
+            result.user_data = lock.GetBody().GetUserData();
         }
         return result;
     }

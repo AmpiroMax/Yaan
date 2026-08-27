@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 18:08:2026 - 00:24:58
+Last updated: 27:08:2026 - 12:02:02
 Module: tests
 File: tests/sim/PlayerMovementTests.cpp
 
@@ -36,6 +36,9 @@ UPD:
 - 13:08:2026 - 18:25:00: RecordingPhysics forwards set_body_transform (the
                          interface gained it for the swinging door leaf).
 - 18:08:2026 - 00:24:58: FakeInput отвечает на новый пункт контракта IInput (place_cursor).
+- 27:08:2026 - 12:02:02: Двойник RecordingPhysics переправляет sphere_cast во
+  внутренний null: у IPhysics появился свёрнутый объём, и двойник обязан
+  оставаться полной реализацией контракта, а не почти полной.
 */
 
 #include <doctest/doctest.h>
@@ -366,6 +369,10 @@ public:
     platform::RayHit raycast(const glm::vec3& o, const glm::vec3& d, float m,
                              platform::CollisionMask k) const override {
         return inner->raycast(o, d, m, k);
+    }
+    platform::RayHit sphere_cast(const glm::vec3& o, const glm::vec3& d, float r, float m,
+                                 platform::CollisionMask k) const override {
+        return inner->sphere_cast(o, d, r, m, k);
     }
 };
 

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 18:08:2026 - 12:06:09
+Last updated: 27:08:2026 - 11:57:24
 Module: tests
 File: tests/sim/JoltPhysicsTests.cpp
 
@@ -48,6 +48,10 @@ UPD:
   и на четыре порядка ниже 20 м, которые меряет контроль на другой диагонали,
   поэтому спутать его с настоящим разъездом нельзя. Приёмка на НАСТОЯЩЕЙ земле
   (0.001 м) не тронута.
+- 27:08:2026 - 11:57:24: sphere_cast — свёрнутый объём у бэкенда Jolt.
+  Разделяющая половина случая: точка мимо края стены, где ЛУЧ чист, а сфера
+  попадает; плюс контроль «дальше радиуса не видит никто», маска и
+  перекрытие на старте.
 */
 
 #include <doctest/doctest.h>
@@ -658,4 +662,64 @@ TEST_CASE("on a flat chunk the two diagonals are identical — which is why the 
         }
     }
     CHECK(worst_between_diagonals == 0.0f);
+}
+
+TEST_CASE("sphere_cast: свёрнутый ОБЪЁМ видит то, мимо чего луч проходит") {
+    // ЗАЧЕМ БЭКЕНДУ СВЁРНУТАЯ СФЕРА, если у него уже есть луч. Луч нулевой
+    // ширины проходит мимо края стены, внутри которого камера уже стоит, — и
+    // именно так третье лицо смотрело за границы дома до 27.08. Случай
+    // построен так, что ЛУЧ ПРОМАХИВАЕТСЯ, а сфера попадает: это и есть
+    // разница, ради которой запрос заведён, и его контроль одновременно.
+    JoltRig rig;
+    rig.tick();
+
+    platform::StaticBoxDesc wall;
+    wall.center = {0.0f, GROUND_Y + 2.0f, -4.0f};
+    wall.half_extents = {2.0f, 2.0f, 0.20f}; // стена поперёк -Z, край на x = 2.0
+    wall.layer = physics_layer::LAYER_STATIC;
+    wall.user_data = 0x5EEDull;
+    REQUIRE(rig.physics->create_static_box(wall).valid());
+
+    const glm::vec3 dir{0.0f, 0.0f, -1.0f};
+    const float R = 0.25f;
+
+    // ПРЯМО В СТЕНУ: расстояние меряется до ЦЕНТРА сферы в касании, то есть
+    // ближняя грань минус радиус. Грань стоит на z = -3.80, старт на z = 0.
+    const glm::vec3 head{0.0f, GROUND_Y + 2.0f, 0.0f};
+    const platform::RayHit sweep =
+        rig.physics->sphere_cast(head, dir, R, 10.0f, physics_layer::LAYER_STATIC);
+    REQUIRE(sweep.hit);
+    CHECK(sweep.distance == doctest::Approx(3.80f - R).epsilon(0.02));
+    CHECK(sweep.user_data == 0x5EEDull);
+
+    // Луч из той же точки попадает ДАЛЬШЕ на радиус — два запроса согласуются.
+    const platform::RayHit ray =
+        rig.physics->raycast(head, dir, 10.0f, physics_layer::LAYER_STATIC);
+    REQUIRE(ray.hit);
+    CHECK(ray.distance == doctest::Approx(sweep.distance + R).epsilon(0.02));
+
+    // РАЗДЕЛЯЮЩАЯ ПОЛОВИНА: мимо края стены на 10 см. Луч чист, сфера — нет.
+    const glm::vec3 past{wall.center.x + wall.half_extents.x + 0.10f,
+                         GROUND_Y + 2.0f, 0.0f};
+    CHECK_FALSE(rig.physics->raycast(past, dir, 10.0f, physics_layer::LAYER_STATIC).hit);
+    CHECK(rig.physics->sphere_cast(past, dir, R, 10.0f, physics_layer::LAYER_STATIC).hit);
+
+    // И ДАЛЬШЕ РАДИУСА ОТ КРАЯ не видит уже никто: без этой строки предыдущая
+    // прошла бы и у сферы, которая «попадает всегда».
+    const glm::vec3 clear{wall.center.x + wall.half_extents.x + R + 0.10f,
+                          GROUND_Y + 2.0f, 0.0f};
+    CHECK_FALSE(rig.physics->sphere_cast(clear, dir, R, 10.0f, physics_layer::LAYER_STATIC).hit);
+
+    // МАСКА РАБОТАЕТ ТАК ЖЕ, КАК У ЛУЧА: чужой слой стену не выбирает.
+    CHECK_FALSE(rig.physics
+                    ->sphere_cast(head, dir, R, 10.0f, physics_layer::LAYER_INTERACTABLE)
+                    .hit);
+
+    // И ПЕРЕКРЫТИЕ НА СТАРТЕ отвечает «нельзя двигаться вовсе», а не «путь
+    // свободен»: сфера, заведённая внутрь стены, обязана дать нулевое
+    // расстояние.
+    const platform::RayHit inside =
+        rig.physics->sphere_cast(wall.center, dir, R, 10.0f, physics_layer::LAYER_STATIC);
+    REQUIRE(inside.hit);
+    CHECK(inside.distance == doctest::Approx(0.0f).epsilon(1e-3));
 }

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 15:08:24
+Last updated: 27:08:2026 - 11:57:52
 Module: tests
 File: tests/sim/NullBackendTests.cpp
 
@@ -27,6 +27,7 @@ UPD:
 - 09:08:2026 - 15:08:24: Added the zero-mask rejection case; existing physics
                          cases now set explicit layers (the default-layer
                          mistake is now rejected by contract).
+- 27:08:2026 - 11:57:52: контракт null для sphere_cast — промах, как у луча.
 */
 
 #include <doctest/doctest.h>
@@ -180,6 +181,13 @@ TEST_CASE("null physics: horizontal glide, always grounded, rays miss") {
 
     const auto hit = physics->raycast({0.0f, 10.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, 100.0f);
     CHECK_FALSE(hit.hit); // contract: null rays always miss
+    // И СВЁРНУТЫЙ ОБЪЁМ ТОЖЕ (27.08). Запрос добавлен ради коллизии камеры;
+    // бэкенд, у которого сфера «попадает во что-нибудь», прижал бы камеру к
+    // голове во всех тестах, идущих на null, — то есть молча поменял бы вид
+    // там, где по контракту не должно быть НИЧЕГО.
+    const auto sweep = physics->sphere_cast({0.0f, 10.0f, 0.0f}, {0.0f, -1.0f, 0.0f},
+                                            0.25f, 100.0f);
+    CHECK_FALSE(sweep.hit);
 
     physics->teleport_character(character, {0.0f, 0.0f, 0.0f});
     CHECK(physics->character_position(character) == glm::vec3{0.0f});

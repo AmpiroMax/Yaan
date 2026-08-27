@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 10:08:2026 - 21:13:08
+# Last updated: 27:08:2026 - 11:33:53
 # File: engine/gameplay/CMakeLists.txt
 #
 # Responsibility:
@@ -39,8 +39,11 @@
 #                          registration split out of GameplaySave.cpp so that
 #                          using a save SECTION no longer drags in the
 #                          not-yet-implemented world::SaveDeltaCodec symbol.
+# - 27:08:2026 - 11:33:53: CameraBoom.cpp — стрела камеры третьего лица
+#                          (коллизия по сферкасту; заказ владельца 27.08).
 
 add_library(dfn_gameplay STATIC
+    sources/CameraBoom.cpp
     sources/Dice.cpp
     sources/FloraCollision.cpp
     sources/GameplaySave.cpp

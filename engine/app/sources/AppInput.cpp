@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 16:59:18
-Last updated: 27:08:2026 - 14:00:00
+Last updated: 27:08:2026 - 12:02:02
 Module: engine/app
 File: engine/app/sources/AppInput.cpp
 
@@ -72,6 +72,10 @@ UPD:
   сессии она отказывает ВСЛУХ (заказ владельца 27.08). И F11 сообщает свой
   результат странице настроек — полный экран единственная настройка с двумя
   органами управления, и страница обязана показывать экран, а не себя.
+- 27:08:2026 - 12:02:02: Включение третьего лица сбрасывает длину стрелы. Без сброса
+  вид, включённый вплотную к стене, унаследовал бы длину прошлого включения и
+  первым же кадром выехал бы за неё — тот самый кадр, которого приёмка не
+  допускает.
 */
 
 #include "engine/app/sources/App.h"
@@ -308,6 +312,10 @@ void App::on_third_person() {
     third_person_ = !third_person_;
     orbit_yaw_ = 0.0f;
     orbit_pitch_ = 0.0f;
+    // СТРЕЛА ЗАВОДИТСЯ ЗАНОВО. Без сброса вид, включённый вплотную к стене,
+    // унаследовал бы длину прошлого включения и первым же кадром выехал бы за
+    // неё — тот самый кадр, которого приёмка не допускает.
+    cam_boom_.length = -1.0f;
     // THE HEAD COMES BACK IN THIRD PERSON. It is hidden in first person because
     // the camera sits inside the skull; from behind, a headless body is the
     // first thing he would report, and it would read as a missing mesh rather

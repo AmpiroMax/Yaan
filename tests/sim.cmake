@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 13:08:2026 - 18:10:00
+# Last updated: 27:08:2026 - 12:02:42
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -63,6 +63,8 @@
 # - 13:08:2026 - 17:45:00: Added sim_great_oak_stair (RED on purpose; label known-defect).
 # - 13:08:2026 - 18:10:00: sim_interactable_visible links dfn_physics (the
 #                          entity-{0,0} targeting case needs the Jolt backend).
+# - 27:08:2026 - 12:02:42: sim_camera_boom — стрела камеры третьего лица
+#                          (чистая арифметика, без физического стенда).
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -160,3 +162,10 @@ add_dfn_test(sim_interactable_visible sim/InteractableVisibleTests.cpp
 add_dfn_test(sim_great_oak_stair sim/GreatOakStairTests.cpp
     dfn_gameplay dfn_physics dfn_platform_physics dfn_render dfn_core)
 set_tests_properties(sim_great_oak_stair PROPERTIES LABELS "known-defect")
+
+# СТРЕЛА КАМЕРЫ ТРЕТЬЕГО ЛИЦА -- ЧИСТАЯ ЧАСТЬ. Единственный вызов физики в
+# CameraBoom.h отделён от её арифметики намеренно, поэтому рукав линкует один
+# dfn_gameplay и не поднимает ни мира, ни бэкенда. Живой замер (камера против
+# оболочки дома, две руки дозы DFN_CAM_COLLIDE) лежит в docs/acceptance.
+add_dfn_test(sim_camera_boom sim/CameraBoomTests.cpp
+    dfn_gameplay dfn_platform_physics dfn_core)

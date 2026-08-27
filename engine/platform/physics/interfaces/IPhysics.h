@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 13:08:2026 - 18:20:00
+Last updated: 27:08:2026 - 11:30:36
 Module: engine/platform/physics
 File: engine/platform/physics/interfaces/IPhysics.h
 
@@ -74,6 +74,14 @@ UPD:
                          and the touchable door two different objects). Every
                          existing signature and semantic is untouched, and the
                          only implementers are the two backends in this zone.
+- 27:08:2026 - 11:30:36: ADDITIVE: sphere_cast() — свёрнутый ОБЪЁМ вместо луча
+                         нулевой ширины. Заведена ради стрелы камеры третьего
+                         лица: луч проходит сквозь стену, внутри которой уже
+                         стоит ближняя плоскость, и кадр показывает комнату
+                         снаружи дома (жалоба владельца 27.08). Ни одна
+                         существующая сигнатура и ни одна семантика не тронуты;
+                         реализаций у IPhysics три (Jolt, null и двойник
+                         PlayerMovementTests) — обновлены все.
 */
 
 #pragma once
@@ -231,6 +239,32 @@ public:
     [[nodiscard]] virtual RayHit raycast(const glm::vec3& origin, const glm::vec3& direction,
                                          float max_distance,
                                          CollisionMask mask = COLLIDE_ALL) const = 0;
+
+    // Sweeps a SPHERE of `radius` from `origin` along `direction` (unit) for at
+    // most `max_distance` metres and returns the FIRST contact.
+    //
+    // WHY A SWEPT VOLUME AND NOT A RAY. The caller that needs this is the
+    // third-person camera boom: a ray is a zero-width probe, so it clears a
+    // wall the camera's near plane is already inside of, and the frame shows
+    // the room from outside the house. A sphere carries the width the eye
+    // actually occupies, and the same query answers for a doorframe edge the
+    // ray would slip past entirely.
+    //
+    // `distance` is measured to the SPHERE CENTRE at the moment of contact, so
+    // placing the camera at `origin + direction * distance` already leaves
+    // `radius` of air between it and the surface — no extra skin required for
+    // the sphere itself. `position` is the contact point on the surface,
+    // `normal` its outward normal, both as raycast() defines them.
+    //
+    // A sphere that already overlaps geometry at `origin` reports hit == true
+    // with distance == 0: the caller is inside something, and the honest answer
+    // is "you may not move at all", not "the way is clear".
+    //
+    // Null backend: always misses, like raycast().
+    [[nodiscard]] virtual RayHit sphere_cast(const glm::vec3& origin,
+                                             const glm::vec3& direction, float radius,
+                                             float max_distance,
+                                             CollisionMask mask = COLLIDE_ALL) const = 0;
 };
 
 } // namespace dfn::platform

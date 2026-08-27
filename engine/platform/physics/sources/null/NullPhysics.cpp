@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 13:08:2026 - 18:20:00
+Last updated: 27:08:2026 - 12:02:02
 Module: engine/platform/physics
 File: engine/platform/physics/sources/null/NullPhysics.cpp
 
@@ -36,6 +36,9 @@ UPD:
                          logic is testable headless (Rule 3).
 - 13:08:2026 - 18:20:00: set_body_transform: a no-op here, like every other
                          body call — there is no geometry to move.
+- 27:08:2026 - 12:02:02: sphere_cast: промах, как и луч. Бэкенд, у которого сфера
+  «попадает во что-нибудь», молча прижал бы камеру третьего лица к голове во
+  всех прогонах на null.
 */
 
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
@@ -154,6 +157,16 @@ public:
         (void)max_distance;
         (void)mask;
         return RayHit{}; // contract: null raycasts always miss
+    }
+
+    RayHit sphere_cast(const glm::vec3& origin, const glm::vec3& direction, float radius,
+                       float max_distance, CollisionMask mask) const override {
+        (void)origin;
+        (void)direction;
+        (void)radius;
+        (void)max_distance;
+        (void)mask;
+        return RayHit{}; // contract: null sweeps always miss, like the ray
     }
 
 private:

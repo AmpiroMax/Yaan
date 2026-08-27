@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 14:30:00
+Last updated: 27:08:2026 - 12:02:42
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -615,6 +615,24 @@ UPD:
   когда владелец не мог выйти из дома (прицел обратной двери стоял не в
   кармане, см. AppInterior). Пусто под прицелом — дверь НЕ выходит и говорит
   вслух: падение назад на прямой вызов вернуло бы ту же слепоту.
+- 27:08:2026 - 12:02:42: КАМЕРА ТРЕТЬЕГО ЛИЦА БОЛЬШЕ НЕ ВЫХОДИТ ЗА
+  ОБОЛОЧКУ (заказ владельца 27.08: «находясь в помещении, могу за границы
+  посмотреть»; названный им образец — Skyrim, где камера приближается к голове).
+  Ветка third_person_ ставила камеру в глаз − вперёд·3.2 + вверх·0.55 без
+  единого вопроса к миру; теперь то же смещение обрезается сферкастом радиуса
+  0.25 м по LAYER_STATIC (gameplay::CameraBoom). Кадрирование вида не изменилось
+  ни на сантиметр — у него появился ограничитель.
+  ОДНА ДЛИНА НА ОБА КОНЦА интерполяции: щуп пускается от текущей головы, и
+  полученная длина применяется и к prev, и к curr. Два конца, посчитанные
+  независимо, дали бы отрезок, чья середина при alpha=0.5 лежит там, где не
+  мерил никто.
+  Три двери: DFN_CAM_COLLIDE (доза, 0 = прежнее поведение), DFN_CAM_PROBE
+  (прибор) и DFN_CAM_ORBIT (обвод без руки на мыши). Прибор мерит ЛУЧОМ от
+  головы к точке камеры, а не пересказывает сферкаст: замер в docs/acceptance —
+  187 кадров обвода в доме, 0 за оболочкой со щупом и 100 без него.
+  Итог прибора печатается в shutdown(), а не в конце run(): из run() есть выход
+  по кадру-снимку и по гейту прогулки, и строка на одном из них у остальных не
+  печаталась бы вовсе.
 */
 
 #include "engine/app/sources/App.h"
@@ -1104,6 +1122,16 @@ bool App::init(const AppConfig& config) {
             std::fprintf(stderr, "[bake] ЧАСТЬ ОБЪЕКТОВ НЕ ЗАПИСАНА — карты, "
                                  "которые их читают, откроются неполными\n");
         }
+    }
+
+    // ПРИБОР ТРЕТЬЕГО ЛИЦА. Читается ЗДЕСЬ, а не в кадре: значение, читаемое
+    // каждый кадр, разрешает ленте поменять смысл на середине.
+    if (const char* v = door_value("DFN_CAM_PROBE"); v != nullptr && v[0] != '\0'
+                                                     && v[0] != '0') {
+        cam_probe_ = true;
+    }
+    if (const char* v = door_value("DFN_CAM_ORBIT"); v != nullptr && v[0] != '\0') {
+        cam_probe_spin_ = static_cast<float>(std::atof(v));
     }
 
     catalog_ = scan_map_catalog("assets/maps");
@@ -3212,6 +3240,69 @@ void App::become_player_from_editor() {
                  static_cast<double>(feet.z), static_cast<double>(yaw));
 }
 
+// --- КАМЕРА ТРЕТЬЕГО ЛИЦА: ДОЗА И ПРИБОР --------------------------------------
+//
+// ДОЗА. DFN_CAM_COLLIDE=0 снимает щуп и оставляет всё прочее нетронутым, то
+// есть даёт контрольную руку, которая ОБЯЗАНА провалить приёмку (Rule 48:
+// критерий, проходящий при нулевой дозе, меряет другую систему). Читается один
+// раз и защёлкивается: доза, меняющаяся посреди прогона, делает две половины
+// ленты несравнимыми.
+bool App::cam_collide_enabled() const {
+    static const bool on = [] {
+        const char* v = door_value("DFN_CAM_COLLIDE");
+        return !(v != nullptr && v[0] == '0');
+    }();
+    return on;
+}
+
+// ПРИБОР. Мерит НЕ ту величину, которой управляет стрела. Стрела считает длину
+// по СФЕРКАСТУ; прибор пускает ЛУЧ от головы к получившейся точке камеры и
+// спрашивает, встретил ли он что-нибудь по дороге. Голова заведомо внутри
+// оболочки (в ней стоит персонаж), поэтому «луч упёрся раньше камеры» и есть
+// определение «камера снаружи». Совпадение двух разных запросов — измерение;
+// пересказ сферкаста самим себе был бы арифметикой (Rule 46).
+void App::cam_probe_step(const glm::vec3& head, const glm::vec3& cam, float length,
+                         const gameplay::CameraBoomAim& aim) {
+    if (!cam_probe_ || physics_ == nullptr) {
+        return;
+    }
+    ++cam_probe_frames_;
+    float depth = 0.0f;
+    bool outside = false;
+    if (length > 1e-4f) {
+        const platform::RayHit seg =
+            physics_->raycast(head, aim.direction, length, physics::LAYER_STATIC);
+        if (seg.hit && seg.distance < length) {
+            outside = true;
+            depth = length - seg.distance;
+            ++cam_probe_outside_;
+            cam_probe_worst_ = std::max(cam_probe_worst_, depth);
+        }
+    }
+    std::fprintf(stderr,
+                 "[cam] f=%llu head %.3f %.3f %.3f  cam %.3f %.3f %.3f  "
+                 "want %.3f got %.3f  outside %d  depth %.3f\n",
+                 static_cast<unsigned long long>(cam_probe_frames_),
+                 static_cast<double>(head.x), static_cast<double>(head.y),
+                 static_cast<double>(head.z), static_cast<double>(cam.x),
+                 static_cast<double>(cam.y), static_cast<double>(cam.z),
+                 static_cast<double>(aim.reach), static_cast<double>(length),
+                 outside ? 1 : 0, static_cast<double>(depth));
+}
+
+void App::cam_probe_report() const {
+    if (!cam_probe_) {
+        return;
+    }
+    std::fprintf(stderr,
+                 "[cam] ИТОГ: кадров %llu, камера за оболочкой на %llu, "
+                 "худший заход %.3f м, щуп %s\n",
+                 static_cast<unsigned long long>(cam_probe_frames_),
+                 static_cast<unsigned long long>(cam_probe_outside_),
+                 static_cast<double>(cam_probe_worst_),
+                 cam_collide_enabled() ? "ВКЛ" : "ВЫКЛ");
+}
+
 int App::run() {
     auto last = std::chrono::steady_clock::now();
     // Стенные часы заставки, отдельно от часов меню: их РАСХОЖДЕНИЕ и было
@@ -4066,6 +4157,15 @@ int App::run() {
                 orbit_pitch_ *= 0.85f;
                 gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
             }
+            // ДВЕРЬ DFN_CAM_ORBIT: обвод камеры по кругу без руки на мыши.
+            // Стрела упирается в РАЗНЫЕ стены на разных азимутах, и прогон,
+            // снятый на одном, не является измерением комнаты (Rule 27: точка
+            // съёмки, неспособная провалиться, не доказательство). Крутится
+            // ПОСЛЕ ветки затухания — иначе «locked behind» гасил бы обвод.
+            if (third_person_ && cam_probe_spin_ != 0.0f) {
+                orbit_yaw_ += cam_probe_spin_ * (3.14159265f / 180.0f)
+                              * static_cast<float>(frame_dt);
+            }
         }
 
         // THE WORLD PAUSES WHILE THE INVENTORY IS OPEN (в70: "инвентарь как в
@@ -4344,20 +4444,40 @@ int App::run() {
                 const float y1 = pose->yaw + orbit_yaw_;
                 const float p0 = prev_pose->pitch + orbit_pitch_;
                 const float p1 = pose->pitch + orbit_pitch_;
-                const auto back = [](float yaw, float pitch, glm::vec3 eye) {
-                    const float cp = std::cos(pitch);
-                    const glm::vec3 fwd{std::sin(yaw) * cp, std::sin(pitch),
-                                        -std::cos(yaw) * cp};
-                    // Distance and lift are debug-view framing, not world
-                    // constants: this view exists so a human can watch the body
-                    // (his stated reason -- «полезно для дебага»), so it is
-                    // sized to hold the whole figure with headroom rather than
-                    // derived from anything.
-                    return eye - fwd * 3.2f + glm::vec3{0.0f, 0.55f, 0.0f};
-                };
-                camera_.set_poses({back(y0, p0, prev_pose->position), y0, p0},
-                                  {back(y1, p1, pose->position), y1, p1});
+                // СТРЕЛА, А НЕ ФИКСИРОВАННОЕ СМЕЩЕНИЕ. Раньше здесь стояло
+                // eye - fwd*3.2 + up*0.55 без единого вопроса к миру, и камера
+                // в доме уезжала СКВОЗЬ стену — «могу за границы посмотреть»
+                // (владелец, 27.08). Кадрирование (3.2 назад, 0.55 вверх) не
+                // изменилось ни на сантиметр: оно теперь умолчание оснастки в
+                // CameraBoom.h, а здесь у него появился ограничитель.
+                //
+                // ОДНА ДЛИНА НА ОБА КОНЦА интерполяции. Щуп пускается от
+                // ТЕКУЩЕЙ головы, и полученная длина применяется и к prev, и к
+                // curr: два конца, посчитанные независимо, дали бы отрезок, чья
+                // середина при alpha=0.5 лежит там, где не мерил никто.
+                const auto aim1 = gameplay::camera_boom_aim(y1, p1, cam_boom_desc_);
+                const auto aim0 = gameplay::camera_boom_aim(y0, p0, cam_boom_desc_);
+                float length = aim1.reach;
+                if (physics_ != nullptr && cam_collide_enabled()) {
+                    // ТОЛЬКО СТАТИКА. Оболочка дома и земля — LAYER_STATIC (у
+                    // интерьера это его собственное тело, AppInterior); утварь
+                    // и створки лежат на LAYER_INTERACTABLE, и брать их в щуп
+                    // значит дёргать камеру о каждый оброненный факел.
+                    const platform::RayHit sweep = gameplay::camera_boom_sweep(
+                        *physics_, pose->position, aim1, cam_boom_desc_,
+                        physics::LAYER_STATIC);
+                    length = gameplay::camera_boom_free_length(sweep, aim1.reach,
+                                                               cam_boom_desc_);
+                }
+                length = gameplay::camera_boom_step(cam_boom_, length,
+                                                    static_cast<float>(frame_dt),
+                                                    cam_boom_desc_);
+                const glm::vec3 cam1 = pose->position + aim1.direction * length;
+                const glm::vec3 cam0 = prev_pose->position + aim0.direction * length;
+                camera_.set_poses({cam0, y0, p0}, {cam1, y1, p1});
+                cam_probe_step(pose->position, cam1, length, aim1);
             } else {
+                cam_boom_.length = -1.0f; // вид выключен: стрела заводится заново
                 camera_.set_poses({prev_pose->position, prev_pose->yaw, prev_pose->pitch},
                                   {pose->position, pose->yaw, pose->pitch});
             }
@@ -4951,6 +5071,10 @@ int App::run() {
 }
 
 void App::shutdown() {
+    // ИТОГ ПРИБОРА КАМЕРЫ — В shutdown(), А НЕ В КОНЦЕ run(): из run() есть
+    // выход по кадру-снимку и по гейту прогулки, и строка, стоящая на одном из
+    // них, у остальных не печатается вовсе.
+    cam_probe_report();
     if (frame_log_ != nullptr) {
         std::fprintf(stderr, "[frame_log] %llu frames written\n",
                      static_cast<unsigned long long>(frame_log_index_));

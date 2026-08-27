@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 14:30:00
+Last updated: 27:08:2026 - 12:02:02
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -170,6 +170,13 @@ UPD:
   «показать кадр» ходят вместе всегда — этап, отмеченный без кадра, виден
   прибору и невидим человеку, и ровно этим экран загрузки города был до
   сегодня. Доводы — у самих полей.
+- 27:08:2026 - 12:02:02: КАМЕРА ТРЕТЬЕГО ЛИЦА ПОЛУЧИЛА ОБОЛОЧКУ (заказ владельца
+  27.08: «находясь в помещении, могу за границы посмотреть»). Поля стрелы
+  (CameraBoomState/Desc) и её прибора живут здесь, потому что доза
+  DFN_CAM_COLLIDE обязана сниматься с ЖИВОГО вида, из того же бинарника, что и
+  рабочая рука. Три метода: cam_collide_enabled (доза), cam_probe_step и
+  cam_probe_report (прибор, меряющий ЛУЧОМ то, чем стрела управляет через
+  сферкаст).
 */
 
 #pragma once
@@ -198,6 +205,7 @@ UPD:
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
 #include "engine/core/time/sources/FixedTimestep.h"
+#include "engine/gameplay/sources/CameraBoom.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/gameplay/sources/InteractableMesh.h"
 #include "engine/gameplay/sources/Interior.h"
@@ -428,6 +436,15 @@ private:
     // Обработчики, названные строками таблицы. Определены в AppInput.cpp; имя
     // метода И ЕСТЬ поле `handler` в строке, и рукав держит их вместе.
     void on_third_person();
+    // ДОЗА щупа камеры: DFN_CAM_COLLIDE=0 снимает коллизию, ничего больше не
+    // меняя, — контрольная рука приёмки из ТОГО ЖЕ бинарника (Rule 47).
+    [[nodiscard]] bool cam_collide_enabled() const;
+    // Прибор третьего лица (DFN_CAM_PROBE). Мерит НЕ ту величину, которой
+    // управляет стрела: луч от головы к получившейся точке камеры. Попал во
+    // что-то раньше, чем дошёл, — камера за оболочкой, и это засчитано.
+    void cam_probe_step(const glm::vec3& head, const glm::vec3& cam, float length,
+                        const gameplay::CameraBoomAim& aim);
+    void cam_probe_report() const;
     void on_debug_readout();
     void on_state_capture();
     void on_wireframe();
@@ -703,6 +720,19 @@ private:
     bool third_person_ = false;
     float orbit_yaw_ = 0.0f;
     float orbit_pitch_ = 0.0f;
+    // СТРЕЛА КАМЕРЫ И ЕЁ ЩУП (заказ владельца 27.08: «в помещении могу за
+    // границы посмотреть»). Оснастка живёт здесь, а не в CameraBoom.h с
+    // умолчаниями, потому что щуп-дозу DFN_CAM_COLLIDE=0 надо уметь снять с
+    // ЖИВОГО вида, из того же бинарника, что и рабочую руку (Rule 47).
+    gameplay::CameraBoomState cam_boom_{};
+    gameplay::CameraBoomDesc cam_boom_desc_{};
+    // Приборная часть: DFN_CAM_PROBE печатает строку на кадр, DFN_CAM_ORBIT
+    // крутит orbit_yaw_ сам, чтобы стрела обошла все стены комнаты без руки.
+    bool cam_probe_ = false;
+    float cam_probe_spin_ = 0.0f;    // град/с, 0 — не крутить
+    uint64_t cam_probe_frames_ = 0;  // сколько кадров прибор насчитал
+    uint64_t cam_probe_outside_ = 0; // на скольких камера оказалась за оболочкой
+    float cam_probe_worst_ = 0.0f;   // худший заход за стену, м
     bool debug_overlay_ = false;    // key 2 (F3 alias)
     // Whole-scene wireframe (В28), key 4 / F4. Toggles IRenderer::set_wireframe;
     // the editor overlay reads it back to label the mode. Off by default, zero
