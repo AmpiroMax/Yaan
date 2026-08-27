@@ -9,7 +9,7 @@ world_span_m = 64
 
 [spawn]
 name = door
-pos = 8.100 0.260 5.600
+pos = 9.100 0.260 5.600
 yaw = 0.000000
 note = сразу за порогом, лицом в комнату
 
@@ -82,7 +82,7 @@ note = убранство: РАТУША
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 8.500 0.160 5.600
+pos = 10.900 0.160 5.600
 yaw = 0.000000
 note = убранство: РАТУША
 

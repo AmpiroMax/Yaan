@@ -62,10 +62,11 @@ pos = 1.200 0.570 4.100
 yaw = 0.000000
 note = убранство: house
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.550 0.570 5.450
 yaw = 0.000000
+scale = 1
 note = убранство: house
 
 [house]
@@ -80,16 +81,18 @@ pos = 5.200 0.570 1.500
 yaw = 0.000000
 note = убранство: house
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.450 3.510 0.550
 yaw = 0.000000
+scale = 1
 note = убранство яруса: house
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.450 3.510 2.850
 yaw = 0.000000
+scale = 1
 note = убранство яруса: house
 
 [house]
@@ -136,11 +139,11 @@ note = убранство яруса: house
 
 [light]
 pos = 3.250 1.500 1.200
-color = 1.000 0.566 0.227
-radius_m = 9.44
+color = 1.000 0.527 0.205
+radius_m = 9.62
 casts_shadow = 0
 softness = 0.25
-flicker = 0.53
+flicker = 0.50
 note = очаг: house
 
 [air]

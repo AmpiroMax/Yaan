@@ -1,0 +1,80 @@
+# Daggerfall N — ЛОКАЦИЯ ИНТЕРЬЕРА (И15 волна Б).
+# СГЕНЕРИРОВАНО tools/gen_city.py (стадия 14а) вместе с городом
+# cornhall: правится ЧЕРТЁЖ и паспорт, а не этот файл.
+# Координаты СВОИ от нуля, пол на отметке рецепта. Наружная
+# оболочка СТРОГО задаёт внутренность: это ТОТ ЖЕ чертёж, что
+# стоит в городе, — интерьер не может быть больше дома.
+map = int/cornhall/x280z306
+world_span_m = 64
+
+[spawn]
+name = door
+pos = 2.258 0.250 3.025
+yaw = 0.000000
+note = сразу за порогом, лицом в комнату
+
+[house]
+file = assets/houses/cornhall-firetower.dfh
+pos = 0 0 0
+yaw = 0
+sealed = 1
+note = оболочка: тот же чертёж, что снаружи (каланча)
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.250 0.150 0.550
+yaw = 0.000000
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.250 0.150 1.450
+yaw = 0.000000
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.250 0.150 2.350
+yaw = 0.000000
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.250 0.150 3.250
+yaw = 0.000000
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-bench.dfh
+pos = 1.800 0.150 0.300
+yaw = 0.000000
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 5.500 0.150 0.550
+yaw = 0.000000
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-woodpile.dfh
+pos = 5.950 0.150 1.600
+yaw = 4.712389
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-shelf.dfh
+pos = 5.850 0.150 3.400
+yaw = 4.712389
+note = убранство: каланча
+
+[air]
+fog_start = 40
+fog_end = 120
+ambient = 0.10
+
+[portal]
+at = 2.258 1.150 3.525
+radius_m = 1.10
+to = ^back
+note = обратная дверь

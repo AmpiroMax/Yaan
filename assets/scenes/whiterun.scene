@@ -768,182 +768,164 @@ note = ворота east
 
 [house]
 file = assets/houses/city-wall-arc12-s050.dfh
-pos = 123.281 26.671 173.360
-yaw = 0.658431
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc16-s025.dfh
-pos = 132.772 26.690 166.017
-yaw = 0.887188
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 142.878 26.822 153.612
-yaw = 1.074556
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s050.dfh
-pos = 146.687 26.549 146.577
-yaw = 1.365717
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc16-s025.dfh
-pos = 147.956 27.263 124.156
-yaw = 1.771864
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 144.761 29.368 108.479
-yaw = 1.834346
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 142.677 29.494 100.755
-yaw = 1.959232
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 139.647 29.470 93.351
-yaw = 2.084118
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 135.718 28.050 86.382
-yaw = 2.084118
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc16-s000.dfh
-pos = 131.790 27.206 79.413
-yaw = 2.084118
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s100.dfh
-pos = 123.932 27.855 65.475
-yaw = 2.414389
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 114.968 33.428 57.498
-yaw = 2.869545
+pos = 123.163 26.670 173.422
+yaw = 0.653312
 note = стена кольца
 
 [house]
 file = assets/houses/city-wall-arc12-s025.dfh
-pos = 107.262 30.953 55.348
-yaw = 3.077736
+pos = 132.692 26.688 166.128
+yaw = 0.902892
 note = стена кольца
 
 [house]
-file = assets/houses/city-wall-arc8-s050.dfh
-pos = 95.287 30.135 54.582
-yaw = 3.409778
+file = assets/houses/city-wall-arc16-s025.dfh
+pos = 140.124 26.790 156.707
+yaw = 1.048678
 note = стена кольца
 
 [house]
-file = assets/houses/city-wall-arc8-s050.dfh
-pos = 87.573 32.427 56.702
-yaw = 3.907253
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 81.805 33.173 62.246
-yaw = 4.280877
+file = assets/houses/city-wall-arc8-s100.dfh
+pos = 148.104 26.703 142.839
+yaw = 1.601156
 note = стена кольца
 
 [house]
 file = assets/houses/city-wall-arc8-s000.dfh
-pos = 78.459 25.487 69.513
-yaw = 4.405763
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 76.044 25.487 77.140
-yaw = 4.405763
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 73.630 25.681 84.767
-yaw = 4.405763
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s000.dfh
-pos = 71.215 25.929 92.394
-yaw = 4.405763
+pos = 148.192 27.142 125.935
+yaw = 1.694813
 note = стена кольца
 
 [house]
 file = assets/houses/city-wall-arc16-s050.dfh
-pos = 67.593 26.460 103.834
-yaw = 4.530587
+pos = 147.207 27.970 118.036
+yaw = 1.819637
 note = стена кольца
 
 [house]
 file = assets/houses/city-wall-arc8-s000.dfh
-pos = 64.700 26.524 119.570
-yaw = 4.655410
+pos = 143.281 29.462 102.566
+yaw = 1.943842
 note = стена кольца
 
 [house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 64.244 26.654 127.557
-yaw = 4.780297
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s000.dfh
-pos = 64.787 26.649 135.539
-yaw = 4.905183
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc12-s050.dfh
-pos = 66.320 26.338 143.390
-yaw = 5.071458
+file = assets/houses/city-wall-arc12-s025.dfh
+pos = 140.380 29.033 95.153
+yaw = 2.027146
 note = стена кольца
 
 [house]
 file = assets/houses/city-wall-arc8-s000.dfh
-pos = 70.537 26.290 154.625
-yaw = 5.237733
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s025.dfh
-pos = 74.549 26.290 161.546
-yaw = 5.362620
-note = стена кольца
-
-[house]
-file = assets/houses/city-wall-arc8-s050.dfh
-pos = 79.392 26.364 167.914
-yaw = 5.736243
+pos = 135.112 27.782 84.415
+yaw = 2.109900
 note = стена кольца
 
 [house]
 file = assets/houses/city-wall-arc16-s000.dfh
-pos = 86.225 26.066 172.075
-yaw = 5.984981
+pos = 131.026 27.042 77.584
+yaw = 2.109900
 note = стена кольца
 
 [house]
-file = assets/houses/city-wall-arc12-s100.dfh
-pos = 101.519 25.708 176.775
-yaw = 0.032066
+file = assets/houses/city-wall-arc16-s200.dfh
+pos = 122.832 30.190 63.887
+yaw = 2.599802
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 109.163 34.009 55.639
+yaw = 3.087367
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s025.dfh
+pos = 101.215 30.010 55.207
+yaw = 3.170671
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s100.dfh
+pos = 89.259 30.020 55.552
+yaw = 3.743421
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s025.dfh
+pos = 82.683 29.510 60.046
+yaw = 4.312048
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc16-s000.dfh
+pos = 78.019 25.403 71.059
+yaw = 4.394801
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 73.035 25.702 86.221
+yaw = 4.394801
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 70.549 26.039 93.783
+yaw = 4.394801
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc16-s050.dfh
+pos = 68.063 26.458 101.346
+yaw = 4.519625
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 65.001 26.500 117.010
+yaw = 4.643830
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s025.dfh
+pos = 64.455 26.621 124.951
+yaw = 4.727134
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s050.dfh
+pos = 64.629 26.470 136.910
+yaw = 4.976163
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc8-s000.dfh
+pos = 67.741 26.320 148.459
+yaw = 5.141343
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s050.dfh
+pos = 71.052 26.274 155.698
+yaw = 5.307618
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc16-s100.dfh
+pos = 77.752 26.350 165.606
+yaw = 5.721487
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s025.dfh
+pos = 91.256 26.003 174.115
+yaw = 6.052259
+note = стена кольца
+
+[house]
+file = assets/houses/city-wall-arc12-s050.dfh
+pos = 102.898 25.700 176.856
+yaw = 0.018102
 note = стена кольца
 
 [house]

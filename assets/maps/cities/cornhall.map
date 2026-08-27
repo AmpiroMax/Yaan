@@ -4,6 +4,6 @@ size_chunks = 2
 # Житнов (в конвейере cornhall) — пилот эпохи «12 городов» (docs/CORNHALL_PLAN.html).
 source = stand:Gallery
 scene = assets/scenes/cornhall.scene
-objects = assets/objects/parts;assets/objects/signs;assets/objects/trees;assets/objects/glade
+objects = assets/objects/parts;assets/objects/signs;assets/objects/trees;assets/objects/glade;assets/objects/furniture
 description = Ярмарочная столица равнины: правильное кольцо стен с четырьмя воротами, длинная рыночная улица сплошными фасадными рядами, предместья лентами вдоль трактов, ярмарочное поле с каменными тумбами за северными воротами.
 built_commit =

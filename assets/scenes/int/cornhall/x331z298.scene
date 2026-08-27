@@ -9,7 +9,7 @@ world_span_m = 64
 
 [spawn]
 name = door
-pos = 4.000 0.670 8.200
+pos = 3.700 0.670 8.200
 yaw = 0.000000
 note = сразу за порогом, лицом в комнату
 
@@ -62,10 +62,11 @@ pos = 0.700 0.570 5.600
 yaw = 0.000000
 note = убранство: jetty
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.600 0.570 6.600
 yaw = 0.000000
+scale = 1
 note = убранство: jetty
 
 [house]
@@ -80,16 +81,18 @@ pos = 4.550 0.570 2.900
 yaw = 0.000000
 note = убранство: jetty
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 1.950 3.520 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: jetty
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 3.300 3.520 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: jetty
 
 [house]
@@ -116,10 +119,11 @@ pos = 2.700 3.520 4.300
 yaw = 0.000000
 note = убранство яруса: jetty
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 2.300 3.520 7.600
 yaw = 0.000000
+scale = 1
 note = убранство яруса: jetty
 
 [house]
@@ -128,16 +132,18 @@ pos = 5.200 3.520 7.700
 yaw = 0.000000
 note = убранство яруса: jetty
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 2.100 6.320 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: jetty
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 3.500 6.320 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: jetty
 
 [house]
@@ -170,19 +176,20 @@ pos = 3.100 6.320 6.000
 yaw = 0.000000
 note = убранство яруса: jetty
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 4.600 6.320 8.300
 yaw = 0.000000
+scale = 1
 note = убранство яруса: jetty
 
 [light]
 pos = 3.500 1.500 1.200
-color = 1.000 0.570 0.220
-radius_m = 9.53
+color = 1.000 0.557 0.207
+radius_m = 9.47
 casts_shadow = 0
 softness = 0.25
-flicker = 0.56
+flicker = 0.57
 note = очаг: jetty
 
 [air]

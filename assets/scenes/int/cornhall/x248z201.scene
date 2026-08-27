@@ -98,28 +98,32 @@ pos = 1.500 0.570 6.600
 yaw = 0.000000
 note = убранство: manor
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.550 0.570 7.500
 yaw = 0.000000
+scale = 1
 note = убранство: manor
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 2.100 0.570 7.500
 yaw = 0.000000
+scale = 1
 note = убранство: manor
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.400 3.510 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: manor
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.400 3.510 2.700
 yaw = 0.000000
+scale = 1
 note = убранство яруса: manor
 
 [house]
@@ -152,10 +156,11 @@ pos = 3.000 3.510 3.600
 yaw = 0.000000
 note = убранство яруса: manor
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 2.300 3.510 6.600
 yaw = 0.000000
+scale = 1
 note = убранство яруса: manor
 
 [house]
@@ -182,10 +187,11 @@ pos = 6.400 3.510 2.400
 yaw = 0.000000
 note = убранство яруса: manor
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 2.100 6.310 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: manor
 
 [house]
@@ -244,11 +250,11 @@ note = убранство яруса: manor
 
 [light]
 pos = 4.000 1.500 1.200
-color = 1.000 0.576 0.218
-radius_m = 11.08
+color = 0.875 0.469 0.185
+radius_m = 11.21
 casts_shadow = 0
 softness = 0.25
-flicker = 0.58
+flicker = 0.42
 note = очаг: manor
 
 [air]

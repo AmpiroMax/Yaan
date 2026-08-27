@@ -74,10 +74,11 @@ pos = 3.300 0.140 4.000
 yaw = 0.000000
 note = убранство: arcade
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.550 0.140 4.550
 yaw = 0.000000
+scale = 1
 note = убранство: arcade
 
 [house]
@@ -98,16 +99,18 @@ pos = 8.200 0.140 5.600
 yaw = 0.000000
 note = убранство: arcade
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.400 4.580 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: arcade
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.400 4.580 2.600
 yaw = 0.000000
+scale = 1
 note = убранство яруса: arcade
 
 [house]
@@ -134,10 +137,11 @@ pos = 3.000 4.580 3.600
 yaw = 0.000000
 note = убранство яруса: arcade
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 5.200 4.580 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: arcade
 
 [house]
@@ -146,16 +150,18 @@ pos = 0.400 4.580 5.000
 yaw = 0.000000
 note = убранство яруса: arcade
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 2.200 4.580 6.600
 yaw = 0.000000
+scale = 1
 note = убранство яруса: arcade
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 5.200 4.580 7.300
 yaw = 0.000000
+scale = 1
 note = убранство яруса: arcade
 
 [house]

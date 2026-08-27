@@ -9,7 +9,7 @@ world_span_m = 64
 
 [spawn]
 name = door
-pos = 2.000 0.220 5.200
+pos = 2.450 0.220 5.200
 yaw = 0.000000
 note = сразу за порогом, лицом в комнату
 
@@ -50,10 +50,11 @@ pos = 5.600 0.120 2.800
 yaw = 4.712389
 note = убранство: лавка
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.400 0.120 2.600
 yaw = 0.000000
+scale = 1
 note = убранство: лавка
 
 [house]

@@ -50,10 +50,11 @@ pos = 0.650 0.120 3.550
 yaw = 0.000000
 note = убранство: ферма
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 3.150 0.120 3.750
 yaw = 0.000000
+scale = 1
 note = убранство: ферма
 
 [house]

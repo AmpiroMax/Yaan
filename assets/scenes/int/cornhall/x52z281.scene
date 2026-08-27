@@ -9,7 +9,7 @@ world_span_m = 64
 
 [spawn]
 name = door
-pos = 2.250 0.220 4.400
+pos = 2.450 0.220 5.200
 yaw = 0.000000
 note = сразу за порогом, лицом в комнату
 
@@ -44,10 +44,11 @@ pos = 0.650 0.120 2.000
 yaw = 0.000000
 note = убранство: hut
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 3.150 0.120 3.750
 yaw = 0.000000
+scale = 1
 note = убранство: hut
 
 [house]
@@ -64,11 +65,11 @@ note = убранство: hut
 
 [light]
 pos = 2.250 1.050 1.050
-color = 0.964 0.520 0.207
-radius_m = 6.48
+color = 0.921 0.467 0.175
+radius_m = 6.07
 casts_shadow = 0
 softness = 0.25
-flicker = 0.48
+flicker = 0.45
 note = очаг: hut
 
 [air]

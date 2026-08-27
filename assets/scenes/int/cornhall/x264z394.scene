@@ -9,7 +9,7 @@ world_span_m = 64
 
 [spawn]
 name = door
-pos = 4.500 0.670 9.200
+pos = 4.200 0.670 9.200
 yaw = 0.000000
 note = сразу за порогом, лицом в комнату
 
@@ -62,10 +62,11 @@ pos = 1.500 0.570 2.600
 yaw = 0.000000
 note = убранство: manor-old
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.550 0.570 7.500
 yaw = 0.000000
+scale = 1
 note = убранство: manor-old
 
 [house]
@@ -80,10 +81,11 @@ pos = 3.100 0.570 8.400
 yaw = 0.000000
 note = убранство: manor-old
 
-[house]
-file = assets/houses/furn-bed.dfh
+[place]
+object = furn-bed
 pos = 0.400 3.510 0.500
 yaw = 0.000000
+scale = 1
 note = убранство яруса: manor-old
 
 [house]
@@ -142,11 +144,11 @@ note = убранство яруса: manor-old
 
 [light]
 pos = 4.000 1.500 1.200
-color = 1.000 0.591 0.230
-radius_m = 10.21
+color = 1.000 0.540 0.214
+radius_m = 11.68
 casts_shadow = 0
 softness = 0.25
-flicker = 0.58
+flicker = 0.50
 note = очаг: manor-old
 
 [air]
