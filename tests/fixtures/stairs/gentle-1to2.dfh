@@ -1,0 +1,37 @@
+# dfh 1
+# КОНТРОЛЬНАЯ РУКА: ПОЛОГИЙ МАРШ (нижняя граница уклона, dfn_stairs_check
+# рука 7).
+#
+# Числа сняты с НАСТОЯЩЕГО ОТВЕРГНУТОГО СЛУЧАЯ и заморожены: уклон ровно 1:2
+# (26.6 гр.) — тот самый, каким на 27.08.2026 стояли city-keep-s e5, city-mill
+# e12 и city-house-l e32. Крит владельца 27.08 дословно: «слишком длинные они
+# и пологие, должны быть КРУЧЕ». Судья пропускал их молча: у уклона была
+# только верхняя граница (49.85 гр.), а нижней не было по построению.
+#
+# ПОЧЕМУ КОПИЯ, А НЕ САМ ЗАМОК: живые рецепты чинит параллельная волна, и
+# контрольная рука, которую чинят, перестаёт быть контрольной (правило 30).
+#
+# Пара: gentle-1to2-ok.dfh — отличается ОДНИМ числом (вынос 3.50 -> 1.75).
+vertex v1 free 0.0000 0.0600 0.0000
+vertex v2 free 0.0000 0.0600 4.0000
+vertex v3 free 6.0000 0.0600 4.0000
+vertex v4 free 6.0000 0.0600 0.0000
+vertex v5 free 0.0000 0.0000 0.0000
+vertex v6 free 0.0000 0.0000 4.0000
+vertex v7 free 6.0000 0.0000 4.0000
+vertex v8 free 6.0000 0.0000 0.0000
+vertex v9 free 5.3000 0.1200 1.2000
+vertex v10 free 5.3000 0.1200 2.8000
+vertex v11 free 1.8000 1.8700 2.8000
+vertex v12 free 1.8000 1.8700 1.2000
+vertex v13 free 0.0000 1.8100 0.0000
+vertex v14 free 0.0000 1.8100 4.0000
+vertex v15 free 1.8000 1.8100 4.0000
+vertex v16 free 1.8000 1.8100 0.0000
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1
+surface e2 v5 v6 style=- height=3.0 thickness=0.25 mat=5 tone=0 clad=1
+surface e3 v6 v7 style=- height=3.0 thickness=0.25 mat=5 tone=0 clad=1
+surface e4 v7 v8 style=- height=3.0 thickness=0.25 mat=5 tone=0 clad=1
+surface e5 v8 v5 style=- height=3.0 thickness=0.25 mat=5 tone=0 clad=1
+surface e6 v9 v10 v11 v12 style=- closed=1 thickness=0.12 fill=6 open=1 rise=0.28 nosing=1 mat=1 tone=1
+surface e7 v13 v14 v15 v16 style=- closed=1 thickness=0.12 mat=1 tone=1

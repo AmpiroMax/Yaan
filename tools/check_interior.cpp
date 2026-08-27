@@ -1,6 +1,6 @@
 /*
 Created: 24:08:2026 - 02:00:00
-Last updated: 27:08:2026 - 10:34:00
+Last updated: 27:08:2026 - 23:05:00
 Module: tools
 File: tools/check_interior.cpp
 
@@ -61,6 +61,18 @@ UPD:
   AppHouse.cpp, лишь бы сошлась сверка хука, вместо того чтобы разобраться с
   чужой. Поставлено время коммита 9e2c8c9 (10:18:14). Текста записи и кода не
   трогал.
+- 27:08:2026 - 23:05:00: СУДЬЯ ПОПАЛ В ctest ПО ВСЕМ 130 ЛОКАЦИЯМ, А НЕ ПО ОДНОЙ
+  (волна приборов; аудит эпохи «Большой мир», задача 1). Он стоял в ctest на
+  ОДНОЙ сцене из ста тридцати — и, по совпадению, ровно на той единственной,
+  где находок нет: одноэтажный дом без марша. Аудит прогнал его по всем 130 и
+  получил 169 находок, то есть всё, ради чего судья написан, жило ВНЕ ctest.
+  Три правки, все ради этого: КАТАЛОГ как аргумент (раскрытие «*.scene» делает
+  оболочка, а CMake оболочки не запускает, и список из ста тридцати имён
+  устарел бы МОЛЧА); КЛАСС у каждой находки (по нему ведётся список известных —
+  по тексту нельзя, замеры плывут при живой правке мебели); --known и
+  --expect КЛАСС:N через общий tools/known_findings.h. Порог теста при этом
+  остался прежним и честным — НОЛЬ; список известных это отсрочка с датой,
+  причиной и числом, и находка сверх числа краснит прогон сразу.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -68,6 +80,7 @@ UPD:
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseMesh.h"
 #include "engine/world/sources/Scene.h"
+#include "tools/known_findings.h"
 
 #include <algorithm>
 #include <cmath>
@@ -136,9 +149,20 @@ struct Item {
     std::vector<Tri> tris; ///< СВОИ треугольники — чтобы опора считалась БЕЗ них
 };
 
-std::vector<std::string> findings;
+/// НАХОДКА НЕСЁТ КЛАСС И ТЕЛО, А НЕ ТОЛЬКО ТЕКСТ (27.08). Текст несёт замеры,
+/// а замеры плывут каждый час, пока волна мебели двигает предметы; по классу
+/// же ведётся список известных находок и по нему контрольная рука доказывает,
+/// что покраснела ИМЕННО испытуемая рука (tools/known_findings.h).
+struct Finding {
+    std::string body; ///< сцена или город — ключ списка известных
+    std::string cls;  ///< класс: Р1-НЕ-ДОЙТИ, Р2-ВЫШЕ, Р6-СИРОТА, …
+    std::string text;
+};
+std::vector<Finding> findings;
 
-void finding(const std::string& text) { findings.push_back(text); }
+void finding(const std::string& body, const char* cls, const std::string& text) {
+    findings.push_back({body, cls, text});
+}
 
 [[nodiscard]] bool read_graph(const std::string& path, dfn::world::HouseGraph& g) {
     std::ifstream in(path);
@@ -221,7 +245,7 @@ void check_scene_file(const std::string& path) {
     SceneDoc doc;
     std::string err;
     if (!dfn::world::read_scene(path, doc, err)) {
-        finding(path + ": сцена не прочиталась — " + err);
+        finding(path, "СЦЕНА", path + ": сцена не прочиталась — " + err);
         return;
     }
 
@@ -234,7 +258,7 @@ void check_scene_file(const std::string& path) {
     for (const dfn::world::ScenePlacedHouse& H : doc.houses) {
         dfn::world::HouseGraph g;
         if (!read_graph(H.file, g)) {
-            finding(path + ": [house] " + H.file + " не прочитался");
+            finding(path, "ЧЕРТЁЖ", path + ": [house] " + H.file + " не прочитался");
             continue;
         }
         const dfn::world::HouseMesh built = dfn::world::build_house_mesh(g);
@@ -306,7 +330,8 @@ void check_scene_file(const std::string& path) {
             }
         }
         if (!obj) {
-            finding(path + ": [place] объект \"" + P.object
+            finding(path, "ОБЪЕКТ",
+                    path + ": [place] объект \"" + P.object
                     + "\" не найден ни на одной полке — судить нечем");
             continue;
         }
@@ -338,7 +363,8 @@ void check_scene_file(const std::string& path) {
             // НЕ МОЛЧА: объект без запечённой постройки в локации — это либо
             // дерево, поставленное в комнату, либо предмет, испечённый мимо
             // секции HOUS. И то и другое человек обязан увидеть.
-            finding(path + ": [place] объект \"" + P.object
+            finding(path, "ОБЪЕКТ",
+                    path + ": [place] объект \"" + P.object
                     + "\" не несёт запечённой постройки (секция HOUS пуста)");
             continue;
         }
@@ -352,7 +378,7 @@ void check_scene_file(const std::string& path) {
     }
 
     if (shell.empty()) {
-        finding(path + ": в локации нет оболочки — судить нечего");
+        finding(path, "СЦЕНА", path + ": в локации нет оболочки — судить нечего");
         return;
     }
 
@@ -369,7 +395,7 @@ void check_scene_file(const std::string& path) {
     if (!has_spawn) {
         // ЧЕТВЁРТОЕ УМОЛЧАНИЕ ВСЕГДА ДЕФЕКТ (свод, правило границы): нет
         // входа — в локацию нельзя попасть, и это не «пока не сделали».
-        finding(path + ": ни одной точки входа ([spawn]) — войти некуда");
+        finding(path, "СЦЕНА", path + ": ни одной точки входа ([spawn]) — войти некуда");
         return;
     }
 
@@ -508,7 +534,8 @@ void check_scene_file(const std::string& path) {
     const int sz = cell_of(spawn.z, lo.y);
     if (sx < 0 || sz < 0 || sx >= R.grid_w || sz >= R.grid_h
         || R.free_cell[static_cast<std::size_t>(sz * R.grid_w + sx)] == 0) {
-        finding(path + ": точка входа (" + std::to_string(spawn.x) + ", "
+        finding(path, "Р1-ВХОД-ЗАНЯТ",
+                path + ": точка входа (" + std::to_string(spawn.x) + ", "
                 + std::to_string(spawn.z) + ") сама непроходима — капсула "
                 "игрока в неё не встаёт");
         return;
@@ -592,7 +619,7 @@ void check_scene_file(const std::string& path) {
                           std::filesystem::path(it.file).stem().string().c_str(),
                           static_cast<double>(it.center.x),
                           static_cast<double>(it.center.y));
-            finding(buf);
+            finding(path, "Р1-НЕ-ДОЙТИ", buf);
         }
     }
 
@@ -635,7 +662,7 @@ void check_scene_file(const std::string& path) {
                           std::filesystem::path(it.file).stem().string().c_str(),
                           static_cast<double>(it.center.x),
                           static_cast<double>(it.center.y));
-            finding(buf);
+            finding(path, "Р2-НЕТ-ПОЛА", buf);
             continue;
         }
         const float delta = it.origin_y - floor_y;
@@ -649,14 +676,18 @@ void check_scene_file(const std::string& path) {
                           static_cast<double>(it.center.y),
                           delta < 0.0f ? "НИЖЕ" : "ВЫШЕ",
                           static_cast<double>(std::fabs(delta)));
-            finding(buf);
+            // КЛАСС РАЗЛИЧАЕТ ВЕРХ И НИЗ: «висит над полом» и «утоплен в
+            // пол» чинятся в разных местах, и складывать их в один
+            // счёт списка известных значило бы прятать одно за другим.
+            finding(path, delta < 0.0f ? "Р2-НИЖЕ" : "Р2-ВЫШЕ", buf);
         }
     }
 
     // РУКА 5: переход достижим. Дверь, до которой нельзя дойти, — это
     // локация, из которой нельзя выйти.
     if (doc.portals.empty()) {
-        finding(path + ": РУКА 5 — ни одного [portal]: из локации нет выхода");
+        finding(path, "Р5-НЕТ-ВЫХОДА",
+                path + ": РУКА 5 — ни одного [portal]: из локации нет выхода");
     }
     for (std::size_t i = 0; i < doc.portals.size(); ++i) {
         const dfn::world::ScenePortal& P = doc.portals[i];
@@ -667,7 +698,7 @@ void check_scene_file(const std::string& path) {
                           "от [spawn]: дверь за стеной",
                           path.c_str(), i, static_cast<double>(P.at.x),
                           static_cast<double>(P.at.z));
-            finding(buf);
+            finding(path, "Р5-НЕДОСТИЖИМ", buf);
         }
     }
 
@@ -686,14 +717,14 @@ void check_scene_file(const std::string& path) {
         std::snprintf(buf, sizeof(buf),
                       "%s: РУКА 7 — настоящих [light] %zu, бюджет %zu",
                       path.c_str(), lit, LIGHT_BUDGET);
-        finding(buf);
+        finding(path, "Р7-ЛАМП", buf);
     }
     if (shadows > SHADOW_BUDGET) {
         char buf[200];
         std::snprintf(buf, sizeof(buf),
                       "%s: РУКА 7 — теневых ламп %zu, бюджет %zu",
                       path.c_str(), shadows, SHADOW_BUDGET);
-        finding(buf);
+        finding(path, "Р7-ТЕНЕЙ", buf);
     }
 }
 
@@ -703,7 +734,7 @@ void check_city(const std::string& city_path) {
     SceneDoc city;
     std::string err;
     if (!dfn::world::read_scene(city_path, city, err)) {
-        finding(city_path + ": город не прочитался — " + err);
+        finding(city_path, "СЦЕНА", city_path + ": город не прочитался — " + err);
         return;
     }
     std::map<std::string, std::size_t> by_interior;
@@ -713,14 +744,16 @@ void check_city(const std::string& city_path) {
         }
         by_interior[H.interior]++;
         if (!std::filesystem::exists(H.interior)) {
-            finding(city_path + ": РУКА 6 — interior=" + H.interior
+            finding(city_path, "Р6-НЕТ-ФАЙЛА",
+                    city_path + ": РУКА 6 — interior=" + H.interior
                     + " указывает в никуда (файла нет)");
             continue;
         }
         SceneDoc loc;
         std::string lerr;
         if (!dfn::world::read_scene(H.interior, loc, lerr)) {
-            finding(city_path + ": РУКА 6 — " + H.interior + " не читается: " + lerr);
+            finding(city_path, "Р6-НЕ-ЧИТАЕТСЯ",
+                    city_path + ": РУКА 6 — " + H.interior + " не читается: " + lerr);
             continue;
         }
         bool has_back = false;
@@ -728,7 +761,8 @@ void check_city(const std::string& city_path) {
             has_back = has_back || dfn::world::portal_is_back(P);
         }
         if (!has_back) {
-            finding(H.interior + ": РУКА 6 — нет обратного перехода (to = ^back): "
+            finding(H.interior, "Р6-НЕТ-ОБРАТНОГО",
+                    H.interior + ": РУКА 6 — нет обратного перехода (to = ^back): "
                     "войти можно, выйти нельзя");
         }
         bool addressed = false;
@@ -752,7 +786,8 @@ void check_city(const std::string& city_path) {
             }
             addressed = leaf;
             if (!addressed) {
-                finding(city_path + ": РУКА 6 — у дома есть interior="
+                finding(city_path, "Р6-НЕТ-ВХОДА",
+                        city_path + ": РУКА 6 — у дома есть interior="
                         + H.interior
                         + ", но войти некуда: ни [portal] города туда не "
                           "ведёт, ни у самой постройки нет пары "
@@ -767,7 +802,8 @@ void check_city(const std::string& city_path) {
             continue;
         }
         if (by_interior.find(P.to) == by_interior.end()) {
-            finding(city_path + ": РУКА 6 — [portal] ведёт в " + P.to
+            finding(city_path, "Р6-СИРОТА",
+                    city_path + ": РУКА 6 — [portal] ведёт в " + P.to
                     + ", но ни один [house] не объявлял его своим interior=");
         }
     }
@@ -775,7 +811,8 @@ void check_city(const std::string& city_path) {
     // одной кроватью, и сохранение не сможет их различить.
     for (const auto& [file, count] : by_interior) {
         if (count > 1) {
-            finding(city_path + ": РУКА 6 — локацию " + file + " объявили своей "
+            finding(city_path, "Р6-СЛАГ",
+                    city_path + ": РУКА 6 — локацию " + file + " объявили своей "
                     + std::to_string(count) + " дома: слаг НЕ уникален");
         }
     }
@@ -786,23 +823,49 @@ void check_city(const std::string& city_path) {
 int main(int argc, char** argv) {
     std::vector<std::string> scenes;
     std::string city;
-    long expect = -1;
+    std::string known_path;
+    dfn::tools::Expectations expect;
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--city") == 0 && i + 1 < argc) {
             city = argv[++i];
         } else if (std::strcmp(argv[i], "--map") == 0) {
             dump_map = true;
+        } else if (std::strcmp(argv[i], "--known") == 0 && i + 1 < argc) {
+            known_path = argv[++i];
         } else if (std::strcmp(argv[i], "--expect") == 0 && i + 1 < argc) {
-            expect = std::strtol(argv[++i], nullptr, 10);
+            expect.add(argv[++i]);
+        } else if (std::filesystem::is_directory(argv[i])) {
+            // КАТАЛОГ ЦЕЛИКОМ — РАДИ ctest, И ЭТО НЕ УДОБСТВО. Раскрытие
+            // «*.scene» делает ОБОЛОЧКА, а CMake оболочки не запускает: без
+            // этой ветки add_test пришлось бы писать список из ста тридцати
+            // имён — то есть список, который устареет в день, когда город
+            // получит сто тридцать первую локацию, и устареет МОЛЧА.
+            std::vector<std::string> got;
+            for (const auto& de : std::filesystem::directory_iterator(argv[i])) {
+                if (de.path().extension() == ".scene") {
+                    got.push_back(de.path().string());
+                }
+            }
+            std::sort(got.begin(), got.end());
+            scenes.insert(scenes.end(), got.begin(), got.end());
         } else {
             scenes.emplace_back(argv[i]);
         }
     }
     if (scenes.empty() && city.empty()) {
         std::fprintf(stderr,
-                     "usage: dfn_interior_check <локация.scene ...> "
-                     "[--city <город.scene>] [--expect N] [--map]\n");
+                     "usage: dfn_interior_check <локация.scene | каталог ...> "
+                     "[--city <город.scene>] [--known список.txt] "
+                     "[--expect N|КЛАСС:N] [--map]\n");
         return 2;
+    }
+    dfn::tools::KnownFindings known;
+    {
+        std::string err;
+        if (!known.load(known_path, err)) {
+            std::fprintf(stderr, "%s\n", err.c_str());
+            return 2;
+        }
     }
     for (const std::string& s : scenes) {
         check_scene_file(s);
@@ -810,25 +873,36 @@ int main(int argc, char** argv) {
     if (!city.empty()) {
         check_city(city);
     }
-    for (const std::string& f : findings) {
-        std::fprintf(stdout, "%s\n", f.c_str());
+    // ИЗВЕСТНОЕ ОТДЕЛЯЕТСЯ ОТ БОЕВОГО ЗДЕСЬ (tools/known_findings.h): пока
+    // геометрию чинит соседняя волна, прибору нужен ТРЕТИЙ ответ между
+    // «чисто» и «красный», иначе его либо выключат, либо перестанут читать.
+    long live = 0;
+    long known_hits = 0;
+    std::map<std::string, long> by_class;
+    for (const Finding& f : findings) {
+        std::string why;
+        if (known.take(f.body, f.cls, &why)) {
+            ++known_hits;
+            std::fprintf(stdout, "%s  [ИЗВЕСТНОЕ, %s]\n", f.text.c_str(),
+                         why.c_str());
+            continue;
+        }
+        std::fprintf(stdout, "%s\n", f.text.c_str());
+        ++live;
+        by_class[f.cls] += 1;
     }
-    std::fprintf(stdout, "находок: %zu\n", findings.size());
-    if (expect >= 0) {
+    const int stale = known.report_stale(stdout);
+    std::fprintf(stdout,
+                 "локаций %zu, боевых находок %ld, известных %ld, протухших "
+                 "строк списка %d\n",
+                 scenes.size(), live, known_hits, stale);
+    if (expect.any()) {
         // ПЛЕЧО ИСПОРЧЕННОГО ИНТЕРЬЕРА (свод, дельта-5). На верной локации у
         // этих рук ТОЛЬКО отрицательное плечо — находок ноль по построению, —
         // и молчание неотличимо от неработающего прибора. Оснастка требует
         // РОВНО столько находок, сколько в неё заложено дефектов: и меньше, и
         // БОЛЬШЕ — отказ прибора.
-        if (static_cast<long>(findings.size()) != expect) {
-            std::fprintf(stderr,
-                         "ОЖИДАЛОСЬ РОВНО %ld находок, получено %zu — прибор "
-                         "меряет не то\n",
-                         expect, findings.size());
-            return 1;
-        }
-        std::fprintf(stdout, "оснастка сошлась: %ld из %ld\n", expect, expect);
-        return 0;
+        return expect.verdict(live, by_class, stderr);
     }
-    return findings.empty() ? 0 : 1;
+    return live == 0 ? 0 : 1;
 }

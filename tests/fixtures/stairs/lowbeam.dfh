@@ -1,0 +1,41 @@
+# dfh 1
+# КОНТРОЛЬНАЯ РУКА: ГОЛОВОЙ В НАКАТ (прогон капсулы, dfn_stairs_check рука 8).
+#
+# Крит владельца 27.08 дословно: «по маршу нельзя подняться — упираешься
+# головой в потолок». До вечера 27.08 это утверждение не предъявлял НИ ОДИН прогон:
+# судья спрашивал у чертежа свойства (уклон, просвет над носком) и складывал
+# ответы, а идти по маршу не пробовал ни разу.
+#
+# Здесь настил заведён НАД НИЖНИМИ СТУПЕНЯМИ — ровно тот дефект, который
+# аудит нашёл глазами у city-house-l и cornhall-house-jetty: марш входит под
+# балку перекрытия. Прогон встаёт на первых же метрах и печатает, СКОЛЬКО он
+# успел подняться и во что упёрся.
+#
+# ПОЧЕМУ ФИКСТУРА, А НЕ ЖИВОЙ ДОМ: живые рецепты чинит параллельная волна, и
+# контрольная рука, которую чинят, перестаёт быть контрольной (правило 30).
+#
+# Пара: ladder-tread-ok.dfh — тот же дом с тем же маршем, отличается ОДНИМ
+# числом (кромка настила 4.00 -> 2.50, то есть проём открыт над всем маршем).
+vertex v1 free 0.0000 0.0600 0.0000
+vertex v2 free 0.0000 0.0600 4.0000
+vertex v3 free 6.0000 0.0600 4.0000
+vertex v4 free 6.0000 0.0600 0.0000
+vertex v5 free 0.0000 0.0000 0.0000
+vertex v6 free 0.0000 0.0000 4.0000
+vertex v7 free 6.0000 0.0000 4.0000
+vertex v8 free 6.0000 0.0000 0.0000
+vertex v9 free 5.0000 0.1200 1.2000
+vertex v10 free 5.0000 0.1200 2.8000
+vertex v11 free 2.5000 1.8700 2.8000
+vertex v12 free 2.5000 1.8700 1.2000
+vertex v13 free 0.0000 1.8100 0.0000
+vertex v14 free 0.0000 1.8100 4.0000
+vertex v15 free 4.0000 1.8100 4.0000
+vertex v16 free 4.0000 1.8100 0.0000
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.12 fill=5 mat=1 tone=1
+surface e2 v5 v6 style=- height=3.0 thickness=0.25 mat=5 tone=0 clad=1
+surface e3 v6 v7 style=- height=3.0 thickness=0.25 mat=5 tone=0 clad=1
+surface e4 v7 v8 style=- height=3.0 thickness=0.25 mat=5 tone=0 clad=1
+surface e5 v8 v5 style=- height=3.0 thickness=0.25 mat=5 tone=0 clad=1
+surface e6 v9 v10 v11 v12 style=- closed=1 thickness=0.12 fill=6 open=1 nosing=1 mat=1 tone=1
+surface e7 v13 v14 v15 v16 style=- closed=1 thickness=0.12 mat=1 tone=1

@@ -1,6 +1,6 @@
 /*
 Created: 27:08:2026 - 01:20:00
-Last updated: 27:08:2026 - 11:20:22
+Last updated: 27:08:2026 - 23:05:00
 Module: tools
 File: tools/check_stairs.cpp
 
@@ -16,13 +16,24 @@ Responsibility:
     рука 4 — МАРШ ВНУТРИ ОБОЛОЧКИ: пробы марша против выпуклых тел чужих
              элементов — марш, вышедший сквозь стену наружу, называется числом;
     рука 5 — СТЫК ПАНДУСА: ходимая поверхность невидимого пандуса против пола
-             внизу и настила наверху (ступенька на входе и на выходе).
+             внизу и настила наверху (ступенька на входе и на выходе);
+    рука 6 — МИНИМАЛЬНАЯ ПРОСТУПЬ: ступень, на которую не ставится нога
+             (HOUSES.md §9.6, порог 2R/3 из радиуса капсулы);
+    рука 7 — НИЖНЯЯ ГРАНИЦА УКЛОНА: марш положе половины проходимой крутизны —
+             это пандус со ступеньками, он съедает вдвое больше пола, чем
+             стоило бы (HOUSES.md §9.6, крит владельца «слишком пологие»);
+    рука 8 — ПО МАРШУ МОЖНО ПОДНЯТЬСЯ: капсула ПРОГОНОМ идёт по невидимому
+             пандусу от пола внизу до площадки наверху, с замером фактического
+             подъёма и просвета в каждой точке пути.
 
 Usage:
     dfn_stairs_check <файл.dfh | каталог> [...] [--all] [--tol-head 1.9]
+                     [--known <список.txt>] [--expect N|КЛАСС:N ...]
 
   Запускать из корня репозитория. Ненулевой выход при находках.
   Без --all печатаются только тела С НАХОДКАМИ; с --all — все марши.
+  --known списывает перечисленные там находки в «известные» (см.
+  tools/known_findings.h); --expect — оснастка контрольной руки.
 
 Dependencies:
 - Uses: engine/world (HouseGraph, HouseFile, HouseMesh), engine/core (Constants).
@@ -46,11 +57,23 @@ UPD:
 - 27:08:2026 - 11:20:22: координатор: полоса прохода мерит высоту тела В ТОЧКЕ (барицентрика), а не ящиком треугольника — длинный наклонный подкос давал ложный блок; полотно двери исключено и из ПРОСВЕТА (створка открывается, потолком не является); в «УЗКО» печатается пол y0.
   входа», «слишком полого и длинно», «голова в потолок») ни одного прибора не
   имели — приёмка прошлых заходов печатала просвет по ПЛИТАМ, а бьёт не плита.
+- 27:08:2026 - 23:05:00: ТРИ НОВЫЕ РУКИ И МЕСТО В ctest (аудит «Большой мир», раздел
+  «лестницы: прибор против глаза», задачи 1/3/5). Аудит назвал пять слепых
+  пятен; три из них закрыты здесь: у уклона не было НИЖНЕЙ границы (половина
+  крита владельца «слишком длинные и пологие» не могла быть поймана по
+  построению), не было МИНИМАЛЬНОЙ ПРОСТУПИ (0.161 м постоялого двора —
+  стремянка, засчитанная как лестница), и ни один прогон не предъявлял
+  утверждения «по маршу можно ПОДНЯТЬСЯ» — рука 8 гонит капсулу по тому же
+  невидимому пандусу, по которому ходит игрок, и печатает фактический подъём.
+  Плюс каждая находка получила КЛАСС, а судья — список известных и оснастку
+  ожиданий: без класса ни ctest по всей полке, ни контрольная рука на
+  настоящем отвергнутом случае не собираются.
 */
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseMesh.h"
+#include "tools/known_findings.h"
 
 #include <algorithm>
 #include <cmath>
@@ -89,14 +112,73 @@ constexpr float PASS_W = 0.80f;
 /// НАСКОЛЬКО ВГЛУБЬ ДОМА МЕРИТСЯ ЭТОТ ПРОХОД, м.
 constexpr float PASS_LEN = 3.0f;
 
+/// МИНИМАЛЬНАЯ ПРОСТУПЬ, м = 2R/3 (рука 6). Выведена из ОПОРЫ ГЕРОЯ, а не из
+/// вкуса: капсула стоит на диске диаметром 2R = 0.70. Ступень, по которой
+/// ИДУТ, обязана нести этот диск не более чем на ТРЁХ проступях подряд — при
+/// 2R/G > 3 нога не ставится на ступень, а перекрывает пачку реек. Это и есть
+/// стремянка, и именно так выглядит настоящий отвергнутый случай: постоялый
+/// двор Житнова, e116, проступь 0.161 при капсуле 0.35 (аудит «Большой мир»).
+///
+/// ЗАМЕРЕННОЕ РАЗДЕЛЕНИЕ (правило 30: порог стоит ВЫШЕ настоящего отвергнутого
+/// и НИЖЕ настоящего принятого). По всем 194 телам полки 27.08 вечера: отвергнутые —
+/// 0.161 (cornhall-inn e116) и 0.189 (frame-replica/stone-replica, демо-стенд);
+/// ближайший принятый — 0.250 (city-steps6-h14r2). Порог 0.233 лежит в этом
+/// разрыве: запас 0.044 над отвергнутым, 0.017 под принятым.
+constexpr float TREAD_MIN = 2.0f * CAP_R / 3.0f;
+
+/// НИЖНЯЯ ГРАНИЦА УКЛОНА (рука 7) — ПОЛОВИНА ПРОХОДИМОЙ КРУТИЗНЫ, и меряется
+/// она ТАНГЕНСОМ, а не градусами. Крутизна в движке — это уклон поверхности
+/// (rise/run), контроллер судит именно его (PlayerMovementWorld:
+/// max_slope_radians), и половина ГРАДУСА (24.9°) не отделяет ничего.
+///
+/// ПОЧЕМУ ИМЕННО ПОЛОВИНА. Вдвое меньший уклон — это ВДВОЕ БОЛЬШЕ ПОЛА на тот
+/// же подъём: на пределе проходимого метр подъёма стоит 0.84 м пола, при
+/// половине — 1.69 м. Крит владельца 27.08 звучит дословно «слишком ДЛИННЫЕ и
+/// пологие»; «вдвое длиннее, чем позволяет единственная крутизна, которую
+/// герой вообще знает» — это то же самое, сказанное числом.
+///
+/// ЗАМЕРЕННОЕ РАЗДЕЛЕНИЕ по 77 маршам полки 27.08 вечера (только ВНУТРИДОМОВЫЕ, см.
+/// has_walls ниже): отвергнутые владельцем — 26.6° (city-keep-s e5, city-mill
+/// e12, city-house-l e32, уклон ровно 1:2) и названные аудитом 28.6°
+/// (cornhall-granary e42), 29.1° (cornhall-house-s-old e78); принятые —
+/// 33.9° (cornhall-windmill e35), 42.1°, 45.0° (перепечка волны 27.08).
+/// Порог 30.6° лежит в разрыве: запас 1.5° над худшим отвергнутым, 3.3° под
+/// ближайшим принятым.
+const float GRADE_MAX = std::tan(MAX_SLOPE);
+const float GRADE_MIN = GRADE_MAX * 0.5f;
+
+/// ПРОСВЕТ ДЛЯ ПРОГОНА (рука 8) — РОСТ КАПСУЛЫ БЕЗ ЗАПАСА. Рука 3 судит
+/// ЧЕРТЁЖ и держит 1.90 (рост плюс десятина запаса — порог, стоящий на
+/// разрешении, запаса не имеет). Рука 8 отвечает на ДРУГОЙ вопрос — «прошёл
+/// или не прошёл», — и на него отвечает ровно рост: 1.79 м просвета это
+/// шишка, 1.81 — проход. Запас тут был бы не строгостью, а выдумкой.
+constexpr float WALK_HEAD = CAP_H;
+
+/// ШАГ ПРОГОНА ВДОЛЬ МАРША, м. Мельче капсулы и мельче самого узкого тела,
+/// которым бьют по голове (балка наката 0.20-0.25): проба радиусом CAP_R,
+/// поставленная через 0.10, не может проскочить между двумя балками.
+constexpr float WALK_DS = 0.10f;
+
 struct Tri {
     glm::vec3 a, b, c;
     ElementId owner = dfn::world::NO_ELEMENT;
     bool collider_only = false;
 };
 
+/// НАХОДКА НЕСЁТ КЛАСС, А НЕ ТОЛЬКО ТЕКСТ. Класс — единственное, что не
+/// плывёт, пока параллельная волна двигает геометрию: по нему ведётся список
+/// известных находок и по нему контрольная рука доказывает, что покраснела
+/// ИМЕННО испытуемая рука, а не соседняя (tools/known_findings.h).
+struct Bad {
+    std::string cls;
+    std::string text;
+};
+
 int g_findings = 0;
 bool g_all = false;
+dfn::tools::KnownFindings g_known;
+std::map<std::string, long> g_by_class;
+int g_known_hits = 0;
 
 // ---------------------------------------------------------------------------
 // Мелкая геометрия
@@ -148,9 +230,9 @@ bool g_all = false;
 /// над НИЖНИМИ ступенями, — то есть ровно искомый дефект.
 [[nodiscard]] bool tri_low_above(const Tri& t, glm::vec2 xz, float r, float foot_y,
                                  glm::vec3 foot, glm::vec3 dir, float run, float head_y,
-                                 float& out_y) {
+                                 float under, float half_w, float s_min, float& out_y) {
     const float top = std::max({t.a.y, t.b.y, t.c.y});
-    if (top <= foot_y + 0.05f) {
+    if (top <= foot_y + under) {
         return false; // это пол под ногами, а не потолок над головой
     }
     // Дешёвый отсев по плану.
@@ -165,7 +247,7 @@ bool g_all = false;
             const float u = static_cast<float>(i) / static_cast<float>(N);
             const float v = static_cast<float>(j) / static_cast<float>(N);
             const glm::vec3 p = t.a * (1.0f - u - v) + t.b * u + t.c * v;
-            if (p.y <= foot_y + 0.05f) {
+            if (p.y <= foot_y + under) {
                 continue;
             }
             const float dx = p.x - xz.x;
@@ -174,6 +256,28 @@ bool g_all = false;
                 continue;
             }
             const float s = glm::dot(p - foot, dir);
+            // …И НАД МАРШЕМ ПО ДЛИНЕ ТОЖЕ, А НЕ ПОЗАДИ ЕГО ПОДНОЖИЯ. Тот же
+            // довод, что у полосы вбок, и та же покупка: у city-house-l марш
+            // начинается в 0.22 м от изнанки стены, круг капсулы на первой
+            // пробе заходит в кладку назад, а в кладке на высоте 1.70 над
+            // ступенью лежит перемычка окна. Нависшее ПОЗАДИ подножия — это
+            // потолок комнаты, о него бьются, не поднимаясь по лестнице.
+            if (s < s_min) {
+                continue;
+            }
+            // ПОТОЛОК МЕРИТСЯ НАД МАРШЕМ, А НЕ НАД ВСЕМ КРУГОМ КАПСУЛЫ.
+            // Куплено ложными находками на СТЕНЕ, к которой прижат марш:
+            // круг радиуса 0.35 вокруг оси заходит в кладку на десяток
+            // сантиметров, а внутри кладки всегда что-нибудь обращено вниз —
+            // перемычка окна, изнанка обвязки. Игрок туда не встаёт: раньше
+            // головы его останавливает плечо. То, что висит ВНЕ ширины марша,
+            // обходят боком; что марш не влез в стену — отдельно судит рука 4.
+            // Полуширина, большая длины марша, отключает отсев (рука 3).
+            if (std::fabs(glm::dot(p - foot, glm::cross(dir,
+                                                        glm::vec3{0.0f, 1.0f, 0.0f})))
+                > half_w) {
+                continue;
+            }
             // ПЛОЩАДКА ВЫХОДА И ЕЁ КОНСТРУКЦИЯ — НЕ ПОТОЛОК, и полоса отсева
             // равна РАДИУСУ КАПСУЛЫ, потому что этого требует её форма, а не
             // снисходительность. Капсула — цилиндр: у самой кромки проёма она
@@ -200,6 +304,60 @@ bool g_all = false;
     }
     out_y = best;
     return any;
+}
+
+/// ВЫСОТА ИЗНАНКИ НАД ТОЧКОЙ — ТОЧНО, А НЕ ПО СЕТКЕ. Отдельная функция, а не
+/// tri_low_above, и причина замеренная: та сеет по треугольнику 45 проб
+/// БАРИЦЕНТРИЧЕСКИ, то есть шаг сетки равен размеру треугольника, делённому
+/// на восемь. Для ступени 0.25 м это 3 см, для НАСТИЛА КОМНАТЫ 4x4 м — полметра,
+/// и круг капсулы радиусом 0.35 проваливается между пробами целиком. Контрольная
+/// фикстура lowbeam.dfh (настил заведён над нижними ступенями) проходила прогон
+/// «поднялся 1.75 из 1.75» при просвете 0.93 — прибор не видел плиту у себя над
+/// головой, потому что не попал в неё ни одной точкой.
+///
+/// Здесь берётся ТА ЖЕ плоскость треугольника, но в двух честных точках: под
+/// самой осью, если ось внутри треугольника, и в ближайшей к оси точке его
+/// границы. Для горизонтальной плиты это точный ответ, для наклонной — с
+/// точностью до наклона внутри круга.
+[[nodiscard]] bool tri_height_near(const Tri& t, glm::vec2 q, float r, glm::vec3& out) {
+    const glm::vec2 a{t.a.x, t.a.z};
+    const glm::vec2 b{t.b.x, t.b.z};
+    const glm::vec2 c{t.c.x, t.c.z};
+    const float area2 = (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
+    if (std::fabs(area2) < 1e-7f) {
+        return false; // вырожденный в плане: это лицо стены, не изнанка
+    }
+    if (dist2_xz(q, a, b, c) > r * r) {
+        return false;
+    }
+    // Ближайшая к оси точка треугольника В ПЛАНЕ: сама ось, если она внутри,
+    // иначе ближайшая точка границы.
+    glm::vec2 best = q;
+    if (dist2_xz(q, a, b, c) > 1e-9f) {
+        float bd = 1e9f;
+        const glm::vec2 pts[3] = {a, b, c};
+        for (int i = 0; i < 3; ++i) {
+            const glm::vec2 u = pts[i];
+            const glm::vec2 v = pts[(i + 1) % 3];
+            const glm::vec2 d = v - u;
+            const float dd = glm::dot(d, d);
+            float tt = dd > 1e-12f ? glm::dot(q - u, d) / dd : 0.0f;
+            tt = std::clamp(tt, 0.0f, 1.0f);
+            const glm::vec2 w = u + d * tt;
+            const float dist = glm::dot(q - w, q - w);
+            if (dist < bd) {
+                bd = dist;
+                best = w;
+            }
+        }
+    }
+    const float w0 = ((b.x - best.x) * (c.y - best.y)
+                    - (c.x - best.x) * (b.y - best.y)) / area2;
+    const float w1 = ((c.x - best.x) * (a.y - best.y)
+                    - (a.x - best.x) * (c.y - best.y)) / area2;
+    out = glm::vec3{best.x, t.a.y * w0 + t.b.y * w1 + t.c.y * (1.0f - w0 - w1),
+                    best.y};
+    return true;
 }
 
 /// Точка ВНУТРИ выпуклой призмы коллайдера (шесть точек: низ 0-2, верх 3-5).
@@ -372,7 +530,7 @@ void check_file(const std::string& path) {
     }
 
     std::vector<std::string> lines;
-    std::vector<std::string> bad;
+    std::vector<Bad> bad;
     const std::string name = std::filesystem::path(path).filename().string();
 
     // ---- РУКА 1: ПРОХОД ОТ ДВЕРИ ------------------------------------------
@@ -551,7 +709,7 @@ void check_file(const std::string& path) {
                           c.x, c.z, worst_w, worst_d,
                           static_cast<unsigned>(worst_by),
                           by_stair ? " — ЭТО ТЕЛО МАРША" : "", y0);
-            bad.emplace_back(buf);
+            bad.push_back({"ПРОХОД", buf});
         } else {
             std::snprintf(buf, sizeof(buf),
                           "  проход от двери (%.2f, %.2f): свободен, узкое место %.2f м",
@@ -586,14 +744,49 @@ void check_file(const std::string& path) {
                           "  e%u: УКЛОН %.1f гр. КРУЧЕ ПРОХОДИМОГО %.1f гр.",
                           static_cast<unsigned>(fl.id), deg,
                           MAX_SLOPE * 180.0f / 3.14159265f);
-            bad.emplace_back(buf);
+            bad.push_back({"УКЛОН", buf});
         }
         if (rise > STEP_H) {
             char buf[256];
             std::snprintf(buf, sizeof(buf),
                           "  e%u: ПОДСТУПЁНОК %.3f ВЫШЕ ШАГА %.2f",
                           static_cast<unsigned>(fl.id), rise, STEP_H);
-            bad.emplace_back(buf);
+            bad.push_back({"ПОДСТУПЁНОК", buf});
+        }
+
+        // -- РУКА 6: МИНИМАЛЬНАЯ ПРОСТУПЬ ------------------------------------
+        // Порог выведен из радиуса капсулы (TREAD_MIN выше). Мерится ТА ЖЕ
+        // проступь, что печатается в строке марша: ход, делённый на число
+        // ступеней, СЧИТАННОЕ ПО МЕШУ, — судья и здесь не зовёт калькулятор.
+        if (steps > 0 && tread + 1e-3f < TREAD_MIN) {
+            char buf[256];
+            std::snprintf(buf, sizeof(buf),
+                          "  e%u: ПРОСТУПЬ %.3f МЕЛЬЧЕ %.3f — на такую ступень "
+                          "не ставится опора героя (диск 2R = %.2f): это "
+                          "стремянка, а не лестница",
+                          static_cast<unsigned>(fl.id), tread, TREAD_MIN,
+                          2.0f * CAP_R);
+            bad.push_back({"ПРОСТУПЬ", buf});
+        }
+
+        // -- РУКА 7: НИЖНЯЯ ГРАНИЦА УКЛОНА -----------------------------------
+        // ТОЛЬКО ВНУТРИ ДОМА, и это не поблажка, а та же граница, которой рука
+        // 5 отличает постройку от детали: уличное крыльцо (city-stoop*,
+        // city-steps*) кладёт генератор города своей таблицей посадки, у него
+        // пологость — свойство мостовой, а не комнаты. Требовать от детали
+        // домовой крутизны значит судить деталь по правилам дома; признак тот
+        // же — наличие хоть одной стены.
+        const float grade = fl.rise_total / fl.run;
+        if (has_walls && grade + 1e-4f < GRADE_MIN) {
+            char buf[320];
+            std::snprintf(buf, sizeof(buf),
+                          "  e%u: СЛИШКОМ ПОЛОГО — уклон %.3f (%.1f гр.) ниже "
+                          "половины проходимого %.3f (%.1f гр.): ход %.2f м на "
+                          "подъём %.2f м, вдвое больше пола, чем стоило бы",
+                          static_cast<unsigned>(fl.id), grade, deg, GRADE_MIN,
+                          std::atan(GRADE_MIN) * 180.0f / 3.14159265f, fl.run,
+                          fl.rise_total);
+            bad.push_back({"ПОЛОГО", buf});
         }
 
         // -- рука 3: просвет над носком каждой ступени -----------------------
@@ -616,8 +809,12 @@ void check_file(const std::string& path) {
                     continue;
                 }
                 float y = 0.0f;
+                // ПОД НОГАМИ — 0.05: рука 3 стоит НА НОСКЕ, и всё, что выше
+                // носка, для неё потолок. Прогон руки 8 идёт по пандусу, где
+                // нарисованные ступени торчат над ходимой поверхностью, и там
+                // граница другая (см. ниже).
                 if (tri_low_above(t, {nose.x, nose.z}, CAP_R, nose.y, fl.foot, fl.dir,
-                                  fl.run, fl.head.y, y)) {
+                                  fl.run, fl.head.y, 0.05f, 1e9f, -1e9f, y)) {
                     if (y < ceil_y) {
                         ceil_y = y;
                         who = t.owner;
@@ -643,7 +840,7 @@ void check_file(const std::string& path) {
                               static_cast<unsigned>(fl.id), min_head, min_step,
                               g_head_tol, static_cast<unsigned>(min_by), min_at.x,
                               min_at.y, min_at.z);
-                bad.emplace_back(buf);
+                bad.push_back({"ПРОСВЕТ", buf});
             } else {
                 std::snprintf(buf, sizeof(buf), "    просвет: %.3f м (ступень %d)",
                               min_head, min_step);
@@ -688,7 +885,7 @@ void check_file(const std::string& path) {
                           "  e%u: МАРШ В СТЕНЕ на %.3f м (%.2f, %.2f, %.2f)",
                           static_cast<unsigned>(fl.id), worst_in, worst_at.x, worst_at.y,
                           worst_at.z);
-            bad.emplace_back(buf);
+            bad.push_back({"МАРШ-В-СТЕНЕ", buf});
         }
 
         // -- рука 5: СТУПЕНЬКА НА ВХОДЕ И НА ВЫХОДЕ ---------------------------
@@ -764,7 +961,7 @@ void check_file(const std::string& path) {
                               "не на что ступить",
                               static_cast<unsigned>(fl.id), fl.head.x, fl.head.y,
                               fl.head.z);
-                bad.emplace_back(buf);
+                bad.push_back({"ОБРЫВ", buf});
             }
             if (ramp_lo > -1e8f && ramp_hi > -1e8f && floor_y > -1e8f && land_y > -1e8f) {
                 const float d_lo = ramp_lo - floor_y;
@@ -775,7 +972,7 @@ void check_file(const std::string& path) {
                                   "  e%u: СТУПЕНЬКА У МАРША — на входе %+.3f, "
                                   "на выходе %+.3f",
                                   static_cast<unsigned>(fl.id), d_lo, d_hi);
-                    bad.emplace_back(buf);
+                    bad.push_back({"СТУПЕНЬКА", buf});
                 } else {
                     std::snprintf(buf, sizeof(buf),
                                   "    стык: на входе %+.3f, на выходе %+.3f", d_lo,
@@ -784,9 +981,313 @@ void check_file(const std::string& path) {
                 }
             }
         }
+
+        // -- РУКА 8: ПО МАРШУ МОЖНО ПОДНЯТЬСЯ ---------------------------------
+        // ЭТО ЕДИНСТВЕННАЯ РУКА, КОТОРАЯ НЕ СУДИТ ЧЕРТЁЖ, А ИДЁТ. Все прочие
+        // спрашивают у геометрии свойство («уклон такой-то», «просвет
+        // такой-то») и складывают ответы в надежде, что из свойств следует
+        // проходимость. Утверждение «на второй этаж поднимаешься» до сегодня
+        // не предъявлял НИ ОДИН прогон (аудит «Большой мир», задача 5) — а именно его
+        // владелец и опроверг глазами.
+        //
+        // ИДЁТ ПО ТОМУ, ПО ЧЕМУ ХОДИТ ИГРОК. Ходимая поверхность марша — не
+        // ступени, а невидимый пандус вдоль них (HouseStairs.cpp): по открытым
+        // ступеням капсула не идёт в принципе. Поэтому опора здесь берётся
+        // ПРОХОДИМЫМИ гранями (наклон не круче PLAYER_MAX_SLOPE) — ровно тот
+        // отбор, что делает контроллер, — а не «самым высоким телом».
+        //
+        // ОПОРА МЕРИТСЯ ПОД ОСЬЮ, ПОТОЛОК — ПО ВСЕМУ КРУГУ КАПСУЛЫ, и это не
+        // небрежность, а форма тела: подошва касается пандуса в одной точке,
+        // а макушка — полусфера радиуса R, и балка, до которой 0.30 м вбок,
+        // бьёт по ней так же, как балка прямо по курсу.
+        if (has_walls) {
+            // Только то, что рядом с осью марша: прогон в 40 проб против всех
+            // тел дома стоил бы столько же, сколько все прочие руки вместе.
+            const float band = fl.half_w + CAP_R + 0.8f;
+            const glm::vec2 axis_a{fl.foot.x - fl.dir.x, fl.foot.z - fl.dir.z};
+            const glm::vec2 axis_b{fl.foot.x + fl.dir.x * (fl.run + 1.0f),
+                                   fl.foot.z + fl.dir.z * (fl.run + 1.0f)};
+            const glm::vec2 axis_lo = glm::min(axis_a, axis_b);
+            const glm::vec2 axis_hi = glm::max(axis_a, axis_b);
+            std::vector<Tri> near_tris;
+            for (const Tri& t : tris) {
+                if (door_bodies.count(t.owner) != 0) {
+                    continue; // створка открывается, потолком и полом не является
+                }
+                // ОТСЕВ ПО ЯЩИКУ ТРЕУГОЛЬНИКА, А НЕ ПО ЕГО ВЕРШИНАМ, и это не
+                // придирка: у НАСТИЛА КОМНАТЫ 4x4 все три вершины лежат по
+                // углам, в двух метрах от оси марша, — а сам он висит ровно
+                // над головой. Отсев по вершинам выбрасывал плиту, о которую
+                // бьются, и прогон объявлял марш пройденным (фикстура
+                // lowbeam.dfh).
+                const glm::vec2 tlo = glm::min(glm::vec2{t.a.x, t.a.z},
+                                               glm::min(glm::vec2{t.b.x, t.b.z},
+                                                        glm::vec2{t.c.x, t.c.z}));
+                const glm::vec2 thi = glm::max(glm::vec2{t.a.x, t.a.z},
+                                               glm::max(glm::vec2{t.b.x, t.b.z},
+                                                        glm::vec2{t.c.x, t.c.z}));
+                if (thi.x + band >= axis_lo.x && tlo.x - band <= axis_hi.x
+                    && thi.y + band >= axis_lo.y && tlo.y - band <= axis_hi.y) {
+                    near_tris.push_back(t);
+                }
+            }
+            const float walk_cos = std::cos(MAX_SLOPE);
+            // Высота проходимой грани в точке плана; false — грань не под ногой
+            // или стоять на ней нельзя.
+            const auto surf_y = [&](const Tri& t, glm::vec2 q, float& y) {
+                const glm::vec3 n = glm::cross(t.b - t.a, t.c - t.a);
+                const float len = glm::length(n);
+                if (len < 1e-8f || std::fabs(n.y) / len < walk_cos) {
+                    return false; // круче проходимого — это стена, а не опора
+                }
+                const glm::vec2 ta{t.a.x, t.a.z};
+                const glm::vec2 tb{t.b.x, t.b.z};
+                const glm::vec2 tc{t.c.x, t.c.z};
+                const float area2 = (tb.x - ta.x) * (tc.y - ta.y)
+                                  - (tc.x - ta.x) * (tb.y - ta.y);
+                if (std::fabs(area2) < 1e-7f) {
+                    return false;
+                }
+                if (dist2_xz(q, ta, tb, tc) > 1e-6f) {
+                    return false;
+                }
+                const float w0 = ((tb.x - q.x) * (tc.y - q.y)
+                                - (tc.x - q.x) * (tb.y - q.y)) / area2;
+                const float w1 = ((tc.x - q.x) * (ta.y - q.y)
+                                - (ta.x - q.x) * (tc.y - q.y)) / area2;
+                y = t.a.y * w0 + t.b.y * w1 + t.c.y * (1.0f - w0 - w1);
+                return true;
+            };
+
+            // ПУСК — С ПЕРВОЙ СТУПЕНИ, А НЕ С ПОЛА ПЕРЕД НЕЙ, и это решение,
+            // купленное ложной находкой. Первая редакция отступала на радиус
+            // капсулы назад, «где стоит игрок», — и у city-house-l эта точка
+            // легла ВНУТРЬ СТЕНЫ (марш начинается в 0.22 м от её изнанки).
+            // Прибор объявлял непроходимым марш, не сделав ни шагу, и мерил
+            // при этом посадку марша, а не марш. ЧЕМ ЗАНЯТА ДОРОГА К
+            // ПОДНОЖИЮ — вопрос руки 1 («проход от двери»), и второй ответ на
+            // него здесь был бы вторым ответом на один вопрос.
+            float s0 = 0.0f;
+            float y = -1e9f;
+            for (; s0 <= 0.3f + 1e-3f; s0 += WALK_DS) {
+                const glm::vec2 q{fl.foot.x + fl.dir.x * s0, fl.foot.z + fl.dir.z * s0};
+                for (const Tri& t : near_tris) {
+                    float ty = 0.0f;
+                    if (surf_y(t, q, ty) && ty <= fl.foot.y + STEP_H
+                        && ty >= fl.foot.y - STEP_H && ty > y) {
+                        y = ty;
+                    }
+                }
+                if (y > -1e8f) {
+                    break;
+                }
+            }
+            if (y < -1e8f) {
+                char nofloor[300];
+                std::snprintf(nofloor, sizeof(nofloor),
+                              "  e%u: У МАРША НЕТ ХОДИМОЙ ПОВЕРХНОСТИ — на "
+                              "подножии (%.2f, %.2f, %.2f) не на что встать: "
+                              "ни пандуса, ни проступи в пределах шага",
+                              static_cast<unsigned>(fl.id), fl.foot.x, fl.foot.y,
+                              fl.foot.z);
+                bad.push_back({"ПОДЪЁМ", nofloor});
+                continue;
+            }
+            // ПОДЪЁМ СЧИТАЕТСЯ ОТ ПОДНОЖИЯ МАРША, А ВЕРХ — САМАЯ ВЫСОКАЯ ТОЧКА
+            // ПУТИ, и оба слова куплены ложными находками.
+            //
+            // «ОТ ПОДНОЖИЯ, А НЕ ОТ ПЕРВОЙ ПРОБЫ»: у марша БЕЗ невидимого
+            // пандуса первая проба стоит уже на ПЕРВОЙ СТУПЕНИ, то есть на
+            // подступёнок выше пола. Разность «последняя проба минус первая»
+            // недосчитывала ровно один подступёнок — и прибор объявлял
+            // недобором каждый исправный марш полки (замер: 2.67 вместо 2.94
+            // у усадьбы, ровно 0.267 = один подступёнок).
+            //
+            // «САМАЯ ВЫСОКАЯ, А НЕ ПОСЛЕДНЯЯ»: прогон не встаёт на кромке
+            // настила, он делает ещё полшага на площадку; если площадка лежит
+            // на полступени ниже верха пандуса, последняя точка отняла бы у
+            // подъёма ту самую ступеньку, которую точнее меряет рука 5.
+            float y_top = y;
+            const float s_end = fl.run + CAP_R + 0.10f;
+            float min_clear = 1e9f;
+            float clear_at = 0.0f;
+            ElementId clear_by = dfn::world::NO_ELEMENT;
+            glm::vec3 clear_pt{0.0f};
+            bool stopped = false;
+            bool stopped_by_head = false;
+            float stop_s = 0.0f;
+            float stop_gap = 0.0f;
+            const char* stop_why = "";
+            for (float s = s0; s <= s_end + 1e-3f && !stopped; s += WALK_DS) {
+                const glm::vec2 q{fl.foot.x + fl.dir.x * s, fl.foot.z + fl.dir.z * s};
+                float best = -1e9f;
+                for (const Tri& t : near_tris) {
+                    float ty = 0.0f;
+                    if (!surf_y(t, q, ty)) {
+                        continue;
+                    }
+                    if (ty > y + STEP_H + 1e-3f || ty < y - 1.0f) {
+                        continue; // выше шага не перешагнуть; ниже метра — обрыв
+                    }
+                    best = std::max(best, ty);
+                }
+                if (best < -1e8f) {
+                    stopped = true;
+                    stop_s = s;
+                    stop_gap = 0.0f;
+                    stop_why = "под ногой нет проходимой опоры в пределах шага";
+                    break;
+                }
+                y = best;
+                y_top = std::max(y_top, y);
+                // ТРАССА ПРОГОНА ПО ТРЕБОВАНИЮ (DFN_STAIRS_TRACE=1). Прибор,
+                // объявивший марш непроходимым, обязан уметь ПОКАЗАТЬ путь: без
+                // этого спор «прибор врёт / марш плох» не разрешается никак —
+                // тот же довод, что у карты проходимости судьи локаций. Три
+                // ложные находки этой руки (пуск в стене, недобор в один
+                // подступёнок, завалинка вместо потолка) найдены именно
+                // трассой, а не чтением кода.
+                if (std::getenv("DFN_STAIRS_TRACE") != nullptr) {
+                    std::fprintf(stderr, "    трасса e%u s=%.2f y=%.3f\n",
+                                 static_cast<unsigned>(fl.id), s, y);
+                }
+                // Просвет над макушкой. Граница «под ногами» — ШАГ, а не 0.05:
+                // на пандусе нарисованные ступени торчат над ходимой линией, и
+                // всё, что не выше шага, игрок берёт ногами, а не головой.
+                float ceil_y = 1e9f;
+                ElementId who = dfn::world::NO_ELEMENT;
+                glm::vec3 hit_pt{0.0f};
+                for (const Tri& t : near_tris) {
+                    if (t.owner == fl.id) {
+                        // ТО, ПО ЧЕМУ ИДЁШЬ, НЕ ЯВЛЯЕТСЯ ТЕМ, ВО ЧТО УПИРАЕШЬСЯ.
+                        // Без этой строки марш бил головой сам себя: круг
+                        // капсулы радиусом 0.35 накрывает две-три СВОИ ЖЕ
+                        // ступени впереди, их верх выше шага, и прибор объявлял
+                        // непроходимым каждый марш полки, включая перепечённые.
+                        continue;
+                    }
+                    // ПОТОЛОК — ЭТО ИЗНАНКА, а не всё, что оказалось в круге.
+                    // Куплено ложной находкой на КАМЕННОЙ ЗАВАЛИНКЕ (плинте
+                    // стены): её верх лежит на 0.36 м над полом у подножия
+                    // марша, попадает в круг радиуса 0.35 и объявлял «макушка
+                    // упирается» на первой же пробе — в доме, по которому
+                    // ходят. Завалинку обходят боком; головой бьются о то,
+                    // что ОБРАЩЕНО ВНИЗ: накат, ригель обвязки, подкос,
+                    // настил над нижними ступенями. Боковое препятствие —
+                    // предмет рук 1 и 4, а не этой.
+                    {
+                        const glm::vec3 n = glm::cross(t.b - t.a, t.c - t.a);
+                        const float len = glm::length(n);
+                        if (len < 1e-8f || n.y / len > -0.2f) {
+                            continue;
+                        }
+                    }
+                    glm::vec3 hit{0.0f};
+                    if (!tri_height_near(t, q, CAP_R, hit)) {
+                        continue;
+                    }
+                    if (hit.y <= y + STEP_H) {
+                        continue; // не выше шага — это берут ногами, не головой
+                    }
+                    const float hs = glm::dot(hit - fl.foot, fl.dir);
+                    // НАД МАРШЕМ: не позади подножия и не вне его ширины (оба
+                    // отсева куплены ложными находками, см. ниже по тексту).
+                    if (hs < -0.05f) {
+                        continue;
+                    }
+                    if (std::fabs(glm::dot(hit - fl.foot,
+                                           glm::cross(fl.dir,
+                                                      glm::vec3{0.0f, 1.0f, 0.0f})))
+                        > std::max(fl.half_w, CAP_R)) {
+                        continue;
+                    }
+                    // ПЛОЩАДКА ВЫХОДА ПОТОЛКОМ НЕ ЯВЛЯЕТСЯ — то же правило и по
+                    // той же причине, что у руки 3.
+                    if (hs > fl.run - CAP_R && hit.y <= fl.head.y + STEP_H) {
+                        continue;
+                    }
+                    if (hit.y < ceil_y) {
+                        ceil_y = hit.y;
+                        who = t.owner;
+                        hit_pt = hit;
+                    }
+                }
+                if (ceil_y < 1e8f) {
+                    const float clear = ceil_y - y;
+                    if (clear < min_clear) {
+                        min_clear = clear;
+                        clear_at = s;
+                        clear_by = who;
+                        clear_pt = hit_pt;
+                    }
+                    if (clear + 1e-3f < WALK_HEAD) {
+                        stopped = true;
+                        stopped_by_head = true;
+                        stop_s = s;
+                        stop_gap = clear;
+                        stop_why = "макушка упирается";
+                        break;
+                    }
+                }
+            }
+            const float climbed = y_top - fl.foot.y;
+            char buf[400];
+            // ПОТЕРЯ ОПОРЫ ПОСЛЕ ВЕРХА МАРША — НЕ ДЕЛО ЭТОЙ РУКИ. Прогон
+            // доходит на полшага дальше кромки настила, и там он может сойти с
+            // площадки в проём — это уже устройство ПЛОЩАДКИ (рука 5) и
+            // локации, а не «по маршу не подняться»: марш пройден, замер это
+            // показывает числом. А вот УДАР ГОЛОВОЙ — находка всегда: крит
+            // владельца дословно про него, и на последней ступени он тот же
+            // самый, что на первой.
+            if (stopped && !stopped_by_head && y_top + 0.10f >= fl.head.y) {
+                stopped = false;
+            }
+            if (stopped) {
+                std::snprintf(buf, sizeof(buf),
+                              "  e%u: ПО МАРШУ НЕ ПОДНЯТЬСЯ — прогон встал на "
+                              "%.2f м из %.2f (%s, мешает e%u в (%.2f, %.2f, "
+                              "%.2f), просвет %.2f при росте %.2f), поднялся "
+                              "%.2f из %.2f м",
+                              static_cast<unsigned>(fl.id), stop_s - s0,
+                              s_end - s0, stop_why,
+                              static_cast<unsigned>(clear_by), clear_pt.x,
+                              clear_pt.y, clear_pt.z, stop_gap, WALK_HEAD,
+                              climbed, fl.rise_total);
+                bad.push_back({"ПОДЪЁМ", buf});
+            } else if (y_top + 0.10f < fl.head.y) {
+                std::snprintf(buf, sizeof(buf),
+                              "  e%u: ПРОГОН ДОШЁЛ, НО НЕ ПОДНЯЛСЯ — %.2f м "
+                              "вместо %.2f: ходимая поверхность идёт не по маршу",
+                              static_cast<unsigned>(fl.id), climbed, fl.rise_total);
+                bad.push_back({"ПОДЪЁМ", buf});
+            } else {
+                std::snprintf(buf, sizeof(buf),
+                              "    прогон: поднялся %.2f м из %.2f, узкий просвет "
+                              "%.2f м на %.2f м пути (e%u)",
+                              climbed, fl.rise_total,
+                              min_clear > 1e8f ? 0.0f : min_clear, clear_at - s0,
+                              static_cast<unsigned>(clear_by));
+                lines.emplace_back(buf);
+            }
+        }
     }
 
-    if (bad.empty() && !g_all) {
+    // ИЗВЕСТНОЕ ОТДЕЛЯЕТСЯ ОТ БОЕВОГО ЗДЕСЬ, а не в глазах читателя: известная
+    // находка печатается со СВОЕЙ причиной и датой и не красит прогон
+    // (tools/known_findings.h).
+    std::vector<std::string> known_lines;
+    std::vector<std::string> live_lines;
+    for (const Bad& b : bad) {
+        std::string why;
+        if (g_known.take(name, b.cls, &why)) {
+            ++g_known_hits;
+            known_lines.push_back(b.text + "  [ИЗВЕСТНОЕ, " + why + "]");
+            continue;
+        }
+        live_lines.push_back(b.text);
+        g_by_class[b.cls] += 1;
+    }
+    if (live_lines.empty() && known_lines.empty() && !g_all) {
         return;
     }
     std::printf("%s\n", name.c_str());
@@ -795,7 +1296,10 @@ void check_file(const std::string& path) {
             std::printf("%s\n", s.c_str());
         }
     }
-    for (const std::string& s : bad) {
+    for (const std::string& s : known_lines) {
+        std::printf("%s\n", s.c_str());
+    }
+    for (const std::string& s : live_lines) {
         std::printf("%s\n", s.c_str());
         ++g_findings;
     }
@@ -805,6 +1309,8 @@ void check_file(const std::string& path) {
 
 int main(int argc, char** argv) {
     std::vector<std::string> files;
+    std::string known_path;
+    dfn::tools::Expectations expect;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         if (a == "--all") {
@@ -813,6 +1319,14 @@ int main(int argc, char** argv) {
         }
         if (a == "--tol-head" && i + 1 < argc) {
             g_head_tol = std::strtof(argv[++i], nullptr);
+            continue;
+        }
+        if (a == "--known" && i + 1 < argc) {
+            known_path = argv[++i];
+            continue;
+        }
+        if (a == "--expect" && i + 1 < argc) {
+            expect.add(argv[++i]);
             continue;
         }
         if (std::filesystem::is_directory(a)) {
@@ -831,12 +1345,26 @@ int main(int argc, char** argv) {
     if (files.empty()) {
         std::fprintf(stderr,
                      "dfn_stairs_check: нечего судить\n"
-                     "  dfn_stairs_check <файл.dfh | каталог> [--all] [--tol-head 1.9]\n");
+                     "  dfn_stairs_check <файл.dfh | каталог> [--all] "
+                     "[--tol-head 1.9] [--known список.txt] [--expect N|КЛАСС:N]\n");
         return 2;
+    }
+    {
+        std::string err;
+        if (!g_known.load(known_path, err)) {
+            std::fprintf(stderr, "%s\n", err.c_str());
+            return 2;
+        }
     }
     for (const std::string& f : files) {
         check_file(f);
     }
-    std::printf("dfn_stairs_check: тел %zu, находок %d\n", files.size(), g_findings);
+    const int stale = g_known.report_stale(stdout);
+    std::printf("dfn_stairs_check: тел %zu, боевых находок %d, известных %d, "
+                "протухших строк списка %d\n",
+                files.size(), g_findings, g_known_hits, stale);
+    if (expect.any()) {
+        return expect.verdict(g_findings, g_by_class, stderr);
+    }
     return g_findings == 0 ? 0 : 1;
 }

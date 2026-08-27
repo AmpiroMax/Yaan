@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 09:08:2026 - 00:06:00
-# Last updated: 27:08:2026 - 10:47:27
+# Last updated: 27:08:2026 - 23:05:00
 # File: tools/header_check.py
 #
 # Responsibility:
@@ -155,6 +155,10 @@ UPD_ENTRY_RE = re.compile(
 # - Build/tooling output (.git, build*, ...).
 # - third_party: vendored dependencies — never hand-edited.
 # - __pycache__/.venv: Python artifacts.
+# - 27:08:2026 - 23:05:00: tests/fixtures/ в SKIP_PATH_RES — замороженные
+#   ОТВЕРГНУТЫЕ СЛУЧАИ контрольных рук (правило 30): .dfh той же кузницы, чей
+#   контракт — строка add_test, которая их зовёт, плюс собственная преамбула
+#   каждого («какое число, с какого живого тела снято, какую руку сторожит»).
 SKIP_DIRS = {".git", "target", "node_modules", "dist", ".vite", ".cursor",
              ".claude", "third_party", "__pycache__", ".venv", "_deps",
              # RUN OUTPUT, not source. These are written BY the tools whose
@@ -208,6 +212,14 @@ SKIP_PATH_RES = (
     # verbatim archived artefacts (their own headers were prepended where the
     # format allows). Contract: docs/design/WORLD_MAP.md 9.11.
     re.compile(r"^docs/design/worldmap/"),
+    # tests/fixtures/ holds FROZEN REJECTED CASES — the geometry a judge must
+    # keep failing (Rule 30). Their format is the pipeline's own (.dfh house
+    # graphs), and their contract is the add_test line that names them plus the
+    # `#` preamble each one carries: what number was measured, on which live
+    # body, and which hand it controls. A timestamp header would be a second,
+    # weaker answer to the same question, and it would drift the day someone
+    # re-measures without touching the geometry.
+    re.compile(r"^tests/fixtures/"),
 )
 # Extensions excluded because the format cannot carry a leading source-header comment
 # (binary, strict JSON, model weights) or is generated output.

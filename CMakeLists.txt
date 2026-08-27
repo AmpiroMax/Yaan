@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 27:08:2026 - 10:34:00
+# Last updated: 27:08:2026 - 23:05:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -102,6 +102,14 @@
 #   стояло 15:xx при стенных 10:18 — метка была выбрана позже чужой записи 14:30
 #   в AppHouse.cpp, лишь бы сошлась сверка хука, вместо того чтобы разобраться с
 #   чужой. Поставлено время коммита 9e2c8c9 (10:18:14). Текста и кода не трогал.
+# - 27:08:2026 - 23:05:00: ОБА СУДЬИ ЗАВЕДЕНЫ В ctest ПО ВСЕЙ ИХ ОБЛАСТИ (аудит
+#   «Большой мир», задачи 1 и 5). Было: у dfn_stairs_check стоял add_executable и НИ
+#   ОДНОГО add_test — он был запущен рукой один раз, в день волны, а зелёные
+#   96/96 о лестницах не знали ничего; dfn_interior_check шёл по ОДНОЙ сцене из
+#   130, и по совпадению по той единственной, где находок нет. Стало: полка
+#   assets/houses целиком и обе стопки локаций целиком, плюс шесть контрольных
+#   рук на замороженных отвергнутых случаях (tests/fixtures/stairs) и список
+#   известных находок с датой и причиной, который жжёт волна геометрии.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -312,12 +320,85 @@ add_test(NAME interiors_broken_fixture
          COMMAND dfn_interior_check assets/scenes/int/broken.scene --expect 4
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
+# ...И ТО ЖЕ ПО ВСЕМ СТА ТРИДЦАТИ ЛОКАЦИЯМ ОБОИХ ГОРОДОВ (27.08).
+# Два теста выше мерили ОДНУ сцену и одну оснастку. Аудит «Большой мир» прогнал судью
+# по всем 130 и получил 169 находок — то есть всё, ради чего судья написан,
+# жило ВНЕ ctest, а зелёный ctest про интерьеры не значил ничего. Прибор,
+# который не запускают по своей области, эквивалентен отсутствию прибора.
+#
+# ЖДЁТ НОЛЬ, А ИЗВЕСТНОЕ ЗНАЕТ ПО ИМЕНИ. Геометрию чинит параллельная волна, и
+# до её конца тест был бы красным всегда — а красный всегда читают как
+# «сломано у соседа» и перестают смотреть. Поэтому известные находки
+# перечислены в tests/known_interior_findings.txt: каждая с датой, причиной и
+# ЧИСЛОМ. Находка сверх числа — красный сразу; строка, на которую находок
+# больше не пришло, печатается как протухшая и жжётся волной геометрии.
+# Порог здесь один и он честный: НОЛЬ. Список — это отсрочка с именем, а не
+# послабление.
+add_test(NAME interiors_whiterun_all
+         COMMAND dfn_interior_check assets/scenes/int/whiterun
+                 --city assets/scenes/whiterun.scene
+                 --known tests/known_interior_findings.txt
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME interiors_cornhall_all
+         COMMAND dfn_interior_check assets/scenes/int/cornhall
+                 --city assets/scenes/cornhall.scene
+                 --known tests/known_interior_findings.txt
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
 # СУДЬЯ ВНУТРИДОМОВОГО МАРША (dfn_stairs_check, волна лестниц 27.08): проход от
 # двери, уклон, просвет над носком каждой ступени, марш внутри оболочки, стык
 # невидимого пандуса. Три крита владельца про лестницы не имели ни одного
 # прибора — приёмка прошлых заходов печатала просвет по ПЛИТАМ, а бьёт не плита.
 add_executable(dfn_stairs_check tools/check_stairs.cpp)
 target_link_libraries(dfn_stairs_check PRIVATE dfn_world dfn_core)
+
+# СУДЬЯ МАРШЕЙ — В ctest, ПО ВСЕЙ ПОЛКЕ (27.08). До этой строки у него был
+# add_executable и ни одного add_test: он был запущен рукой ОДИН раз, в день
+# волны лестниц, а зелёные 96/96 о лестницах не знали ничего. Прогон по всем
+# 194 телам стоит ~35 с — дешевле любой из трёх переделок, которые он ловит.
+add_test(NAME stairs_shelf
+         COMMAND dfn_stairs_check assets/houses
+                 --known tests/known_stair_findings.txt
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# ШЕСТЬ КОНТРОЛЬНЫХ РУК (правило 30: тест публикуется вместе со случаем,
+# который он ОБЯЗАН отвергать, и этот случай обязан его проваливать).
+#
+# Каждая пара — НАСТОЯЩИЙ отвергнутый случай и его положительное плечо,
+# отличающееся ОДНИМ числом (правило 30a: у теста должен быть и случай, который
+# МОЖЕТ его пройти). Числа отвергнутых сняты с живых тел 27.08 и ЗАМОРОЖЕНЫ в
+# tests/fixtures/stairs: живые рецепты чинит волна геометрии, а контрольная
+# рука, которую чинят, перестаёт быть контрольной.
+add_test(NAME stairs_ladder_rejected
+         COMMAND dfn_stairs_check tests/fixtures/stairs/ladder-tread.dfh
+                 --expect ПРОСТУПЬ:1 --expect 1
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME stairs_ladder_ok
+         COMMAND dfn_stairs_check tests/fixtures/stairs/ladder-tread-ok.dfh
+                 --expect 0
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME stairs_gentle_rejected
+         COMMAND dfn_stairs_check tests/fixtures/stairs/gentle-1to2.dfh
+                 --expect ПОЛОГО:1 --expect 1
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME stairs_gentle_ok
+         COMMAND dfn_stairs_check tests/fixtures/stairs/gentle-1to2-ok.dfh
+                 --expect 0
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME stairs_lowbeam_rejected
+         COMMAND dfn_stairs_check tests/fixtures/stairs/lowbeam.dfh
+                 --expect ПОДЪЁМ:1 --expect ПРОСВЕТ:1 --expect 2
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# ЗАКОННОЕ ИСКЛЮЧЕНИЕ ОБЯЗАНО БЫТЬ ПРОВЕРЯЕМЫМ. frame-replica.dfh — демо-стенд
+# кузницы, он не чинится сознательно, и его находки перечислены в списке
+# известных. Ровно поэтому нужен отдельный тест, требующий, чтобы он ОСТАВАЛСЯ
+# отвергнутым: исключение, за которым никто не следит, через месяц скрывает не
+# демо-стенд, а починенное вместе с ним настоящее тело.
+add_test(NAME stairs_replica_still_rejected
+         COMMAND dfn_stairs_check assets/houses/frame-replica.dfh
+                 --expect ПРОСВЕТ:1 --expect ПОДЪЁМ:1
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # THE BUILDING KIT CLI (dfn_kit): forges the construction parts an agent
 # assembles houses out of. Same standing again — a kit that stopped compiling
