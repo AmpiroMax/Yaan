@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 10:27:20
-Last updated: 27:08:2026 - 20:33:38
+Last updated: 27:08:2026 - 21:45:00
 Module: engine/app
 File: engine/app/sources/Menu.cpp
 
@@ -184,6 +184,35 @@ UPD:
     список удовлетворяет с запасом, — и смотрел только на Root и Pause, но не
     на настройки. Новый случай утверждает ИСХОД: список доходит до середины
     кадра, на всех четырёх сетках, которые страница предлагает.
+- 27:08:2026 - 21:36:43: НАСТРОЙКИ ПО ГРУППАМ — ВИДЕО, ЗВУК, УПРАВЛЕНИЕ
+  (заказ владельца 28.08). Устройство и довод в пользу подстраниц — в
+  заголовке; здесь то, что видно только в этом файле.
+  * ОДИН РИСОВАЛЬЩИК НА ДВЕ СТРАНИЦЫ ЗНАЧЕНИЙ (draw_value_page). Видео и звук
+    отличаются НАБОРОМ СТРОК и больше ничем; страница, нарисованная своей
+    копией этого кода, разъехалась бы с раскладкой мыши в первый же день
+    (правило 39). Оглавление рисуется списком корня и паузы — по той же
+    причине и тем же кодом.
+  * settings_layout и settings_row_y ПЕРЕСТАЛИ ЗНАТЬ, СКОЛЬКО В СТРАНИЦЕ
+    СТРОК: число рядов и номер первого глагола приходят снаружи. Раньше они
+    читали RowCount — то есть держали внутри допущение «страница настроек
+    одна», и это допущение сегодня перестало быть правдой.
+  * is_value_page()/value_row_count() — ОДИН вопрос вместо перечисления двух
+    страниц в пяти местах (стрелки, раскладка, мышь, отрисовка, цепочка
+    возвратов). Пятое место и есть то, которое забудут при третьей группе.
+  * Стрелки на ОГЛАВЛЕНИИ пусты по построению: приложение шлёт влево/вправо на
+    каждой странице без разбора, и страница без значений обязана быть такой же
+    пустой, как корневой экран.
+- 27:08:2026 - 21:45:00: ПЫЛИНКИ ФОНА СТАЛИ КОМЕТАМИ (заказ владельца, вечер
+  27.08: «больше частиц, белых и голубых — цветов spiral», «появляться и
+  пропадать», «как кометы следы оставлять», «вверх лететь»). ИЗ ЭТОГО ФАЙЛА
+  ушла ровно доза: dust_count -> spark_count, и плотность втрое гуще
+  (w*h/26000, 12..160 -> w*h/9000, 18..320 — на 1080p 79 -> 230). Само поле
+  живёт в MenuArt.cpp у Spark, и это не перекладывание: здесь страницы, там
+  рисование, а числа устройства искры (скорость, шлейф, жизнь) — вопрос
+  рисования. Четыре зова draw_dust переименованы в draw_sparks вместе с
+  функцией: имя «пыль» пережило бы правку и осталось бы описанием того, чего
+  в кадре больше нет. Дверь дозы DFN_MENU_DUST имя СОХРАНИЛА — на неё
+  ссылаются архивные рецепты приёмки.
 */
 
 #include "engine/app/sources/Menu.h"
@@ -316,19 +345,39 @@ constexpr float VOLUME_STEPS[] = {0.0f, 0.1f, 0.2f, 0.3f, 0.4f, 0.5f,
 // рукав, и счётный индекс в тесте — это тот самый молча уезжающий номер, о
 // котором предупреждает запись над RootRow. Локальные короткие имена оставлены,
 // чтобы switch ниже читался, но ЗНАЧЕНИЕ у них одно и общее.
-constexpr size_t RowWindow = static_cast<size_t>(SettingsRow::Window);
-constexpr size_t RowFullscreen = static_cast<size_t>(SettingsRow::Fullscreen);
-constexpr size_t RowResolution = static_cast<size_t>(SettingsRow::Resolution);
-constexpr size_t RowMsaa = static_cast<size_t>(SettingsRow::Msaa);
-constexpr size_t RowPalette = static_cast<size_t>(SettingsRow::Palette);
-constexpr size_t RowHeadBob = static_cast<size_t>(SettingsRow::HeadBob);
-constexpr size_t RowBrightness = static_cast<size_t>(SettingsRow::Brightness);
-constexpr size_t RowMusicVolume = static_cast<size_t>(SettingsRow::MusicVolume);
-constexpr size_t RowSfxVolume = static_cast<size_t>(SettingsRow::SfxVolume);
-constexpr size_t RowVoiceVolume = static_cast<size_t>(SettingsRow::VoiceVolume);
-constexpr size_t RowControls = static_cast<size_t>(SettingsRow::Controls);
-constexpr size_t RowBack = static_cast<size_t>(SettingsRow::Back);
-constexpr size_t RowCount = static_cast<size_t>(SettingsRow::Count);
+// ОГЛАВЛЕНИЕ ГРУПП.
+constexpr size_t GroupVideo = static_cast<size_t>(SettingsRow::Video);
+constexpr size_t GroupAudio = static_cast<size_t>(SettingsRow::Audio);
+constexpr size_t GroupControls = static_cast<size_t>(SettingsRow::Controls);
+constexpr size_t GroupBack = static_cast<size_t>(SettingsRow::Back);
+constexpr size_t GroupCount = static_cast<size_t>(SettingsRow::Count);
+// ГРУППА «ВИДЕО».
+constexpr size_t RowWindow = static_cast<size_t>(VideoRow::Window);
+constexpr size_t RowFullscreen = static_cast<size_t>(VideoRow::Fullscreen);
+constexpr size_t RowResolution = static_cast<size_t>(VideoRow::Resolution);
+constexpr size_t RowMsaa = static_cast<size_t>(VideoRow::Msaa);
+constexpr size_t RowPalette = static_cast<size_t>(VideoRow::Palette);
+constexpr size_t RowHeadBob = static_cast<size_t>(VideoRow::HeadBob);
+constexpr size_t RowBrightness = static_cast<size_t>(VideoRow::Brightness);
+constexpr size_t RowVideoBack = static_cast<size_t>(VideoRow::Back);
+constexpr size_t VideoRowCount = static_cast<size_t>(VideoRow::Count);
+// ГРУППА «АУДИО».
+constexpr size_t RowMusicVolume = static_cast<size_t>(AudioRow::MusicVolume);
+constexpr size_t RowSfxVolume = static_cast<size_t>(AudioRow::SfxVolume);
+constexpr size_t RowVoiceVolume = static_cast<size_t>(AudioRow::VoiceVolume);
+constexpr size_t RowAudioBack = static_cast<size_t>(AudioRow::Back);
+constexpr size_t AudioRowCount = static_cast<size_t>(AudioRow::Count);
+
+// СТРАНИЦА ЗНАЧЕНИЙ ИЛИ НЕТ. Две подстраницы настроек — двухколоночные таблицы
+// с одинаковым устройством, и всё, что ниже (раскладка, мышь, отрисовка,
+// стрелки), спрашивает про них ОДНИМ вопросом, а не перечисляет их поимённо в
+// пяти местах: пятое место и есть то, которое забудут при третьей группе.
+[[nodiscard]] constexpr bool is_value_page(MenuPage p) {
+    return p == MenuPage::SettingsVideo || p == MenuPage::SettingsAudio;
+}
+[[nodiscard]] constexpr size_t value_row_count(MenuPage p) {
+    return p == MenuPage::SettingsVideo ? VideoRowCount : AudioRowCount;
+}
 
 // Nearest rung to a value that may have come from a hand-edited settings.cfg.
 // Never fails: a file saying msaa=3 has to land somewhere, and landing on the
@@ -414,17 +463,23 @@ constexpr render::Color ITEM_DIM{150, 146, 138};      // an unselected row
 constexpr render::Color ITEM_BRIGHT{246, 240, 224};   // the selected one
 constexpr render::Color STUDIO_MARK{96, 104, 118};    // the corner signature
 
-// HOW MANY MOTES, AND WHY IT IS A DENSITY RATHER THAN A COUNT. The field has to
-// read the same at 320x180 and at 1920x1080; a fixed count is a blizzard at one
-// and an empty screen at the other.
-[[nodiscard]] int dust_count(int w, int h) {
+// СКОЛЬКО ИСКР, И ПОЧЕМУ ЭТО ПЛОТНОСТЬ, А НЕ ЧИСЛО. Поле обязано читаться
+// одинаково и на 320x180, и на 1920x1080; постоянное число — метель на одном
+// и пустой экран на другом.
+[[nodiscard]] int spark_count(int w, int h) {
     // THE DOSE DOOR (Rule 47): with DFN_MENU_DUST=0 the field is empty and two
     // runs produce a bit-identical menu frame, which is what makes an
     // acceptance frame comparable at all. Both arms come out of ONE build.
+    // Имя двери осталось от пылинок, которыми поле было до вечера 27.08.
     if (const char* v = door_value("DFN_MENU_DUST"); v != nullptr && v[0] == '0') {
         return 0;
     }
-    return std::clamp(w * h / 26000, 12, 160);
+    // ВТРОЕ ГУЩЕ ПРЕЖНЕГО (было w*h/26000, 12..160 — на 1080p 79 точек):
+    // заказ владельца «сделать больше частиц». На 1920x1080 выходит 230 искр,
+    // на 320x180 — нижняя граница 18. Верхняя не декоративная: у каждой искры
+    // ещё и шлейф в два-три десятка звеньев, и потолок держит цену кадра
+    // меню в тех же долях миллисекунды, в которых она была.
+    return std::clamp(w * h / 9000, 18, 320);
 }
 
 // --- THE LIST OF THE REFERENCE ----------------------------------------------
@@ -518,6 +573,17 @@ struct Row {
         case PauseRow::ToRoot:   return {loc("menu.to_root"), {}};
         case PauseRow::Discard:  return {loc("menu.discard"), {}};
         default:                 return {loc("menu.quit"), {}};
+        }
+    case MenuPage::Settings:
+        // ОГЛАВЛЕНИЕ РИСУЕТСЯ ТЕМ ЖЕ СПИСКОМ, ЧТО КОРЕНЬ И ПАУЗА, и это не
+        // экономия: три страницы, которые ВЫГЛЯДЯТ как список пунктов, обязаны
+        // и раскладываться одним кодом — иначе «пункт под курсором» на одной из
+        // них однажды окажется другим пунктом (правило 39).
+        switch (static_cast<SettingsRow>(i)) {
+        case SettingsRow::Video: return {loc("menu.settings.group.video"), {}};
+        case SettingsRow::Audio: return {loc("menu.settings.group.audio"), {}};
+        case SettingsRow::Controls: return {loc("menu.controls"), {}};
+        default: return {loc("menu.back"), {}};
         }
     case MenuPage::Categories: {
         const MapCatalog* cat = model.catalog();
@@ -630,7 +696,10 @@ size_t MenuModel::item_count() const {
     case MenuPage::Calibrate:
         return 0; // no list: up/down turn the dial itself
     case MenuPage::Settings:
-        return RowCount;
+        return GroupCount; // оглавление: видео, аудио, управление, назад
+    case MenuPage::SettingsVideo:
+    case MenuPage::SettingsAudio:
+        return value_row_count(page_);
     case MenuPage::Controls:
         return 0; // nothing to select: it is a list to READ, Esc leaves
     case MenuPage::Splash:
@@ -642,7 +711,34 @@ size_t MenuModel::item_count() const {
 }
 
 void MenuModel::adjust(int delta) {
-    if (page_ != MenuPage::Settings || delta == 0) {
+    // СТРЕЛКИ КРУТЯТ ЗНАЧЕНИЯ ТОЛЬКО НА СТРАНИЦАХ ЗНАЧЕНИЙ. На оглавлении групп
+    // крутить нечего, и это НЕ ветка «а вдруг»: приложение шлёт влево/вправо на
+    // каждой странице меню без разбора (так и задумано — adjust пуст по
+    // построению там, где значений нет), и оглавление обязано быть таким же
+    // пустым, как корневой экран.
+    if (delta == 0 || !is_value_page(page_)) {
+        return;
+    }
+    if (page_ == MenuPage::SettingsAudio) {
+        switch (selection_) {
+        case RowMusicVolume:
+            settings_.music_volume =
+                VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.music_volume),
+                                   std::size(VOLUME_STEPS), delta)];
+            break;
+        case RowSfxVolume:
+            settings_.sfx_volume =
+                VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.sfx_volume),
+                                   std::size(VOLUME_STEPS), delta)];
+            break;
+        case RowVoiceVolume:
+            settings_.voice_volume =
+                VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.voice_volume),
+                                   std::size(VOLUME_STEPS), delta)];
+            break;
+        default:
+            break; // «назад» — не значение
+        }
         return;
     }
     switch (selection_) {
@@ -677,21 +773,6 @@ void MenuModel::adjust(int delta) {
         settings_.head_bob = BOB_STEPS[cycle(nearest_rung(BOB_STEPS, settings_.head_bob),
                                              std::size(BOB_STEPS), delta)];
         break;
-    case RowMusicVolume:
-        settings_.music_volume =
-            VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.music_volume),
-                               std::size(VOLUME_STEPS), delta)];
-        break;
-    case RowSfxVolume:
-        settings_.sfx_volume =
-            VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.sfx_volume),
-                               std::size(VOLUME_STEPS), delta)];
-        break;
-    case RowVoiceVolume:
-        settings_.voice_volume =
-            VOLUME_STEPS[cycle(nearest_rung(VOLUME_STEPS, settings_.voice_volume),
-                               std::size(VOLUME_STEPS), delta)];
-        break;
     default:
         break; // brightness and back are not values: Enter is their only verb
     }
@@ -708,6 +789,9 @@ bool MenuModel::over_world() const {
     }
     if (p == MenuPage::Calibrate) {
         p = calibrate_return_;
+    }
+    if (is_value_page(p)) {
+        p = MenuPage::Settings; // группы открываются только из оглавления
     }
     if (p == MenuPage::Settings) {
         p = settings_return_;
@@ -850,28 +934,51 @@ MenuAction MenuModel::activate() {
         open(MenuPage::Root);
         return MenuAction::None;
     case MenuPage::Settings:
-        if (selection_ == RowBrightness) {
-            calibrate_return_ = MenuPage::Settings;
-            open(MenuPage::Calibrate);
+        // ОГЛАВЛЕНИЕ: каждая строка ОТКРЫВАЕТ, и ни одна ничего не крутит.
+        switch (selection_) {
+        case GroupVideo:
+            open(MenuPage::SettingsVideo);
             return MenuAction::None;
-        }
-        if (selection_ == RowControls) {
+        case GroupAudio:
+            open(MenuPage::SettingsAudio);
+            return MenuAction::None;
+        case GroupControls:
             // READ-ONLY, AND THAT IS THE WHOLE FEATURE. The request was "я
             // должен уметь посмотреть на это" -- look at it. Rebinding is a
             // different thing needing a different page, and shipping a list
             // that looks editable and is not would be worse than a list.
             open(MenuPage::Controls);
             return MenuAction::None;
-        }
-        if (selection_ == RowBack) {
+        default:
+            // ВЫХОД ИЗ НАСТРОЕК ОДИН, И ОН ЗДЕСЬ. Подстраницы возвращают в
+            // оглавление и НИЧЕГО не сохраняют: сохранение — это один ответ на
+            // «игрок закончил настраивать», и раздав его трём страницам, мы
+            // получили бы три записи файла на один поход в настройки.
             open(settings_return_);
             return MenuAction::SettingsDone;
+        }
+    case MenuPage::SettingsVideo:
+        if (selection_ == RowBrightness) {
+            calibrate_return_ = MenuPage::SettingsVideo;
+            open(MenuPage::Calibrate);
+            return MenuAction::None;
+        }
+        if (selection_ == RowVideoBack) {
+            open(MenuPage::Settings);
+            return MenuAction::None;
         }
         // ENTER IS THE SAME VERB AS RIGHT on a value row. The app routes up,
         // down, Enter and Escape today; left and right are a patch in its
         // file, and a page that needs a key nobody sends is a page that ships
         // dead. With this line it works on the keys that already exist and
         // gets nicer when the other two arrive.
+        adjust(+1);
+        return MenuAction::None;
+    case MenuPage::SettingsAudio:
+        if (selection_ == RowAudioBack) {
+            open(MenuPage::Settings);
+            return MenuAction::None;
+        }
         adjust(+1);
         return MenuAction::None;
     }
@@ -909,6 +1016,13 @@ MenuAction MenuModel::back() {
         // no way out that silently discards what the player just turned.
         open(settings_return_);
         return MenuAction::SettingsDone;
+    case MenuPage::SettingsVideo:
+    case MenuPage::SettingsAudio:
+        // ГРУППА ВОЗВРАЩАЕТ В ОГЛАВЛЕНИЕ, а не наружу: Esc с подстраницы это
+        // «я закрыл эту группу», а не «я закончил с настройками». Наружу ведёт
+        // ровно одна дверь, и она эмитит SettingsDone (см. выше).
+        open(MenuPage::Settings);
+        return MenuAction::None;
     }
     return MenuAction::None;
 }
@@ -1030,7 +1144,7 @@ struct SettingsLayout {
     int gap_before_verbs = 0;
 };
 
-[[nodiscard]] SettingsLayout settings_layout(int h) {
+[[nodiscard]] SettingsLayout settings_layout(int h, size_t row_count) {
     SettingsLayout L;
     // РАЗМЕРЫ ИЗ ТОЙ ЖЕ ЛЕСТНИЦЫ, ЧТО У ОСТАЛЬНЫХ СТРАНИЦ. До сегодня эта
     // страница стояла на render::FONT_CELL_H — то есть НЕ масштабировалась
@@ -1066,7 +1180,7 @@ struct SettingsLayout {
     const int bottom = h - h / 12;
     int ladder_h = h;
     while (L.item_px > 1
-           && L.first_y + static_cast<int>(RowCount) * L.step + L.gap_before_verbs
+           && L.first_y + static_cast<int>(row_count) * L.step + L.gap_before_verbs
                   > bottom) {
         ladder_h = ladder_h * 4 / 5;
         const int smaller = px_for(ladder_h, UiText::Item);
@@ -1089,7 +1203,7 @@ struct SettingsLayout {
     // воздух отдаётся первым. Пол — сама высота прописной: плотнее строки уже
     // соприкоснулись бы, а два соприкоснувшихся текста читаются как поломка
     // обоих (тот же довод, что у плашки паузы).
-    const int rows = static_cast<int>(RowCount);
+    const int rows = static_cast<int>(row_count);
     const int span = bottom - L.first_y - L.gap_before_verbs;
     const int cap = std::max(1, ui_cap_height(L.item_px));
     if (L.step * rows > span) {
@@ -1098,12 +1212,14 @@ struct SettingsLayout {
     return L;
 }
 
-[[nodiscard]] int settings_row_y(const SettingsLayout& L, size_t i) {
+[[nodiscard]] int settings_row_y(const SettingsLayout& L, size_t i, size_t first_verb) {
     int y = L.first_y + static_cast<int>(i) * L.step;
-    // ОТ ПЕРВОГО ГЛАГОЛА, а не «после яркости»: пробел отделяет настройки от
-    // переходов, и когда между яркостью и управлением встали две строки
-    // звука, старое условие разрезало бы страницу по яркости.
-    if (i >= RowControls) {
+    // ОТ ПЕРВОГО ГЛАГОЛА, а не «после яркости»: пробел отделяет строки-значения
+    // от строк-переходов, и когда между яркостью и управлением встали строки
+    // звука, старое условие разрезало бы страницу по яркости. Теперь номер
+    // первого глагола ПРИХОДИТ СНАРУЖИ — у двух групп он разный, и вычислять
+    // его здесь значило бы держать здесь список страниц.
+    if (i >= first_verb) {
         y += L.gap_before_verbs;
     }
     return y;
@@ -1118,17 +1234,22 @@ std::vector<MenuRowBox> menu_row_boxes(int canvas_w, int canvas_h,
     case MenuPage::Pause:
     case MenuPage::Categories:
     case MenuPage::CategoryMaps:
+    case MenuPage::Settings: // оглавление групп — тот же список
         return plan_list(canvas_w, canvas_h, model).boxes;
-    case MenuPage::Settings: {
+    case MenuPage::SettingsVideo:
+    case MenuPage::SettingsAudio: {
         // A BAND, NOT THE INK. The row is a PAIR (label left, value right) with
         // a gap between them, so there is no single ink rectangle to click; the
         // band is the middle half of the frame, which is where the block is
         // centred.
-        const SettingsLayout L = settings_layout(canvas_h);
+        const size_t rows = value_row_count(model.page());
+        const size_t first_verb = rows - 1; // «назад» — единственный глагол групп
+        const SettingsLayout L = settings_layout(canvas_h, rows);
         std::vector<MenuRowBox> out;
-        out.reserve(RowCount);
-        for (size_t i = 0; i < RowCount; ++i) {
-            out.push_back(MenuRowBox{canvas_w / 4, settings_row_y(L, i), canvas_w / 2,
+        out.reserve(rows);
+        for (size_t i = 0; i < rows; ++i) {
+            out.push_back(MenuRowBox{canvas_w / 4, settings_row_y(L, i, first_verb),
+                                     canvas_w / 2,
                                      std::max(1, ui_cap_height(L.item_px))});
         }
         return out;
@@ -1235,8 +1356,11 @@ void draw_calibration(render::PixelCanvas& canvas, const MenuModel& model) {
     // стрелки, а Esc — это назад, была тем самым «вспомогательным текстом».
 }
 
-// THE SETTINGS PAGE (the user's request: settings.cfg had five rows describing
-// the picture and no way to change any of them except a text editor).
+// ДВЕ ПОДСТРАНИЦЫ ЗНАЧЕНИЙ — ОДИН РИСОВАЛЬЩИК. Видео и аудио отличаются только
+// набором строк; всё остальное — двухколоночная таблица, лестница кеглей,
+// пробел перед «назад», курсор — у них общее, и обязано быть общим: страница,
+// нарисованная своей копией этого кода, разъедется с раскладкой мыши в первый
+// же день (правило 39).
 //
 // IT IS TWO COLUMNS, not the centred list the other pages use, and that is the
 // one layout decision here worth defending: a settings row is a PAIR (what it
@@ -1244,83 +1368,41 @@ void draw_calibration(render::PixelCanvas& canvas, const MenuModel& model) {
 // jitter left and right as the player turns them, which reads as the page
 // twitching rather than the value changing. Labels left, values right-aligned
 // against one edge, so only the value that changed moves.
-void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
+struct ValueRow {
+    std::string_view label;
+    std::string_view value;
+};
+
+void draw_value_page(render::PixelCanvas& canvas, const MenuModel& model,
+                     std::string_view title, const ValueRow* rows, size_t count,
+                     bool restart_note) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
-    const MenuSettings& s = model.settings();
 
     canvas.clear(BACKGROUND);
-
-    // Values built once, into storage that outlives the two passes below --
-    // the block is MEASURED before it is drawn, and measuring text that is not
-    // the text drawn is the mistake the pause plate was fixed for.
-    const std::string off(loc("menu.settings.off"));
-    char buf[32];
-    std::snprintf(buf, sizeof(buf), "%ux%u", s.internal_w, s.internal_h);
-    const std::string res(buf);
-    std::snprintf(buf, sizeof(buf), "%ux", s.msaa);
-    const std::string msaa = (s.msaa <= 1) ? off : std::string(buf);
-    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.head_bob) * 100.0);
-    const std::string bob = (s.head_bob <= 0.0f) ? off : std::string(buf);
-    // The floor in STEPS, the same ruler the calibration page is built on: the
-    // number the player saw while turning it is the number he reads here.
-    std::snprintf(buf, sizeof(buf), "%.2f",
-                  static_cast<double>(model.black_floor() / SHADE_STEP));
-    const std::string bright = (model.black_floor() <= 0.0f) ? off : std::string(buf);
-    // ГРОМКОСТЬ В ПРОЦЕНТАХ, а ноль — словом «выкл». Ровно как у покачивания
-    // выше: «0 %» читается как сломанная строка, «выкл» — как выбор.
-    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.music_volume) * 100.0);
-    const std::string music_vol = (s.music_volume <= 0.0f) ? off : std::string(buf);
-    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.sfx_volume) * 100.0);
-    const std::string sfx_vol = (s.sfx_volume <= 0.0f) ? off : std::string(buf);
-    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.voice_volume) * 100.0);
-    const std::string voice_vol = (s.voice_volume <= 0.0f) ? off : std::string(buf);
-
-    struct Row {
-        std::string_view label;
-        std::string_view value;
-    };
-    std::snprintf(buf, sizeof(buf), "%ux%u", s.window_w, s.window_h);
-    const std::string window(buf);
-
-    const Row rows[RowCount] = {
-        {loc("menu.settings.window"), window},
-        {loc("menu.settings.fullscreen"),
-         s.fullscreen ? loc("menu.settings.on") : loc("menu.settings.off")},
-        {loc("menu.settings.resolution"), res},
-        {loc("menu.settings.msaa"), msaa},
-        {loc("menu.settings.palette"),
-         s.palette ? loc("menu.settings.on") : loc("menu.settings.off")},
-        {loc("menu.settings.bob"), bob},
-        {loc("menu.settings.brightness"), bright},
-        {loc("menu.settings.music"), music_vol},
-        {loc("menu.settings.sfx"), sfx_vol},
-        {loc("menu.settings.voice"), voice_vol},
-        {loc("menu.controls"), {}},
-        {loc("menu.back"), {}},
-    };
 
     // THE ROW ARITHMETIC LIVES IN settings_layout() so the MOUSE can read the
     // same numbers (menu_row_boxes). It used to be inline here, which is fine
     // for one reader and a shadow copy the moment there are two (Rule 39).
-    const SettingsLayout L = settings_layout(h);
+    const SettingsLayout L = settings_layout(h, count);
+    const size_t first_verb = count - 1; // «назад»
 
     int label_w = 0;
     int value_w = 0;
-    for (const Row& r : rows) {
-        label_w = std::max(label_w, tw_of(r.label, L.item_px));
-        value_w = std::max(value_w, tw_of(r.value, L.item_px));
+    for (size_t i = 0; i < count; ++i) {
+        label_w = std::max(label_w, tw_of(rows[i].label, L.item_px));
+        value_w = std::max(value_w, tw_of(rows[i].value, L.item_px));
     }
     const int gap = L.item_px;
     const int block = label_w + gap + value_w;
     const int x0 = (w - block) / 2;
 
-    draw_centered(canvas, L.title_y, loc("menu.settings.title"), TITLE, L.title_px);
+    draw_centered(canvas, L.title_y, title, TITLE, L.title_px);
     canvas.fill_rect(w / 4, L.title_y + ui_cap_height(L.title_px) + L.item_px / 3, w / 2,
                      std::max(1, L.item_px / 24), RULE_LINE);
 
-    for (size_t i = 0; i < RowCount; ++i) {
-        const int y = settings_row_y(L, i);
+    for (size_t i = 0; i < count; ++i) {
+        const int y = settings_row_y(L, i, first_verb);
         const bool sel = (i == model.selection());
         const render::Color color = sel ? ITEM_SELECTED : ITEM;
         if (sel) {
@@ -1340,8 +1422,10 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
     //
     // ЭТО НЕ ПОДСКАЗКА УПРАВЛЕНИЯ, а СОСТОЯНИЕ: строка отвечает не «какую
     // клавишу нажать», а «эта настройка ещё не в кадре». Заказ 27.08 снял
-    // первое и не трогал второго.
-    if (model.needs_restart()) {
+    // первое и не трогал второго. И она рисуется ТОЛЬКО там, где стоят её
+    // строки: предупреждение о перезапуске на странице громкостей называло бы
+    // причиной то, что игрок там не трогал.
+    if (restart_note && model.needs_restart()) {
         const int cap = px_for(h, UiText::Caption);
         draw_centered(canvas, h - ui_line_height(cap) * 2,
                       fits_px(w, cap, loc("menu.settings.restart"),
@@ -1349,6 +1433,69 @@ void draw_settings(render::PixelCanvas& canvas, const MenuModel& model) {
                       BLURB, cap);
     }
 }
+
+// ГРУППА «ВИДЕО».
+void draw_settings_video(render::PixelCanvas& canvas, const MenuModel& model) {
+    const MenuSettings& s = model.settings();
+    // Values built once, into storage that outlives the two passes below --
+    // the block is MEASURED before it is drawn, and measuring text that is not
+    // the text drawn is the mistake the pause plate was fixed for.
+    const std::string off(loc("menu.settings.off"));
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "%ux%u", s.window_w, s.window_h);
+    const std::string window(buf);
+    std::snprintf(buf, sizeof(buf), "%ux%u", s.internal_w, s.internal_h);
+    const std::string res(buf);
+    std::snprintf(buf, sizeof(buf), "%ux", s.msaa);
+    const std::string msaa = (s.msaa <= 1) ? off : std::string(buf);
+    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.head_bob) * 100.0);
+    const std::string bob = (s.head_bob <= 0.0f) ? off : std::string(buf);
+    // The floor in STEPS, the same ruler the calibration page is built on: the
+    // number the player saw while turning it is the number he reads here.
+    std::snprintf(buf, sizeof(buf), "%.2f",
+                  static_cast<double>(model.black_floor() / SHADE_STEP));
+    const std::string bright = (model.black_floor() <= 0.0f) ? off : std::string(buf);
+
+    const ValueRow rows[VideoRowCount] = {
+        {loc("menu.settings.window"), window},
+        {loc("menu.settings.fullscreen"),
+         s.fullscreen ? loc("menu.settings.on") : loc("menu.settings.off")},
+        {loc("menu.settings.resolution"), res},
+        {loc("menu.settings.msaa"), msaa},
+        {loc("menu.settings.palette"),
+         s.palette ? loc("menu.settings.on") : loc("menu.settings.off")},
+        {loc("menu.settings.bob"), bob},
+        {loc("menu.settings.brightness"), bright},
+        {loc("menu.back"), {}},
+    };
+    draw_value_page(canvas, model, loc("menu.settings.group.video"), rows,
+                    VideoRowCount, /*restart_note=*/true);
+}
+
+// ГРУППА «АУДИО».
+void draw_settings_audio(render::PixelCanvas& canvas, const MenuModel& model) {
+    const MenuSettings& s = model.settings();
+    const std::string off(loc("menu.settings.off"));
+    char buf[32];
+    // ГРОМКОСТЬ В ПРОЦЕНТАХ, а ноль — словом «выкл». Ровно как у покачивания:
+    // «0 %» читается как сломанная строка, «выкл» — как выбор.
+    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.music_volume) * 100.0);
+    const std::string music_vol = (s.music_volume <= 0.0f) ? off : std::string(buf);
+    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.sfx_volume) * 100.0);
+    const std::string sfx_vol = (s.sfx_volume <= 0.0f) ? off : std::string(buf);
+    std::snprintf(buf, sizeof(buf), "%.0f%%", static_cast<double>(s.voice_volume) * 100.0);
+    const std::string voice_vol = (s.voice_volume <= 0.0f) ? off : std::string(buf);
+
+    const ValueRow rows[AudioRowCount] = {
+        {loc("menu.settings.music"), music_vol},
+        {loc("menu.settings.sfx"), sfx_vol},
+        {loc("menu.settings.voice"), voice_vol},
+        {loc("menu.back"), {}},
+    };
+    draw_value_page(canvas, model, loc("menu.settings.group.audio"), rows,
+                    AudioRowCount, /*restart_note=*/false);
+}
+
 
 // THE CONTROLS PAGE (the user's request: "я должен уметь посмотреть на это в
 // настройках управления"). It is DRAWN FROM THE BINDING TABLE, not from a list
@@ -1582,17 +1729,20 @@ void draw_studio_mark(render::PixelCanvas& canvas) {
 // клавиши названы, и это место, куда за ними ИДУТ.
 
 // --- THE START SCREEN -------------------------------------------------------
-// The owner's reference is Skyrim SE's main menu: black with rare, slowly
-// drifting motes; a large emblem in the middle-left; a right-aligned column of
-// thin capitals low on the right, no frames and no button plates, the first
-// item larger than the rest. Ours puts the SEAL OF THE YAAN EMPIRE where the
-// reference puts the dragon sigil (assets/branding/README.txt, owner 26.08),
+// The owner's reference is Skyrim SE's main menu: black with a large emblem in
+// the middle-left and a right-aligned column of thin capitals low on the right,
+// no frames and no button plates. Ours puts the SEAL OF THE YAAN EMPIRE where
+// the reference puts the dragon sigil (assets/branding/README.txt, owner 26.08),
 // and the studio's mark in the opposite corner.
+// ПОЛЕ РАЗОШЛОСЬ С ОБРАЗЦОМ СОЗНАТЕЛЬНО, по заказу владельца (вечер 27.08):
+// у Skyrim это редкие серые пылинки, оседающие ВНИЗ, а у нас — плотное поле
+// КОМЕТ студийных цветов, всплывающих ВВЕРХ со шлейфом. Устройство и числа —
+// в MenuArt.cpp у Spark; здесь только доза (spark_count).
 void draw_root(render::PixelCanvas& canvas, const MenuModel& model) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
     canvas.clear(SCREEN_BLACK);
-    draw_dust(canvas, model.time(), dust_count(w, h));
+    draw_sparks(canvas, model.time(), spark_count(w, h));
 
     // ГЕРБА ЗДЕСЬ БОЛЬШЕ НЕТ, И ЭТО НЕ ПРОПУЩЕННАЯ СТРОКА (заказ владельца
     // 27.08: «объёмный золотой дуб — кайф, берём»). Стояло:
@@ -1605,7 +1755,7 @@ void draw_root(render::PixelCanvas& canvas, const MenuModel& model) {
     // Теперь герб — НАСТОЯЩИЙ МЕШ, и рисует его не холст, а кадр: App
     // посылает его через RenderSystem::set_screen_prop ПОСЛЕ наложения этого
     // холста, поэтому здесь ему не нужно ни места, ни дыры — чёрное поле
-    // остаётся сплошным, а пылинки плывут ЗА гербом. Раскладка (доли кадра,
+    // остаётся сплошным, а искры плывут ЗА гербом. Раскладка (доли кадра,
     // высота, глубина) и свет живут в MenuEmblem.h; здесь читаются только
     // доли центра, чтобы название стояло на оси герба и не разъехалось с ним
     // при первой же правке композиции (правило 39).
@@ -1671,7 +1821,7 @@ void draw_browser(render::PixelCanvas& canvas, const MenuModel& model) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
     canvas.clear(SCREEN_BLACK);
-    draw_dust(canvas, model.time(), dust_count(w, h) / 2);
+    draw_sparks(canvas, model.time(), spark_count(w, h) / 2);
 
     const ListPlan p = plan_list(w, h, model);
     // The two levels NAME THEMSELVES, so the player always knows which of them
@@ -1717,7 +1867,7 @@ void draw_credits(render::PixelCanvas& canvas, const MenuModel& model) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
     canvas.clear(SCREEN_BLACK);
-    draw_dust(canvas, model.time(), dust_count(w, h));
+    draw_sparks(canvas, model.time(), spark_count(w, h));
 
     const int title_px = px_for(h, UiText::Title);
     const int body_px = px_for(h, UiText::Caption);
@@ -1762,7 +1912,7 @@ void draw_stub(render::PixelCanvas& canvas, const MenuModel& model) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
     canvas.clear(SCREEN_BLACK);
-    draw_dust(canvas, model.time(), dust_count(w, h));
+    draw_sparks(canvas, model.time(), spark_count(w, h));
 
     const int title_px = px_for(h, UiText::Title);
     const int body_px = px_for(h, UiText::Item);
@@ -1773,6 +1923,33 @@ void draw_stub(render::PixelCanvas& canvas, const MenuModel& model) {
     const std::string_view msg = localized(model.stub_message());
     const int mw = tw_of(msg, body_px);
     ui_draw_text(canvas, (w - mw) / 2, h / 2, msg, ITEM_DIM, body_px, /*shadow=*/true);
+}
+
+// ОГЛАВЛЕНИЕ НАСТРОЕК (заказ владельца 28.08: «в настройках всё надо по группам
+// разложить: видео, аудио, управление»). Обычный список пунктов — тот же, что у
+// корня и паузы, — потому что это и есть список пунктов, и рисовать его вторым
+// способом значило бы завести вторую раскладку под ту же мышь.
+void draw_settings_groups(render::PixelCanvas& canvas, const MenuModel& model) {
+    const int w = static_cast<int>(canvas.width());
+    const int h = static_cast<int>(canvas.height());
+    canvas.clear(BACKGROUND);
+
+    const int title_px = px_for(h, UiText::Title);
+    draw_centered(canvas, h / 8, loc("menu.settings.title"), TITLE, title_px);
+    canvas.fill_rect(w / 4, h / 8 + ui_cap_height(title_px) + title_px / 3, w / 2,
+                     std::max(1, title_px / 24), RULE_LINE);
+    draw_item_list(canvas, model, plan_list(w, h, model));
+
+    // ПРЕДУПРЕЖДЕНИЕ О ПЕРЕЗАПУСКЕ ВИДНО И ОТСЮДА. Игрок, повернувший качество
+    // картинки и вышедший на шаг назад, не должен терять единственную строку,
+    // которая объясняет, почему кадр не изменился.
+    if (model.needs_restart()) {
+        const int cap = px_for(h, UiText::Caption);
+        draw_centered(canvas, h - ui_line_height(cap) * 2,
+                      fits_px(w, cap, loc("menu.settings.restart"),
+                              loc("menu.settings.restart.short")),
+                      BLURB, cap);
+    }
 }
 
 } // namespace
@@ -1809,7 +1986,13 @@ void draw_menu(render::PixelCanvas& canvas, const MenuModel& model) {
         draw_calibration(canvas, model);
         return;
     case MenuPage::Settings:
-        draw_settings(canvas, model);
+        draw_settings_groups(canvas, model);
+        return;
+    case MenuPage::SettingsVideo:
+        draw_settings_video(canvas, model);
+        return;
+    case MenuPage::SettingsAudio:
+        draw_settings_audio(canvas, model);
         return;
     case MenuPage::Controls:
         draw_controls(canvas);

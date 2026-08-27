@@ -1,6 +1,6 @@
 /*
 Created: 27:08:2026 - 00:31:05
-Last updated: 27:08:2026 - 12:58:00
+Last updated: 27:08:2026 - 21:14:00
 Module: engine/app
 File: engine/app/sources/MenuArt.h
 
@@ -17,7 +17,8 @@ Key items:
   without this.
 - draw_image_fit: an Image centred in a box, aspect preserved, box-filtered
   down, alpha-composited.
-- draw_dust: the reference's "rare, slowly drifting specks" over the black.
+- draw_sparks: поле комет главного экрана — белые и голубые искры, всплывающие
+  снизу вверх со шлейфом, каждая со своим циклом жизни.
 - draw_studio_splash: the Spiral Game Studios frame shown at launch.
 - BRAND_*: the paths of the approved branding files (assets/branding/README.txt).
 
@@ -47,6 +48,17 @@ UPD:
   единого читателя. Снят, а не оставлен: строка без читателя переживает любой
   рефакторинг и потом читается как забытая. Сам файл на месте — из соседнего
   силуэта печётся меш, а по размерному ряду сверяется декодер .png.
+- 27:08:2026 - 21:14:00: ПЫЛИНКИ СТАЛИ КОМЕТАМИ — draw_dust переименована в
+  draw_sparks, и это не косметика имени, а другое поле. Три правки владельца
+  из четырёх (вечер 27.08) про него: «больше частиц, белых и голубых цветов —
+  цветов spiral», «должны появляться и пропадать», «как кометы следы оставлять
+  и пропадать», «должны вверх лететь». Прежнее поле было серой точечной пылью,
+  ползущей ВНИЗ по кольцу без начала и конца; новое — искра с рождением,
+  полётом вверх, угасанием и шлейфом. Имя draw_dust пережило бы правку и
+  осталось бы описанием того, чего в кадре больше нет. Дверь DFN_MENU_DUST
+  имя СОХРАНИЛА: на неё ссылаются архивные рецепты приёмки, и переименование
+  двери стоило бы дороже, чем неточность в её названии (описание в таблице
+  дверей поправлено).
 */
 
 #pragma once
@@ -101,11 +113,16 @@ int draw_text_scaled(render::PixelCanvas& canvas, int x, int y, std::string_view
 void draw_image_fit(render::PixelCanvas& canvas, const Image& image, int box_x,
                     int box_y, int box_w, int box_h, float alpha);
 
-/// The reference's specks: `count` motes drifting slowly upward over whatever
-/// the canvas already holds, positions derived from the mote's index and
-/// `time_s` alone -- no state, so two runs at the same time draw the same field
-/// and a screenshot is reproducible (Rule 13).
-void draw_dust(render::PixelCanvas& canvas, float time_s, int count);
+/// ПОЛЕ ИСКР: `count` комет, всплывающих СНИЗУ ВВЕРХ над тем, что уже лежит на
+/// холсте. У каждой — свой цвет (белый #f0f2f4 или голубой #4a90d9, цвета
+/// студии Spiral), свой затухающий шлейф за головой и свой цикл жизни
+/// (рождение -> полёт -> угасание -> тёмная пауза). Ни одной живой частицы в
+/// памяти: всё выводится из номера искры и `time_s`, поэтому два прогона на
+/// одной секунде рисуют одно поле и кадр приёмки воспроизводим (правило 13).
+/// Дверь `DFN_MENU_SPARK_PHASE=<секунды>` прикалывает `time_s`: беспилотный
+/// прогон снимает кадр в произвольной секунде часов меню, и без двери две руки
+/// замера сравнивали бы разные поля.
+void draw_sparks(render::PixelCanvas& canvas, float time_s, int count);
 
 /// The launch frame: the studio's full lock-up on its own dark ground, faded in
 /// and out over `total_s` seconds. `t_s` is how long the frame has been up.

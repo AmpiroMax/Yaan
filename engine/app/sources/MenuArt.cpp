@@ -1,10 +1,11 @@
 /*
 Created: 27:08:2026 - 00:36:20
+Last updated: 27:08:2026 - 21:14:00
 Module: engine/app
 File: engine/app/sources/MenuArt.cpp
 
 Responsibility:
-- Implementation of MenuArt.h: magnified text, image fitting, the dust field and
+- Implementation of MenuArt.h: magnified text, image fitting, the spark field and
   the studio splash frame.
 
 AI Agents Notice (must follow):
@@ -13,16 +14,22 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 27:08:2026 - 00:36:20: Создан вместе с заголовком.
+- 27:08:2026 - 21:14:00: Поле пылинок заменено ПОЛЕМ КОМЕТ (заказ владельца,
+  три правки из четырёх — плотнее, цвета студии, вверх со шлейфом и с жизнью).
+  Устройство и все числа — в комментарии у Spark; заведена дверь фазы
+  DFN_MENU_SPARK_PHASE, без которой две руки замера снимали бы разные поля.
 */
 
 #include "engine/app/sources/MenuArt.h"
 
+#include "engine/app/sources/AppDoors.h"
 #include "engine/app/sources/PngImage.h"
 #include "engine/render/sources/BitmapFont.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 
 namespace dfn::app {
 
@@ -66,6 +73,135 @@ void blend(render::PixelCanvas& canvas, int x, int y, int r, int g, int b, float
     };
     canvas.put(x, y,
                render::Color{mixc(r, px[at]), mixc(g, px[at + 1]), mixc(b, px[at + 2])});
+}
+
+// --- ПОЛЕ ИСКР: УСТРОЙСТВО --------------------------------------------------
+// Заказ владельца 27.08 (вечер) дословно: «сделать больше частиц, белых и голубых
+// цветов — цветов spiral; частицы должны появляться и пропадать; они должны
+// как кометы следы оставлять и пропадать; частицы должны вверх лететь».
+// Отсюда ровно четыре свойства, и ни одно из них не украшение соседнего:
+//   * ПЛОТНЕЕ — доза выросла втрое (spark_count в Menu.cpp);
+//   * ДВА ЦВЕТА СТУДИИ — белый и голубой, по одному на искру целиком;
+//   * ЖИЗНЬ — у каждой свой цикл: рождение, полёт, угасание и тёмная пауза;
+//   * ХВОСТ — шлейф рисуется ЗА искрой, то есть НИЖЕ головы: летят вверх.
+//
+// ПОЧЕМУ ПОЛЕ ПО-ПРЕЖНЕМУ БЕЗ СОСТОЯНИЯ. Ни одной живой частицы в памяти:
+// вся искра выводится из своего номера и часов меню. Это не экономия — это
+// единственный способ снять кадр приёмки: у поля с состоянием «та же секунда»
+// зависит от того, сколько кадров успела нарисовать машина до неё, и два
+// прогона расходятся (правило 13). Отсюда же и дверь фазы ниже.
+constexpr float SPARK_TAU = 6.283185307179586f;
+
+struct Rgb {
+    int r = 0;
+    int g = 0;
+    int b = 0;
+};
+
+// ЦВЕТА СТУДИИ SPIRAL, названные владельцем: белый и голубой. Взяты из знака
+// (assets/branding/spiral_logo), а не подобраны на глаз, — поле обязано читаться
+// продолжением марки в углу, а не случайной подсветкой.
+constexpr Rgb SPARK_WHITE{0xf0, 0xf2, 0xf4};
+constexpr Rgb SPARK_BLUE{0x4a, 0x90, 0xd9};
+
+// СГЛАЖЕННАЯ СТУПЕНЬ. Линейное затухание даёт излом на обоих концах, и глаз
+// ловит именно излом: искра «включается», а не появляется.
+float smooth01(float x) {
+    x = std::clamp(x, 0.0f, 1.0f);
+    return x * x * (3.0f - 2.0f * x);
+}
+
+// Поток независимых долей из одного зерна: у искры их дюжина, и писать
+// mix(mix(mix(...))) руками — верный способ дать двум свойствам одно число.
+struct SeedStream {
+    uint32_t h;
+    explicit SeedStream(uint32_t seed) : h(mix(seed)) {}
+    float next() {
+        h = mix(h ^ 0x9E3779B9u);
+        return unit(h);
+    }
+};
+
+// ОДНА ИСКРА, вся целиком. Доли кадра, а не пиксели: поле обязано читаться
+// одинаково и на 320x180, и на 1920x1080.
+struct Spark {
+    float x0 = 0.0f;        ///< доля ширины: где искра всплывает
+    float y0 = 0.0f;        ///< доля высоты, откуда всплывает (Y растёт вниз)
+    float speed = 0.0f;     ///< долей ВЫСОТЫ в секунду, вверх
+    float life_s = 1.0f;    ///< сколько секунд живёт
+    float cycle_s = 1.0f;   ///< жизнь плюс тёмная пауза до следующего рождения
+    float offset = 0.0f;    ///< доля цикла: сдвиг рождения, чтобы не вспыхивали хором
+    float sway_amp = 0.0f;  ///< доля ширины: лёгкий дрейф вбок
+    float sway_hz = 0.0f;
+    float sway_phase = 0.0f;
+    float tail_frac = 0.0f; ///< длина шлейфа в долях высоты
+    float bright = 1.0f;    ///< яркость головы, 0..1
+    Rgb color{};
+};
+
+Spark spark_of(int i) {
+    SeedStream r(static_cast<uint32_t>(i) * 2654435761u + 17u);
+    Spark s;
+    s.x0 = r.next();
+    // РОЖДАЮТСЯ НЕ У НИЖНЕГО КРАЯ, А ПО ВСЕМУ ПОЛЮ. Фонтан от нижней кромки
+    // читается сценой («что-то горит за кадром»); заказ был про поле, в
+    // котором частицы ПОЯВЛЯЮТСЯ и ПРОПАДАЮТ, — значит рождение обязано
+    // случаться и в середине кадра.
+    s.y0 = 0.30f + 0.80f * r.next();
+    // МЕДЛЕННОЕ ВСПЛЫТИЕ: 3.0-7.5 % высоты в секунду, то есть 32-81 px/с на
+    // 1080. Прежние пылинки ползли 11-27 px/с и с хвостом читались бы стоячими,
+    // а всё, что быстрее сотни, превращается в дождь наоборот.
+    s.speed = 0.030f + 0.045f * r.next();
+    s.life_s = 9.0f + 7.0f * r.next();
+    s.cycle_s = s.life_s * (1.06f + 0.30f * r.next());
+    s.offset = r.next();
+    s.sway_amp = 0.004f + 0.010f * r.next();
+    s.sway_hz = 0.05f + 0.09f * r.next();
+    s.sway_phase = SPARK_TAU * r.next();
+    s.tail_frac = 0.030f + 0.040f * r.next();
+    s.bright = 0.45f + 0.50f * r.next();
+    // ЦВЕТ ОДИН НА ВСЮ ИСКРУ, включая хвост: комета не меняет цвет по длине,
+    // а смесь двух цветов в одном шлейфе читается грязью, а не переливом.
+    s.color = r.next() < 0.55f ? SPARK_WHITE : SPARK_BLUE;
+    return s;
+}
+
+// Огибающая жизни: вспышка, полёт, угасание. Ноль вне отрезка жизни — на этом
+// же нуле обрывается и хвост, каждое звено которого спрашивает СВОЙ возраст.
+float spark_alpha(const Spark& s, float age_s) {
+    if (age_s < 0.0f || age_s > s.life_s) {
+        return 0.0f;
+    }
+    return smooth01(age_s / (s.life_s * 0.18f))
+           * smooth01((s.life_s - age_s) / (s.life_s * 0.34f));
+}
+
+// ПРИКОЛОТАЯ ФАЗА ПОЛЯ (DFN_MENU_SPARK_PHASE), родная сестра DFN_MENU_OAK_PHASE
+// у герба и по той же причине: беспилотный прогон снимает кадр после
+// произвольного числа кадров, то есть в произвольной секунде часов меню, — а
+// кадр приёмки обязан быть повторяемым. Читается ОДИН раз за прогон.
+struct PinnedSparkPhase {
+    bool on = false;
+    float seconds = 0.0f;
+};
+
+const PinnedSparkPhase& pinned_spark_phase() {
+    static const PinnedSparkPhase pinned = [] {
+        PinnedSparkPhase p;
+        const char* v = door_value("DFN_MENU_SPARK_PHASE");
+        if (v == nullptr || *v == '\0') {
+            return p;
+        }
+        char* end = nullptr;
+        const float parsed = std::strtof(v, &end);
+        if (end == v) {
+            return p; // не число — дверь молча закрыта, поле живое
+        }
+        p.on = true;
+        p.seconds = parsed;
+        return p;
+    }();
+    return pinned;
 }
 
 } // namespace
@@ -164,38 +300,87 @@ void draw_image_fit(render::PixelCanvas& canvas, const Image& image, int box_x,
     }
 }
 
-void draw_dust(render::PixelCanvas& canvas, float time_s, int count) {
+void draw_sparks(render::PixelCanvas& canvas, float time_s, int count) {
     const int w = static_cast<int>(canvas.width());
     const int h = static_cast<int>(canvas.height());
     if (w <= 0 || h <= 0 || count <= 0) {
         return;
     }
-    // The mote is 1 px at the retro presets and grows with the frame, or it
-    // would be invisible at 1920x1080 and a snowstorm at 320x180.
-    const int size = std::max(1, h / 540);
+    const PinnedSparkPhase& pin = pinned_spark_phase();
+    const float t = pin.on ? pin.seconds : time_s;
+
+    // Голова растёт с кадром: 3-4 px на 1080, 1 px на ретро-ступенях. Мельче —
+    // хвост не отличить от головы, крупнее — комета становится кляксой.
+    const int head_px = std::max(1, h / 300);
+    const float fw = static_cast<float>(w);
+    const float fh = static_cast<float>(h);
+
     for (int i = 0; i < count; ++i) {
-        const uint32_t hx = mix(static_cast<uint32_t>(i) * 2654435761u + 17u);
-        const uint32_t hy = mix(hx ^ 0x9E3779B9u);
-        const uint32_t hv = mix(hy ^ 0x85EBCA6Bu);
-        // SLOW: a mote crosses the frame in 40 to 100 seconds. The reference's
-        // specks are barely moving, and anything faster reads as falling snow.
-        const float speed = 0.010f + 0.015f * unit(hv);
-        const float drift = (unit(hx ^ 0x2545F491u) - 0.5f) * 0.004f;
-        float fx = unit(hx) + drift * time_s;
-        float fy = unit(hy) - speed * time_s;
-        fx -= std::floor(fx);
-        fy -= std::floor(fy);
-        const int x = static_cast<int>(fx * static_cast<float>(w));
-        const int y = static_cast<int>(fy * static_cast<float>(h));
-        // Value varies mote to mote AND breathes slowly, so the field has depth
-        // instead of reading as a fixed grid of identical dots.
-        const float base = 0.25f + 0.55f * unit(hv ^ 0xC2B2AE35u);
-        const float pulse = 0.75f + 0.25f * std::sin(time_s * (0.4f + unit(hy) * 0.5f)
-                                                     + static_cast<float>(i));
-        const auto v = static_cast<int>(std::lround(220.0f * base * pulse));
-        for (int oy = 0; oy < size; ++oy) {
-            for (int ox = 0; ox < size; ++ox) {
-                blend(canvas, x + ox, y + oy, v, v, v, 0.85f);
+        const Spark s = spark_of(i);
+        // Возраст ВНУТРИ своего цикла. fmod, а не вычитание целой части: цикл
+        // у каждой искры свой, и общего кадра, по которому можно было бы
+        // «завернуть» долю, здесь нет.
+        const float age = std::fmod(t + s.offset * s.cycle_s, s.cycle_s);
+        // За сколько секунд искра проходит длину собственного хвоста.
+        const float tail_s = s.tail_frac / s.speed;
+        // ХВОСТ ПЕРЕЖИВАЕТ ГОЛОВУ, и это не небрежность: у погасшей кометы
+        // шлейф ещё виден, пока его дальние звенья считают СВОЙ, более
+        // ранний возраст. Отсекаем только то, что не даёт ни одного звена.
+        if (age > s.life_s + tail_s) {
+            continue;
+        }
+        // ЗВЕНО НА ПИКСЕЛЬ ДЛИНЫ, и это не запас: шаг в полголовы был первым
+        // подходом, и хвост на кадре вышел ПУНКТИРОМ — звенья хвоста тонкие
+        // (радиус падает по квадрату), и между ними оставалась дыра. На 1080
+        // выходит 32-76 звеньев; потолок держит цену кадра.
+        const int steps =
+            std::clamp(static_cast<int>(std::lround(s.tail_frac * fh)), 8, 96);
+        // ОТ ХВОСТА К ГОЛОВЕ: голова кладётся последней и потому не тонет под
+        // звеном соседней искры.
+        for (int j = steps; j >= 0; --j) {
+            const float f = static_cast<float>(j) / static_cast<float>(steps);
+            const float sample_age = age - f * tail_s;
+            const float life = spark_alpha(s, sample_age);
+            if (life <= 0.0f) {
+                continue; // ещё не родилась (у молодой хвоста нет) или уже угасла
+            }
+            // ЯРКОСТЬ ГАСНЕТ МЕДЛЕННЕЕ, ЧЕМ ТОЛЩИНА. Это и есть разница между
+            // кометой и штрихом дождя: голова круглая и яркая, а шлейф уходит
+            // в волосок, оставаясь при этом видимым почти на всю длину.
+            // Показатели подобраны по кадрам (1.3 у яркости, 2.0 у радиуса);
+            // равные показатели дают либо «головастика», либо ровную черту.
+            const float taper = 1.0f - f;
+            const float a = s.bright * life * std::pow(taper, 1.3f);
+            if (a <= 0.004f) {
+                continue;
+            }
+            const float fx = s.x0
+                             + s.sway_amp * std::sin(SPARK_TAU * s.sway_hz * sample_age
+                                                     + s.sway_phase);
+            const float fy = s.y0 - s.speed * sample_age;
+            const int x = static_cast<int>(std::lround(fx * fw));
+            const int y = static_cast<int>(std::lround(fy * fh));
+            const int r = std::max(
+                1, static_cast<int>(std::lround(static_cast<float>(head_px)
+                                                * std::pow(taper, 2.0f))));
+            const auto stamp = [&](int side, const Rgb& c, float alpha) {
+                for (int oy = 0; oy < side; ++oy) {
+                    for (int ox = 0; ox < side; ++ox) {
+                        blend(canvas, x + ox - side / 2, y + oy - side / 2, c.r, c.g, c.b,
+                              alpha);
+                    }
+                }
+            };
+            if (j == 0) {
+                // ГОЛОВА В ТРИ СЛОЯ: слабое гало (иначе комета вырезана из
+                // бумаги), тело в цвете искры и БЕЛОЕ ЯДРО — даже у голубой.
+                // Комета горячее своего шлейфа, и без ядра голубая искра
+                // читается отрезком краски, а не источником света.
+                stamp(r + 3, s.color, a * 0.16f);
+                stamp(r, s.color, a);
+                stamp(std::max(1, r / 2), SPARK_WHITE, std::min(1.0f, a * 0.9f));
+            } else {
+                stamp(r, s.color, a);
             }
         }
     }
