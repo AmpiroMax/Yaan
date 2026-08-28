@@ -1,0 +1,336 @@
+<!doctype html>
+<!--
+Created: 28:08:2026 - 19:05:50
+Last updated: 28:08:2026 - 19:07:50
+Module: docs/reports
+File: docs/reports/house-lod.html
+
+Responsibility:
+- Сдача волны LOD ПОСТРОЕК (зона И13, обязательство владельца 27.08: «города
+  внутри мира без ворот-загрузок, LOD домов ОБЯЗАТЕЛЕН»): устройство трёх
+  ступеней, ВЫВОД порогов из углового размера на FullHD, гистерезис,
+  измеренная цена по полке и по двум городам, рукава и хэши.
+- И ЧЕСТНЫЙ ХВОСТ: волна остановлена распоряжением владельца на середине.
+  Что сделано и зелено, что написано и откачено, что не начато — §8.
+
+Dependencies:
+- Uses: engine/world/sources/HouseLod.{h,cpp} (лестница), HouseMesh.cpp (печь),
+  tools/check_house_lod.cpp (прибор), tests/core/HouseLodTests.cpp (рукав).
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- ВСЯКОЕ ЧИСЛО ЗДЕСЬ ВОСПРОИЗВОДИМО ОДНОЙ КОМАНДОЙ, и команда названа рядом.
+  «До» — это столбец «полная» ТОГО ЖЕ прогона, а не прошлый коммит (правило 47).
+- ХВОСТ (§8) НЕ ПРИЧЁСЫВАТЬ. Отчёт, в котором недоделанное названо
+  сделанным, дороже отсутствующего отчёта.
+-->
+<meta charset="utf-8">
+<title>LOD построек: дальняя форма дома</title>
+<style>
+  :root{--bg:#14120f;--panel:#1e1b17;--line:#3a342c;--ink:#e8e2d6;--dim:#a89e8c;
+        --accent:#c8a24a;--ok:#a9d18a;--bad:#e0928a;--them:#8fbf6a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.62 "Iowan Old Style","Palatino Linotype",Georgia,serif}
+  .wrap{max-width:1120px;margin:0 auto;padding:48px 24px 96px}
+  h1{font-size:2.05rem;line-height:1.2;margin:0 0 8px}
+  .sub{color:var(--dim);margin:0 0 40px}
+  h2{font-size:1.4rem;margin:56px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:1.05rem;margin:28px 0 8px;color:var(--accent)}
+  p{margin:0 0 14px}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.86em;background:#262119;
+       padding:1px 5px;border-radius:3px;color:#e0c98a}
+  pre{background:#262119;border:1px solid var(--line);border-radius:3px;padding:12px 14px;
+      overflow-x:auto;font-family:ui-monospace,Menlo,monospace;font-size:.8rem;line-height:1.5}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:.9rem}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--accent);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;
+       font-family:ui-monospace,Menlo,monospace;font-size:.87em}
+  .bad{color:var(--bad);font-weight:600}
+  .ok{color:var(--ok);font-weight:600}
+  .note{background:var(--panel);border-left:3px solid var(--accent);padding:13px 17px;margin:18px 0;font-size:.95rem}
+  .note.warn{border-left-color:var(--bad)}
+  .note.key{border-left-color:var(--them);background:#1c2118}
+  ul,ol{margin:0 0 14px;padding-left:22px} li{margin-bottom:7px}
+  .scroll{overflow-x:auto}
+  .cut{color:var(--dim)}
+</style>
+<div class="wrap">
+
+<h1>LOD построек: дальняя форма дома</h1>
+<p class="sub">Зона И13 · 28.08.2026 · дальняя форма из того же чертежа той же печью ·
+пороги выведены из углового размера на FullHD · волна остановлена на середине (§8)</p>
+
+<div class="note key">
+<b>Одной фразой.</b> У постройки появились три ступени, и все три печёт ОДНА печь из ОДНОГО
+графа: полная (как была, бит-в-бит), средняя (без фаски, без косметики износа, без кирпичной
+кладки) и дальняя (оболочка: стены плитами, скаты плоскостями, ни одного рядного слоя, тон
+срезанного слоя уходит на пластину). Цена измерена: полка домов <b>5 380 460 → 1 790 950 →
+130 292</b> трис (33.3 % и 2.4 %), Вайтран <b>2 194 386 → 1 104 876 → 103 992</b> (50.4 % и
+<b>4.7 %</b>), Житнов <b>17 539 454 → 3 960 036 → 744 056</b> (22.6 % и <b>4.2 %</b>). Пороги
+28 м и 110 м не выбраны, а выведены. <b>Чего НЕТ:</b> выбора ступени на кадре — постройки
+по-прежнему рисуются полной формой всегда. См. §8, там это названо поимённо.
+</div>
+<!--
+UPD:
+- 28:08:2026 - 19:06:13: Создан по сдаче волны LOD построек (И13). Волна остановлена
+  распоряжением владельца на середине: дальняя форма печётся, измерена и
+  охраняется рукавом, выбора ступени на кадре ещё нет. Весь хвост — §8.
+- 28:08:2026 - 19:07:50: §5 и §8.2 — прибор и оба плеча сторожа ВСЁ-ТАКИ легли в
+  CMakeLists.txt: чужая волна закоммитила файл (7627041) и он освободился.
+  Пункт хвоста оставлен зачёркнутым, а не стёрт: он объясняет соседний п. 3,
+  где та же причина ещё держит правки render.
+-->
+
+<h2>1. Что срезает каждая ступень</h2>
+
+<p>Ступень — это <b>переписанный рецепт элемента</b>, а не второй меш. <code>build_house_mesh</code>
+идёт тем же <code>ordered_elements</code>, зовёт те же <code>build_line</code> /
+<code>build_chain_surface</code> / <code>build_contour_surface</code>, и единственная разница в
+том, что перед сборкой элемента его <code>ElementParams</code> проходит через
+<code>house_lod_simplify</code> (<code>engine/world/sources/HouseLod.cpp</code>). Второй печи
+дальних форм нет намеренно: она была бы вторым описанием дома и разъехалась бы с первым в день,
+когда правят стену (правило 39).</p>
+
+<div class="scroll"><table>
+<tr><th>Слой</th><th>полная</th><th>средняя (28 м)</th><th>дальняя (110 м)</th></tr>
+<tr><td>фаска рёбер (<code>bevel_m</code>)</td><td class="ok">есть</td><td class="cut">срезана</td><td class="cut">срезана</td></tr>
+<tr><td>косметика износа: подтёки, трещины, сколы, выпавшие куски</td><td class="ok">есть</td><td class="cut">срезана</td><td class="cut">срезана</td></tr>
+<tr><td>кирпичная кладка (<code>fill=2</code>)</td><td class="ok">есть</td><td class="cut">срезана, тон глины на пластину</td><td class="cut">срезана</td></tr>
+<tr><td>каменные блоки (<code>fill=3</code>)</td><td class="ok">есть</td><td class="ok">есть</td><td class="cut">срезаны, тон камня на пластину</td></tr>
+<tr><td>венцы сруба (<code>fill=4</code>)</td><td class="ok">есть</td><td class="ok">есть</td><td class="cut">срезаны, тон бруса на пластину</td></tr>
+<tr><td>настил-паркет (<code>fill=5</code>)</td><td class="ok">есть</td><td class="ok">есть</td><td class="cut">срезан, тон доски на пластину</td></tr>
+<tr><td>дранка / черепица (<code>fill=7/8</code>)</td><td class="ok">есть</td><td class="ok">есть</td><td class="cut">срезаны, тон кровли на пластину</td></tr>
+<tr><td>обшивка: доски, раскосы, рамы проёмов (<code>clad</code>)</td><td class="ok">есть</td><td class="ok">есть</td><td class="cut">срезана</td></tr>
+<tr><td>ставни, крыльцо, завалинка, торцы брёвен, балки, щит подступёнка</td><td class="ok">есть</td><td class="ok">есть</td><td class="cut">срезаны</td></tr>
+<tr><td>зазоры открытого марша (<code>open</code>)</td><td class="ok">есть</td><td class="ok">есть</td><td class="cut">марш становится сплошным коробом</td></tr>
+<tr><td>ПРОЁМЫ (окна, двери)</td><td class="ok">есть</td><td class="ok">есть</td><td class="ok">ОСТАЮТСЯ (см. врезку)</td></tr>
+<tr><td>СПИСОК ЭЛЕМЕНТОВ</td><td class="ok">весь</td><td class="ok">весь</td><td class="ok">весь, ни один не выброшен</td></tr>
+</table></div>
+
+<div class="note">
+<b>Ни один элемент не выброшен, и это решение, а не недоделка.</b> Соблазн отбирать элементы по
+размеру («мелочь на 200 м не видна») велик и неверен: силуэт города на 500 м складывается ИМЕННО
+из мелких верхов — труб, шпилей, слуховых окон. А треугольники живут не в элементах, а в РЯДНЫХ
+СЛОЯХ: срезав слои, дальняя ступень уже забрала 95–99 % веса (таблица §4), и отбор по размеру
+отнял бы силуэт за оставшийся процент.
+</div>
+
+<div class="note warn">
+<b>Отступление от формулировки заказа: дальняя форма ПРОЁМЫ СОХРАНЯЕТ.</b> В заказе стояло
+«коробка+крыша, без проёмов». Довод против — та же линейка, которой выведены пороги: проём
+метровой ширины перестаёт разрешаться только с <b>352 м</b>, то есть на входе в дальнюю ступень
+он занимает 6.4 пикселя и читается ритмом фасада. Цена сохранения — пластина с прорезями вместо
+цельной, десятки треугольников против дюжины, при том что рядные слои стоят тысячи. Признак
+вынесен константой <code>HOUSE_LOD_FAR_KEEPS_OPENINGS</code> — если владелец решит иначе,
+меняется одна строка, и рукав <code>test_house_lod</code> это увидит.
+</div>
+
+<h2>2. Откуда взялись 28 м и 110 м</h2>
+
+<p>Проекция линейна по тангенсу, поэтому высота кадра <i>H</i> пикселей покрывает
+2·tg(fov<sub>y</sub>/2) метров на метр дистанции. При <code>CAMERA_FOV_Y</code> = 1.309 рад (75°,
+<code>docs/NUMBERS.md</code>) и <i>H</i> = 1080 это <b>703.7 пикселя на метр на расстоянии
+метра</b>. Число FullHD, а не <code>DESIGN_RES_H</code> = 360 (там вышло бы 234.6): проект
+переведён на FullHD 15.08, и лестница, выведенная в 360 строках, срезала бы на треть ближе, чем
+видит монитор.</p>
+
+<p>Предел разрешения повторяющегося слоя — <b>2 пикселя на шаг</b>. Это не запас вкуса, а
+Найквист: узор с шагом меньше двух пикселей не может быть разрешён и превращается в своё среднее,
+то есть в ровный тон. Отсюда расстояние, за которым слой не разрешается:
+<code>d = шаг · 703.7 / 2</code>.</p>
+
+<div class="scroll"><table>
+<tr><th>Слой</th><th>шаг, м</th><th>откуда число</th><th class="n">не разрешается с</th></tr>
+<tr><td>фаска ребра</td><td class="n">0.010</td><td><code>HOUSE_BEVEL_W_DEFAULT</code></td><td class="n">3.5 м</td></tr>
+<tr><td>трещина износа</td><td class="n">0.018</td><td>HouseWalls.cpp</td><td class="n">6.3 м</td></tr>
+<tr><td><b>ряд кирпича</b></td><td class="n">0.075</td><td>0.065 + 0.010 шва</td><td class="n"><b>26.4 м</b> → <b>MID 28</b></td></tr>
+<tr><td colspan="4" class="cut">— разрыв ряда: следующий слой вдвое дальше —</td></tr>
+<tr><td>ставня, крыльцо, торец бревна</td><td class="n">~0.15</td><td>HouseWalls.cpp</td><td class="n">52.8 м</td></tr>
+<tr><td>доска обшивки</td><td class="n">0.22</td><td><code>HOUSE_BOARD_STEP_DEFAULT</code></td><td class="n">77.4 м</td></tr>
+<tr><td>ряд каменных блоков</td><td class="n">0.235</td><td>0.22 + 0.015 шва</td><td class="n">82.7 м</td></tr>
+<tr><td>дранка (выпуск)</td><td class="n">0.28</td><td>HouseRoof.cpp</td><td class="n">98.5 м</td></tr>
+<tr><td>венец сруба</td><td class="n">0.295</td><td>0.26 + 0.035 шва</td><td class="n">103.8 м</td></tr>
+<tr><td><b>черепица (выпуск)</b></td><td class="n">0.30</td><td>HouseRoof.cpp</td><td class="n"><b>105.6 м</b> → <b>FAR 110</b></td></tr>
+<tr><td colspan="4" class="cut">— разрыв ряда: следующий слой втрое дальше —</td></tr>
+<tr><td>оконный проём</td><td class="n">1.00</td><td><code>HOUSE_WINDOW_W_DEFAULT</code></td><td class="n">351.8 м</td></tr>
+</table></div>
+
+<p>Пороги стоят РОВНО на разрывах этого ряда: 28 — округление вверх от кирпича (26.4), 110 —
+округление вверх от черепицы (105.6), то есть от самого крупного из рядных слоёв. Третьей
+ступени нет не из лени: между 106 и 352 м резать нечего. Таблица живёт в
+<code>HouseLod.h</code> рядом с константами, и рукав
+<code>«вывод порогов: каждый порог стоит ЗА расстоянием своего слоя»</code> ловит правку порога,
+сделанную мимо неё.</p>
+
+<h3>Гистерезис</h3>
+<p><code>HOUSE_LOD_HYSTERESIS_M = 6</code>. У построек смена ступени БЕСПЛАТНА (все формы уже
+лежали бы в видеопамяти), поэтому перехлёст здесь не про цену перепечки, а про дрожь картинки:
+без него игрок, стоящий на самом краю полосы, получал бы мигание фасада с частотой собственного
+покачивания. Шесть метров — 1.2 с хода бегом (5 м/с), то есть верхняя граница частоты
+переключения. Форма выбора — та же, что у лестницы флоры
+(<code>flora_lod_for_distance</code>): самая грубая ступень, чей вход позади, с краем,
+отодвинутым ОТ текущей ступени. Один вид гистерезиса на движок, потому что два разных читались
+бы как два разных дефекта.</p>
+
+<h2>3. Цена: полка</h2>
+<pre>./build_lod/dfn_house_lod assets/houses/*.dfh</pre>
+<div class="scroll"><table>
+<tr><th>группа</th><th class="n">рецептов</th><th class="n">полная</th><th class="n">средняя</th><th class="n">%</th><th class="n">дальняя</th><th class="n">%</th></tr>
+<tr><td>городские (<code>city-*</code>, <code>cornhall-*</code>)</td><td class="n">137</td><td class="n">4 939 208</td><td class="n">1 616 728</td><td class="n">32.7</td><td class="n">93 692</td><td class="n"><b>1.9</b></td></tr>
+<tr><td>стенды и прочее</td><td class="n">17</td><td class="n">372 822</td><td class="n">156 582</td><td class="n">42.0</td><td class="n">20 292</td><td class="n">5.4</td></tr>
+<tr><td>убранство (<code>furn-*</code>)</td><td class="n">61</td><td class="n">41 938</td><td class="n">12 060</td><td class="n">28.8</td><td class="n">10 728</td><td class="n">25.6</td></tr>
+<tr><td>мощение</td><td class="n">22</td><td class="n">26 492</td><td class="n">5 580</td><td class="n">21.1</td><td class="n">5 580</td><td class="n">21.1</td></tr>
+<tr><td><b>ВСЕГО</b></td><td class="n"><b>237</b></td><td class="n"><b>5 380 460</b></td><td class="n"><b>1 790 950</b></td><td class="n"><b>33.3</b></td><td class="n"><b>130 292</b></td><td class="n"><b>2.4</b></td></tr>
+</table></div>
+
+<p>Убранство и мощение падают куда слабее домов, и это верно, а не дефект: у них нет рядных
+слоёв, вся их цена — фаска, и после её снятия срезать больше нечего. Оговорка важнее числа:
+<b>убранство на карту приезжает запечённым в .dfo</b> (секция HOUS) и через эту лестницу
+на прогоне НЕ ПРОХОДИТ вовсе — это отдельная волна «LOD объектов» (И13 расширен, CITIES_12 §4).</p>
+
+<h3>Самые дорогие рецепты</h3>
+<div class="scroll"><table>
+<tr><th>рецепт</th><th class="n">полная</th><th class="n">средняя</th><th class="n">%</th><th class="n">дальняя</th><th class="n">%</th></tr>
+<tr><td>cornhall-townhall</td><td class="n">496 168</td><td class="n">63 612</td><td class="n">12.8</td><td class="n">5 016</td><td class="n">1.0</td></tr>
+<tr><td>city-keep</td><td class="n">466 352</td><td class="n">349 836</td><td class="n">75.0</td><td class="n">8 040</td><td class="n">1.7</td></tr>
+<tr><td>cornhall-inn</td><td class="n">450 244</td><td class="n">74 348</td><td class="n">16.5</td><td class="n">6 140</td><td class="n">1.4</td></tr>
+<tr><td>city-keep-s</td><td class="n">273 294</td><td class="n">129 980</td><td class="n">47.6</td><td class="n">5 360</td><td class="n">2.0</td></tr>
+<tr><td>cornhall-brewery</td><td class="n">271 930</td><td class="n">37 068</td><td class="n">13.6</td><td class="n">3 348</td><td class="n">1.2</td></tr>
+<tr><td>cornhall-arcade</td><td class="n">213 624</td><td class="n">41 504</td><td class="n">19.4</td><td class="n">3 488</td><td class="n">1.6</td></tr>
+<tr><td>city-manor</td><td class="n">187 812</td><td class="n">104 408</td><td class="n">55.6</td><td class="n">3 840</td><td class="n">2.0</td></tr>
+<tr><td>cornhall-firetower</td><td class="n">185 632</td><td class="n">17 196</td><td class="n">9.3</td><td class="n">3 740</td><td class="n">2.0</td></tr>
+</table></div>
+
+<p>Разброс средней ступени (9.3 % у каланчи против 75 % у крепости) читается сразу: там, где
+дом кирпичный, средняя ступень забирает почти всё; там, где он из каменных блоков
+(<code>city-keep</code>, <code>city-manor</code>), кладка держится до дальней — ровно как велит
+таблица §2, где блок неразличим лишь с 82.7 м.</p>
+
+<h2>4. Цена: города</h2>
+<pre>./build_lod/dfn_house_lod assets/scenes/whiterun.scene assets/scenes/cornhall.scene</pre>
+<div class="scroll"><table>
+<tr><th>город</th><th class="n">построек</th><th class="n">полная</th><th class="n">средняя</th><th class="n">%</th><th class="n">дальняя</th><th class="n">%</th><th class="n">во сколько раз дешевле</th></tr>
+<tr><td>Вайтран</td><td class="n">868</td><td class="n">2 194 386</td><td class="n">1 104 876</td><td class="n">50.4</td><td class="n">103 992</td><td class="n"><b>4.7</b></td><td class="n">×21.1</td></tr>
+<tr><td>Житнов (cornhall)</td><td class="n">5 661</td><td class="n">17 539 454</td><td class="n">3 960 036</td><td class="n">22.6</td><td class="n">744 056</td><td class="n"><b>4.2</b></td><td class="n">×23.6</td></tr>
+</table></div>
+
+<p>Числа полной ступени сходятся с замером волны фаски (Вайтран 2.19 млн, Житнов 17.5 млн) —
+это и есть проверка, что «до» здесь настоящее «до». Житнов на дальней ступени весит
+<b>744 тысячи треугольников целиком</b>, то есть меньше трети сегодняшнего Вайтрана: панорама
+гиганта перестаёт быть невозможным кадром ещё до всякого отсечения по пирамиде.</p>
+
+<div class="note warn">
+<b>Это ПОТОЛОК, а не кадр, и разница названа честно.</b> Прибор считает «сколько всего в сцене
+на данной ступени», а не «сколько ушло в кадр»: он не знает ни пирамиды отсечения, ни того,
+какая ячейка на какой ступени окажется. Замер кадра «до/после» с одной точки требует выбора
+ступени на прогоне, а его нет — §8. Обещать бюджет кадра по этим числам нельзя, и здесь он
+не обещан.
+</div>
+
+<h2>5. Рукава</h2>
+<p><code>ctest -R test_house_lod</code> — 6 случаев, 25 утверждений, зелёный.</p>
+<ul>
+<li><b>Край полосы туда и обратно — ровно две смены.</b> Проход шагом мельче перехлёста от
+28−12 м до 28+12 м и назад. Три смены и больше — дребезг.</li>
+<li><b>Контроль лестницы (правило 30):</b> тот же проход, но функции всегда называют текущей
+ступень «полная» — память выключена. Порог тогда стоит НЕ ТАМ, и это измеренная разница между
+«есть гистерезис» и «порог просто сдвинут».</li>
+<li><b>Вывод порогов:</b> расстояние неразличимости кирпича ≤ 28 м, черепицы ≤ 110 м, ставни
+&gt; 28 м, проёма &gt; 110 м. Ловит порог, поправленный мимо таблицы §2.</li>
+<li><b>Ступени убывают, полная форма побайтово прежняя.</b> Отрицательное плечо всей волны:
+<code>memcmp</code> вершин и индексов полной формы против неё же, собранной явным
+<code>HouseLod::Full</code>.</li>
+<li><b>Фаска снята у обеих дальних ступеней</b> — мерой К4 (<code>house_edge_census</code>),
+а не на глаз.</li>
+<li><b>Дальняя форма: проёмы остались, кладка ушла, тон кладки уехал на пластину</b> — с
+контролем на гладкой стене, где подмены материала быть не должно.</li>
+</ul>
+
+<h3>Сторожа хэшей полки</h3>
+<p>Прибор печатает FNV-1a по вершинам (квантованным в 1/512 м — та же сетка, что у отпечатка
+кэша AO) и индексам ПОЛНЫХ форм и умеет требовать его:</p>
+<pre>./build_lod/dfn_house_lod assets/houses/l-house.dfh assets/houses/u-house.dfh \
+    assets/houses/log-replica.dfh assets/houses/stone-replica.dfh \
+    --require-full 9e4fd1f528f72aba</pre>
+<div class="scroll"><table>
+<tr><th>что</th><th>хэш полных форм</th></tr>
+<tr><td>стенд построек (4 чертежа: кирпич, сруб, камень, кровля)</td><td><code>9e4fd1f528f72aba</code></td></tr>
+<tr><td>полка целиком (<code>assets/houses/*.dfh</code>, 237 чертежей)</td><td><code>6901386f333c4ce4</code></td></tr>
+<tr><td>два города (6 529 построек)</td><td><code>f3150f3e653dfe96</code></td></tr>
+</table></div>
+<p>Оба плеча сторожа зелены в <code>ctest</code>:
+<code>house_lod_full_unchanged</code> требует хэша стенда,
+<code>house_lod_full_unchanged_control</code> прогоняет то же с заведомо чужим хэшем и обязан
+провалиться (<code>WILL_FAIL</code>) — без него зелёный сторож доказывал бы только, что он
+всегда зелен.</p>
+
+<h2>6. Полный круг ctest</h2>
+<p><code>ctest --test-dir build_lod</code>: <b>137 тестов, 133 зелёных</b>. Четыре красных —
+чужие и воспроизводятся без единой моей строки:</p>
+<ul>
+<li><code>render_parts_atlas</code>, <code>app_doors</code> — волна МАТЕРИАЛЫ-4
+(<code>DFN_MAT_SHEET</code>), незакоммиченная работа в дереве;</li>
+<li><code>frame_determinism_city</code> — волна детерминизма тура, известный дрейф;</li>
+<li><code>stairs_shelf</code> — красный в общем прогоне, зелёный при повторе в одиночку
+(гонка параллельного прогона, не моя).</li>
+</ul>
+
+<h2>7. Что легло в дерево</h2>
+<div class="scroll"><table>
+<tr><th>файл</th><th>что там</th></tr>
+<tr><td><code>engine/world/sources/HouseLod.h</code></td><td>ступени, линейка FullHD, таблица вывода, пороги, гистерезис</td></tr>
+<tr><td><code>engine/world/sources/HouseLod.cpp</code></td><td>выбор ступени и список срезаемого — на одном экране</td></tr>
+<tr><td><code>engine/world/sources/HouseMesh.{h,cpp}</code></td><td><code>build_house_mesh(g, bevel, lod)</code>; Full не заходит в ветку вовсе</td></tr>
+<tr><td><code>engine/world/sources/HouseMeshDetail.h</code></td><td><code>HouseLodCut</code> — материал срезанного слоя уходит на пластину</td></tr>
+<tr><td><code>tools/check_house_lod.cpp</code>, <code>CMakeLists.txt</code></td><td>прибор трёх ступеней и сторож хэша: <code>house_lod_full_unchanged</code> + контрольное плечо</td></tr>
+<tr><td><code>tests/core/HouseLodTests.cpp</code>, <code>tests/core.cmake</code></td><td>рукав <code>test_house_lod</code></td></tr>
+</table></div>
+
+<h2>8. ХВОСТ: волна остановлена на середине</h2>
+<div class="note warn">
+Распоряжение владельца — разработка останавливается; волна доведена до сдаваемого состояния
+кратчайшим путём. <b>Дальняя форма существует, измерена и охраняется рукавом; на кадре она пока
+не выбирается.</b> Ниже — всё недоделанное поимённо, чтобы следующий не искал.
+</div>
+<ol>
+<li><b>Выбора ступени на прогоне НЕТ.</b> Постройки рисуются полной формой на любом расстоянии,
+ровно как до волны. Замысел был написан и <b>откачен</b> из общих файлов (см. п. 3):
+<code>HouseStream</code>/<code>HouseStreamGpu</code> несут ЯЧЕЙКУ (12 бит, тот же ключ
+<code>stream_cell</code> по 32 м) и СТУПЕНЬ; городской слот ведёт перепись ячеек с объединённым
+габаритом и маской доступных ступеней; <code>submit</code> рисует из ячейки ровно одну
+(проверка ПЕРЕД отсечением по пирамиде). Выбор ступени НЕ переезжает в render:
+<code>dfn_render</code> не линкуется с <code>dfn_world</code> (правило 1), а второй экземпляр
+лестницы разъехался бы с первым (правило 39) — зона app считает ступень по
+<code>world::house_lod_for_distance</code> и приносит её <code>set_house_cell_lod</code>.
+Якорь дистанции — БЛИЖАЙШАЯ точка ящика ячейки, не центр (ячейка 32 м; тот же довод, что у
+<code>FLORA_LOD_SILHOUETTE_M</code>).</li>
+<li class="cut"><s><b>Прибор и оба плеча сторожа не зарегистрированы в сборке.</b></s>
+СНЯТО в час сдачи: волна тура закоммитила <code>CMakeLists.txt</code> (7627041), файл
+освободился, прибор и оба рукава легли туда, где им место, и прогнаны зелёными. Пункт оставлен
+видимым, потому что он объясняет п. 3 — там причина та же и она НЕ снята.</li>
+<li><b>Правки в <code>RenderSystem.h/.cpp</code>, <code>RenderSystemResources.cpp</code>
+ОТКАЧЕНЫ</b> по той же причине, что и п. 2: эти файлы держит волна МАТЕРИАЛЫ-4. Код был
+написан, собирался и не менял кадра (все потоки на ступени 0).</li>
+<li><b>Заливка ступеней в AppHouse не начата.</b> План: <code>append_graph</code> получает
+ступень, городской проход идёт по трём ступеням в свои карты потоков, а коллайдер, створки,
+пятна травы и находки собираются ТОЛЬКО на полной (у них уже есть флаги-указатели —
+<code>collect_exclusions</code>, <code>doorway_sink</code>). Меш ступени стоит кэшировать по
+имени рецепта (<code>ScenePlacedHouse::file</code>): 5 661 постройка Житнова — это ~30
+уникальных чертежей.</li>
+<li><b>Дозы <code>DFN_HOUSE_LOD</code> нет</b> (нечего дозировать, пока нет п. 1 и 4). Замысел:
+0 — полная форма везде и ни одного лишнего потока, бит-в-бит; 1 (умолчание) — лестница;
+2/3 — принудительно средняя/дальняя ВЕЗДЕ, как контрольная рука замера (образец —
+<code>DFN_FLORA_FORCE_LOD</code>). Строка в <code>AppDoors.cpp</code> — вместе с ней.</li>
+<li><b>Бюджета кадра до/после и кадров переходов НЕТ</b>: мерить нечем, пока ступень не
+выбирается. Когда появится — рука на одной сборке:
+<code>DFN_EDITOR_CAM=&lt;x,y,z,yaw,pitch&gt; DFN_CAPTURE_AFTER_FRAMES=N DFN_FRAME_LOG=&lt;путь&gt;</code>
+даёт <code>scene_draws</code>, <code>scene_triangles</code>, <code>backend_draws</code> с
+неподвижной точки, без облёта (прибор тура на день сдачи дрейфовал —
+<code>frame_determinism_city</code> красный).</li>
+<li><b>LOD запечённых объектов (.dfo)</b> — мебель, лавки, вывески — этой лестницы не касается
+вовсе (§3, оговорка). Отдельная волна.</li>
+</ol>
+
+</div>

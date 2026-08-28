@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 28:08:2026 - 19:30:00
+# Last updated: 28:08:2026 - 19:06:50
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -146,6 +146,9 @@
 #   обязан провалиться», иначе молчание прибора неотличимо от прибора
 #   неработающего.
 # - 28:08:2026 - 19:30:00: frame_determinism_stand / _city / _city_wallclock —
+# - 28:08:2026 - 19:06:50: dfn_house_lod (прибор трёх ступеней дальней формы построек, И13)
+#   и house_lod_full_unchanged с контрольным плечом — сторож ПОЛНОЙ формы
+#   стенда: лестница дальних форм обязана быть только добавлением.
 #                          «два прогона одной сборки = один md5» в ctest, с ярлыком
 #                          unattended_frames (каждый тест — два полных прогона игры).
 #                          Прибор приёмки, который никто не прогоняет автоматически,
@@ -382,6 +385,37 @@ target_link_libraries(dfn_interior_check PRIVATE dfn_world dfn_render dfn_core)
 # что за сутки поменялось в дереве.
 add_executable(dfn_bevel_check tools/check_bevel.cpp)
 target_link_libraries(dfn_bevel_check PRIVATE dfn_world dfn_core)
+
+# ПРИБОР ЛЕСТНИЦЫ ДАЛЬНИХ ФОРМ (dfn_house_lod, И13): треугольники всех трёх
+# ступеней одного чертежа рядом, одним прогоном и одним бинарником. «До» — это
+# столбец «полная», а не прошлый коммит (правило 47).
+add_executable(dfn_house_lod tools/check_house_lod.cpp)
+target_link_libraries(dfn_house_lod PRIVATE dfn_world dfn_core)
+
+# СТОРОЖ ПОЛНОЙ ФОРМЫ НА СТЕНДЕ ПОСТРОЕК (И13), ДВА ПЛЕЧА В ОДНОМ БИНАРНИКЕ.
+# Положительное: четыре чертежа стенда — кирпич, сруб, камень, кровля — обязаны
+# дать РОВНО тот хэш полных форм, что стоял до лестницы дальних форм. Лестница
+# обязана быть ТОЛЬКО добавлением, и «полка не поменялась» проверяется
+# ГЕОМЕТРИЕЙ, а не числом треугольников: равное число при разной геометрии —
+# ровно тот случай, ради которого сторож и заведён. Отрицательное: тот же
+# прогон с заведомо чужим хэшем обязан ПРОВАЛИТЬСЯ, иначе зелёный сторож
+# доказывал бы только, что он всегда зелен.
+#
+# ЕСЛИ ЭТОТ РУКАВ ПОКРАСНЕЛ, а полную форму меняли НАМЕРЕННО (правка .dfh,
+# правка печи) — прогоните dfn_house_lod на стенде, впишите новый хэш сюда и
+# скажите об этом записью UPD. Молча подогнанный хэш обесценивает сторожа.
+set(DFN_HOUSE_LOD_STAND
+    assets/houses/l-house.dfh assets/houses/u-house.dfh
+    assets/houses/log-replica.dfh assets/houses/stone-replica.dfh)
+add_test(NAME house_lod_full_unchanged
+         COMMAND dfn_house_lod ${DFN_HOUSE_LOD_STAND}
+                 --require-full 9e4fd1f528f72aba
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME house_lod_full_unchanged_control
+         COMMAND dfn_house_lod ${DFN_HOUSE_LOD_STAND}
+                 --require-full 0000000000000000
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(house_lod_full_unchanged_control PROPERTIES WILL_FAIL TRUE)
 
 # К4 НА СТЕНДЕ УБРАНСТВА, ДВА ПЛЕЧА В ОДНОМ БИНАРНИКЕ (правила 30 и 47).
 # Положительное: полка убранства при штатной фаске обязана дать 100 % рёбер с

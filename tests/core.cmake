@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 28:08:2026 - 15:20:00
+# Last updated: 28:08:2026 - 18:39:59
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -111,6 +111,9 @@
 #   и полоса фактического угла раскоса, ВЫВЕДЕННАЯ из округления к ближайшему.
 # - 20:08:2026 - 15:50:00: test_house_passability — судья проходимости готовых построек.
 # - 28:08:2026 - 15:20:00: test_house_bevel — плечо НЕНУЛЕВОЙ дозы фаски
+# - 28:08:2026 - 18:39:59: test_house_lod — лестница дальних форм построек (И13):
+#   край полосы туда-обратно ровно двумя сменами (и контроль без памяти о
+#   ступени), вывод порогов из размеров слоёв, полная форма побайтово прежняя.
 #   (критерий К4 ТЗ материалов). Все 38 сборок test_house_mesh переведены на
 #   0.0f и стали плечом нулевой дозы: они меряют прежнюю острую геометрию
 #   числами, и пока они зелены, доза 0 воспроизводит её бит-в-бит.
@@ -146,6 +149,11 @@ add_dfn_test(test_house_mesh core/HouseMeshTests.cpp dfn_world)
 # зовётся с 0.0f — у двух плеч разные поводы к правке, и склеенные в один файл
 # они правились бы вместе, то есть плечо нулевой дозы поехало бы за фаской.
 add_dfn_test(test_house_bevel core/HouseBevelTests.cpp dfn_world)
+# ЛЕСТНИЦА ДАЛЬНИХ ФОРМ (И13). Отдельным рукавом от test_house_bevel и по той
+# же причине, по которой тот отделён от test_house_mesh: у выбора ступени и у
+# геометрии ступени разные поводы к правке. Здесь же живёт отрицательное плечо
+# всей волны — полная форма обязана остаться прежней ПОБАЙТОВО.
+add_dfn_test(test_house_lod core/HouseLodTests.cpp dfn_world)
 add_dfn_test(test_house_style core/HouseStyleTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)

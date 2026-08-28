@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 28:08:2026 - 14:05:00
+Last updated: 28:08:2026 - 18:31:59
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -61,6 +61,11 @@ UPD:
   элемента. Сама фаска — в push_prism (HouseBodies.cpp): все девять
   модулей-алгоритмов кладут тела через него, поэтому одна строка здесь
   доводит фаску до дома, убранства и запечённого предмета реестра разом.
+- 28:08:2026 - 18:31:59: СТУПЕНЬ HouseLod ДОХОДИТ ДО ОБХОДА ЭЛЕМЕНТОВ (И13). Дальняя
+  форма — тот же ordered_elements, те же build_line/build_chain_surface/
+  build_contour_surface, только рецепт элемента переписан house_lod_simplify,
+  а фаска снята house_lod_bevel. Full не заходит в ветку вовсе: полка обязана
+  печься бит-в-бит, и сторожа хэшей проверяют именно это.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -140,26 +145,42 @@ const MeshPart* HouseMesh::part_of(ElementId id) const {
     return nullptr;
 }
 
-HouseMesh build_house_mesh(const HouseGraph& g, float bevel_m) {
+HouseMesh build_house_mesh(const HouseGraph& g, float bevel_m, HouseLod lod) {
     HouseMesh mesh;
     MeshBuilder mb{&mesh};
     // ФАСКА ОДНА НА ВСЮ ПОСТРОЙКУ, и ставится ДО первого элемента: тела
     // рождаются в push_prism, а он читает построителя. Ноль сюда — прежняя
     // геометрия бит-в-бит, потому что нулевая ширина уводит призму на прежнюю
     // ветку целиком, а не на ту же со сдвигом в ноль.
-    mb.bevel_m = std::max(bevel_m, 0.0f);
+    mb.bevel_m = std::max(house_lod_bevel(lod, bevel_m), 0.0f);
     for (const ElementId id : ordered_elements(g)) {
         const Element* e = g.element(id);
         if (e == nullptr || e->refs.empty()) {
             continue;
         }
         std::vector<ParamIssue> issues;
-        const ElementParams p = element_params_of(*e, &issues);
+        ElementParams p = element_params_of(*e, &issues);
         for (const ParamIssue& is : issues) {
             mesh.findings.push_back({id, MeshIssue::UnknownParam, 0.0f, is.token + ": " + is.why});
         }
+        // ДАЛЬНЯЯ ФОРМА — ТОТ ЖЕ ОБХОД С ПЕРЕПИСАННЫМ РЕЦЕПТОМ (И13). Второй
+        // печи дальних форм здесь нет намеренно: она была бы вторым описанием
+        // дома и разъехалась бы с первым в день, когда правят стену (правило
+        // 39). Полная ступень в ветку НЕ ЗАХОДИТ — её меш обязан остаться
+        // прежним бит-в-бит, а «то же самое, только через ветку» ломается
+        // первой же правкой ветки (правило 47).
+        HouseLodCut lod_cut;
+        if (lod != HouseLod::Full) {
+            lod_cut = house_lod_simplify(lod, p);
+        }
         mb.glow = p.glow > 0.5f;
         mb.begin_element(id);
+        // ПОСЛЕ begin_element, А НЕ ДО: begin_element сбрасывает материал
+        // части в элементный, и материал срезанной кладки, поставленный
+        // раньше, был бы стёрт молча.
+        if (lod_cut.plate_mat >= 0 || lod_cut.plate_tone >= 0) {
+            mb.set_material(lod_cut.plate_mat, lod_cut.plate_tone);
+        }
         if (e->kind == ElementKind::Line) {
             build_line(g, *e, p, mb, mesh);
         } else {
