@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:29:43
-Last updated: 21:08:2026 - 01:50:00
+Last updated: 28:08:2026 - 19:20:00
 Module: engine/render
 File: engine/render/sources/PartsAtlas.h
 
@@ -58,6 +58,19 @@ UPD:
   PartForge, чтобы текстура меняла ПОВЕРХНОСТЬ, а не палитру принятой витрины.
 - 20:08:2026 - 17:30:00: PARTS_ATLAS_REVISION=2 — новые нормали.
 - 21:08:2026 - 01:50:00: Ревизия 3.
+- 28:08:2026 - 19:20:00: ВОЛНА 4 «СТРУКТУРА В ЛИСТ» — доза PartsSheetDose и
+  зерно на масштабе ТЕКСЕЛЯ. Диагноз замерен, а не назван: у всех 36 плиток
+  ДЕТАЛЬ 0.12-1.80 при пороге К1 4.0, то есть лист провалил бы критерий даже
+  при отрисовке тексель-в-пиксель. Причина одна на все девять колонок —
+  САМАЯ МЕЛКАЯ ЧЕРТА КАЖДОГО ВЕЩЕСТВА НАРИСОВАНА КРУПНЕЕ, ЧЕМ ОНА ЕСТЬ:
+  волокно дерева 26-34 линии на метр (3 см) при настоящих 0.5-2 мм, зерно
+  камня 30/м при минеральных 0.5-3 мм, зуб штукатурки 44/м при песке
+  0.5-1 мм. Единственная колонка, нарисованная в своём настоящем шаге, —
+  СОЛОМА (стебель 8 мм, 120 стеблей на метр), и она же единственная с
+  ДЕТАЛЬЮ выше 1.5. Доза Grain поднимает плитку до 512 px (тексель 1.95 мм) и
+  добавляет то, что плитка разрешить не может, как ЗЕРНО с нулевым средним:
+  подтексельная структура и обязана выглядеть шумом, ровно так её несёт всякая
+  снятая с натуры текстура. Ревизия 4.
 */
 
 #pragma once
@@ -119,7 +132,7 @@ inline constexpr uint32_t PARTS_ATLAS_TONES = 4;
 /// Bumped on EVERY change to the pixels or the layout. It is part of the cache
 /// key the uploader must use: flora lost a session to a cached 4-column sheet
 /// being sampled by 5-column uvs (white conifers, correct code everywhere).
-inline constexpr uint32_t PARTS_ATLAS_REVISION = 3; // 3: сучки доски реже и тише (21.08)
+inline constexpr uint32_t PARTS_ATLAS_REVISION = 4; // 4: зерно на масштабе текселя (28.08)
 
 /// Tile side in texels. 256 over PARTS_TILE_SPAN_M gives ~3.9 mm per texel ON
 /// THE OBJECT — finer than the leaf atlas' ~5 mm, which is the density the
@@ -128,6 +141,39 @@ inline constexpr uint32_t PARTS_ATLAS_REVISION = 3; // 3: сучки доски 
 /// nine columns, and 512 would spend 38 MB per sheet to buy detail below the
 /// grain pitch it is drawing.
 inline constexpr uint32_t PARTS_ATLAS_TILE_PX = 256;
+
+/// ДОЗА ЛИСТА (правило 47: обе руки замера выходят из одной сборки). `Flat` —
+/// лист волны 3 БИТ-В-БИТ, включая размер плитки; `Grain` — структура на
+/// масштабе текселя. Доза едет ПАРАМЕТРОМ, а не переменной среды, потому что
+/// генератор обязан остаться чистым: две дозы должны печататься в одном
+/// процессе, и тест на «доза 0 не сдвинулась ни на байт» иначе не написать.
+enum class PartsSheetDose : uint8_t {
+    Flat = 0,  ///< лист 21.08: плитка 256 px, только интерполированные поля
+    Grain = 1, ///< волна 4: плитка 512 px плюс зерно на масштабе текселя
+};
+
+/// ПЛИТКА ДОЗЫ `Grain` — 512 px, и это НЕ «побольше значит получше», а
+/// единственное число, при котором критерий вообще достижим. Замерено: экран
+/// FullHD при `CAMERA_FOV_Y` несёт 703.5 пикселя на метр поверхности с одного
+/// метра — дистанции, на которой К1 и меряется. Плитка 256 px на метровый шаг
+/// даёт 256 текселей на метр, то есть УВЕЛИЧЕНИЕ в 2.75 раза, и билинейная
+/// растяжка режет локальную детальность в 6.2 раза: даже белый шум амплитуды
+/// 32/255 (ДЕТАЛЬ 24 в плитке — текстура, которую никто не назовёт материалом)
+/// приходит на кадр как 3.88 при пороге 4.0. 512 px дают увеличение 1.37 и
+/// потерю в 2.25 раза — достижимо честной структурой. ЦЕНА НАЗВАНА В ОТЧЁТЕ:
+/// лист 4608x2048 (37.7 МБ) вместо 2304x1024 (9.4 МБ), два листа 75.5 МБ
+/// вместо 18.8, и это CPU-память на время запуска (RenderSystem::parts_sheet
+/// освобождает её в shutdown); на GPU уезжает 1 МБ на плитку вместо 0.25.
+inline constexpr uint32_t PARTS_ATLAS_TILE_PX_GRAIN = 512;
+
+/// Сторона плитки этой дозы. ОДНО определение на всех, потому что ключ кэша
+/// плитки, вырезка из листа и uv обязаны согласиться о размере: разойдись они,
+/// и лист прочитался бы со сдвигом на четверть, а выглядело бы это как чужая
+/// раскладка (флора теряла на этом сессию — см. предупреждение про ревизию).
+[[nodiscard]] inline constexpr uint32_t parts_tile_px(PartsSheetDose dose) {
+    return dose == PartsSheetDose::Grain ? PARTS_ATLAS_TILE_PX_GRAIN
+                                         : PARTS_ATLAS_TILE_PX;
+}
 
 /// METRES OF SURFACE ONE TILE COVERS. The mesh side repeats the tile by
 /// SPLITTING faces at multiples of this, so the number is a trade with two
@@ -149,14 +195,17 @@ struct PartsAtlas {
 };
 
 /// The ALBEDO sheet. `tile_px` is the side of one tile (>= 16).
-[[nodiscard]] PartsAtlas generate_parts_atlas(uint32_t tile_px = PARTS_ATLAS_TILE_PX);
+[[nodiscard]] PartsAtlas generate_parts_atlas(
+    uint32_t tile_px = PARTS_ATLAS_TILE_PX,
+    PartsSheetDose dose = PartsSheetDose::Flat);
 
 /// The NORMAL sheet: same layout, tangent-space normals packed xyz -> RGB.
 /// Derived from THE SAME height field that shades the albedo tile, so a groove
 /// is dark exactly where the surface says it is deep — flora's contract, and
 /// the reason a trunk stopped looking painted (FloraCards' aux sheet).
 [[nodiscard]] PartsAtlas generate_parts_normal_atlas(
-    uint32_t tile_px = PARTS_ATLAS_TILE_PX);
+    uint32_t tile_px = PARTS_ATLAS_TILE_PX,
+    PartsSheetDose dose = PartsSheetDose::Flat);
 
 /// uv rectangle of one tile: (u_min, v_min, u_max, v_max), inset by half a
 /// texel so a sampler can never straddle two tiles.

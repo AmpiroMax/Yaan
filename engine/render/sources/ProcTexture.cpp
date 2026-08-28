@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:48:00
-Last updated: 23:08:2026 - 17:58:10
+Last updated: 28:08:2026 - 19:20:00
 Module: engine/render
 File: engine/render/sources/ProcTexture.cpp
 
@@ -36,6 +36,12 @@ UPD:
   до-квантовое поле одно, альбедо и нормали не могут разойтись;
   generate_terrain_normal_atlas() — центральные разности того же поля,
   рельеф на клетку художественно завышен по прецеденту PartsAtlas.
+- 28:08:2026 - 19:20:00: lattice_hash01() — решётка БЕЗ интерполяции. Всё
+  остальное в этом файле интерполирует между узлами, а интерполяция и есть то,
+  что снимает энергию на Найквисте плитки: поле из fbm гладко НА МАСШТАБЕ
+  ТЕКСЕЛЯ, сколько бы октав ему ни дали. Выведено наружу, а не скопировано в
+  набор: вторая цепочка хэшей в дереве — теневой дефект правила 39, и она же
+  молча ломает всякое утверждение о детерминизме.
 */
 
 #include "engine/render/sources/ProcTexture.h"
@@ -377,6 +383,16 @@ float tileable_cells(glm::vec2 uv, glm::ivec2 period, uint32_t seed, float jitte
 
 float tileable_cell_id(glm::vec2 uv, glm::ivec2 period, uint32_t seed, float jitter) {
     return cell_field(uv, period, seed, jitter).id;
+}
+
+float lattice_hash01(glm::ivec2 cell, glm::ivec2 period, uint32_t seed) {
+    // THE LATTICE ITSELF, undecorated. Every other primitive in this file
+    // INTERPOLATES between these points, and interpolation is exactly what
+    // removes the energy at the tile's Nyquist: a field built from fbm is
+    // smooth at the texel however many octaves it carries, so a texture built
+    // only from it is flat at the PIXEL. That is the measured diagnosis of
+    // MATERIALS.md §0.1, and this is the primitive that answers it.
+    return lattice01(cell.x, cell.y, glm::max(period, glm::ivec2{1, 1}), seed);
 }
 
 std::vector<uint8_t> generate_terrain_atlas(uint32_t cell_size, uint32_t seed) {

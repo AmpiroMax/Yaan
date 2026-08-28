@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 17:31:25
+Last updated: 28:08:2026 - 19:20:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -210,6 +210,14 @@ UPD:
   его числа (волна 3 зоны МАТЕРИАЛЫ): DrawParams.material вместо roughness/metalness, и
   program_for() у потоков построек и подвижных предметов. При
   MATERIAL_NONE — прежний ламберт и прежняя программа, кадр бит-в-бит.
+- 28:08:2026 - 19:20:00: ДОЗА СТРУКТУРЫ ЛИСТА (set_parts_sheet_dose /
+  parts_sheet_dose, дверь DFN_MAT_SHEET; волна 4 зоны МАТЕРИАЛЫ). Дверь читает
+  ПРИЛОЖЕНИЕ (AppHouse, рядом с DFN_MAT) и приносит значение сюда; генератор
+  листа при этом остаётся чистым — доза едет ему параметром, иначе не написать
+  случай «доза 0 не сдвинулась ни на байт»: обе дозы обязаны печататься в одном
+  процессе. Сторона плитки теперь у дозы (parts_tile_px) и входит в ключ кэша:
+  доза, сменившая сторону, обязана промахнуться мимо вчерашней плитки, иначе
+  повторится белая хвоя флоры — верный код везде и чужие пиксели на экране.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -335,6 +343,24 @@ size_t RenderSystem::ChunkKeyHash::operator()(const glm::ivec2& v) const {
     return static_cast<size_t>(x * 0x9E3779B97F4A7C15ull ^ (y * 0xC2B2AE3D27D4EB4Full));
 }
 
+namespace {
+// ДОЗА СТРУКТУРЫ ЛИСТА (дверь DFN_MAT_SHEET, волна 4 зоны МАТЕРИАЛЫ).
+// 0/нет — лист волны 3 БИТ-В-БИТ, включая сторону плитки 256 px; 1 — плитка
+// 512 px со структурой на масштабе текселя.
+//
+// ЗДЕСЬ ЛЕЖИТ ОТВЕТ, А НЕ ЧТЕНИЕ ДВЕРИ: дверь читает приложение и приносит
+// значение сюда (см. довод у объявления). Генератор листа при этом остаётся
+// ЧИСТЫМ — доза едет ему параметром, иначе не написать случай «доза 0 не
+// сдвинулась ни на байт»: обе дозы обязаны печататься в одном процессе.
+PartsSheetDose g_parts_sheet_dose = PartsSheetDose::Flat;
+} // namespace
+
+void RenderSystem::set_parts_sheet_dose(PartsSheetDose dose) {
+    g_parts_sheet_dose = dose;
+}
+
+PartsSheetDose RenderSystem::parts_sheet_dose() { return g_parts_sheet_dose; }
+
 const PartsAtlas& RenderSystem::parts_sheet(bool normal) {
     // ОДИН ЛИСТ НА ВЕСЬ ЗАПУСК, А НЕ ОДИН НА ПРОМАХ. Печать листа это
     // 2304x1024 пикселей (9.4 МБ) процедурной работы, и она стояла ВНУТРИ
@@ -348,8 +374,10 @@ const PartsAtlas& RenderSystem::parts_sheet(bool normal) {
     PartsAtlas& sheet = normal ? parts_sheet_normal_ : parts_sheet_albedo_;
     bool& ready = normal ? parts_sheet_normal_ready_ : parts_sheet_albedo_ready_;
     if (!ready) {
-        sheet = normal ? generate_parts_normal_atlas(PARTS_ATLAS_TILE_PX)
-                       : generate_parts_atlas(PARTS_ATLAS_TILE_PX);
+        const PartsSheetDose dose = parts_sheet_dose();
+        const uint32_t side = parts_tile_px(dose);
+        sheet = normal ? generate_parts_normal_atlas(side, dose)
+                       : generate_parts_atlas(side, dose);
         ready = true;
     }
     return sheet;
@@ -362,7 +390,12 @@ uint32_t RenderSystem::house_tile_asset(platform::IRenderer& renderer, uint32_t 
     // почему прежняя упаковка держалась на арифметическом совпадении). uv
     // постройки считаны в метрах и повторяются wrap'ом — поэтому отдельная
     // плитка, а не атлас.
-    const uint64_t key = proc_key(PROC_KEY_HOUSE_TILE, PARTS_ATLAS_TILE_PX,
+    // СТОРОНА ПЛИТКИ — У ДОЗЫ, и она же входит в ключ кэша (proc_key несёт её
+    // вторым полем): доза, сменившая сторону, обязана промахнуться мимо
+    // вчерашней плитки, иначе повторится белая хвоя флоры — верный код везде и
+    // чужие пиксели на экране.
+    const uint32_t side = parts_tile_px(parts_sheet_dose());
+    const uint64_t key = proc_key(PROC_KEY_HOUSE_TILE, side,
                                   house_tile_key(surface, tone, normal,
                                                  PARTS_ATLAS_REVISION));
     if (const auto it = proc_texture_ids_.find(key); it != proc_texture_ids_.end()) {
@@ -372,18 +405,16 @@ uint32_t RenderSystem::house_tile_asset(platform::IRenderer& renderer, uint32_t 
     if (sheet.pixels.empty()) {
         return 0; // лист не испёкся: рисовать нечем, и молчать об этом нельзя
     }
-    std::vector<uint8_t> tile(static_cast<size_t>(PARTS_ATLAS_TILE_PX)
-                              * PARTS_ATLAS_TILE_PX * 4u);
-    const uint32_t x0 = surface * PARTS_ATLAS_TILE_PX;
-    const uint32_t y0 = tone * PARTS_ATLAS_TILE_PX;
-    for (uint32_t y = 0; y < PARTS_ATLAS_TILE_PX; ++y) {
+    std::vector<uint8_t> tile(static_cast<size_t>(side) * side * 4u);
+    const uint32_t x0 = surface * side;
+    const uint32_t y0 = tone * side;
+    for (uint32_t y = 0; y < side; ++y) {
         const uint8_t* src = sheet.pixels.data()
                            + (static_cast<size_t>(y0 + y) * sheet.width + x0) * 4u;
-        std::copy(src, src + static_cast<size_t>(PARTS_ATLAS_TILE_PX) * 4u,
-                  tile.begin() + static_cast<size_t>(y) * PARTS_ATLAS_TILE_PX * 4u);
+        std::copy(src, src + static_cast<size_t>(side) * 4u,
+                  tile.begin() + static_cast<size_t>(y) * side * 4u);
     }
-    return procedural_texture_asset(renderer, key, PARTS_ATLAS_TILE_PX,
-                                    PARTS_ATLAS_TILE_PX, tile.data());
+    return procedural_texture_asset(renderer, key, side, side, tile.data());
 }
 
 uint32_t RenderSystem::procedural_texture_asset(platform::IRenderer& renderer,

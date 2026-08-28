@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 28:08:2026 - 17:31:25
+Last updated: 28:08:2026 - 19:20:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -148,6 +148,14 @@ UPD:
   тон) отвечает реестр. При дозе 0 вещество у всех потоков одно
   (MATERIAL_NONE), ключ потока прежний бит-в-бит, нарезка и число дро те
   же — кадр не меняется ни на пиксель.
+- 28:08:2026 - 19:20:00: ДОЗА СТРУКТУРЫ ЛИСТА DFN_MAT_SHEET (волна 4 зоны
+  МАТЕРИАЛЫ) читается здесь, рядом с сестринской DFN_MAT, и приносится рендеру
+  до печати первого листа. Дверь читает ПРИЛОЖЕНИЕ, а не engine/render, потому
+  что набор дверей требует, чтобы всякую строку таблицы читал файл engine/app —
+  иначе это обещание, против которого можно написать рецепт, который никогда не
+  откроется. Свотчи материала и пример заполнения пекутся ТОЙ ЖЕ дозой, что
+  носят стены: свотч другой дозы показывал бы человеку вещество, которого в
+  мире нет.
 */
 
 #include "engine/app/sources/App.h"
@@ -467,8 +475,11 @@ std::uint64_t App::house_material_swatch(int surface, int tone, int px) {
         return it->second;
     }
     const std::uint32_t side = static_cast<std::uint32_t>(std::max(px, 16));
-    const render::PartsAtlas sheet = render::generate_parts_atlas(side);
-    const render::PartsAtlas normals = render::generate_parts_normal_atlas(side);
+    // ТА ЖЕ ДОЗА, ЧТО У СТЕН (DFN_MAT_SHEET, волна 4): свотч, испечённый
+    // другой дозой, показывал бы человеку вещество, которого в мире нет.
+    const auto dose = render::RenderSystem::parts_sheet_dose();
+    const render::PartsAtlas sheet = render::generate_parts_atlas(side, dose);
+    const render::PartsAtlas normals = render::generate_parts_normal_atlas(side, dose);
     std::vector<std::uint8_t> tile(static_cast<std::size_t>(side) * side * 4u);
     const std::uint32_t x0 = static_cast<std::uint32_t>(surface) * side;
     const std::uint32_t y0 = static_cast<std::uint32_t>(tone) * side;
@@ -497,8 +508,9 @@ std::uint64_t App::house_wall_example(int variant, int px) {
     }
     const std::uint32_t w = static_cast<std::uint32_t>(std::max(px, 32));
     const std::uint32_t h = w * 2u / 3u;
-    const render::PartsAtlas sheet = render::generate_parts_atlas(64);
-    const render::PartsAtlas normals = render::generate_parts_normal_atlas(64);
+    const auto dose = render::RenderSystem::parts_sheet_dose();
+    const render::PartsAtlas sheet = render::generate_parts_atlas(64, dose);
+    const render::PartsAtlas normals = render::generate_parts_normal_atlas(64, dose);
     const auto sheet_off = [&](std::uint32_t surface, std::uint32_t tone, std::uint32_t x,
                                std::uint32_t y) {
         const std::uint32_t sx = surface * 64u + (x % 64u);
@@ -595,6 +607,17 @@ void App::upload_house_mesh(bool interior_only) {
     // а у гранита шероховатость 0.86 — то есть первое же названное вещество
     // города ДВИГАЕТ пиксели, и это правильно, но обе руки замера обязаны
     // выходить из одной сборки (правило 47).
+    // ДОЗА СТРУКТУРЫ ЛИСТА НАБОРА (DFN_MAT_SHEET, волна 4). Читается ЗДЕСЬ,
+    // рядом с сестринской DFN_MAT, и приносится рендеру ДО того, как он
+    // напечатает первый лист: 0/нет — лист волны 3 бит-в-бит, включая сторону
+    // плитки 256 px; 1 — плитка 512 px и зерно на масштабе текселя. Ставится
+    // на заливке карты, как и все дозы этого файла: доза, сменившаяся между
+    // двумя постройками, дала бы дом с зерном рядом с домом без него.
+    const char* sheet_dose = door_value("DFN_MAT_SHEET");
+    render::RenderSystem::set_parts_sheet_dose(
+        (sheet_dose != nullptr && *sheet_dose != '\0' && *sheet_dose != '0')
+            ? render::PartsSheetDose::Grain
+            : render::PartsSheetDose::Flat);
     const char* mat_dose = door_value("DFN_MAT");
     const bool mat_on = mat_dose != nullptr && *mat_dose != '\0' && *mat_dose != '0';
     // ВЕЩЕСТВО ПОТОКА ОДНИМ ОПРЕДЕЛЕНИЕМ НА ОБА МЕСТА (правило 39): его

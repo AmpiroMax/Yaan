@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 10:48:00
-Last updated: 22:08:2026 - 15:40:00
+Last updated: 28:08:2026 - 19:20:00
 Module: engine/render
 File: engine/render/sources/ProcTexture.h
 
@@ -58,6 +58,10 @@ UPD:
   by its JOINTS, and fBm has none.
 - 22:08:2026 - 15:40:00: generate_terrain_normal_atlas() — лист нормалей земли, тот же 2x2
   слой и те же поля (контракт PartsAtlas: одна борозда — две проекции).
+- 28:08:2026 - 19:20:00: lattice_hash01() — решётка БЕЗ интерполяции, для волны
+  «структура в лист». Единственный примитив файла, несущий энергию на Найквисте
+  плитки: всё остальное здесь интерполирует, а интерполяция и есть то, что
+  СНИМАЕТ структуру на масштабе текселя (замер MATERIALS.md §0.1).
 */
 
 #pragma once
@@ -141,6 +145,18 @@ struct ProcTextureDesc {
 // across a stone, not noise sampled inside it.
 [[nodiscard]] float tileable_cell_id(glm::vec2 uv, glm::ivec2 period, uint32_t seed,
                                      float jitter);
+
+// THE LATTICE HASH ITSELF: a deterministic value in [0,1] at INTEGER lattice
+// coordinates, wrapped to `period` (so a field indexed by texel wraps exactly
+// when `period` is the tile side). Every other primitive here INTERPOLATES
+// between these points, and interpolation is precisely what removes the energy
+// at the tile's Nyquist — an fBm field is smooth at the texel however many
+// octaves it carries, and a texture built only from it is flat at the PIXEL.
+// That is the measured diagnosis of docs/design/MATERIALS.md §0.1 ("лечится
+// структурой на масштабе пикселя"), and this is the primitive that answers it.
+// It is exposed rather than copied because a second hash chain in the tree
+// would be Rule 39's shadow defect and would break determinism claims quietly.
+[[nodiscard]] float lattice_hash01(glm::ivec2 cell, glm::ivec2 period, uint32_t seed);
 
 // The §8.1 path surface atlas: a 2x2 grid of `cell_size` textures in one RGBA8
 // image of side 2*cell_size, laid out EXACTLY like the terrain atlas

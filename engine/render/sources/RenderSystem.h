@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 28:08:2026 - 17:31:25
+Last updated: 28:08:2026 - 19:20:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -228,6 +228,13 @@ UPD:
   программы переехал с ПОТОКА на ВЕЩЕСТВО. ScreenProp::material сменил тип
   на core::MaterialId — реестр уехал в engine/core, потому что render не
   виден ни world, ни платформе.
+- 28:08:2026 - 19:20:00: set_parts_sheet_dose()/parts_sheet_dose() — доза
+  структуры листа (дверь DFN_MAT_SHEET, волна 4 зоны МАТЕРИАЛЫ). Дверь ЧИТАЕТ
+  ПРИЛОЖЕНИЕ и приносит ответ сюда: набор дверей требует, чтобы всякую строку
+  таблицы читал файл engine/app, иначе это обещание, против которого можно
+  написать рецепт, который никогда не откроется (именованное исключение там
+  одно и занято DFN_TOUR). Спрашивают дозу в двух местах — плитка стены и свотч
+  редактора, — и ответ обязан быть один (правило 39).
 */
 
 #pragma once
@@ -618,6 +625,27 @@ public:
     // The app owns the key binding — it calls toggle_map() on Key::M.
     // Debug/verification: DFN_MAP=1 opens the map at init (tour evidence).
     void toggle_map() { map_.toggle(); }
+    /// ДОЗА СТРУКТУРЫ ЛИСТА НАБОРА (дверь DFN_MAT_SHEET, волна 4 зоны
+    /// МАТЕРИАЛЫ). Сторона плитки берётся у неё же (parts_tile_px) и входит в
+    /// ключ кэша — доза, сменившая сторону, обязана промахнуться мимо вчерашней
+    /// плитки.
+    ///
+    /// ДВЕРЬ ЧИТАЕТ ПРИЛОЖЕНИЕ, А НЕ ЭТОТ МОДУЛЬ, и это требование набора, а не
+    /// вкус: дверь, которую не читает ни один файл engine/app, — это строка,
+    /// против которой можно написать рецепт, который никогда не откроется
+    /// (tests/app/DoorsTests.cpp, «no door is described that nothing reads»;
+    /// именованное исключение там ровно одно и занято DFN_TOUR). Ставится ОДИН
+    /// раз на заливке карты, рядом с дозой DFN_MAT, — до того, как напечатан
+    /// первый лист: доза, сменившаяся между двумя постройками, дала бы дом с
+    /// зерном рядом с домом без него.
+    static void set_parts_sheet_dose(PartsSheetDose dose);
+
+    /// Значение, поставленное выше; по умолчанию Flat — лист волны 3.
+    /// ОДНО МЕСТО, ГДЕ ДОЗУ СПРАШИВАЮТ (правило 39): свотчи редактора
+    /// печатаются из того же листа, что носят стены, и второй источник ответа
+    /// развёл бы их в первый же день.
+    [[nodiscard]] static PartsSheetDose parts_sheet_dose();
+
     void set_map_open(bool open) { map_.set_open(open); }
     [[nodiscard]] bool map_open() const { return map_.open(); }
     // The internal (low-res) target size the overlay canvas is drawn at, so
@@ -820,6 +848,7 @@ public:
         /// дверь открыта» — состояние мира, и его называет app.
         float open_angle = 0.0f;
     };
+
     void set_house_mesh(platform::IRenderer& renderer, std::vector<HouseStream> streams,
                         std::vector<HouseDoor> doors);
 

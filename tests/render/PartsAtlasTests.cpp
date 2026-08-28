@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:29:43
-Last updated: 17:08:2026 - 15:46:07
+Last updated: 28:08:2026 - 19:20:00
 Module: tests
 File: tests/render/PartsAtlasTests.cpp
 
@@ -33,6 +33,15 @@ UPD:
   определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
   тест текстурного потока не мог её попросить: он проверял умолчание и
   покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
+- 28:08:2026 - 19:20:00: ВОЛНА 4 «СТРУКТУРА В ЛИСТ» — четыре случая на дозу
+  PartsSheetDose. Прибор набора — ДЕТАЛЬ (модуль отклонения от окрестности
+  3x3), тот же, каким кадр меряет К1, применённый на шаг раньше: кадра в
+  наборе не снять, а утверждение «структура в листе есть» проверяемо и без
+  него. Контрольная рука — САМ ЛИСТ ВОЛНЫ 3 (правило 45): он обязан
+  ПРОВАЛИТЬСЯ той же мерой, какой принимается новый, иначе мера ничего не
+  меряет. Отдельный случай на то, что ГЛАДКОЕ вещество зерна не получает
+  ВОВСЕ, — расхождение Р1: шершавое стекло было бы «успехом» по красному
+  числу.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -97,6 +106,66 @@ struct TileStats {
     out.seam /= 3.0 * static_cast<double>(T);
     out.interior /= 3.0 * static_cast<double>(T);
     return out;
+}
+
+/// ДЕТАЛЬ ПРИБОРА ПРИЁМКИ, но по ПЛИТКЕ, а не по кадру: средний модуль
+/// отклонения яркости текселя от окрестности 3x3, в шкале 0..255. Тот же
+/// метод, что у tools/quality/measure_surface.py (критерий К1) — здесь он
+/// применён на шаг раньше, к листу, потому что кадр в наборе не снять, а
+/// утверждение «структура в листе есть» проверяемо и без него. Окрестность
+/// берётся С ЗАВОРОТОМ: плитка торическая, и край — не особое место.
+[[nodiscard]] double tile_detail(const PartsAtlas& a, PartSurface s, PartTone t) {
+    const uint32_t T = a.tile_px;
+    const uint32_t x0 = static_cast<uint32_t>(s) * T;
+    const uint32_t y0 = static_cast<uint32_t>(t) * T;
+    const auto lum = [&](int x, int y) {
+        const auto wx = static_cast<uint32_t>(((x % static_cast<int>(T)) + static_cast<int>(T))
+                                              % static_cast<int>(T));
+        const auto wy = static_cast<uint32_t>(((y % static_cast<int>(T)) + static_cast<int>(T))
+                                              % static_cast<int>(T));
+        const size_t o = (static_cast<size_t>(y0 + wy) * a.width + x0 + wx) * 4;
+        return 0.2126 * a.pixels[o] + 0.7152 * a.pixels[o + 1] + 0.0722 * a.pixels[o + 2];
+    };
+    double acc = 0.0;
+    for (uint32_t y = 0; y < T; ++y) {
+        for (uint32_t x = 0; x < T; ++x) {
+            double m = 0.0;
+            for (int dy = -1; dy <= 1; ++dy) {
+                for (int dx = -1; dx <= 1; ++dx) {
+                    m += lum(static_cast<int>(x) + dx, static_cast<int>(y) + dy);
+                }
+            }
+            acc += std::fabs(lum(static_cast<int>(x), static_cast<int>(y)) - m / 9.0);
+        }
+    }
+    return acc / (static_cast<double>(T) * T);
+}
+
+/// СРЕДНИЙ шаг между соседними столбцами плитки — эталон, против которого
+/// судится шов. `TileStats::interior` берёт ОДНУ пару столбцов в середине, и на
+/// листе волны 3 этого хватало: поля там гладкие, и соседняя пара мало
+/// отличается от любой другой. С зерном на масштабе текселя разность соседей —
+/// сама случайная величина, у одной пары разброс сравним с ней самой, и
+/// отношение шва к ней гуляет вокруг единицы. Эталон обязан быть средним, иначе
+/// критерий меряет удачу выбора столбца, а не шов.
+[[nodiscard]] double mean_column_step(const PartsAtlas& a, PartSurface s, PartTone t) {
+    const uint32_t T = a.tile_px;
+    const uint32_t x0 = static_cast<uint32_t>(s) * T;
+    const uint32_t y0 = static_cast<uint32_t>(t) * T;
+    const auto at = [&](uint32_t x, uint32_t y, int c) {
+        return static_cast<double>(
+            a.pixels[(static_cast<size_t>(y0 + y) * a.width + x0 + x) * 4
+                     + static_cast<size_t>(c)]) / 255.0;
+    };
+    double acc = 0.0;
+    for (uint32_t y = 0; y < T; ++y) {
+        for (uint32_t x = 0; x + 1 < T; ++x) {
+            for (int c = 0; c < 3; ++c) {
+                acc += std::fabs(at(x, y, c) - at(x + 1, y, c));
+            }
+        }
+    }
+    return acc / (3.0 * static_cast<double>(T) * static_cast<double>(T - 1));
 }
 
 [[nodiscard]] float rel_gap(const glm::vec3& a, const glm::vec3& b) {
@@ -411,4 +480,103 @@ TEST_CASE("forged part: geometry in the textured stream, tile index in the colou
     const uint32_t stone_row = (stone.bark.vertices.front().color_rgba >> 8) & 0xFFu;
     CHECK(stone_col == static_cast<uint32_t>(PartSurface::Stone));
     CHECK(stone_row == static_cast<uint32_t>(PartTone::Weathered)); // wear 0.8
+}
+
+// --- ВОЛНА 4: СТРУКТУРА В ЛИСТ ---------------------------------------------
+
+TEST_CASE("parts sheet dose: Flat is the wave-3 sheet, and it is the DEFAULT") {
+    // ОБЕ РУКИ ЗАМЕРА ВЫХОДЯТ ИЗ ОДНОЙ СБОРКИ (правило 47), а значит доза
+    // обязана быть ПАРАМЕТРОМ, а не переменной среды: иначе этот случай
+    // написать нечем — две дозы не встретились бы в одном процессе.
+    const PartsAtlas def = generate_parts_atlas(TEST_TILE);
+    const PartsAtlas flat = generate_parts_atlas(TEST_TILE, PartsSheetDose::Flat);
+    CHECK(def.pixels == flat.pixels);
+    const PartsAtlas ndef = generate_parts_normal_atlas(TEST_TILE);
+    const PartsAtlas nflat = generate_parts_normal_atlas(TEST_TILE, PartsSheetDose::Flat);
+    CHECK(ndef.pixels == nflat.pixels);
+
+    // И СТОРОНА ПЛИТКИ ТОЖЕ У ДОЗЫ: она входит в ключ кэша, и доза, сменившая
+    // сторону, обязана промахнуться мимо вчерашней плитки.
+    CHECK(parts_tile_px(PartsSheetDose::Flat) == PARTS_ATLAS_TILE_PX);
+    CHECK(parts_tile_px(PartsSheetDose::Grain) == PARTS_ATLAS_TILE_PX_GRAIN);
+    CHECK(PARTS_ATLAS_TILE_PX_GRAIN > PARTS_ATLAS_TILE_PX);
+}
+
+TEST_CASE("parts sheet dose: the grain lands on the TEXEL, and skips the smooth one") {
+    const PartsAtlas flat = generate_parts_atlas(TEST_TILE, PartsSheetDose::Flat);
+    const PartsAtlas grain = generate_parts_atlas(TEST_TILE, PartsSheetDose::Grain);
+    REQUIRE(flat.pixels.size() == grain.pixels.size());
+
+    // КОНТРОЛЬНАЯ РУКА — САМ ЛИСТ ВОЛНЫ 3 (правило 45, «отвергнутый образец»).
+    // Критерий, который ничего не валит, — описание, а не критерий: прибор
+    // обязан ПРОВАЛИТЬ вчерашнюю плитку той же мерой, какой принимает новую.
+    double worst_flat = 1e9;
+    double worst_grain = 1e9;
+    for (uint32_t s = 0; s < PARTS_ATLAS_SURFACES; ++s) {
+        const auto surface = static_cast<PartSurface>(s);
+        if (surface == PartSurface::Pane) {
+            continue; // гладкое: судится бликом, а не структурой (Р1)
+        }
+        for (uint32_t t = 0; t < PARTS_ATLAS_TONES; ++t) {
+            const auto tone = static_cast<PartTone>(t);
+            const double f = tile_detail(flat, surface, tone);
+            const double g = tile_detail(grain, surface, tone);
+            CHECK(g > f * 2.0);
+            worst_flat = std::min(worst_flat, f);
+            worst_grain = std::min(worst_grain, g);
+        }
+    }
+    MESSAGE("ДЕТАЛЬ плитки, худшее матовое: доза 0 = " << worst_flat
+            << ", доза 1 = " << worst_grain);
+    // Полоса замера листа волны 3 — 0.12..1.80 при пороге кадра К1 4.0, то
+    // есть лист провалил бы критерий даже при отрисовке тексель-в-пиксель.
+    CHECK(worst_flat < 2.0);
+    CHECK(worst_grain > 2.0);
+
+    // ГЛАДКОЕ ВЕЩЕСТВО ЗЕРНА НЕ ПОЛУЧАЕТ ВОВСЕ, и это утверждение, а не
+    // недоделка: расхождение Р1 (MATERIALS.md §0.2) — гладкое судится
+    // ПОВЕДЕНИЕМ БЛИКА, и исполнитель, добавивший зерна в стекло ради
+    // красного числа, получит шершавое стекло и назовёт это успехом.
+    for (uint32_t t = 0; t < PARTS_ATLAS_TONES; ++t) {
+        const auto tone = static_cast<PartTone>(t);
+        CHECK(tile_detail(grain, PartSurface::Pane, tone)
+              == doctest::Approx(tile_detail(flat, PartSurface::Pane, tone)).epsilon(1e-9));
+    }
+}
+
+TEST_CASE("parts sheet dose: the grain still wraps, and the palette does not move") {
+    const PartsAtlas grain = generate_parts_atlas(TEST_TILE, PartsSheetDose::Grain);
+    for (uint32_t s = 0; s < PARTS_ATLAS_SURFACES; ++s) {
+        const auto surface = static_cast<PartSurface>(s);
+        for (uint32_t t = 0; t < PARTS_ATLAS_TONES; ++t) {
+            const auto tone = static_cast<PartTone>(t);
+            const TileStats st = stats_of(grain, surface, tone);
+            // Рисунок листа меняет ПОВЕРХНОСТЬ, а не палитру принятой витрины:
+            // зерно кладётся множителем с нулевым средним ровно ради этого.
+            CHECK(rel_gap(st.mean, parts_tile_base(surface, tone)) < 0.16f);
+            if (!parts_tile_is_periodic(surface)) {
+                continue;
+            }
+            // Заворот: зерно индексируется НОМЕРОМ ТЕКСЕЛЯ, и решётка обязана
+            // замкнуться на стороне плитки — иначе по каждому брусу пошёл бы шов.
+            // Эталон — СРЕДНИЙ шаг между соседними столбцами, а не одна пара в
+            // середине: с зерном разность соседей сама случайна (см. довод у
+            // mean_column_step), и одна пара мерила бы удачу выбора столбца.
+            CHECK(st.seam <= mean_column_step(grain, surface, tone) * 1.6 + 1e-4);
+        }
+    }
+}
+
+TEST_CASE("parts sheet dose: 512 px is a millimetre claim, not a bigger number") {
+    // Единственная причина поднимать сторону — ТЕКСЕЛЬ, а не «побольше».
+    // Зерно всякого вещества набора мельче миллиметра-двух (минеральное
+    // 0.5-3 мм, волокно 0.5-2 мм, песок в штукатурке 0.5-1 мм), а плитка
+    // 256 px даёт тексель 3.9 мм — крупнее самой структуры, которую рисует.
+    const float flat_mm = PARTS_TILE_SPAN_M * 1000.0f
+                        / static_cast<float>(PARTS_ATLAS_TILE_PX);
+    const float grain_mm = PARTS_TILE_SPAN_M * 1000.0f
+                         / static_cast<float>(PARTS_ATLAS_TILE_PX_GRAIN);
+    CHECK(flat_mm > 3.5f);
+    CHECK(grain_mm < 2.0f);
+    CHECK(grain_mm > 1.0f);
 }

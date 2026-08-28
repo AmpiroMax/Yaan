@@ -1,6 +1,6 @@
 /*
 Created: 17:08:2026 - 14:29:43
-Last updated: 21:08:2026 - 01:50:00
+Last updated: 28:08:2026 - 19:20:00
 Module: engine/render
 File: engine/render/sources/PartsAtlas.cpp
 
@@ -31,6 +31,19 @@ UPD:
 - 17:08:2026 - 14:29:43: Создан вместе с PartsAtlas.h.
 - 20:08:2026 - 17:30:00: Рельеф камня/глины усилен художественно (проба свочей: честные мм глаз не читает); ревизия 2.
 - 21:08:2026 - 01:50:00: Сучки доски реже (порог 0.86) и тише — сетка периода перестаёт ловиться глазом.
+- 28:08:2026 - 19:20:00: ЗЕРНО (доза PartsSheetDose::Grain, волна 4 «структура в
+  лист»). Замер до работы: у всех 36 плиток ДЕТАЛЬ 0.12-1.80 при пороге К1 4.0 —
+  лист провалил бы критерий даже при отрисовке тексель-в-пиксель, то есть дело
+  НЕ в разрешении и не в свете. Все девять колонок болеют одним: самая мелкая
+  черта нарисована крупнее, чем она есть в веществе (волокно 3 см при 0.5-2 мм,
+  зерно камня 3.3 см при 0.5-3 мм, зуб штукатурки 2.3 см при 0.5-1 мм), и
+  единственная колонка, нарисованная в своём шаге, — солома, у неё же и
+  единственная ДЕТАЛЬ выше 1.5. Ниже добавлено то, чего плитке не хватало:
+  зерно с нулевым средним на решётке БЕЗ интерполяции (lattice_hash01),
+  растянутое вдоль оси куска там, где вещество волокнистое, и РАЗБРОС ЦВЕТА по
+  текселю — до этой волны вся плитка красилась ОДНИМ скаляром на три канала, то
+  есть была одномерной лестницей одного тона, и прибор это видел: цветность
+  1.3-10.7 на 1000 пикселей при пороге К3 200.
 */
 
 #include "engine/render/sources/PartsAtlas.h"
@@ -110,6 +123,118 @@ struct Texel {
     glm::vec3 rgb{0.5f};
     float height = 0.5f; ///< 0..1, the RELIEF the normal sheet differentiates
 };
+
+// --- ЗЕРНО: структура на масштабе ТЕКСЕЛЯ ----------------------------------
+//
+// ПОЧЕМУ ЭТОГО НЕЛЬЗЯ БЫЛО СДЕЛАТЬ ЧЕРЕЗ u,v. Все поля выше строятся из
+// tileable_fbm и tileable_cells, а обе интерполируют между узлами решётки —
+// значит любое их значение ГЛАДКО на масштабе текселя, сколько бы октав им ни
+// дали. Поднять частоту не помогает: октава с периодом в два текселя после
+// квинтической прокладки превращается в пандус, а пандус — ровно то, чего
+// мера ДЕТАЛЬ (модуль отклонения от окрестности 3x3) не видит по построению.
+// Поэтому зерно берёт решётку БЕЗ интерполяции и индексируется НОМЕРОМ
+// ТЕКСЕЛЯ, а не координатой поверхности.
+//
+// И ЭТО НЕ УКРАШЕНИЕ, А ЧЕСТНОЕ ИЗОБРАЖЕНИЕ ПОДТЕКСЕЛЬНОЙ ПРАВДЫ. При плитке
+// 512 px на метровый шаг тексель равен 1.95 мм, а зерно всякого вещества
+// набора мельче: минеральное 0.5-3 мм, волокно 0.5-2 мм, песок в штукатурке
+// 0.5-1 мм. Структура ниже Найквиста ОБЯЗАНА выглядеть шумом — именно так её
+// несёт всякая снятая с натуры текстура, и именно этого у нас не было.
+struct Grain {
+    bool on = false;
+    int x = 0;   ///< номер текселя в плитке по горизонтали
+    int y = 0;   ///< ...и по вертикали (ось куска: волокно бежит вдоль y)
+    int n = 1;   ///< сторона плитки в текселях — она же период заворота
+};
+
+[[nodiscard]] float ghash(const Grain& g, int dx, int dy, uint32_t seed) {
+    return lattice_hash01({g.x + dx, g.y + dy}, {g.n, g.n}, seed);
+}
+
+/// ЗЕРНО: шум с нулевым средним и максимумом энергии на Найквисте плитки.
+/// Вычитание среднего четырёх соседей — высокочастотный фильтр, и он здесь не
+/// для красоты: без него шум несёт «облака» низких частот, которые увеличение
+/// размажет, а на пиксель кадра не доедет ничего. Отдача ~[-0.75, 0.75].
+[[nodiscard]] float grit_noise(const Grain& g, uint32_t seed) {
+    const float c = ghash(g, 0, 0, seed);
+    const float m = 0.25f * (ghash(g, 1, 0, seed) + ghash(g, -1, 0, seed)
+                             + ghash(g, 0, 1, seed) + ghash(g, 0, -1, seed));
+    return c - m;
+}
+
+/// ВОЛОКНО: то же зерно, но РАСТЯНУТОЕ вдоль оси куска. Волокно дерева — это
+/// 0.5-2 мм поперёк и сантиметры вдоль, стебель соломы и травинка дёрна устроены
+/// так же; изотропный шум на их месте читается как песок на доске. Резкость
+/// оставлена только поперёк (высокочастотный фильтр по x), вдоль поле
+/// постоянно на `along` текселей. Заворот точен, пока `along` делит сторону.
+[[nodiscard]] float fibre_noise(const Grain& g, uint32_t seed, int along) {
+    along = std::max(1, along);
+    const int ny = std::max(1, g.n / along);
+    // ПОЛОСА СЧИТАЕТСЯ ОТ СТОРОНЫ ПЛИТКИ, А НЕ ДЕЛЕНИЕМ НА `along`, и это не
+    // стиль. `y / along` даёт ceil(n/along) полос, а решётка заворачивается на
+    // ny = n/along: как только `along` не делит сторону нацело, последняя
+    // НЕПОЛНАЯ полоса накладывается на первую, и по плитке идёт лишний стык.
+    // Замерено на брусе (along 12): при стороне 64 шов вырастал до 1.62
+    // среднего шага между столбцами против 1.29 у соседей — ровно четыре
+    // плитки колонки, то есть систематически, а не случайно.
+    const auto h = [&](int dx) {
+        const int band = (g.y * ny) / std::max(1, g.n);
+        return lattice_hash01({g.x + dx, band}, {g.n, ny}, seed);
+    };
+    return h(0) - 0.5f * (h(1) + h(-1));
+}
+
+/// РАЗБРОС ЦВЕТА ПО ТЕКСЕЛЮ. До этой волны вся плитка красилась ОДНИМ скаляром
+/// на три канала (`rgb = base * (a + b*h)`), то есть была одномерной лестницей
+/// одного тона: цветность 1.3-10.7 на 1000 пикселей при пороге К3 200 —
+/// «монотонных цветов» владельца буквально измерено. Три независимых зерна
+/// дают веществу микро-оттенки, как несёт их всякая минеральная поверхность.
+[[nodiscard]] glm::vec3 chroma_noise(const Grain& g, uint32_t seed) {
+    return {grit_noise(g, seed ^ 0x0A13u), grit_noise(g, seed ^ 0x0B27u),
+            grit_noise(g, seed ^ 0x0C3Du)};
+}
+
+/// Сколько зерна какого рода носит вещество. Таблица, а не ветки по колонкам:
+/// зерно у всех устроено одинаково и отличается только количеством, а
+/// колоночные функции выше рисуют ФОРМУ вещества и остаются нетронутыми.
+struct GrainSpec {
+    float value;  ///< амплитуда зерна значения, доля альбедо
+    float fibre;  ///< амплитуда растянутого зерна (волокно, стебель, травинка)
+    int along;    ///< во сколько раз волокно длиннее, чем шире
+    float hue;    ///< амплитуда разброса цвета по каналам
+    float relief; ///< какая доля зерна уходит в РЕЛЬЕФ (лист нормалей)
+};
+
+[[nodiscard]] GrainSpec grain_of(PartSurface s) {
+    switch (s) {
+    // Дерево: волокно ведёт, зерно поддерживает. Тёсаное грубее пилёного.
+    case PartSurface::HewnTimber: return {0.140f, 0.250f, 12, 0.075f, 0.55f};
+    case PartSurface::SawnBoard: return {0.130f, 0.235f, 16, 0.070f, 0.55f};
+    // Торец: волокно короткое (кольца идут поперёк), зерно крупнее.
+    case PartSurface::EndGrain: return {0.165f, 0.145f, 4, 0.075f, 0.55f};
+    // Камень: зерно ведёт — скол, кристалл, выщербина. Самое сильное на листе,
+    // и это не вкус: минеральная поверхность и есть зерно, всё остальное у неё
+    // крупнее текселя и уже нарисовано выше.
+    case PartSurface::Stone: return {0.225f, 0.060f, 2, 0.090f, 0.60f};
+    // Обожжённая глина: песок в черепке плюс кладочный шов даёт зерно чуть
+    // тише камня, но цветнее — обжиг красит зёрна по-разному.
+    case PartSurface::FiredClay: return {0.240f, 0.060f, 2, 0.120f, 0.55f};
+    // Штукатурка: зуб тёрки. Мельче камня по природе и потому тише — но именно
+    // она была худшим участком замера (ДЕТАЛЬ 0.52), и тише не значит нисколько.
+    case PartSurface::Plaster: return {0.215f, 0.055f, 2, 0.085f, 0.50f};
+    // Солома: стебель. Единственная колонка, уже нарисованная в своём шаге, —
+    // ей добавлен только подтексельный ворс расщепления.
+    case PartSurface::Thatch: return {0.140f, 0.230f, 10, 0.070f, 0.50f};
+    // Дёрн: травинка 1-3 мм, то есть ровно подтексельная, плюс комок земли.
+    case PartSurface::Turf: return {0.180f, 0.235f, 6, 0.120f, 0.50f};
+    // ГЛУХОЕ ОКНО — ЕДИНСТВЕННОЕ ГЛАДКОЕ ВЕЩЕСТВО ЛИСТА, И ЗЕРНА ОНО НЕ
+    // ПОЛУЧАЕТ ВОВСЕ. Это прямое требование расхождения Р1 (MATERIALS.md §0.2):
+    // гладкое судится ПОВЕДЕНИЕМ БЛИКА, а не К1, и исполнитель, который добавит
+    // зерна в стекло ради красного числа, получит шершавое стекло и назовёт это
+    // успехом. Ноль здесь — утверждение, а не недоделка.
+    case PartSurface::Pane: default: return {0.0f, 0.0f, 1, 0.0f, 0.0f};
+    }
+}
 
 // --- the columns -----------------------------------------------------------
 // Every field below is built from PERIODIC noise at INTEGER frequencies, so
@@ -323,9 +448,8 @@ struct Texel {
     return {rgb, h};
 }
 
-[[nodiscard]] Texel surface_texel(PartSurface s, PartTone t, float u, float v) {
-    const ToneWeather w = weather_of(t);
-    const uint32_t seed = ATLAS_SEED + static_cast<uint32_t>(s) * 977u;
+[[nodiscard]] Texel column_texel(PartSurface s, const ToneWeather& w, float u,
+                                 float v, uint32_t seed) {
     switch (s) {
     case PartSurface::HewnTimber: return wood_texel(u, v, w, true, seed);
     case PartSurface::SawnBoard: return wood_texel(u, v, w, false, seed);
@@ -337,6 +461,34 @@ struct Texel {
     case PartSurface::Turf: return turf_texel(u, v, w, seed);
     case PartSurface::Pane: default: return pane_texel(u, v, w, seed);
     }
+}
+
+[[nodiscard]] Texel surface_texel(PartSurface s, PartTone t, float u, float v,
+                                  const Grain& g) {
+    const ToneWeather w = weather_of(t);
+    const uint32_t seed = ATLAS_SEED + static_cast<uint32_t>(s) * 977u;
+    Texel out = column_texel(s, w, u, v, seed);
+    if (!g.on) {
+        return out; // доза Flat: ни одной операции сверх листа волны 3
+    }
+    const GrainSpec gs = grain_of(s);
+    if (gs.value <= 0.0f && gs.fibre <= 0.0f && gs.hue <= 0.0f) {
+        return out; // гладкое вещество: зерна не получает (расхождение Р1)
+    }
+    // ЗЕРНО КЛАДЁТСЯ МНОЖИТЕЛЕМ С НУЛЕВЫМ СРЕДНИМ — иначе оно сдвинуло бы
+    // палитру, а рисунок листа обязан менять ПОВЕРХНОСТЬ, а не цвет принятой
+    // витрины (это утверждение проверяется набором: плитка усредняется к своей
+    // клетке parts_tile_base).
+    const float value = gs.value * grit_noise(g, seed ^ 0x0051u)
+                      + gs.fibre * fibre_noise(g, seed ^ 0x008Du, gs.along);
+    // ИЗНОС ДОБАВЛЯЕТ ЗЕРНА, А НЕ ЗАМЕНЯЕТ ЕГО: выветренный камень зернист
+    // сильнее свежего скола, а свежая штукатурка глаже старой. Ряд уже несёт
+    // эту ось (weather_of), и вторую заводить незачем.
+    const float wear = 0.85f + 0.90f * (1.0f - w.polish);
+    out.rgb *= glm::vec3{1.0f + value * wear}
+             + gs.hue * chroma_noise(g, seed ^ 0x00E7u);
+    out.height = std::clamp(out.height + gs.relief * value * wear, 0.0f, 1.0f);
+    return out;
 }
 
 /// How deep this surface's relief is, in MILLIMETRES, so the normal sheet says
@@ -413,11 +565,12 @@ glm::vec4 parts_tile_uv(PartSurface surface, PartTone tone, uint32_t tile_px) {
     return {u0 + inset_u, v0 + inset_v, u0 + du - inset_u, v0 + dv - inset_v};
 }
 
-PartsAtlas generate_parts_atlas(uint32_t tile_px) {
+PartsAtlas generate_parts_atlas(uint32_t tile_px, PartsSheetDose dose) {
     PartsAtlas atlas;
     if (tile_px < 16) {
         return atlas;
     }
+    const bool grain_on = dose == PartsSheetDose::Grain;
     atlas.tile_px = tile_px;
     atlas.width = PARTS_ATLAS_SURFACES * tile_px;
     atlas.height = PARTS_ATLAS_TONES * tile_px;
@@ -434,7 +587,9 @@ PartsAtlas generate_parts_atlas(uint32_t tile_px) {
                 for (uint32_t px = 0; px < tile_px; ++px) {
                     const float u = (static_cast<float>(px) + 0.5f)
                                   / static_cast<float>(tile_px);
-                    const Texel t = surface_texel(surface, tone, u, v);
+                    const Grain g{grain_on, static_cast<int>(px),
+                                  static_cast<int>(py), static_cast<int>(tile_px)};
+                    const Texel t = surface_texel(surface, tone, u, v, g);
                     // The pattern is a MULTIPLIER whose mean is ~1, so the
                     // tile averages to the row's own colour (asserted in the
                     // suite): texture changes the surface, not the palette.
@@ -453,11 +608,12 @@ PartsAtlas generate_parts_atlas(uint32_t tile_px) {
     return atlas;
 }
 
-PartsAtlas generate_parts_normal_atlas(uint32_t tile_px) {
+PartsAtlas generate_parts_normal_atlas(uint32_t tile_px, PartsSheetDose dose) {
     PartsAtlas atlas;
     if (tile_px < 16) {
         return atlas;
     }
+    const bool grain_on = dose == PartsSheetDose::Grain;
     atlas.tile_px = tile_px;
     atlas.width = PARTS_ATLAS_SURFACES * tile_px;
     atlas.height = PARTS_ATLAS_TONES * tile_px;
@@ -478,8 +634,10 @@ PartsAtlas generate_parts_normal_atlas(uint32_t tile_px) {
                 for (uint32_t px = 0; px < tile_px; ++px) {
                     const float u = (static_cast<float>(px) + 0.5f)
                                   / static_cast<float>(tile_px);
+                    const Grain g{grain_on, static_cast<int>(px),
+                                  static_cast<int>(py), static_cast<int>(tile_px)};
                     height[static_cast<size_t>(py) * tile_px + px] =
-                        surface_texel(surface, tone, u, v).height;
+                        surface_texel(surface, tone, u, v, g).height;
                 }
             }
             // CENTRAL DIFFERENCES OF THE SAME FIELD the albedo shaded with —
