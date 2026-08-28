@@ -1,0 +1,8 @@
+# dfh 1
+vertex v1 free 0.0000 0.0300 0.0600
+vertex v2 free 1.8000 0.0300 0.0600
+vertex v3 free 0.0000 0.2000 0.0600
+vertex v4 free 1.8000 0.2000 0.0600
+line e1 v1 v2 style=- radius=0.024 form=round mat=0 tone=2
+line e2 v1 v3 style=- radius=0.014 form=square mat=0 tone=2
+line e3 v2 v4 style=- radius=0.014 form=square mat=0 tone=2

@@ -1,0 +1,19 @@
+# dfh 1
+vertex v1 free 0.1300 0.0000 0.1300
+vertex v2 free 0.1300 0.0450 0.1300
+vertex v3 free 0.1300 0.0950 0.1300
+vertex v4 free 0.1300 0.1250 0.1300
+vertex v5 free 0.1785 0.1250 0.0947
+vertex v6 free 0.1485 0.1250 0.0729
+vertex v7 free 0.1115 0.1250 0.0729
+vertex v8 free 0.0815 0.1250 0.0947
+vertex v9 free 0.0700 0.1250 0.1300
+vertex v10 free 0.0815 0.1250 0.1653
+vertex v11 free 0.1115 0.1250 0.1871
+vertex v12 free 0.1485 0.1250 0.1871
+vertex v13 free 0.1785 0.1250 0.1653
+vertex v14 free 0.1900 0.1250 0.1300
+line e1 v1 v2 style=- radius=0.105 form=ngon n=10 mat=4 tone=2 paint=2
+line e2 v2 v3 style=- radius=0.125 form=ngon n=10 mat=4 tone=2 paint=2
+line e3 v3 v4 style=- radius=0.098 form=ngon n=10 mat=4 tone=2 paint=2
+surface e4 v5 v6 v7 v8 v9 v10 v11 v12 v13 v14 style=- closed=1 thickness=0.030 mat=4 tone=2 paint=2

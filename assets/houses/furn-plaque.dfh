@@ -1,0 +1,28 @@
+# dfh 1
+vertex v1 free 0.4100 0.2400 0.0300
+vertex v2 free 0.3845 0.3350 0.0300
+vertex v3 free 0.3150 0.4045 0.0300
+vertex v4 free 0.2200 0.4300 0.0300
+vertex v5 free 0.1250 0.4045 0.0300
+vertex v6 free 0.0555 0.3350 0.0300
+vertex v7 free 0.0300 0.2400 0.0300
+vertex v8 free 0.0555 0.1450 0.0300
+vertex v9 free 0.1250 0.0755 0.0300
+vertex v10 free 0.2200 0.0500 0.0300
+vertex v11 free 0.3150 0.0755 0.0300
+vertex v12 free 0.3845 0.1450 0.0300
+surface e1 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 style=- closed=1 thickness=0.026 mat=1 tone=2
+line e2 v1 v2 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e3 v2 v3 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e4 v3 v4 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e5 v4 v5 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e6 v5 v6 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e7 v6 v7 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e8 v7 v8 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e9 v8 v9 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e10 v9 v10 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e11 v10 v11 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e12 v11 v12 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e13 v12 v1 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e14 v1 v7 style=- radius=0.016 form=square mat=1 tone=1
+line e15 v4 v10 style=- radius=0.016 form=square mat=1 tone=1

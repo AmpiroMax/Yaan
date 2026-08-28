@@ -1,0 +1,56 @@
+# dfh 1
+vertex v1 free 0.5550 0.0300 0.3000
+vertex v2 free 0.4803 0.0300 0.4803
+vertex v3 free 0.3000 0.0300 0.5550
+vertex v4 free 0.1197 0.0300 0.4803
+vertex v5 free 0.0450 0.0300 0.3000
+vertex v6 free 0.1197 0.0300 0.1197
+vertex v7 free 0.3000 0.0300 0.0450
+vertex v8 free 0.4803 0.0300 0.1197
+vertex v9 free 0.3000 0.5000 0.3000
+vertex v10 free 0.3000 0.5600 0.3000
+vertex v11 free 0.5550 0.1400 0.3000
+vertex v12 free 0.5550 0.1800 0.3000
+vertex v13 free 0.4803 0.1400 0.4803
+vertex v14 free 0.4803 0.1800 0.4803
+vertex v15 free 0.3000 0.1400 0.5550
+vertex v16 free 0.3000 0.1800 0.5550
+vertex v17 free 0.1197 0.1400 0.4803
+vertex v18 free 0.1197 0.1800 0.4803
+vertex v19 free 0.0450 0.1400 0.3000
+vertex v20 free 0.0450 0.1800 0.3000
+vertex v21 free 0.1197 0.1400 0.1197
+vertex v22 free 0.1197 0.1800 0.1197
+vertex v23 free 0.3000 0.1400 0.0450
+vertex v24 free 0.3000 0.1800 0.0450
+vertex v25 free 0.4803 0.1400 0.1197
+vertex v26 free 0.4803 0.1800 0.1197
+line e1 v1 v2 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e2 v2 v3 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e3 v3 v4 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e4 v4 v5 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e5 v5 v6 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e6 v6 v7 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e7 v7 v8 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e8 v8 v1 style=- radius=0.014 form=square mat=3 tone=2 paint=6
+line e9 v1 v9 style=- radius=0.008 form=square mat=3 tone=2 paint=6
+line e10 v3 v9 style=- radius=0.008 form=square mat=3 tone=2 paint=6
+line e11 v5 v9 style=- radius=0.008 form=square mat=3 tone=2 paint=6
+line e12 v7 v9 style=- radius=0.008 form=square mat=3 tone=2 paint=6
+line e13 v9 v10 style=- radius=0.010 form=square mat=3 tone=2 paint=6
+line e14 v1 v11 style=- radius=0.017 form=ngon n=6 mat=5 tone=0
+line e15 v11 v12 style=- radius=0.010 form=ngon n=6 mat=5 tone=0 glow=1
+line e16 v2 v13 style=- radius=0.017 form=ngon n=6 mat=5 tone=0
+line e17 v13 v14 style=- radius=0.010 form=ngon n=6 mat=5 tone=0 glow=1
+line e18 v3 v15 style=- radius=0.017 form=ngon n=6 mat=5 tone=0
+line e19 v15 v16 style=- radius=0.010 form=ngon n=6 mat=5 tone=0 glow=1
+line e20 v4 v17 style=- radius=0.017 form=ngon n=6 mat=5 tone=0
+line e21 v17 v18 style=- radius=0.010 form=ngon n=6 mat=5 tone=0 glow=1
+line e22 v5 v19 style=- radius=0.017 form=ngon n=6 mat=5 tone=0
+line e23 v19 v20 style=- radius=0.010 form=ngon n=6 mat=5 tone=0 glow=1
+line e24 v6 v21 style=- radius=0.017 form=ngon n=6 mat=5 tone=0
+line e25 v21 v22 style=- radius=0.010 form=ngon n=6 mat=5 tone=0 glow=1
+line e26 v7 v23 style=- radius=0.017 form=ngon n=6 mat=5 tone=0
+line e27 v23 v24 style=- radius=0.010 form=ngon n=6 mat=5 tone=0 glow=1
+line e28 v8 v25 style=- radius=0.017 form=ngon n=6 mat=5 tone=0
+line e29 v25 v26 style=- radius=0.010 form=ngon n=6 mat=5 tone=0 glow=1
