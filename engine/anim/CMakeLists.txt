@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 01:56:45
-# Last updated: 10:08:2026 - 01:56:45
+# Last updated: 28:08:2026 - 11:16:40
 # File: engine/anim/CMakeLists.txt
 #
 # Responsibility:
@@ -18,11 +18,14 @@
 #
 # UPD:
 # - 10:08:2026 - 01:56:45: Initial library (rig, pose, clips, body mesh, body).
+# - 28:08:2026 - 11:16:40: sources/Posture.cpp — позы сидя и лёжа (обязательство
+#   эпохи «сидеть и лежать», заказ владельца 28.08).
 
 add_library(dfn_anim STATIC
     sources/Rig.cpp
     sources/Pose.cpp
     sources/Clips.cpp
+    sources/Posture.cpp
     sources/BodyMesh.cpp
     sources/Body.cpp)
 
