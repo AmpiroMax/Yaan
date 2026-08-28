@@ -4925,12 +4925,24 @@ int App::run() {
                 // ПОЗА ПАРКУЕТ КАПСУЛУ И ГАСИТ НАМЕРЕНИЯ — СТРОГО ДО pre_step,
                 // потому что именно он превращает намерение в перемещение.
                 // Гасить после значило бы дать сидящему полшага в тик.
+                // ФИЗИКА ПРЕДМЕТОВ — ДО park_posture И ДО pre_step, и это не
+                // вкус: здесь распознаётся КОРОТКОЕ и ДОЛГОЕ нажатие E, а
+                // короткое возвращается защёлкой interact_pressed, которую
+                // park_posture и actions_step читают ниже по тику. Стой этот
+                // вызов после них — короткое нажатие приезжало бы на тик
+                // позже долгого, то есть дверь открывалась бы с задержкой,
+                // видимой глазом.
+                grab_input(static_cast<float>(timestep_.step_dt()));
                 park_posture();
                 gameplay::player_pre_step(world_, *physics_,
                     [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); },
                     step_ctx_);
                 physics_->step(static_cast<float>(timestep_.step_dt()));
                 gameplay::player_post_step(world_, *physics_, step_ctx_);
+                // ТЕЛА ПРЕДМЕТОВ -> МАТРИЦЫ ОТРИСОВКИ, сразу за шагом: кадр
+                // обязан показать ТУ позу, которую только что посчитала
+                // физика. Спящие тела не спрашиваются (их поза не менялась).
+                sync_loose_props();
 
                 // BODY FERRY (character's zone reads, the app writes): sim's
                 // stride clock drives the leg clips, so the visual foot-plant
@@ -5251,8 +5263,15 @@ int App::run() {
                 // же дерева, и «дерево заслоняет само себя» — верный ответ на
                 // неверный вопрос.
                 const float reach = len - 2.0f;
-                const glm::vec3 side =
-                    glm::normalize(glm::vec3{-dir.z, 0.0f, dir.x}) * 0.9f;
+                // БОКОВОЙ ОТНОС, И ОН НЕ ИМЕЕТ ПРАВА БЫТЬ НОРМАЛИЗАЦИЕЙ НУЛЯ.
+                // Крона стоит НАД слушателем чаще, чем кажется: 12 м вверх и
+                // три в сторону — это почти вертикальный луч, у которого
+                // (-dir.z, 0, dir.x) вырождается, а normalize вырожденного
+                // вектора даёт NaN и уводит луч в бесконечность.
+                glm::vec3 side{-dir.z, 0.0f, dir.x};
+                const float side_len = glm::length(side);
+                side = side_len > 1e-3f ? side / side_len * 0.9f
+                                        : glm::vec3{0.9f, 0.0f, 0.0f};
                 int blocked = 0;
                 for (const glm::vec3& off : {side, -side}) {
                     if (physics_->raycast(from + off, dir, reach,
@@ -5510,6 +5529,18 @@ int App::run() {
             // его. «Сесть» на уже сидящем звало бы делать сделанное.
             if (!editor && in_posture()) {
                 frame.prompt = localized(serialization::fnv1a64("prompt.stand"));
+            }
+            // ПОДСКАЗКА ПРЕДМЕТА ПЕРЕБИВАЕТ НАВЕДЕНИЕ — и только она может это
+            // делать, кроме позы. Довод тот же: когда предмет УЖЕ в руках,
+            // единственное, что клавиша сейчас делает, — отпускает его, а
+            // «Сесть» под перекрестьем звало бы к действию, которое зона
+            // предметов запрещает (руки заняты). Когда предмет только под
+            // прицелом, «Взять» стоит ближе к правде, чем «Сесть» на лавке за
+            // ним: целятся в то, что ближе, и хват берёт ЛУЧОМ, а не коробкой.
+            if (!editor && !in_posture()) {
+                if (const std::uint64_t key = grab_prompt_key(); key != 0) {
+                    frame.prompt = localized(key);
+                }
             }
             if (const char* probe = door_value("DFN_HUD_PROBE");
                 probe != nullptr && *probe == '1') {

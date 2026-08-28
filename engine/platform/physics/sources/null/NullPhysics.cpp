@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 27:08:2026 - 12:02:02
+Last updated: 28:08:2026 - 13:04:20
 Module: engine/platform/physics
 File: engine/platform/physics/sources/null/NullPhysics.cpp
 
@@ -39,12 +39,19 @@ UPD:
 - 27:08:2026 - 12:02:02: sphere_cast: промах, как и луч. Бэкенд, у которого сфера
   «попадает во что-нибудь», молча прижал бы камеру третьего лица к голове во
   всех прогонах на null.
+- 28:08:2026 - 13:04:20: ДИНАМИЧЕСКОЕ ТЕЛО в null: валидное, но ИНЕРТНОЕ — оно
+  остаётся ровно там, где создано (шаг ничего не двигает), и всегда спит. Это
+  та же контрактная линия, что у остальных тел, и она даёт беспилотным
+  прогонам на null комнату, где предметы стоят по местам, вместо комнаты, где
+  всё лежит в начале координат. Заодно поза ЛЮБОГО тела теперь помнится, и
+  set_body_transform её пишет: раньше «переставил створку» нечем было
+  прочитать, а с body_pose() это стало наблюдаемым — молчаливое расхождение
+  двух бэкендов, которое поймали бы не скоро.
 */
 
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
 
 #include <unordered_map>
-#include <unordered_set>
 
 namespace dfn::platform {
 namespace {
@@ -95,9 +102,39 @@ public:
     }
     // The null backend has no geometry to move, so a move is a no-op — the
     // same shape as every other body call here. Deterministic and inert.
-    void set_body_transform(PhysicsBodyHandle, const glm::vec3&, const glm::quat&) override {
+    void set_body_transform(PhysicsBodyHandle body, const glm::vec3& position,
+                            const glm::quat& rotation) override {
+        if (const auto it = bodies_.find(body.id); it != bodies_.end()) {
+            it->second.pose = BodyPose{position, rotation};
+        }
     }
     void destroy_body(PhysicsBodyHandle body) override { bodies_.erase(body.id); }
+
+    // Dynamic bodies -----------------------------------------------------------
+    // VALID BUT INERT, like every other body here: it is created where the
+    // caller put it, it never moves, and it is always asleep. A null backend
+    // that dropped props to y=0 would make every headless prop run a lie.
+    PhysicsBodyHandle create_dynamic_body(const DynamicBodyDesc& desc) override {
+        if (desc.layer == 0 || desc.mass_kg <= 0.0f || desc.points.size() < 4) {
+            return {}; // same refusals as Jolt: null catches the same mistakes
+        }
+        const PhysicsBodyHandle handle = make_body();
+        bodies_[handle.id] = Body{BodyPose{desc.position, desc.rotation}};
+        return handle;
+    }
+    BodyPose body_pose(PhysicsBodyHandle body) const override {
+        const auto it = bodies_.find(body.id);
+        return it != bodies_.end() ? it->second.pose : BodyPose{};
+    }
+    glm::vec3 body_velocity(PhysicsBodyHandle) const override { return glm::vec3{0.0f}; }
+    void set_body_velocity(PhysicsBodyHandle, const glm::vec3&, const glm::vec3&) override {
+        // Inert: a velocity nothing integrates would be a number nobody reads.
+    }
+    void set_body_gravity_factor(PhysicsBodyHandle, float) override {}
+    bool body_asleep(PhysicsBodyHandle body) const override {
+        return bodies_.contains(body.id); // nothing ever wakes here
+    }
+    void activate_body(PhysicsBodyHandle) override {}
 
     // Character controller -----------------------------------------------------
     CharacterHandle create_character(const CharacterDesc& desc) override {
@@ -177,14 +214,18 @@ private:
         float height = 0.0f;
     };
 
+    struct Body {
+        BodyPose pose{};
+    };
+
     PhysicsBodyHandle make_body() {
         const PhysicsBodyHandle handle{next_id_++};
-        bodies_.insert(handle.id);
+        bodies_[handle.id] = Body{};
         return handle;
     }
 
     uint32_t next_id_ = 1; // 0 is the invalid handle
-    std::unordered_set<uint32_t> bodies_;
+    std::unordered_map<uint32_t, Body> bodies_;
     std::unordered_map<uint32_t, Character> characters_;
 };
 

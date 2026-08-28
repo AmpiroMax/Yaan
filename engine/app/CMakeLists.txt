@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:50:00
-# Last updated: 27:08:2026 - 21:40:30
+# Last updated: 28:08:2026 - 14:18:16
 # File: engine/app/CMakeLists.txt
 #
 # Responsibility:
@@ -69,6 +69,9 @@
 #   ради одного экрана зависимость в слой, которому она запрещена, дороже, чем
 #   двести строк, проверенных против независимой реализации (tests/app/
 #   PngImageTests.cpp сверяет пять файлов брендинга с python zlib).
+# - 28:08:2026 - 14:18:16: sources/AppProps.cpp, GrabDrive.cpp, PropPhysics.cpp —
+#   зона ФИЗИКА ПРЕДМЕТОВ (заказ владельца 28.08 «зажав E, поднимать объекты,
+#   держать, складывать друг на друга»).
 set(DFN_APP_DEPS
     dfn_core
     dfn_world
@@ -106,6 +109,7 @@ if(DFN_APP_READY)
         sources/AppHud.cpp
         sources/AppInput.cpp
         sources/AppInterior.cpp
+        sources/AppProps.cpp
         sources/AppSeats.cpp
     sources/AppSettings.cpp
     sources/AppWorld.cpp
@@ -117,6 +121,8 @@ if(DFN_APP_READY)
         sources/DebugOverlay.cpp
         sources/DoorAim.cpp
         sources/FurnitureSeats.cpp
+        sources/GrabDrive.cpp
+        sources/PropPhysics.cpp
         sources/SeatAim.cpp
         sources/EditorCamera.cpp
         sources/EditorPlant.cpp

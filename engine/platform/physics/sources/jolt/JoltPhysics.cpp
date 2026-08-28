@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 27:08:2026 - 12:02:02
+Last updated: 28:08:2026 - 13:12:40
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -13,7 +13,7 @@ Responsibility:
 Key items:
 - JoltPhysics (file-local): the IPhysics implementation.
 - Object layers: STATIC / CHARACTER / CHARACTER_GHOST (ghost = the character's
-  raycastable inner body; collides with nothing).
+  raycastable inner body; collides with nothing) / DYNAMIC (loose props).
 - MaskBodyFilter: filters queries/contacts by the engine's opaque CollisionMask
   stored per body — the backend never interprets mask bits (IPhysics.h note).
 
@@ -87,6 +87,25 @@ UPD:
   камеры сообщал бы «чисто» ровно там, где стена и стоит. mReturnDeepestPoint
   оставлен включённым, потому что контракт требует отвечать «нельзя двигаться
   вовсе» при перекрытии на старте, а не «путь свободен».
+- 28:08:2026 - 13:40:00: Трение и упругость ЛЮБОГО тела — из записи вещества
+  (core::substance), а не из полей вызова; пара складывается умолчаниями Jolt.
+  Статичное тело получило вещество той же правкой: половина всякой пары
+  трения — это пол.
+- 28:08:2026 - 13:12:40: ДИНАМИЧЕСКИЕ ТЕЛА (зона ФИЗИКА ПРЕДМЕТОВ). Четвёртый
+  объектный слой DYNAMIC в широкой фазе MOVING; пары DYNAMIC-STATIC,
+  DYNAMIC-DYNAMIC и CHARACTER-DYNAMIC открыты, и последняя — не мелочь: ею
+  капсула игрока ТОЛКАЕТ утварь (владелец 28.08: «моё тело тоже имеет
+  физические свойства — хочу банки, бутылки, еду толкать»). Сила толчка
+  ограничена CharacterVirtual::mMaxStrength, и это ровно то, что заказано
+  словами «бутылку сдвинет, бочку 200 кг — нет»: одна и та же сила против
+  разной массы даёт разный исход БЕЗ таблицы классов веса.
+  ФОРМА — ВЫПУКЛАЯ ОБОЛОЧКА ВЕРШИН ПРЕДМЕТА (ConvexHullShapeSettings), а не
+  коробка рядом с ним: коробка и рисунок разъезжаются в первый же день.
+  Оболочка строится ОДИН РАЗ НА ИМЯ у вызывающего — здесь она строится на
+  тело, и это осознанная цена простого контракта (тридцать предметов комнаты
+  = тридцать построений по ~100 точек).
+  СОН ВКЛЮЧЁН УМОЛЧАНИЕМ Jolt; тело рождается спящим (start_asleep), иначе
+  комната из тридцати предметов оплачивает секунду симуляции ничего.
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
@@ -109,6 +128,7 @@ UPD:
 #include <Jolt/Physics/Collision/ShapeCast.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/CapsuleShape.h>
+#include <Jolt/Physics/Collision/Shape/ConvexHullShape.h>
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
@@ -144,7 +164,8 @@ namespace object_layers {
 constexpr JPH::ObjectLayer STATIC = 0;
 constexpr JPH::ObjectLayer CHARACTER = 1;
 constexpr JPH::ObjectLayer CHARACTER_GHOST = 2; // raycast-only inner bodies
-constexpr JPH::uint COUNT = 3;
+constexpr JPH::ObjectLayer DYNAMIC = 3;         // loose props (jugs, stools)
+constexpr JPH::uint COUNT = 4;
 } // namespace object_layers
 
 namespace broad_phase_layers {
@@ -170,12 +191,17 @@ public:
 class ObjectVsBroadPhaseFilter final : public JPH::ObjectVsBroadPhaseLayerFilter {
 public:
     bool ShouldCollide(JPH::ObjectLayer layer, JPH::BroadPhaseLayer bp) const override {
-        // Characters query static geometry; ghosts collide with nothing.
+        // Characters query static geometry AND the loose props they shove
+        // aside; ghosts collide with nothing.
         if (layer == object_layers::CHARACTER_GHOST) {
             return false;
         }
         if (layer == object_layers::CHARACTER) {
-            return bp == broad_phase_layers::STATIC;
+            return bp == broad_phase_layers::STATIC || bp == broad_phase_layers::MOVING;
+        }
+        // A loose prop falls on the world and lands on other props.
+        if (layer == object_layers::DYNAMIC) {
+            return true;
         }
         return false; // static vs anything: static never queries
     }
@@ -187,7 +213,13 @@ public:
         const auto pair_is = [&](JPH::ObjectLayer x, JPH::ObjectLayer y) {
             return (a == x && b == y) || (a == y && b == x);
         };
-        return pair_is(object_layers::CHARACTER, object_layers::STATIC);
+        return pair_is(object_layers::CHARACTER, object_layers::STATIC)
+            // A PROP FALLS ON THE WORLD, STACKS ON ITS OWN KIND, AND IS SHOVED
+            // BY THE PLAYER. The third pair is what makes the capsule a body
+            // in the world rather than a ghost that walks through the crockery.
+            || pair_is(object_layers::DYNAMIC, object_layers::STATIC)
+            || (a == object_layers::DYNAMIC && b == object_layers::DYNAMIC)
+            || pair_is(object_layers::CHARACTER, object_layers::DYNAMIC);
     }
 };
 
@@ -398,7 +430,8 @@ public:
             return {};
         }
         return add_static_body(shape_result.Get(), JPH::RVec3::sZero(),
-                               JPH::Quat::sIdentity(), desc.layer, desc.user_data);
+                               JPH::Quat::sIdentity(), desc.layer, desc.user_data,
+                               desc.substance);
     }
 
     PhysicsBodyHandle create_terrain(const TerrainDesc& desc) override {
@@ -450,7 +483,8 @@ public:
             return {};
         }
         return add_static_body(shape_result.Get(), JPH::RVec3::sZero(),
-                               JPH::Quat::sIdentity(), desc.layer, desc.user_data);
+                               JPH::Quat::sIdentity(), desc.layer, desc.user_data,
+                               desc.substance);
     }
 
     PhysicsBodyHandle create_static_box(const StaticBoxDesc& desc) override {
@@ -462,7 +496,7 @@ public:
         const JPH::Quat rotation{desc.rotation.x, desc.rotation.y, desc.rotation.z,
                                  desc.rotation.w};
         return add_static_body(new JPH::BoxShape(half), JPH::RVec3(to_jph(desc.center)),
-                               rotation, desc.layer, desc.user_data);
+                               rotation, desc.layer, desc.user_data, desc.substance);
     }
 
     void set_body_transform(PhysicsBodyHandle body, const glm::vec3& position,
@@ -478,6 +512,125 @@ public:
             it->second, JPH::RVec3(to_jph(position)),
             JPH::Quat{rotation.x, rotation.y, rotation.z, rotation.w},
             JPH::EActivation::DontActivate);
+    }
+
+    // Dynamic bodies -----------------------------------------------------------
+    PhysicsBodyHandle create_dynamic_body(const DynamicBodyDesc& desc) override {
+        if (!system_ || desc.layer == 0 || desc.mass_kg <= 0.0f
+            || desc.points.size() < 4) {
+            return {};
+        }
+        JPH::Array<JPH::Vec3> points;
+        points.reserve(desc.points.size());
+        for (const glm::vec3& p : desc.points) {
+            points.push_back(to_jph(p));
+        }
+        // CONVEX RADIUS ZERO. Jolt's default 0.05 m shrinks the hull by five
+        // centimetres and rounds it back — invisible on a crate, HALF of a
+        // 0.11 m cup. The prop must touch the table where it is drawn touching
+        // it, so the hull is the hull.
+        JPH::ConvexHullShapeSettings hull(points, 0.0f);
+        auto shape_result = hull.Create();
+        if (shape_result.HasError()) {
+            return {}; // coplanar / degenerate: no volume, no body
+        }
+        JPH::BodyCreationSettings settings(
+            shape_result.Get(), JPH::RVec3(to_jph(desc.position)),
+            JPH::Quat{desc.rotation.x, desc.rotation.y, desc.rotation.z, desc.rotation.w},
+            JPH::EMotionType::Dynamic, object_layers::DYNAMIC);
+        settings.mUserData = desc.user_data;
+        // ТРЕНИЕ И УПРУГОСТЬ — ИЗ ЗАПИСИ ВЕЩЕСТВА, не из полей вызова. Пара
+        // складывается умолчаниями Jolt (sqrt для трения, max для упругости),
+        // и это правило названо один раз — в PhysicsSubstance.h.
+        const core::PhysicsSubstance& what = core::substance(desc.substance);
+        settings.mFriction = what.friction;
+        settings.mRestitution = what.restitution;
+        settings.mLinearDamping = desc.linear_damping;
+        settings.mAngularDamping = desc.angular_damping;
+        // MASS IS THE CALLER'S (volume x density), and the INERTIA is scaled
+        // from the hull's own shape to match it. Letting Jolt compute the mass
+        // from the shape at unit density would make a clay jug and a wooden
+        // stool of the same size weigh the same, which is the whole point of
+        // the substance table on the other side of this call.
+        settings.mOverrideMassProperties =
+            JPH::EOverrideMassProperties::CalculateInertia;
+        settings.mMassPropertiesOverride.mMass = desc.mass_kg;
+        // ALLOW SLEEPING is Jolt's default and is stated here on purpose: the
+        // stack acceptance ("three bowls stand for ten seconds without a
+        // shiver") is measured as sleep, and a body that may not sleep cannot
+        // pass it however still it looks.
+        settings.mAllowSleeping = true;
+        const JPH::BodyID body_id = system_->GetBodyInterface().CreateAndAddBody(
+            settings, desc.start_asleep ? JPH::EActivation::DontActivate
+                                        : JPH::EActivation::Activate);
+        if (body_id.IsInvalid()) {
+            return {};
+        }
+        const PhysicsBodyHandle handle{next_id_++};
+        bodies_.emplace(handle.id, body_id);
+        body_masks_[body_id.GetIndexAndSequenceNumber()] = desc.layer;
+        return handle;
+    }
+
+    BodyPose body_pose(PhysicsBodyHandle body) const override {
+        BodyPose pose;
+        const auto it = bodies_.find(body.id);
+        if (it == bodies_.end() || !system_) {
+            return pose;
+        }
+        JPH::RVec3 position;
+        JPH::Quat rotation;
+        system_->GetBodyInterface().GetPositionAndRotation(it->second, position, rotation);
+        pose.position = to_glm(JPH::Vec3(position));
+        pose.rotation = glm::quat{rotation.GetW(), rotation.GetX(), rotation.GetY(),
+                                  rotation.GetZ()};
+        return pose;
+    }
+
+    glm::vec3 body_velocity(PhysicsBodyHandle body) const override {
+        const auto it = bodies_.find(body.id);
+        if (it == bodies_.end() || !system_) {
+            return glm::vec3{0.0f};
+        }
+        return to_glm(system_->GetBodyInterface().GetLinearVelocity(it->second));
+    }
+
+    void set_body_velocity(PhysicsBodyHandle body, const glm::vec3& linear,
+                           const glm::vec3& angular) override {
+        const auto it = bodies_.find(body.id);
+        if (it == bodies_.end() || !system_) {
+            return;
+        }
+        auto& bi = system_->GetBodyInterface();
+        // WAKE FIRST, then write: a velocity written to a sleeping body is
+        // dropped by the solver, and the prop the player is dragging would
+        // stay put for exactly as long as it took to notice.
+        bi.ActivateBody(it->second);
+        bi.SetLinearAndAngularVelocity(it->second, to_jph(linear), to_jph(angular));
+    }
+
+    void set_body_gravity_factor(PhysicsBodyHandle body, float factor) override {
+        const auto it = bodies_.find(body.id);
+        if (it == bodies_.end() || !system_) {
+            return;
+        }
+        system_->GetBodyInterface().SetGravityFactor(it->second, factor);
+    }
+
+    bool body_asleep(PhysicsBodyHandle body) const override {
+        const auto it = bodies_.find(body.id);
+        if (it == bodies_.end() || !system_) {
+            return true; // nothing there is not moving
+        }
+        return !system_->GetBodyInterface().IsActive(it->second);
+    }
+
+    void activate_body(PhysicsBodyHandle body) override {
+        const auto it = bodies_.find(body.id);
+        if (it == bodies_.end() || !system_) {
+            return;
+        }
+        system_->GetBodyInterface().ActivateBody(it->second);
     }
 
     void destroy_body(PhysicsBodyHandle body) override {
@@ -509,6 +662,10 @@ public:
         settings.mMaxSlopeAngle = desc.max_slope_radians;
         settings.mInnerBodyShape = shape; // raycastable ghost body
         settings.mInnerBodyLayer = object_layers::CHARACTER_GHOST;
+        // THE WALKING SHOVE (28.08). Jolt's CharacterVirtual pushes the
+        // dynamic bodies it touches with a force capped at mMaxStrength; that
+        // cap IS the engine's "how heavy a thing does the player's body move".
+        settings.mMaxStrength = desc.push_force_n;
 
         Character character;
         character.virtual_character = new JPH::CharacterVirtual(
@@ -693,11 +850,19 @@ private:
 
     PhysicsBodyHandle add_static_body(const JPH::ShapeRefC& shape, JPH::RVec3Arg position,
                                       JPH::QuatArg rotation, CollisionMask mask,
-                                      uint64_t user_data) {
+                                      uint64_t user_data,
+                                      core::SubstanceId substance) {
         JPH::BodyCreationSettings settings(shape, position, rotation,
                                            JPH::EMotionType::Static,
                                            object_layers::STATIC);
         settings.mUserData = user_data;
+        // ПОЛ — ПОЛОВИНА ВСЯКОЙ ПАРЫ ТРЕНИЯ. До этой волны статичное тело
+        // молча несло умолчание Jolt (0.2), и это ровно то, что даёт
+        // SUBSTANCE_DEFAULT: мир, в котором никто не назвал вещества, стоит
+        // на прежних числах бит в бит.
+        const core::PhysicsSubstance& what = core::substance(substance);
+        settings.mFriction = what.friction;
+        settings.mRestitution = what.restitution;
         const JPH::BodyID body_id = system_->GetBodyInterface().CreateAndAddBody(
             settings, JPH::EActivation::DontActivate);
         if (body_id.IsInvalid()) {

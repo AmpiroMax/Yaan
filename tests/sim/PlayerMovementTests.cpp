@@ -341,6 +341,31 @@ public:
         inner->set_body_transform(b, p, r);
     }
     void destroy_body(platform::PhysicsBodyHandle b) override { inner->destroy_body(b); }
+    // ДИНАМИЧЕСКИЕ ТЕЛА (28.08) — сквозной проброс, как и всё остальное здесь:
+    // этот двойник существует ради ОДНОГО перехваченного вызова
+    // (move_character), и всякий новый обязан вести себя ровно как настоящий,
+    // иначе двойник начинает быть отдельной физикой.
+    platform::PhysicsBodyHandle create_dynamic_body(
+        const platform::DynamicBodyDesc& d) override {
+        return inner->create_dynamic_body(d);
+    }
+    platform::BodyPose body_pose(platform::PhysicsBodyHandle b) const override {
+        return inner->body_pose(b);
+    }
+    glm::vec3 body_velocity(platform::PhysicsBodyHandle b) const override {
+        return inner->body_velocity(b);
+    }
+    void set_body_velocity(platform::PhysicsBodyHandle b, const glm::vec3& l,
+                           const glm::vec3& a) override {
+        inner->set_body_velocity(b, l, a);
+    }
+    void set_body_gravity_factor(platform::PhysicsBodyHandle b, float f) override {
+        inner->set_body_gravity_factor(b, f);
+    }
+    bool body_asleep(platform::PhysicsBodyHandle b) const override {
+        return inner->body_asleep(b);
+    }
+    void activate_body(platform::PhysicsBodyHandle b) override { inner->activate_body(b); }
     platform::CharacterHandle create_character(const platform::CharacterDesc& d) override {
         return inner->create_character(d);
     }

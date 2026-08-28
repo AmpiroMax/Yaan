@@ -211,6 +211,7 @@ void App::unload_world() {
     portals_.clear();
     house_doorways_.clear();
     clear_furniture_seats(); // точки позы уходят вместе с миром (28.08)
+    clear_loose_props();     // тела утвари — туда же (28.08)
     interior_houses_.clear();
     interior_positions_.clear();
     interior_doc_ = {};

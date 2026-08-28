@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 28:08:2026 - 12:45:00
+# Last updated: 28:08:2026 - 13:06:00
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -132,6 +132,10 @@
 #   все 46 файлов семейства furn-, — а не на выдуманных коробках. Отвергнутый
 #   образец настоящий: сундук furn-chest проходит оба размера сиденья и
 #   отсекается ровно высотой колена.
+# - 28:08:2026 - 13:06:00: app_prop_physics — МАССА ПРЕДМЕТА ИЗ ЕГО ГЕОМЕТРИИ
+#   (зона ФИЗИКА ПРЕДМЕТОВ). Линкует PropPhysics.cpp и чтение реестра: масса
+#   считается из треугольников полки, и отвергаемый случай у рукава настоящий —
+#   двухсоткилограммовый сундук по габариту из записки №4 ресёрчера.
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -331,6 +335,14 @@ if(TARGET dfn_render AND TARGET dfn_core)
     target_sources(app_seat_aim PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SeatAim.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/FurnitureSeats.cpp)
+
+    # ФИЗИЧЕСКИЕ СВОЙСТВА ПРЕДМЕТА (зона big-grab). Та же выгородка, что у
+    # прицела двери: масса считается из треугольников полки, поэтому цель
+    # линкует чтение реестра и НИЧЕГО из окна и физики. Отвергаемый случай
+    # настоящий — двухсоткилограммовый сундук из записки №4 ресёрчера.
+    add_dfn_test(app_prop_physics app/PropPhysicsTests.cpp dfn_render dfn_core)
+    target_sources(app_prop_physics PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PropPhysics.cpp)
 
     # НАСТРОЙКИ. Цель линкует ТОЛЬКО AppSettings.cpp: разбор текста отделён от
     # файла и от окна, и это единственная причина, по которой вынос из App.cpp

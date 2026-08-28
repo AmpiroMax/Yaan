@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 12:49:39
+Last updated: 28:08:2026 - 14:18:16
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -202,6 +202,10 @@ UPD:
 - 28:08:2026 - 12:49:39: отправка screen_prop_ несёт шероховатость и металличность из
   реестра материалов (зона МАТЕРИАЛЫ, 28.08). Реестр — одно место, где живёт
   «золото бликует золотым»; здесь только перенос его ответа в дро.
+- 28:08:2026 - 14:18:16: отправка подвижных предметов — в том же блоке, что и
+  створки, и по той же причине: геометрия местная, место называет матрица.
+  Разница одна — матрицу створки считает render (петля и угол), а матрицу
+  предмета приносит физика: у падающего кувшина нет формулы, есть тело.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1243,6 +1247,37 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             renderer.submit(platform::MeshHandle{d.mesh_id},
                             platform::ProgramHandle{prop_program_}, xform,
                             tex_of(d.texture_asset), dp);
+        }
+        // ПОДВИЖНЫЕ ПРЕДМЕТЫ — ТОТ ЖЕ ЦИКЛ, ЧТО У СТВОРОК, И ПО ТОЙ ЖЕ
+        // ПРИЧИНЕ: геометрия местная, место называет матрица. Разница одна —
+        // матрицу створки считает render (петля и угол), а матрицу предмета
+        // приносит физика: у падающего кувшина нет формулы, есть тело.
+        for (const LoosePropGpu& prop : loose_props_) {
+            // Предмет комнаты рисуется в подвесе, предмет города — снаружи.
+            if (prop.interior != suspended) {
+                continue;
+            }
+            // ОТСЕЧЕНИЕ ШАРОМ, а не ящиком: предмет вертится, и ящик по осям
+            // мира был бы верен ровно один кадр. Шар вокруг середины верен
+            // при любом повороте, а тридцать предметов комнаты — это не та
+            // цена, ради которой стоит городить точный габарит.
+            const glm::vec3 centre = glm::vec3(prop.transform
+                                               * glm::vec4(prop.local_centre, 1.0f));
+            math::Aabb world{};
+            world.expand(centre - glm::vec3(prop.local_radius));
+            world.expand(centre + glm::vec3(prop.local_radius));
+            if (!visible_or_casting(frustum, world, cull_eye)) {
+                continue;
+            }
+            for (const HouseStreamGpu& st : prop.streams) {
+                platform::DrawParams dp;
+                dp.aux_texture = tex_of(st.normal_asset);
+                dp.emissive = st.emissive;
+                dp.material = st.material;
+                renderer.submit(platform::MeshHandle{st.mesh_id},
+                                platform::ProgramHandle{prop_program_}, prop.transform,
+                                tex_of(st.texture_asset), dp);
+            }
         }
     }
     // THE BUILD GHOST last of the world's geometry, unlit: it is an ANSWER

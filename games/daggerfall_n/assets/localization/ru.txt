@@ -28,6 +28,7 @@ prompt.close=Закрыть
 prompt.sit=Сесть
 prompt.lie=Лечь
 prompt.stand=Встать
+prompt.carry=Отпустить · ЛКМ бросок
 
 item.tool.torch.name=Факел
 

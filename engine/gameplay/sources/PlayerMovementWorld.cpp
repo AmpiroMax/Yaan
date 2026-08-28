@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 13:08:2026 - 16:20:00
+Last updated: 28:08:2026 - 14:18:16
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovementWorld.cpp
 
@@ -53,6 +53,14 @@ UPD:
   built the trunk bodies from. Asking the app to ferry a number gameplay
   already owns would be a wire with no information on it, and one more thing
   for a caller to forget. It also means engine/app is untouched by today's work.
+- 28:08:2026 - 14:18:16: капсула сталкивается с подвижными предметами
+  (LAYER_LOOSE) и получила ПОТОЛОК СИЛЫ ТОЛЧКА push_force_n = 30 Н (заказ
+  владельца 28.08: «моё тело тоже имеет физические свойства — хочу банки,
+  бутылки, еду толкать»). Умолчание Jolt (100 Н) измерено слишком большим:
+  полукилограммовый кубок, задетый на ходу, улетал на 4.8-6.6 м — человек не
+  задевал посуду, а пинал её. Это ВТОРОЙ из двух потолков зоны; первый —
+  сила хвата (GrabDrive.h), и разводить их обязательно: иначе «не могу
+  поднять шкаф» и «не могу отпихнуть шкаф ногой» стали бы одной ручкой.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"
@@ -78,7 +86,15 @@ ecs::EntityId spawn_player(ecs::World& world, platform::IPhysics& physics,
     desc.max_slope_radians = static_cast<float>(config::PLAYER_MAX_SLOPE);
     desc.step_height = static_cast<float>(config::PLAYER_STEP_HEIGHT);
     desc.layer = physics::LAYER_CHARACTER;
-    desc.collides_with = physics::LAYER_STATIC; // character-vs-character: later sync
+    // КАПСУЛА СТАЛКИВАЕТСЯ И С ПОДВИЖНЫМИ ПРЕДМЕТАМИ (28.08, владелец: «моё
+    // тело тоже имеет физические свойства — хочу банки, бутылки, еду толкать,
+    // двигать»). Толчок ограничен силой (CharacterDesc::push_force_n), поэтому
+    // бутыль откатывается, а бочка в двести килограммов — нет: одна ручка, а
+    // не таблица классов веса. Character-vs-character — по-прежнему позже.
+    desc.collides_with = physics::LAYER_STATIC | physics::LAYER_LOOSE;
+    // Потолок силы толчка телом — именованной величиной, а не литералом:
+    // её читает и рукав приёмки (PlayerMovement.h, PLAYER_PUSH_FORCE_N).
+    desc.push_force_n = PLAYER_PUSH_FORCE_N;
     desc.user_data = id.packed();
 
     PlayerState state;

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 18:56:32
+Last updated: 28:08:2026 - 13:22:10
 Module: engine/physics
 File: engine/physics/sources/CollisionLayers.h
 
@@ -29,6 +29,12 @@ AI Agents Notice (must follow):
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial layer set (static, character).
 - 09:08:2026 - 18:56:32: Added LAYER_INTERACTABLE for crosshair targeting.
+- 28:08:2026 - 13:22:10: LAYER_LOOSE — подвижные предметы (зона ФИЗИКА
+  ПРЕДМЕТОВ). Свой бит, а не LAYER_INTERACTABLE, по той же причине, по какой
+  interactable в своё время отделили от static: прицел ХВАТА обязан находить
+  только то, что можно поднять, и не спотыкаться ни о дверь, ни о точку
+  посадки, стоящие в том же метре. Заметьте предупреждение в шапке: биты
+  нигде не сериализуются — как только начнут, они заморожены (правило 7).
 */
 
 #pragma once
@@ -47,5 +53,11 @@ inline constexpr platform::CollisionMask LAYER_CHARACTER = 1u << 1;
 // LAYER_STATIC so the crosshair ray finds only things the player can act on
 // and is never blocked by ordinary terrain in front of them.
 inline constexpr platform::CollisionMask LAYER_INTERACTABLE = 1u << 2;
+
+// Loose props: the crockery, stools, baskets and books a player may pick up,
+// carry and stack. A body on this layer is DYNAMIC — it has mass, it falls, it
+// sleeps — which is what separates it from LAYER_INTERACTABLE (a door leaf is
+// interactable and immovable) and from LAYER_STATIC (a wall).
+inline constexpr platform::CollisionMask LAYER_LOOSE = 1u << 3;
 
 } // namespace dfn::physics

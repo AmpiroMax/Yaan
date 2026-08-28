@@ -111,6 +111,10 @@ const std::vector<std::string>& app_sources() {
         // AppSeats.cpp дописан 28.08 (сидеть и лежать): DFN_SEAT и её соседки
         // читаются там — по той же причине, что и строкой выше.
         "engine/app/sources/AppSeats.cpp",
+        // AppProps.cpp дописан 28.08 (физика предметов): DFN_PROPS,
+        // DFN_GRAB_PROBE и DFN_GRAB_LAB читаются там — по той же причине, что
+        // и строкой выше.
+        "engine/app/sources/AppProps.cpp",
         // MenuEmblem.cpp дописан 27.08 (объёмный герб главного меню):
         // DFN_MENU_OAK_PHASE читается там, и без строки в списке дверь
         // выглядела бы «описанной, но никем не читаемой» — ровно тот ложный
@@ -309,7 +313,14 @@ TEST_CASE("whether a run is unattended is the table's column, door by door") {
     // счёт НЕ входит и не должна: это ДОЗА, она называет поведение мира, и
     // человек законно играет с нею на обоих значениях — тот же довод, что у
     // DFN_DOOR_AIM строкой выше.
-    CHECK(unattended_doors == 23);
+    // 24 с 28.08: DFN_GRAB_PROBE — беспилотная рука хвата (встать, ДЕРЖАТЬ E,
+    // пронести, поставить, бросить; печатает числа и кладёт кадры). За таким
+    // прогоном никто не сидит. Её соседки DFN_PROPS и DFN_GRAB_LAB в счёт НЕ
+    // входят и не должны: первая — ДОЗА (называет поведение мира, и человек
+    // законно играет с нею на обоих значениях), вторая — НАКРЫТЫЙ СТОЛ, то
+    // есть тоже содержимое мира, за которым человек как раз и сидит, когда
+    // берёт кувшин руками.
+    CHECK(unattended_doors == 24);
 
     // PRESENCE, NOT TRUTH. `DFN_TOUR=0` still means a tour is being run by a
     // script -- every door here is opened by being set at all, and a door that

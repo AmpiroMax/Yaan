@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 28:08:2026 - 11:23:00
+Last updated: 28:08:2026 - 14:18:16
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -102,6 +102,11 @@ UPD:
   формула, вызванная из того же места.
 - 28:08:2026 - 11:23:00: pane_glow переносится туда же — сила свечения оконной
   вставки живёт у потока, а не у дро (свет из окна, 28.08).
+- 28:08:2026 - 14:18:16: set_loose_props / set_loose_prop_transform /
+  clear_loose_props — заливка слота подвижных предметов (зона ФИЗИКА
+  ПРЕДМЕТОВ). Габарит считается ЗДЕСЬ и в МЕСТНЫХ осях по тем же вершинам,
+  что ушли в буфер: предмет вертится в руках, поэтому мировой ящик по осям
+  мира верен один кадр, а шар вокруг середины — при любом повороте.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -426,6 +431,63 @@ void RenderSystem::set_ghost_mesh(platform::IRenderer& renderer,
 // интерьерного (И15): два одинаковых тела разошлись бы в первой же правке
 // материала, и разошлись бы МОЛЧА — картинка города и картинка комнаты
 // собираются одним и тем же построителем (правило 39).
+void RenderSystem::clear_loose_props(platform::IRenderer& renderer) {
+    for (const LoosePropGpu& p : loose_props_) {
+        for (const HouseStreamGpu& st : p.streams) {
+            renderer.destroy_mesh(platform::MeshHandle{st.mesh_id});
+        }
+    }
+    loose_props_.clear();
+}
+
+void RenderSystem::set_loose_props(platform::IRenderer& renderer,
+                                   std::vector<LooseProp> props) {
+    clear_loose_props(renderer);
+    loose_props_.reserve(props.size());
+    for (LooseProp& prop : props) {
+        LoosePropGpu gpu;
+        gpu.interior = prop.interior;
+        // ГАБАРИТ СЧИТАЕТСЯ ЗДЕСЬ И В МЕСТНЫХ ОСЯХ — по тем же вершинам, что
+        // ушли в буфер. Предмет вертится в руках, поэтому мировой ящик по
+        // осям мира у него был бы верен ровно один кадр; шар вокруг середины
+        // верен при любом повороте.
+        math::Aabb box{};
+        for (const HouseStream& st : prop.streams) {
+            for (const platform::Vertex& v : st.mesh.vertices) {
+                box.expand(v.position);
+            }
+        }
+        gpu.local_centre = 0.5f * (box.min + box.max);
+        gpu.local_radius = 0.5f * glm::length(box.max - box.min);
+        for (HouseStream& st : prop.streams) {
+            if (st.mesh.vertices.empty() || st.mesh.indices.empty()) {
+                continue;
+            }
+            const platform::MeshHandle h =
+                renderer.create_mesh(st.mesh.vertices, st.mesh.indices);
+            if (!h.valid()) {
+                continue;
+            }
+            math::Aabb local{};
+            for (const platform::Vertex& v : st.mesh.vertices) {
+                local.expand(v.position);
+            }
+            gpu.streams.push_back({h.id, house_tile_asset(renderer, st.surface, st.tone),
+                                   house_tile_asset(renderer, st.surface, st.tone,
+                                                    /*normal=*/true),
+                                   local, st.emissive, st.pane_glow,
+                                   st.material});
+        }
+        loose_props_.push_back(std::move(gpu));
+    }
+}
+
+void RenderSystem::set_loose_prop_transform(std::size_t index, const glm::mat4& transform) {
+    if (index < loose_props_.size()) {
+        loose_props_[index].transform = transform;
+    }
+}
+
 void RenderSystem::fill_house_slot(platform::IRenderer& renderer,
                                    std::vector<HouseStream> streams,
                                    std::vector<HouseDoor> doors,
@@ -457,7 +519,7 @@ void RenderSystem::fill_house_slot(platform::IRenderer& renderer,
             out_streams.push_back(
                 {h.id, house_tile_asset(renderer, st.surface, st.tone),
                  house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true),
-                 box, st.emissive, st.pane_glow});
+                 box, st.emissive, st.pane_glow, st.material});
         }
     }
     // НОМЕР СТВОРКИ СОХРАНЯЕТСЯ. Пропуск пустой двери «сжал» бы список, и

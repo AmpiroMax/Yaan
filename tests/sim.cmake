@@ -182,3 +182,12 @@ set_tests_properties(sim_great_oak_stair PROPERTIES LABELS "known-defect")
 # оболочки дома, две руки дозы DFN_CAM_COLLIDE) лежит в docs/acceptance.
 add_dfn_test(sim_camera_boom sim/CameraBoomTests.cpp
     dfn_gameplay dfn_platform_physics dfn_core)
+
+# ФИЗИКА ПРЕДМЕТОВ: шесть приёмок волны big-grab на НАСТОЯЩЕМ Jolt и настоящей
+# арифметике хвата (GrabDrive.cpp линкуется прямо, а не копируется в рукав:
+# две копии пружины разошлись бы, и приёмка мерила бы не то, во что играют).
+# Каждая приёмка публикуется со случаем, который она обязана отвергнуть.
+add_dfn_test(sim_loose_props sim/LoosePropTests.cpp
+    dfn_physics dfn_platform_physics dfn_gameplay dfn_core)
+target_sources(sim_loose_props PRIVATE
+    ${CMAKE_SOURCE_DIR}/engine/app/sources/GrabDrive.cpp)

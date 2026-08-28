@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 27:08:2026 - 11:30:36
+Last updated: 28:08:2026 - 13:40:00
 Module: engine/platform/physics
 File: engine/platform/physics/interfaces/IPhysics.h
 
@@ -9,8 +9,9 @@ Responsibility:
   physics backend goes through this interface; Jolt lives only behind it.
 
 Key items:
-- IPhysics: init/shutdown, fixed step, static terrain/box bodies, kinematic
-  character controller (capsule, move-with-slide, grounded query), raycast.
+- IPhysics: init/shutdown, fixed step, static terrain/box bodies, DYNAMIC
+  bodies (loose props: convex hull, mass, sleep), kinematic character
+  controller (capsule, move-with-slide, grounded query), raycast.
 - TerrainMeshDesc: voxel-terrain collision from extracted triangles (tunnels,
   overhangs) — the terrain path for the 3D world.
 - TerrainDesc: heightmap collision from plain float samples (engine/world data).
@@ -18,7 +19,9 @@ Key items:
 - PhysicsBodyHandle / CharacterHandle: opaque POD handles (0 = invalid).
 
 Dependencies:
-- Uses: C++ stdlib, glm (Rule 2). Nothing else.
+- Uses: C++ stdlib, glm (Rule 2), engine/core (PhysicsSubstance — the DAG
+  allows platform interfaces to reach core, and a body must be able to NAME
+  its substance rather than carry loose coefficients).
 - Used by: engine/physics (character controller, collision layers), engine/gameplay
   (via engine/physics and raycast queries), tests (null backend).
 
@@ -82,9 +85,40 @@ UPD:
                          существующая сигнатура и ни одна семантика не тронуты;
                          реализаций у IPhysics три (Jolt, null и двойник
                          PlayerMovementTests) — обновлены все.
+- 28:08:2026 - 12:58:10: ADDITIVE: ДИНАМИЧЕСКОЕ ТЕЛО (зона ФИЗИКА ПРЕДМЕТОВ,
+                         заказ владельца 28.08 «зажав E, поднимать объекты,
+                         держать, складывать друг на друга»). Заведены
+                         DynamicBodyDesc/create_dynamic_body, BodyPose/
+                         body_pose(), body_velocity/set_body_velocity,
+                         set_body_gravity_factor, body_asleep/activate_body.
+                         Контракт до сегодня знал ровно два рода тел —
+                         статичное и кинематический персонаж, — и предмет,
+                         который падает, ни одним из них не выражается:
+                         static-тело не двигают силы, а капсула персонажа не
+                         лежит на боку. Ни одна существующая сигнатура и ни
+                         одна семантика не тронуты; реализаций у IPhysics три
+                         (Jolt, null и двойник PlayerMovementTests) —
+                         обновлены все.
+- 28:08:2026 - 13:40:00: ВЕЩЕСТВО ВМЕСТО КОЭФФИЦИЕНТОВ. Поля friction и
+                         restitution, заведённые записью выше, сняты с
+                         DynamicBodyDesc: тело называет ВЕЩЕСТВО
+                         (core::SubstanceId), а числа лежат у вещества
+                         (engine/core/materials/sources/PhysicsSubstance.h).
+                         Решение координатора по находке зоны МАТЕРИАЛЫ: класть
+                         вещество полями вызова — та же ошибка, что осуждена на
+                         DrawParams.roughness, и чинить её надо, пока
+                         потребитель один. Той же записью вещество получили
+                         TerrainDesc, TerrainMeshDesc и StaticBoxDesc:
+                         половина всякой пары трения — это ПОЛ, и без него
+                         вопрос «скользит ли миска по доске» задать нельзя.
+                         SUBSTANCE_DEFAULT воспроизводит умолчания Jolt, то
+                         есть мир без единого названного вещества ведёт себя
+                         бит в бит как вчера.
 */
 
 #pragma once
+
+#include "engine/core/materials/sources/PhysicsSubstance.h"
 
 #include <cstdint>
 #include <glm/gtc/quaternion.hpp>
@@ -117,6 +151,11 @@ struct TerrainDesc {
     float sample_spacing = 0.0f;    // HEIGHTMAP_STEP, meters
     std::span<const float> heights; // sample_count_x * sample_count_z values
     CollisionMask layer = 0;
+    // What the GROUND is made of. Matters the moment anything dynamic rests on
+    // it: a bowl on a floor slides by the pair's friction, and half that pair
+    // is the floor. SUBSTANCE_DEFAULT reproduces Jolt's own defaults exactly,
+    // so a caller that says nothing gets today's world unchanged.
+    core::SubstanceId substance = core::SUBSTANCE_DEFAULT;
     uint64_t user_data = 0;         // EntityId bits (chunk terrain entity)
 };
 
@@ -130,6 +169,7 @@ struct TerrainMeshDesc {
     std::span<const glm::vec3> positions; // world space, meters
     std::span<const uint32_t> indices;    // 3 per triangle, indices into positions
     CollisionMask layer = 0;
+    core::SubstanceId substance = core::SUBSTANCE_DEFAULT; // see TerrainDesc
     uint64_t user_data = 0;               // EntityId bits (chunk terrain entity)
 };
 
@@ -140,6 +180,80 @@ struct StaticBoxDesc {
     glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
     CollisionMask layer = 0;
     uint64_t user_data = 0;                       // EntityId bits
+    core::SubstanceId substance = core::SUBSTANCE_DEFAULT; // see TerrainDesc
+};
+
+// DYNAMIC BODY: a loose prop the world may knock about (a jug, a stool, a
+// crate). Unlike a static box it has MASS and is integrated by the solver;
+// unlike the character capsule it tumbles.
+//
+// SHAPE IS A CONVEX HULL OF `points`, and that is a deliberate narrowing of
+// what Jolt can do: the prop the player grabs is drawn from ONE baked mesh, so
+// the honest shape is that mesh's own vertices rather than a box typed in
+// beside it — the same "what you see is what you touch" rule the trees and the
+// door leaf already pay for. Concavity is lost (a basket carries no inside),
+// and that is the price of one shape per prop instead of a decomposition; a
+// prop whose hollow interior must hold something is a COMPOUND, and that is a
+// later, additive call rather than a re-reading of this one.
+//
+// `points` are in the body's LOCAL frame — the same frame the drawn mesh uses,
+// with the origin the object registry measures from — so the drawn transform
+// and the body transform are the same matrix.
+//
+// A hull that cannot be built (fewer than 4 points, all coplanar, zero mass)
+// yields an INVALID handle and creates nothing: an invisible body with no
+// volume would be a prop that catches the player and never appears.
+struct DynamicBodyDesc {
+    std::span<const glm::vec3> points; // hull points, LOCAL space, meters
+    glm::vec3 position{0.0f};          // world space, meters
+    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    // MASS IS THE CALLER'S, AND IT IS NOT THE HULL'S VOLUME TIMES A DENSITY.
+    // Read that sentence twice, because the honest reading of the obvious one
+    // is a world of two-hundred-kilogram furniture: `points` above are a
+    // CONVEX HULL, and a chair's convex hull is very nearly its bounding box —
+    // 0.217 m^3, which at pine's density is 152 kg for a chair that weighs 5.
+    // Measured on the shelf: chest 217 kg against a real 15-25, table 907
+    // against 25-40. And the symptom is silent: "the chair will not lift"
+    // reads as a grab-force problem, not as a mass problem.
+    //
+    // The mass a caller passes is SIGNED MESH VOLUME (divergence theorem over
+    // the object's own triangles) times the substance density times a FILL
+    // fraction, with a loud refusal when the volume ratio says the shell is
+    // not stitched. That arithmetic lives in engine/app (PropPhysics.h) and
+    // belongs in the forge that bakes the object, not here — but the contract
+    // states the rule, because this field is where the trap is sprung.
+    float mass_kg = 0.0f;              // > 0, in kilograms
+    // WHAT THIS BODY IS MADE OF — a NAME into the substance table, never loose
+    // coefficients on the call. Friction and restitution are read from that
+    // record; a caller cannot type "friction 0.5" here at all, on purpose.
+    //
+    // WHY. Friction is not a property of oak, it is a property of oak ON
+    // stone, and the industry stores the number on the substance and combines
+    // it by a rule. Put the number on the CALL instead and the rule has no
+    // owner: two call sites disagree about oak and nobody can be asked why.
+    // (This wave shipped it on the call first and was stopped while the
+    // consumer count was still one — the same defect the codebase already
+    // named on DrawParams.roughness.)
+    //
+    // THE COMBINE RULE IS JOLT'S DEFAULT, and it is stated in
+    // PhysicsSubstance.h once: friction sqrt(f1*f2), restitution max(r1,r2).
+    core::SubstanceId substance = core::SUBSTANCE_DEFAULT;
+    // LINEAR/ANGULAR DAMPING. Not decoration: a stack that never damps keeps
+    // micro-velocity from the solver's own residual and reads as a shiver.
+    float linear_damping = 0.05f;
+    float angular_damping = 0.05f;
+    CollisionMask layer = 0;
+    uint64_t user_data = 0;            // EntityId bits, or the caller's own tag
+    // ASLEEP AT BIRTH. A room of thirty props that all wake on load costs a
+    // simulated second of nothing happening; a prop is woken by a touch.
+    bool start_asleep = true;
+};
+
+// Where a body IS. Position is the body ORIGIN (the frame `points` were given
+// in), never the centre of mass: the caller draws from this matrix.
+struct BodyPose {
+    glm::vec3 position{0.0f};
+    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
 };
 
 // Kinematic capsule character (player and NPCs). All values in meters/radians;
@@ -153,6 +267,19 @@ struct CharacterDesc {
     CollisionMask layer = 0;
     CollisionMask collides_with = COLLIDE_ALL;
     uint64_t user_data = 0;         // EntityId bits
+    // HOW HARD THE WALKING BODY SHOVES A LOOSE PROP, newtons. This is the
+    // SECOND of the two ceilings the prop wave needs, and it is deliberately
+    // not the first: how much the player can CARRY (the grab spring's force
+    // limit) and how much he shoulders aside while walking are different
+    // questions, and one knob for both makes "I cannot lift the cupboard" and
+    // "I cannot kick the cupboard out of the way" the same sentence.
+    //
+    // Expressed as a FORCE and not as Skyrim's mass ceiling (fMoveLimitMass —
+    // the one parameter of theirs that is publicly confirmed) because that is
+    // the knob the solver actually has: a fixed force against a body's own
+    // mass already produces "the bottle skitters, the barrel does not", with
+    // no table of weight classes to keep in sync with the substance table.
+    float push_force_n = 100.0f;
 };
 
 struct RayHit {
@@ -203,6 +330,44 @@ public:
                                     const glm::quat& rotation) = 0;
 
     virtual void destroy_body(PhysicsBodyHandle body) = 0;
+
+    // Dynamic bodies -----------------------------------------------------------
+    // A loose prop: mass, gravity, contacts, sleep. Invalid handle on a zero
+    // layer, a non-positive mass, or a hull that cannot be built.
+    [[nodiscard]] virtual PhysicsBodyHandle create_dynamic_body(
+        const DynamicBodyDesc& desc) = 0;
+
+    // Post-step pose of ANY body (static or dynamic). Identity for an invalid
+    // handle — a caller with no body draws nothing, which is not an error.
+    [[nodiscard]] virtual BodyPose body_pose(PhysicsBodyHandle body) const = 0;
+
+    // Velocity of a dynamic body, m/s and rad/s. Zero for anything else.
+    [[nodiscard]] virtual glm::vec3 body_velocity(PhysicsBodyHandle body) const = 0;
+
+    // DRIVES a dynamic body by writing its velocity, and WAKES it.
+    //
+    // WHY VELOCITY AND NOT A KINEMATIC TRANSFORM, for the held item. A grabbed
+    // prop must still be stopped by a wall and must still shove the cups on
+    // the table it is swept across; a kinematic body does neither — it walks
+    // through the wall and the wall does not answer. Writing the velocity of a
+    // body that stays DYNAMIC keeps every contact honest and makes "the jug
+    // jams against the doorframe and slips out of the hand" a consequence
+    // rather than a special case.
+    virtual void set_body_velocity(PhysicsBodyHandle body, const glm::vec3& linear,
+                                   const glm::vec3& angular) = 0;
+
+    // Scales gravity for one body: 1 = normal, 0 = weightless. The held prop
+    // is carried at 0 so the spring does not have to fight its own weight, and
+    // is handed back its weight the instant it is let go.
+    virtual void set_body_gravity_factor(PhysicsBodyHandle body, float factor) = 0;
+
+    // Is this body asleep (removed from the solver until touched)? THE stack
+    // acceptance reads this: "three bowls stand still" and "three bowls are
+    // asleep" are different claims, and only the second one is cheap.
+    [[nodiscard]] virtual bool body_asleep(PhysicsBodyHandle body) const = 0;
+
+    // Wakes a sleeping body without changing its state.
+    virtual void activate_body(PhysicsBodyHandle body) = 0;
 
     // Character controller -----------------------------------------------------
     [[nodiscard]] virtual CharacterHandle create_character(const CharacterDesc& desc) = 0;
