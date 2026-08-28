@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 23:08:2026 - 23:55:00
+Last updated: 28:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/FloraCards.cpp
 
@@ -80,6 +80,17 @@ UPD:
   любом весе возвращает её же: кламп воспроизведён, а не приближен. И живёт
   во всей цепочке мипов даром — коробочный фильтр коммутирует с зеркалом.
   Пишется ПОСЛЕ основного прохода: это функция от готовой зелёной полосы.
+- 28:08:2026 - 16:20:00: ПАЧКА V2 В РЯДАХ 14-15 (вторая итерация деревьев,
+  разница №4 записки docs/reports/trees-g3 — диагноз §1.1 от 13.08, до сих пор
+  невыполненный). Тайл v2 рисуется ДРУГИМ законом: главная веточка + три
+  боковые, десятки листьев по ним с шагом и чередованием сторон, значение —
+  радиальный пандус (тёмная сердцевина 0.58 -> светлый край 1.24), альфа
+  клинка 0.68-1.0 (полупрозрачность на просвет через A2C), и — главное — НЕТ
+  контура: непрозрачны только листья и веточки, всё остальное СВЕТ, отчего
+  просветы внутри карточки существуют, а кромка рвётся кончиками листьев, а
+  не эрозией эллипса. Ряд 15 — тот же рисунок на треть темнее и на пятую часть
+  реже: это внутренность кроны. Растеризатор первой итерации не тронут — ветка
+  v2 стоит ПЕРЕД ним и делает continue; ряды 0..13 идут по вчерашнему коду.
 */
 
 #include "engine/render/sources/FloraCards.h"
@@ -217,14 +228,19 @@ glm::vec3 tone_summer(LeafTone t) {
     case LeafTone::AutumnGold: return {0.86f, 0.66f, 0.16f};
     case LeafTone::ArcaneBlue: return {0.22f, 0.38f, 0.72f};
     case LeafTone::DuskViolet: return {0.47f, 0.24f, 0.62f};
-    // The seam guard and the two spare rows fall through to the green
-    // default. The guard is OVERWRITTEN by the mirror pass at the end of the
-    // rasteriser, so what it is drawn with here never survives; the spares
-    // are simply the cheapest legal filling of rows the power-of-two height
-    // paid for.
+    // --- THE V2 PACK ROWS. A crown is a VOLUME, and a volume needs two
+    // values: the rim row is the lit outside, the deep row is the shadowed
+    // inside. The split is 0.62x in value, which is what the reference frames
+    // of a Gothic-3 oak actually show between the sunlit dome and the mass
+    // hanging under it — and it is drawn INTO the atlas, so it costs no light,
+    // no second draw and no vertex byte. Both stay under the same 0.92 max
+    // channel the greens obey.
+    case LeafTone::PackV2Mid: return {0.34f, 0.46f, 0.19f};
+    case LeafTone::PackV2Deep: return {0.20f, 0.29f, 0.13f};
+    // The seam guard falls through to the green default. It is OVERWRITTEN by
+    // the mirror pass at the end of the rasteriser, so what it is drawn with
+    // here never survives.
     case LeafTone::SeamGuard:
-    case LeafTone::SpareA:
-    case LeafTone::SpareB:
     // Calibrated against the fir photoscan AND the Picea abies herbarium
     // scan (docs/reference/spruce): live needles are a warm MID-GREEN
     // (the old {0.12 0.22 0.19} was murk, the olive first fit still a shade
@@ -251,9 +267,12 @@ glm::vec3 tone_autumn(LeafTone t) {
     case LeafTone::AutumnGold: return {0.90f, 0.68f, 0.14f};
     case LeafTone::ArcaneBlue: return {0.22f, 0.38f, 0.72f};
     case LeafTone::DuskViolet: return {0.44f, 0.21f, 0.58f};
+    // Autumn on the v2 pack rows: the same two-value crown, turned. The SPLIT
+    // is what has to survive the season, not the hue — a crown whose inside
+    // and outside collapse to one value in autumn stops being a volume.
+    case LeafTone::PackV2Mid: return {0.52f, 0.34f, 0.11f};
+    case LeafTone::PackV2Deep: return {0.31f, 0.19f, 0.07f};
     case LeafTone::SeamGuard:
-    case LeafTone::SpareA:
-    case LeafTone::SpareB:
     // Measured: conifers stay green in all three autumn reference frames, so
     // the pine's only seasonal delta is snow — which is render's and core's.
     case LeafTone::ConiferDark: default: return {0.26f, 0.31f, 0.17f};
@@ -283,9 +302,9 @@ glm::vec3 tone_winter(LeafTone t) {
     case LeafTone::AutumnGold: return {0.52f, 0.44f, 0.26f};
     case LeafTone::ArcaneBlue: return {0.26f, 0.44f, 0.80f};
     case LeafTone::DuskViolet: return {0.34f, 0.24f, 0.44f};
+    case LeafTone::PackV2Mid: return {0.33f, 0.28f, 0.19f};
+    case LeafTone::PackV2Deep: return {0.22f, 0.18f, 0.13f};
     case LeafTone::SeamGuard:
-    case LeafTone::SpareA:
-    case LeafTone::SpareB:
     case LeafTone::ConiferDark: default: return {0.20f, 0.26f, 0.16f};
     }
 }
@@ -337,11 +356,20 @@ BarkStyle bark_style(LeafTone row) {
         return {{0.52f, 0.54f, 0.58f}, 0.0f, false, 34.0f, 3.0f, 0.55f, 0.70f};
     case LeafTone::DuskViolet: // dark, mossy, coarse
         return {{0.31f, 0.28f, 0.30f}, 0.45f, false, 20.0f, 3.0f, 0.60f, 0.50f};
-    // Guard and spares: the pine default (below) is fine — the guard's tiles
-    // are overwritten by the mirror pass and the spares are never addressed.
+    // THE V2 PACK ROWS' BARK. The v2 forge picks its bole colourway from the
+    // green band exactly as the first iteration does (bark colour is chosen by
+    // the trunk's own albedo, not by the crown's row), so nothing addresses
+    // these two tiles today. They are filled because the BarkPlate column is
+    // opaque BY CONTRACT in every row (ProcFloraTests) — a mid oak furrow and
+    // a darker, mossier twin of it, so the pair reads as one species' wood if
+    // it is ever asked for.
+    case LeafTone::PackV2Mid:
+        return {{0.37f, 0.30f, 0.22f}, 0.10f, false, 42.0f, 4.0f, 0.62f, 0.45f};
+    case LeafTone::PackV2Deep:
+        return {{0.32f, 0.26f, 0.20f}, 0.45f, false, 42.0f, 4.0f, 0.62f, 0.45f};
+    // Guard: the pine default (below) is fine — the guard's tiles are
+    // overwritten by the mirror pass.
     case LeafTone::SeamGuard:
-    case LeafTone::SpareA:
-    case LeafTone::SpareB:
     // Pine: plate-scale ridges in a dark desaturated brown (photoscan
     // calibration, passports §1 — V-median 0.24, warm hue, S≈0.3).
     case LeafTone::ConiferDark: default:
@@ -467,6 +495,164 @@ float bark_height(float tx, float ty, const BarkStyle& st, uint32_t seed) {
 /// Getting this backwards is not theoretical: with the mirror on both sheets
 /// the grove still differed by 0.020 % of pixels, all of it on BOLES — the
 /// only place the normal sheet is not neutral.
+// --- THE V2 PACK (rows 14-15) --------------------------------------------
+// The second iteration's answer to §3.4 of docs/reports/trees-g3: «одна
+// карточка несёт ВЕТВЬ С ДЕСЯТКАМИ ЛИСТЬЕВ и внутренней структурой: тёмная
+// сердцевина, светлый рваный край, просветы ВНУТРИ карточки; на просвет
+// листва полупрозрачная».
+//
+// It is a DIFFERENT PICTURE, not a retuned one, and the difference is
+// structural in four places the v1 tile cannot reach:
+//   1. NO OUTLINE. The v1 tile draws lobed blobs and fills every texel a leaf
+//      missed with «shadowed depth» (opaque, value 0.34). So its silhouette is
+//      the blob outline and its interior is solid — a bitten disc. Here the
+//      only opaque texels are LEAVES and TWIGS; everything a leaf missed is
+//      SKY. The windows inside the pack are therefore free and real, and the
+//      edge is ragged because it is made of leaf tips, not of eroded ellipse.
+//   2. THE LEAVES HANG ON THE TWIG they belong to. Attachment points march
+//      along a main twig and three side twiglets at a real pitch, alternating
+//      sides — which is what «2-4 уровня ветвления В ТЕКСТУРЕ» (§1.1) means.
+//   3. VALUE IS A RADIAL RAMP, dark at the pack's heart and bright at its rim,
+//      so one card already carries the volume story the crown repeats.
+//   4. ALPHA IS UNDER ONE in the blade. Under alpha-to-coverage a 0.72 leaf
+//      keeps roughly three quarters of its samples, so daylight comes THROUGH
+//      the mass instead of stopping at it.
+struct V2Leaf {
+    glm::vec2 c;    ///< centre, tile space
+    float rot;      ///< rad, leaf axis
+    float R;        ///< half-size
+    float val;      ///< value multiplier of the blade
+    float alpha;    ///< blade opacity (translucency on the light)
+};
+
+/// One leaf silhouette in its own frame, per COLUMN — the same three species
+/// outlines the v1 pack draws (oak lobes, aspen crenate coin, birch deltoid),
+/// kept here as a separate copy on purpose: the first iteration's rasteriser
+/// must not gain a single new branch, or "старые ряды не тронуты" stops being
+/// a property of the code and becomes a claim about it.
+[[nodiscard]] float v2_leaf_depth(LeafShape shape, float u, float v, float R) {
+    float rr;
+    float th;
+    float outline;
+    if (shape == LeafShape::OvalSpray) {
+        rr = std::sqrt(u * u + v * v) / R;
+        th = std::atan2(v, u);
+        outline = 1.0f - 0.11f * (0.5f + 0.5f * std::cos(14.0f * th))
+                       - 0.04f * (0.5f + 0.5f * std::cos(5.0f * th + 0.9f));
+    } else if (shape == LeafShape::RaggedTip || shape == LeafShape::NeedleFan) {
+        rr = std::sqrt(u * u + v * v) / R;
+        th = std::atan2(v, u);
+        const float tipward = std::max(0.0f, std::cos(th));
+        outline = 0.92f + 0.55f * tipward * tipward * tipward
+                - 0.05f * (0.5f + 0.5f * std::cos(19.0f * th));
+    } else {
+        const float uu = u / 1.75f;
+        rr = std::sqrt(uu * uu + v * v) / (R * 0.78f);
+        th = std::atan2(v, uu);
+        const float side = std::sin(th) * std::sin(th);
+        const float baseward = std::max(0.0f, -std::cos(th));
+        outline = std::max(
+            1.0f - 0.26f * side * (0.5f + 0.5f * std::cos(9.0f * th + 0.7f))
+                 - 0.22f * baseward,
+            0.30f);
+    }
+    return rr / std::max(outline, 0.05f);
+}
+
+/// The pack's SKELETON: a main twig plus three side twiglets. Returned as
+/// chords so both the leaf placement and the visible dark twig read the same
+/// geometry — a painted twig that no leaf hangs on is the giveaway of a
+/// texture drawn by taste.
+struct V2Twig {
+    glm::vec2 a, b;
+    float width;   ///< half-width of the dark line, tile space
+};
+
+/// Builds the whole pack for one (column, row) pair. `deep` is the crown's
+/// INTERIOR row: fewer leaves (light does not reach), darker, and the ramp
+/// starts lower — the same drawing, one stop down and one stop sparser.
+void v2_build_pack(LeafShape shape, const ShapeDef& sd, bool deep,
+                   std::vector<V2Leaf>& leaves, std::vector<V2Twig>& twigs) {
+    leaves.clear();
+    twigs.clear();
+    const glm::vec2 axis{std::cos(sd.rot), std::sin(sd.rot)};
+    const glm::vec2 perp{-axis.y, axis.x};
+    const uint32_t seed = sd.seed + (deep ? 7717u : 0u);
+    // The main twig runs almost the full diagonal but stops well inside the
+    // margin band: nothing solid may touch the tile border (LEAF_TILE_MARGIN).
+    const glm::vec2 root = axis * -0.74f;
+    const glm::vec2 head = axis * 0.60f + perp * (hash01(1, 1, seed) - 0.5f) * 0.16f;
+    twigs.push_back({root, head, 0.020f});
+    // Three side twiglets, alternating sides, shorter toward the tip — the
+    // second level of branching that §1.1 asks to be IN the texture.
+    struct Side { float t; float sgn; float len; };
+    const Side sides[3] = {{0.26f, 1.0f, 0.46f}, {0.52f, -1.0f, 0.40f},
+                           {0.74f, 1.0f, 0.31f}};
+    for (int si = 0; si < 3; ++si) {
+        const glm::vec2 base_p = root + (head - root) * sides[si].t;
+        const float ang = (0.55f + 0.30f * hash01(si + 5, 2, seed)) * sides[si].sgn;
+        const glm::vec2 d{axis.x * std::cos(ang) - axis.y * std::sin(ang),
+                          axis.x * std::sin(ang) + axis.y * std::cos(ang)};
+        twigs.push_back({base_p, base_p + d * sides[si].len, 0.013f});
+    }
+    // LEAVES MARCH ALONG THE TWIGS, alternating sides at a fixed pitch. The
+    // pitch is the leaf's own size scaled: closer and the blades merge into a
+    // solid mass (the very defect §1.1 warns about — «too many overlapping
+    // leaves can cause a cluster to look more like a solid color»), further
+    // and the pack turns to confetti.
+    // РАЗМЕР ЛИСТА И ШАГ ПОСАДКИ — ИЗМЕРЕНЫ, а не выбраны. Первая выкладка
+    // (R 0.125, шаг 0.088) дала пачку, чья плотнейшая четверть непрозрачна на
+    // 100 %: листья перекрывались нацело, и «просветы ВНУТРИ карточки» —
+    // главное требование §3.4 — существовали только на словах. Это ровно та
+    // ошибка, о которой предупреждает SpeedTree дословно: «too many
+    // overlapping leaves can cause a cluster to look more like a solid color»
+    // (§1.1). Шаг разведён до 0.118 при листе 0.100, и плотнейшая четверть
+    // стала 0.72 — небо внутри массы есть, а пачка не рассыпалась в крапину.
+    const float leaf_R = shape == LeafShape::OvalSpray ? 0.078f
+                       : (shape == LeafShape::RaggedTip ? 0.086f : 0.100f);
+    constexpr float PITCH = 0.118f;
+    int gid = 0;
+    for (size_t ti = 0; ti < twigs.size(); ++ti) {
+        const glm::vec2 d = twigs[ti].b - twigs[ti].a;
+        const float len = std::sqrt(d.x * d.x + d.y * d.y);
+        if (len < 1e-4f) continue;
+        const glm::vec2 dn = d / len;
+        const glm::vec2 dp{-dn.y, dn.x};
+        const int n = static_cast<int>(len / PITCH);
+        for (int k = 1; k <= n; ++k) {
+            const float t = static_cast<float>(k) / static_cast<float>(n + 1);
+            const float sgn = (k % 2 == 0) ? 1.0f : -1.0f;
+            ++gid;
+            // The interior row is SPARSER: a fifth of its blades are simply
+            // absent, which is how a shaded crown interior actually thins.
+            // Пропуски есть и в светлом ряду: настоящая ветвь несёт листья
+            // с прорехами, и без них шахматный порядок посадки читается как
+            // штамп. Внутренний ряд реже вдвое с лишним — свет туда не доходит.
+            if (hash01(gid, 41, seed) < (deep ? 0.24f : 0.10f)) continue;
+            const float off = leaf_R * (0.62f + 0.55f * hash01(gid, 3, seed));
+            const glm::vec2 c = twigs[ti].a + dn * (len * t) + dp * (sgn * off);
+            // A blade points AWAY from its twig, with a wide jitter: leaves on
+            // one petiole are not parallel, and parallel blades are the single
+            // loudest tell of a procedural leaf sheet.
+            const float base_ang = std::atan2(dp.y * sgn, dp.x * sgn);
+            const float rot = base_ang + (hash01(gid, 7, seed) - 0.5f) * 1.5f;
+            const float R = leaf_R * (0.70f + 0.50f * hash01(gid, 11, seed));
+            // THE RADIAL VALUE RAMP: heart dark, rim lit. 0.58 -> 1.24 on the
+            // lit row; the interior row runs the same ramp two thirds down.
+            const float rad = std::sqrt(c.x * c.x + c.y * c.y);
+            const float ramp = 0.58f + 0.66f * smooth5(std::clamp(rad / 0.82f,
+                                                                  0.0f, 1.0f));
+            const float val = (deep ? 0.66f : 1.0f) * ramp
+                            * (0.86f + 0.30f * hash01(gid, 13, seed));
+            // TRANSLUCENCY: 0.68-1.0 of coverage in the blade. Under A2C the
+            // shortfall is daylight through the leaf, which is exactly what
+            // the reference's glowing crown rim is made of.
+            const float alpha = 0.68f + 0.32f * hash01(gid, 17, seed);
+            leaves.push_back({c, rot, R, val, alpha});
+        }
+    }
+}
+
 void write_seam_guard(std::vector<uint8_t>& pixels, uint32_t width,
                       uint32_t tile_px, bool mirror) {
     if constexpr (LEAF_ATLAS_TONES <= LEAF_ATLAS_GREEN_TONES) {
@@ -526,8 +712,8 @@ const char* leaf_tone_name(LeafTone tone) {
     case LeafTone::AutumnGold: return "gold";
     case LeafTone::ArcaneBlue: return "blue";
     case LeafTone::DuskViolet: return "violet";
-    case LeafTone::SpareA: return "spare-a";
-    case LeafTone::SpareB: return "spare-b";
+    case LeafTone::PackV2Mid: return "v2-mid";
+    case LeafTone::PackV2Deep: return "v2-deep";
     }
     return "oak-mid";
 }
@@ -596,6 +782,21 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
             const ShapeDef& sd = shape_def(static_cast<LeafShape>(shape_i));
             const float cs = std::cos(sd.rot);
             const float sn = std::sin(sd.rot);
+
+            // THE V2 PACK ROWS build their own skeleton. Everything below this
+            // point in the loop is the FIRST ITERATION's rasteriser and is not
+            // touched by the second: rows 0..13 walk exactly the code they
+            // walked yesterday, byte for byte.
+            const bool v2_row = static_cast<LeafTone>(tone_i) == LeafTone::PackV2Mid
+                             || static_cast<LeafTone>(tone_i) == LeafTone::PackV2Deep;
+            const bool v2_deep =
+                static_cast<LeafTone>(tone_i) == LeafTone::PackV2Deep;
+            std::vector<V2Leaf> v2_leaves;
+            std::vector<V2Twig> v2_twigs;
+            if (v2_row && static_cast<LeafShape>(shape_i) != LeafShape::BarkPlate) {
+                v2_build_pack(static_cast<LeafShape>(shape_i), sd, v2_deep,
+                              v2_leaves, v2_twigs);
+            }
 
             // --- THE PACK (user ruling on the forge gallery: «листва — всё ещё
             // прямоугольники»; SpeedTree's Cluster doctrine, research §1.1): a
@@ -813,6 +1014,86 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                         atlas.pixels[on + 1] = static_cast<uint8_t>(c.g * 255.0f + 0.5f);
                         atlas.pixels[on + 2] = static_cast<uint8_t>(c.b * 255.0f + 0.5f);
                         atlas.pixels[on + 3] = static_cast<uint8_t>(alpha * 255.0f + 0.5f);
+                        continue;
+                    }
+
+                    // --- THE V2 PACK TEXEL. Leaves and twigs are the only
+                    // opaque things in the tile; a texel no blade covers is
+                    // SKY, which is where the internal windows come from.
+                    if (v2_row) {
+                        const size_t ov =
+                            (static_cast<size_t>(tone_i * atlas.tile_px + py)
+                             * atlas.width + shape_i * atlas.tile_px + px) * 4u;
+                        float best_d = 1e9f;
+                        float val = 0.0f;
+                        float a_leaf = 0.0f;
+                        for (const V2Leaf& lf : v2_leaves) {
+                            const float dx = x - lf.c.x;
+                            const float dy = y - lf.c.y;
+                            // Cheap reject first: the blade cannot reach past
+                            // twice its own half-size (the oak outline is the
+                            // longest, at 1.75:1 on a 0.78 radius).
+                            if (dx * dx + dy * dy > (lf.R * 2.2f) * (lf.R * 2.2f)) {
+                                continue;
+                            }
+                            const float cr = std::cos(lf.rot);
+                            const float sr = std::sin(lf.rot);
+                            const float u = dx * cr + dy * sr;
+                            const float v = -dx * sr + dy * cr;
+                            const float d = v2_leaf_depth(
+                                static_cast<LeafShape>(shape_i), u, v, lf.R);
+                            if (d >= best_d) continue;
+                            best_d = d;
+                            // THE MIDVEIN, lighter than the blade in every
+                            // herbarium scan — the internal structure §3.4
+                            // asks a single card to carry.
+                            const bool vein = std::fabs(v) < lf.R * 0.05f
+                                           && u > -lf.R * 0.8f && u < lf.R * 0.7f;
+                            val = lf.val * (vein ? 1.16f : 1.0f);
+                            // Blade opacity, ramped to zero over the blade's
+                            // own outer fifth: the edge is soft for A2C while
+                            // the SHAPE stays the serrated outline.
+                            a_leaf = lf.alpha
+                                   * std::clamp((1.0f - d) / 0.20f, 0.0f, 1.0f);
+                        }
+                        float alpha = (best_d <= 1.0f) ? a_leaf : 0.0f;
+                        glm::vec3 c = base * std::clamp(val, 0.22f, 1.35f);
+                        if (alpha < 0.85f) {
+                            // THE TWIG, visible in the windows between blades
+                            // — dark, thin, and opaque. Drawn where no leaf
+                            // covers so the branching structure reads through
+                            // the pack instead of under it.
+                            for (const V2Twig& tw : v2_twigs) {
+                                const glm::vec2 ab = tw.b - tw.a;
+                                const float ll = ab.x * ab.x + ab.y * ab.y;
+                                if (ll < 1e-6f) continue;
+                                float t = ((x - tw.a.x) * ab.x + (y - tw.a.y) * ab.y)
+                                        / ll;
+                                t = std::clamp(t, 0.0f, 1.0f);
+                                const float qx = x - (tw.a.x + ab.x * t);
+                                const float qy = y - (tw.a.y + ab.y * t);
+                                const float dist = std::sqrt(qx * qx + qy * qy);
+                                // The twig tapers to nothing at its own tip.
+                                const float w = tw.width * (1.0f - 0.6f * t);
+                                if (dist < w) {
+                                    alpha = 1.0f;
+                                    c = base * 0.26f;
+                                    break;
+                                }
+                            }
+                        }
+                        if (alpha <= 0.004f) continue;
+                        const float border_v = std::min(1.0f - std::fabs(x),
+                                                        1.0f - std::fabs(y));
+                        alpha *= std::clamp((border_v - 2.0f * LEAF_TILE_MARGIN)
+                                                / (2.0f * LEAF_TILE_MARGIN),
+                                            0.0f, 1.0f);
+                        if (alpha <= 0.004f) continue;
+                        c = glm::clamp(c, glm::vec3{0.0f}, glm::vec3{1.0f});
+                        atlas.pixels[ov + 0] = static_cast<uint8_t>(c.r * 255.0f + 0.5f);
+                        atlas.pixels[ov + 1] = static_cast<uint8_t>(c.g * 255.0f + 0.5f);
+                        atlas.pixels[ov + 2] = static_cast<uint8_t>(c.b * 255.0f + 0.5f);
+                        atlas.pixels[ov + 3] = static_cast<uint8_t>(alpha * 255.0f + 0.5f);
                         continue;
                     }
 

@@ -1,0 +1,301 @@
+# Daggerfall N scene — what stands where on this map.
+# Edited by hand and by agents; checked by dfn_scene_check.
+map = trees/forest-v2
+world_span_m = 256
+relief = trees-v2.relief
+spawn = 96 0 128
+spawn_yaw = 0
+
+[place]
+object = oak-v2-luga-a
+pos = 53.25 27.8558 33.32
+yaw = 1.727
+scale = 1
+note = v2 — дуб: луговой рецепт v2 против v1
+
+[place]
+object = oak-forge-b
+pos = 83.88 30.6431 35.07
+yaw = 3.942
+scale = 1
+note = v1 (контроль) — дуб: луговой рецепт v2 против v1
+
+[place]
+object = oak-v2-luga-b
+pos = 53.3 27.4542 69.89
+yaw = 4.857
+scale = 1
+note = v2 — дуб: второй посев v2 против v1
+
+[place]
+object = oak-forge-c
+pos = 85.2 30.2741 70.09
+yaw = 2.341
+scale = 1
+note = v1 (контроль) — дуб: второй посев v2 против v1
+
+[place]
+object = beech-v2-luga-a
+pos = 67.2 27.51 102.67
+yaw = 5.97
+scale = 1
+note = v2 — бук v2 (одиночный) против осины v1
+
+[place]
+object = aspen-forge-a
+pos = 79.76 28.3401 116.72
+yaw = 1.365
+scale = 1
+note = v1 (контроль) — бук v2 (одиночный) против осины v1
+
+[place]
+object = beech-v2-luga-b
+pos = 52.2 25.6246 143.43
+yaw = 2.707
+scale = 1
+note = v2 — бук v2 против берёзы v1
+
+[place]
+object = birch-forge-a
+pos = 83.62 28.7638 145.75
+yaw = 1.849
+scale = 1
+note = v1 (контроль) — бук v2 против берёзы v1
+
+[place]
+object = acacia-v2-luga-a
+pos = 53.37 25.6621 182.63
+yaw = 4.314
+scale = 1
+note = v2 — акация v2 (3 ствола) против v1
+
+[place]
+object = birch-forge-b
+pos = 84.47 28.5102 180.08
+yaw = 3.928
+scale = 1
+note = v1 (контроль) — акация v2 (3 ствола) против v1
+
+[place]
+object = acacia-v2-luga-b
+pos = 66.94 26.3077 211.25
+yaw = 4.696
+scale = 1
+note = v2 — акация v2 (4 ствола) против v1
+
+[place]
+object = oak-forge-a
+pos = 82.77 27.9621 220.57
+yaw = 1.103
+scale = 1
+note = v1 (контроль) — акация v2 (4 ствола) против v1
+
+[place]
+object = oak-v2-forest-a
+pos = 123.38 38.1076 27.81
+yaw = 4.223
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = oak-v2-forest-b
+pos = 151.59 42.2062 36.14
+yaw = 3.516
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = oak-v2-forest-a
+pos = 171.3 43.8479 35.71
+yaw = 2.292
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = oak-v2-forest-b
+pos = 138.53 40.0167 55.67
+yaw = 3.447
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = oak-v2-forest-a
+pos = 160.84 42.397 52.64
+yaw = 0.376
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = oak-v2-forest-b
+pos = 179.8 43.6505 54.55
+yaw = 3.102
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = oak-v2-forest-a
+pos = 132.45 38.0521 70.97
+yaw = 2.397
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = oak-v2-forest-b
+pos = 143.56 39.525 70.13
+yaw = 1.833
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = oak-v2-forest-a
+pos = 165.65 41.0876 75.24
+yaw = 0.197
+scale = 1
+note = рощица: лесной рецепт дуба
+
+[place]
+object = beech-v2-forest-a
+pos = 127.2 36.0425 106.01
+yaw = 3.291
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = beech-v2-forest-b
+pos = 149.64 38.7641 107.55
+yaw = 2.873
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = beech-v2-forest-a
+pos = 168.85 39.8291 105.59
+yaw = 2.88
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = beech-v2-forest-b
+pos = 132.64 37.3194 129.21
+yaw = 5.119
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = beech-v2-forest-a
+pos = 158.5 40.4489 132.85
+yaw = 3.767
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = beech-v2-forest-b
+pos = 176.27 41.1171 128.76
+yaw = 4.401
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = beech-v2-forest-a
+pos = 131.73 37.8743 150.92
+yaw = 3.609
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = beech-v2-forest-b
+pos = 143.31 39.3844 149.32
+yaw = 5.213
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = beech-v2-forest-a
+pos = 167.66 41.7576 150.29
+yaw = 5.354
+scale = 1
+note = рощица: лесной ярусный бук
+
+[place]
+object = alder-v2-forest-a
+pos = 128.4 36.444 191.87
+yaw = 0.787
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = alder-v2-forest-b
+pos = 148.15 38.9381 196.42
+yaw = 4.965
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = alder-v2-forest-a
+pos = 167.63 41.3483 183.89
+yaw = 5.854
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = alder-v2-forest-b
+pos = 137.18 36.9578 211.63
+yaw = 4.178
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = alder-v2-forest-a
+pos = 156.35 39.1461 206.65
+yaw = 2.107
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = alder-v2-forest-b
+pos = 177.77 40.4686 213.88
+yaw = 5.787
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = alder-v2-forest-a
+pos = 130.6 35.7925 233.04
+yaw = 3.451
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = alder-v2-forest-b
+pos = 148.9 38.0167 225.42
+yaw = 1.518
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = alder-v2-forest-a
+pos = 163.98 39.2835 228.29
+yaw = 1.338
+scale = 1
+note = рощица: многоствольная ольха в лесу
+
+[place]
+object = acacia-v2-luga-b
+pos = 212.51 44.9174 60
+yaw = 4.653
+scale = 1
+note = верхняя терраса: крона против неба
+
+[place]
+object = acacia-v2-luga-a
+pos = 216.25 43.4963 130
+yaw = 3.867
+scale = 1
+note = верхняя терраса: крона против неба
+
+[place]
+object = beech-v2-luga-a
+pos = 218.9 43.6566 200
+yaw = 2.034
+scale = 1
+note = верхняя терраса: крона против неба

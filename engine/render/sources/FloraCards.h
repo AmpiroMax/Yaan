@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 20:21:13
-Last updated: 23:08:2026 - 23:55:00
+Last updated: 28:08:2026 - 16:20:00
 Module: engine/render
 File: engine/render/sources/FloraCards.h
 
@@ -79,6 +79,16 @@ UPD:
   («pink», «red», «gold», «blue», «violet», зелёные — по старым именам).
   Рецепту кузницы цвет задаётся полем TreeForgeParams::tone; имя нужно, чтобы
   паспорт города заказывал рощу словом, а не числом enum.
+- 28:08:2026 - 16:20:00: РЯДЫ 14-15 СТАЛИ ПАЧКОЙ V2 (вторая итерация деревьев,
+  разница №4 записки docs/reports/trees-g3): SpareA/SpareB переименованы в
+  PackV2Mid/PackV2Deep и получили СВОЙ растеризатор — тёмная сердцевина,
+  светлый рваный край, ПРОСВЕТЫ ВНУТРИ тайла и полупрозрачность тела листа.
+  Почему ряд, а не колонка: ширина листа делит каждый запечённый u, а высота
+  осталась 16 рядов — значит leaf_tile_uv для рядов 0..13 возвращает те же
+  биты, и первая итерация не тронута ПО ПОСТРОЕНИЮ, а не по аккуратности.
+  Ряды 14/15 никогда не адресовал ни один .dfo с полки, поэтому новая
+  картинка в них не меняет вид ни одного старого дерева. REVISION 13->14 —
+  ключ дискового кэша обязан смениться вместе с пикселями.
 */
 
 #pragma once
@@ -140,7 +150,7 @@ inline constexpr uint32_t LEAF_ATLAS_GREEN_TONES = 8;
 /// cache key must change when the pixels would, or the game paints with the
 /// previous session's atlas (measured: the 4-column cache under 5-column uvs
 /// painted the conifers white with birch tiles).
-inline constexpr uint32_t LEAF_ATLAS_REVISION = 13;
+inline constexpr uint32_t LEAF_ATLAS_REVISION = 14;
 /// 512 under the Full HD pivot (lead, 552d9ab: internal res 1920x1080, bake
 /// density for it; frame cost measured independent of texture density). A
 /// 512 px tile over a ~2.5 m frond is ~5 mm per texel on the object — leaf
@@ -214,14 +224,26 @@ enum class LeafTone : uint8_t {
     AutumnGold = 11,   ///< осенняя берёза/осина
     ArcaneBlue = 12,   ///< магическая (ночная) листва
     DuskViolet = 13,   ///< фиолетовая
-    /// Rows 14-15 are PAID FOR ALREADY (the sheet is sixteen rows tall so the
-    /// green band's v halves exactly) and are therefore left named and filled
-    /// rather than blank: the next colour wave takes them without moving a
-    /// single uv or re-baking a single .dfo. Until then they carry the green
-    /// default, which is the cheapest thing that satisfies the atlas contract
-    /// (the bark column is opaque in EVERY row).
-    SpareA = 14,
-    SpareB = 15,
+    // --- THE V2 PACK ROWS (owner, 28.08.2026: вторая итерация деревьев по
+    // разнице с Готикой 3, пункт 4 записки — «карточка листвы: ветвь с
+    // десятками листьев, тёмная сердцевина, светлый рваный край, ПРОСВЕТЫ
+    // ВНУТРИ карточки, полупрозрачность на просвет»). They occupy rows 14-15,
+    // which the power-of-two sheet PAID FOR ALREADY and which no shipped .dfo
+    // has ever addressed — that is the whole reason the v2 leaf can be a new
+    // PICTURE without a single old tree changing a texel or a hash.
+    //
+    // They are rows, not columns, on purpose: a new COLUMN would change the
+    // sheet's width, and every baked uv in every .dfo divides by that width.
+    // Sixteen rows stay sixteen rows, so `leaf_tile_uv` returns bit-identical
+    // rectangles for rows 0..13 and the first iteration is untouched by
+    // construction rather than by care.
+    //
+    // Two of them because a v2 crown is a VOLUME: the sheets deep inside the
+    // crown draw from PackV2Deep and the ones on the rim from PackV2Mid, so
+    // the dark core / lit rim story is told at crown scale as well as inside
+    // one tile. Cost: zero — a row is a uv, not a vertex byte.
+    PackV2Mid = 14,   ///< v2 pack, lit rim value
+    PackV2Deep = 15,  ///< v2 pack, shadowed crown interior
 };
 
 /// The passport-facing NAME of a colour row, and its inverse. City passports

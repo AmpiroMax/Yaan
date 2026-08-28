@@ -110,7 +110,12 @@
 #   assets/houses целиком и обе стопки локаций целиком, плюс шесть контрольных
 #   рук на замороженных отвергнутых случаях (tests/fixtures/stairs) и список
 #   известных находок с датой и причиной, который жжёт волна геометрии.
-
+# - 28:08:2026 - 17:15:00: dfn_forge2 (tools/forge_trees_v2.cpp) — кузница ВТОРОЙ
+#   ИТЕРАЦИИ ДЕРЕВЬЕВ (заказ владельца 28.08 по разнице с Готикой 3). Отдельный
+#   бинарник, а не раздел dfn_forge: тот переписывает все 82 своих файла на
+#   каждом прогоне, а железное правило волны — первая итерация не тронута.
+#   Плюс ctest-рука trees_v2_untouched: пересобирает полку первой итерации во
+#   временную папку и сверяет content_hash с INDEX.md — сторож неприкосновенности.
 # - 28:08:2026 - 11:51:19: ПРИЁМКА МОЩЕНИЯ (tools/check_paving.py) ЗАВЕДЕНА В ctest — ПЯТЬ РУК
 #   (волна хвостов). Прибор не имел ни одного add_test и потому ЗАСТАРЕЛ
 #   МОЛЧА: мощение 24.08 переехало из тел плит в строки path/pp рельефа, а он
@@ -295,6 +300,21 @@ target_link_libraries(dfn_bake PRIVATE dfn_world dfn_core)
 # instrument, so it builds with everything else.
 add_executable(dfn_forge tools/forge_trees.cpp)
 target_link_libraries(dfn_forge PRIVATE dfn_render dfn_core)
+
+# THE SECOND ITERATION'S FORGE (dfn_forge2, 28.08): bakes the *-v2-* recipes
+# beside the first iteration's files. A separate binary on purpose — dfn_forge
+# rewrites all 82 files it owns on every run, and this wave's iron rule is that
+# nothing of the first iteration is touched.
+add_executable(dfn_forge2 tools/forge_trees_v2.cpp)
+target_link_libraries(dfn_forge2 PRIVATE dfn_render dfn_core)
+
+# СТОРОЖ НЕПРИКОСНОВЕННОСТИ ПЕРВОЙ ИТЕРАЦИИ (волна деревьев-v2, 28.08). Печёт
+# полку dfn_forge во временную папку и сверяет content_hash со строками
+# assets/objects/trees/INDEX.md. Клятва «старые деревья не тронуты» становится
+# проверяемой в ctest, а не обещанием в отчёте.
+add_test(NAME trees_v1_frozen
+         COMMAND python3 tools/check_trees_frozen.py $<TARGET_FILE:dfn_forge>
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # THE SCENE CHECKER (dfn_scene_check): judges a composed map against the rules
 # in engine/world/sources/Scene.h. A pipeline tool like dfn_bake and dfn_forge,

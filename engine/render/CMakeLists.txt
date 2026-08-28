@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 23:08:2026 - 22:40:00
+# Last updated: 28:08:2026 - 16:55:00
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -68,6 +68,11 @@
 #                          движка (И15 волна А; владелец 24.08: не шторка, а экран
 #                          с холстом и статусом загрузки).
 #   ряд = тон/износ): текстуры деталям, работа 3 заказа 17.08.
+# - 28:08:2026 - 16:55:00: sources/TreeBark.cpp (pack_wind/bark_tube, вынесены из
+#   TreeForge.cpp дословно) и sources/TreeForgeV2.cpp — ВТОРАЯ ИТЕРАЦИЯ ДЕРЕВЬЕВ
+#   (заказ владельца 28.08 по разнице с Готикой 3). Кузница v1 не тронута: новый
+#   строитель стоит РЯДОМ, а не флагом внутри — так неизменность 77 испечённых
+#   .dfo есть свойство построения, а не аккуратности.
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
     sources/CloudModel.cpp
@@ -99,7 +104,9 @@ add_library(dfn_render STATIC
     sources/RenderSystem.cpp
     sources/RenderSystemResources.cpp
     sources/ScatterBatcher.cpp
+    sources/TreeBark.cpp
     sources/TreeForge.cpp
+    sources/TreeForgeV2.cpp
     sources/SkyModel.cpp
     sources/TerrainLod.cpp
     sources/TerrainMesher.cpp

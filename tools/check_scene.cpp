@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 17:08:2026 - 18:16:18
+Last updated: 28:08:2026 - 18:40:00
 Module: tools
 File: tools/check_scene.cpp
 
@@ -63,12 +63,20 @@ UPD:
   пенёк в дереве, и каждая травинка становилась препятствием.
 - 17:08:2026 - 13:14:56: судья мерит землю с врезанными руслами.
 - 17:08:2026 - 18:16:18: мерка зовётся из библиотеки; здесь остались поиск по полкам и запоминание.
+- 28:08:2026 - 18:40:00: --relief — судья ЧИТАЕТ ключ `relief` сцены (волна деревьев-v2).
+  Дыра была измеренная, а не предполагаемая: на карте, чья земля есть склон,
+  нарисованный кистью, судья докладывал 42 находки из 42 размещений, и все —
+  ровно на глубину склона. Ключом, а не по умолчанию, потому что `relief`
+  носят и Вайтран, и Житнов: включить его всем сегодня значит сдвинуть
+  вердикты под руками городских волн. Переключение умолчания — за владельцем
+  тех карт и на спокойном дереве.
 */
 
 #include "engine/core/config/sources/Constants.h"
 #include "engine/render/sources/ObjectRegistry.h"
 #include "engine/render/sources/ProcMesh.h"
 #include "engine/world/sources/LayoutLoad.h"
+#include "engine/world/sources/ReliefLayer.h"
 #include "engine/world/sources/Scene.h"
 #include "engine/world/sources/Worldgen.h"
 #include "engine/world/sources/WorldgenForest.h"
@@ -392,7 +400,7 @@ int main(int argc, char** argv) {
     using namespace dfn::world;
     if (argc < 2) {
         std::fprintf(stderr, "usage: dfn_scene_check <file.scene> [--stand <id>] "
-                             "[--objects <dir>[;<dir>...]] [--fix]\n"
+                             "[--objects <dir>[;<dir>...]] [--fix] [--relief]\n"
                              "       dfn_scene_check - --ground <x> <z> [<span>] "
                              "[--stand <id>]\n");
         return 2;
@@ -402,6 +410,7 @@ int main(int argc, char** argv) {
     std::string objects_dir = "assets/objects/trees";
     bool fix = false;
     bool shell = false;
+    bool use_relief = false;
     std::string solid_group;
     bool ground_query = false;
     float query_x = 0.0f;
@@ -412,6 +421,8 @@ int main(int argc, char** argv) {
             fix = true;
         } else if (std::strcmp(argv[i], "--shell") == 0) {
             shell = true;
+        } else if (std::strcmp(argv[i], "--relief") == 0) {
+            use_relief = true;
         } else if (std::strcmp(argv[i], "--solid") == 0 && i + 1 < argc) {
             solid_group = argv[++i];
         } else if (std::strcmp(argv[i], "--ground") == 0 && i + 2 < argc) {
@@ -483,6 +494,33 @@ int main(int argc, char** argv) {
         pad.blend = P.blend;
         pad.height = P.height;
         params.composed_pads.push_back(pad);
+    }
+    // THE HAND EDIT OF THE GROUND, ON REQUEST (--relief, 28.08). The judge has
+    // always measured the generator plus the scene's own pads and rivers, but
+    // never the `relief` key — so on a map whose ground is a painted slope it
+    // reported every single object as hovering by exactly the slope's own
+    // depth. Measured on the second iteration's stand: 42 of 42 placements
+    // flagged, all of them by the relief delta and nothing else.
+    //
+    // WHY A FLAG AND NOT THE DEFAULT, said plainly: Whiterun and Cornhall
+    // carry `relief` too, and turning this on by default would move their
+    // verdicts under the city waves that are reading them right now. The flag
+    // is the honest small step; flipping the default belongs to whoever owns
+    // those maps, on a quiet tree.
+    if (use_relief && !doc.relief.empty()) {
+        const std::filesystem::path side =
+            scene_path.parent_path() / doc.relief;
+        std::string rerr;
+        ReliefLayer layer;
+        if (read_relief(side, layer, rerr)) {
+            std::fprintf(stderr, "[relief] %s: %zu отсчётов\n",
+                         side.string().c_str(), layer.size());
+            params.composed_relief = layer;
+        } else {
+            std::fprintf(stderr, "[relief] %s: %s -- ОТКАЗ\n",
+                         side.string().c_str(), rerr.c_str());
+            return 1;
+        }
     }
     for (const SceneRiver& R : doc.rivers) {
         RiverChannel ch;

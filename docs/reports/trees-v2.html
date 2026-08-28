@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Вторая итерация деревьев — что изменилось и чем измерено</title>
+<style>
+  :root{
+    --bg:#14120f; --panel:#1e1b17; --line:#3a342c; --ink:#e8e2d6;
+    --dim:#a89e8c; --accent:#c8a24a; --v2:#8fbf6a; --v1:#7fb3d5; --warn:#c25b4a;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.6 "Iowan Old Style","Palatino Linotype",Georgia,serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:48px 24px 96px}
+  h1{font-size:2.1rem;line-height:1.2;margin:0 0 8px}
+  .sub{color:var(--dim);margin:0 0 40px;font-size:1rem}
+  h2{font-size:1.45rem;margin:56px 0 16px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:1.1rem;margin:32px 0 8px;color:var(--accent)}
+  p{margin:0 0 14px}
+  .note{background:var(--panel);border-left:3px solid var(--accent);
+        padding:14px 18px;margin:20px 0;font-size:.95rem}
+  .note.warn{border-left-color:var(--warn)}
+  figure{margin:24px 0}
+  figure img{width:100%;display:block;border:1px solid var(--line);border-radius:3px}
+  figcaption{color:var(--dim);font-size:.88rem;margin-top:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  table{border-collapse:collapse;width:100%;margin:18px 0;font-size:.92rem}
+  th,td{border:1px solid var(--line);padding:7px 10px;text-align:left}
+  th{background:var(--panel);font-size:.82rem;letter-spacing:.04em;text-transform:uppercase}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.88em;
+       background:#262119;padding:1px 5px;border-radius:3px;color:#e0c98a}
+  .ok{color:var(--v2)} .old{color:var(--v1)} .bad{color:var(--warn)}
+  ul{margin:0 0 14px;padding-left:22px} li{margin-bottom:8px}
+  .tag{display:inline-block;font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;
+       border:1px solid var(--line);border-radius:99px;padding:2px 10px;color:var(--dim);
+       margin-right:6px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Вторая итерация деревьев</h1>
+<p class="sub">Заказ владельца 28.08.2026 по записке <code>docs/reports/trees-g3/index.html</code> ·
+пять разниц с Готикой 3 · первая итерация не тронута</p>
+
+<div class="note">
+<b>Смотровая площадка — карта <code>trees/forest-v2</code></b> (меню → флора → «Лес второй
+итерации»). На ней шесть пар «дерево первой итерации рядом с деревом второй» на ровном лугу,
+три рощицы на склоне 10° и многоствольные одиночки на верхней террасе. Это единственная новая
+карта волны.
+</div>
+
+<h2>1. Главный кадр: пара до/после</h2>
+
+<figure>
+  <img src="trees-v2/pair.png" alt="Пара: дерево второй итерации впереди, первой — позади">
+  <figcaption><b>Впереди — <span class="ok">oak-v2-luga-a</span>, за ним справа —
+  <span class="old">oak-forge-b</span> первой итерации.</b> Одна высота, один луг, один кадр.
+  Видно ровно то, о чём §3.1 записки: у второй крона — <i>объём</i>, который спускается по
+  бокам и кладёт под дерево тень; у первой — редкая линза на палке, тени под собой не дающая.</figcaption>
+</figure>
+
+<div class="grid2">
+<figure>
+  <img src="trees-v2/v2_oak_near.png" alt="Дуб второй итерации вблизи">
+  <figcaption><b>Вторая итерация, 20 м.</b> Крона 0.68 роста в глубину, чистого ствола
+  четверть, сухие обломки сучьев по стволу, ветви уходят с разных высот.</figcaption>
+</figure>
+<figure>
+  <img src="trees-v2/v1_oak_near.png" alt="Дуб первой итерации вблизи">
+  <figcaption><b>Первая итерация, те же 20 м.</b> Контрольное плечо: ствол расходится веером,
+  листва — редкие помпоны на концах.</figcaption>
+</figure>
+</div>
+
+<h2>2. Пять разниц — что сделано и чем измерено</h2>
+
+<h3>№1. Масса кроны: «кочан» вместо «леденца»</h3>
+<p>Крона строится из <b>5–9 крупных ДОЛЕЙ</b> — сфер, разложенных по бочкообразному профилю
+внутри объёма кроны. Доля — единица и массы, и силуэта: доли складываются в глубину, а небо
+между ними рвёт обод крупно.</p>
+<table>
+<tr><th>Величина (измерена по геометрии, не по рецепту)</th><th>Полоса записки</th>
+    <th>v2, одиночные</th><th>v1, тот же рост (контроль)</th></tr>
+<tr><td>Глубина кроны, долей высоты</td><td>&gt; 0.5</td>
+    <td class="num ok">0.63–0.71</td><td class="num old">0.67</td></tr>
+<tr><td>Ширина / высота</td><td>≈ 1.0</td>
+    <td class="num ok">1.00–1.05</td><td class="num old">1.09</td></tr>
+<tr><td>Чистого ствола, долей высоты</td><td>≈ 0.25</td>
+    <td class="num ok">0.24–0.30</td><td class="num old">0.28</td></tr>
+<tr><td><b>Плотность силуэта</b> — какую долю СВОЕГО силуэта листва закрывает</td>
+    <td>—</td><td class="num ok">0.62–0.66</td><td class="num old">0.41</td></tr>
+</table>
+
+<div class="note warn">
+<b>Поправка к записке, найденная рукой, а не глазом — и она стоит здесь, а не в сноске.</b>
+Записка называет крону первой итерации «линзой в верхней трети». <b>По габаритам это неверно.</b>
+При одном росте 16 м у первой итерации размах листвы 0.67 роста, чистой болы 0.28 и W/H 1.09 —
+то есть она даже ШИРЕ второй. Габарит задают <i>самые дальние</i> листы, а у первой итерации это
+редкие лапы на концах длинных ветвей: они достают, но массы между ними нет.
+<br><br>
+Поэтому три верхние строки таблицы — это <b>попадание в полосы записки</b>, а не доказательство
+превосходства. Доказательство — четвёртая строка: вторая итерация закрывает собственный силуэт
+на <b>0.63</b> против <b>0.41</b> у первой, то есть в полтора раза плотнее. «Крона — объём, а не
+линза» — утверждение о ЗАПОЛНЕННОСТИ, и мерить его надо заполненностью; ровно это и видно на
+кадре пары, где под второй итерацией лежит тень, а под первой — нет.
+</div>
+
+<p class="sub" style="margin-top:-6px">Мерится <b>листва</b>, а не рецепт. Во второй итерации
+ширина рецепта — это ширина силуэта: свес доли и листа поделён на именованную постоянную
+<code>CROWN_OVERHANG</code>, а не оставлен «как вышло» (у первой рецептурное W/H и измеренное
+расходились настолько, что <code>INDEX.md</code> несёт об этом отдельный абзац).</p>
+
+<h3>№2. Два рецепта на вид: луговой и лесной</h3>
+<figure>
+  <img src="trees-v2/grove_oak.png" alt="Рощица лесного рецепта на склоне">
+  <figcaption><b>Тот же дуб, лесной рецепт.</b> Длинная чистая бола, крона высоко и узко,
+  полог смыкается. Это не то же дерево под другим углом — это другая форма: чистой болы
+  0.53–0.57 роста против 0.24–0.30 у лугового, W/H 0.65–0.75 против 1.00–1.05.</figcaption>
+</figure>
+<p>Габитус — <b>перечисление, а не ручка</b>: <code>TreeHabit::Solitary / Forest / MultiStem</code>
+меняет то, ЧТО делает строитель, а не насколько сильно. Каждая порода печётся обоими габитусами;
+рука <code>solitary and forest recipes are two different silhouettes</code> требует, чтобы разница
+чистой болы была не меньше 0.20 высоты — то есть чтобы это был закон, а не разброс посева.</p>
+
+<h3>№3. Ствол: наклон, изгиб, стволы от земли, сухие сучья</h3>
+<figure>
+  <img src="trees-v2/multistem.png" alt="Многоствольная акация">
+  <figcaption><b>Многоствольная (<code>acacia-v2-luga-a</code>).</b> Три-четыре ствола расходятся
+  <i>от земли</i> из общего комля с одним наплывом и одной корневой системой, крона шире
+  собственной высоты (W/H 1.20–1.30). Позади — первая итерация для масштаба.</figcaption>
+</figure>
+<ul>
+  <li><b>Наклон и изгиб — аналитические, а не блуждание.</b> Ствол — кривая: собственный наклон
+  <code>lean_rad</code> в собственном азимуте плюс S-изгиб внутри той же плоскости, и оба
+  включаются только выше нижней четверти (жёсткий комель, §1.7). Блуждание с нулевым средним —
+  лекарство первой итерации от «банана» — давало ствол, прямой <i>в среднем</i>, то есть
+  одинаковый у всех; это и есть «исчезла всякая индивидуальность» из §3.3.</li>
+  <li><b>КРОНА ЕДЕТ ЗА СТВОЛОМ.</b> Найдено рукой, а не глазом: при наклоне 0.25 рад вершина
+  ствола уходила на 1.8 м, а центр масс кроны — на 0.29 м, потому что доли строились вокруг
+  корней. Наклон, который крона игнорирует, — это не наклонное дерево, а гнутая палка под
+  неподвижным шаром. Теперь поле долей смещено на середину вершин стволов.</li>
+  <li><b>Ветвление не веером.</b> Каркасные ветви уходят с золото-сечённой последовательности
+  высот по всей длине ствола, вторичные покидают родителя <i>с середины</i> сегментов, и каждая
+  целится в свою долю, а не в общий центр.</li>
+  <li><b>Сухие обломки сучьев</b> — 4–9 коротких снагов с изломом на конце по всей боле (не
+  только внизу): в лесном рецепте полоса «земля–крона» и есть большая часть дерева.
+  <span class="sub">Это же назвала запиской №2 ресёрчер как единственное, чего не хватало
+  ярусу стволов.</span></li>
+</ul>
+
+<h3>№4. Карточка листвы — задание §1.1 от 13.08, наконец выполненное</h3>
+<p>Новые ряды атласа <b>14 и 15</b> (<code>PackV2Mid</code> / <code>PackV2Deep</code>) рисуются
+<b>другим законом</b>: главная веточка и три боковые, десятки листьев по ним с шагом и
+чередованием сторон, и — главное — <b>никакого контура</b>. Непрозрачны только листья и веточки;
+всё, чего лист не накрыл, есть небо. У первой итерации внутренность блоба заливается
+<i>непрозрачной тенью по построению</i> («never sky»), поэтому её карточка — надкусанный диск.</p>
+<table>
+<tr><th>Мера по пикселям тайла (256 px)</th><th>ряд v2</th><th>ряд OakMid (контроль)</th></tr>
+<tr><td>Непрозрачного в <b>плотнейшей четверти</b> следа — есть ли небо ВНУТРИ листвы</td>
+    <td class="num ok">0.76</td><td class="num old">0.88</td></tr>
+<tr><td>Средняя альфа клинка — полупрозрачность на просвет</td>
+    <td class="num ok">189</td><td class="num old">242</td></tr>
+<tr><td>Яркость края / яркость сердцевины</td>
+    <td class="num ok">1.50</td><td class="num old">—</td></tr>
+</table>
+<div class="note">
+<b>Одна честная поправка на ходу.</b> Первая выкладка пачки (лист 0.125, шаг 0.088) дала
+плотнейшую четверть с заполнением <b>1.00</b> — листья перекрывались нацело, и «просветы внутри
+карточки» существовали только на словах. Это ровно то, о чём SpeedTree предупреждает дословно:
+«too many overlapping leaves can cause a cluster to look more like a solid color». Шаг разведён
+до 0.118 при листе 0.100. Поймала это <b>рука</b>, а не кадр.
+</div>
+
+<h3>№5. Силуэт рвётся крупно</h3>
+<p>Обод кроны — профиль максимального радиуса листвы по 72 азимутальным секторам, сглаженный
+окном 25° (ширина окна выведена из размера доли, а не подобрана). Максимумов профиля —
+<b>3–12</b> при 5–9 долях рецепта, то есть неровность обода имеет частоту <i>доли</i>, а не
+карточки. Рука держит верхнюю границу твёрдо: за ней обод снова становится кругом из сотни
+карточек.</p>
+
+<h2>3. Породы второй итерации, первая партия</h2>
+<p>Три структурных закона × два габитуса × два посева = 12 объектов, все на общей полке
+<code>assets/objects/trees</code> рядом со старыми, паспорт — <code>INDEX-V2.md</code>.</p>
+<table>
+<tr><th>Имя</th><th>Габитус</th><th>content_hash</th><th class="num">древ.</th>
+    <th class="num">листва</th><th class="num">H, м</th><th class="num">W/H</th>
+    <th class="num">крона, h</th><th class="num">чистая бола, h</th></tr>
+<tr><td>oak-v2-luga-a</td><td>луговой</td><td><code>baeb03456fb2027c</code></td>
+    <td class="num">3514</td><td class="num">1344</td><td class="num">15.6</td>
+    <td class="num">1.05</td><td class="num">0.68</td><td class="num">0.25</td></tr>
+<tr><td>oak-v2-luga-b</td><td>луговой</td><td><code>ae8282006f425566</code></td>
+    <td class="num">4172</td><td class="num">1720</td><td class="num">18.2</td>
+    <td class="num">1.05</td><td class="num">0.71</td><td class="num">0.24</td></tr>
+<tr><td>oak-v2-forest-a</td><td>лесной</td><td><code>c661db6e9990f0c1</code></td>
+    <td class="num">3224</td><td class="num">1128</td><td class="num">21.9</td>
+    <td class="num">0.72</td><td class="num">0.42</td><td class="num">0.53</td></tr>
+<tr><td>oak-v2-forest-b</td><td>лесной</td><td><code>5c877282d3b89d4e</code></td>
+    <td class="num">3838</td><td class="num">1392</td><td class="num">24.5</td>
+    <td class="num">0.75</td><td class="num">0.42</td><td class="num">0.54</td></tr>
+<tr><td>beech-v2-luga-a</td><td>луговой</td><td><code>355fd5d10630ecaf</code></td>
+    <td class="num">3828</td><td class="num">1592</td><td class="num">16.2</td>
+    <td class="num">1.00</td><td class="num">0.64</td><td class="num">0.30</td></tr>
+<tr><td>beech-v2-luga-b</td><td>луговой</td><td><code>23edf09589ada95b</code></td>
+    <td class="num">3890</td><td class="num">1528</td><td class="num">19.7</td>
+    <td class="num">1.03</td><td class="num">0.70</td><td class="num">0.25</td></tr>
+<tr><td>beech-v2-forest-a</td><td>лесной</td><td><code>f020831844929b90</code></td>
+    <td class="num">3624</td><td class="num">1280</td><td class="num">24.7</td>
+    <td class="num">0.65</td><td class="num">0.41</td><td class="num">0.55</td></tr>
+<tr><td>beech-v2-forest-b</td><td>лесной</td><td><code>72144eb304ce8f4b</code></td>
+    <td class="num">3342</td><td class="num">1040</td><td class="num">28.1</td>
+    <td class="num">0.75</td><td class="num">0.40</td><td class="num">0.57</td></tr>
+<tr><td>acacia-v2-luga-a</td><td>многоств.</td><td><code>932d337789ad8b23</code></td>
+    <td class="num">3664</td><td class="num">1304</td><td class="num">14.1</td>
+    <td class="num">1.30</td><td class="num">0.63</td><td class="num">0.30</td></tr>
+<tr><td>acacia-v2-luga-b</td><td>многоств.</td><td><code>bb9d8d9bf33fa226</code></td>
+    <td class="num">4244</td><td class="num">1392</td><td class="num">17.1</td>
+    <td class="num">1.20</td><td class="num">0.70</td><td class="num">0.24</td></tr>
+<tr><td>alder-v2-forest-a</td><td>многоств.</td><td><code>291ed7f81f325aaa</code></td>
+    <td class="num">3474</td><td class="num">1152</td><td class="num">17.5</td>
+    <td class="num">0.84</td><td class="num">0.47</td><td class="num">0.47</td></tr>
+<tr><td>alder-v2-forest-b</td><td>многоств.</td><td><code>fc0a23e3c276ab47</code></td>
+    <td class="num">3534</td><td class="num">1016</td><td class="num">20.3</td>
+    <td class="num">0.94</td><td class="num">0.49</td><td class="num">0.46</td></tr>
+</table>
+
+<div class="grid2">
+<figure>
+  <img src="trees-v2/grove_beech_in.png" alt="Внутри буковой рощи">
+  <figcaption>Буковая роща изнутри: полог смыкается, стволы длинные и не параллельные.</figcaption>
+</figure>
+<figure>
+  <img src="trees-v2/overview.png" alt="Вид площадки сверху">
+  <figcaption>Вся площадка: слева пары до/после на лугу, дальше рощицы на склоне.</figcaption>
+</figure>
+</div>
+
+<h2>4. Доказательство: первая итерация не тронута</h2>
+<ul>
+  <li><b>Ни один старый <code>.dfo</code> не перезаписан.</b> В <code>git status</code> по полке
+  <code>assets/objects/trees</code> — 12 новых файлов и <b>ни одного изменённого</b>. Вторая
+  итерация печётся <i>отдельным бинарником</i> <code>dfn_forge2</code>, который физически не
+  умеет написать имя без <code>-v2-</code> (и отказывается вслух, если такое встретит).</li>
+  <li><b>Кузница v1 даёт те же хэши.</b> Полка перепечена во временную папку после переноса
+  <code>bark_tube</code> в <code>TreeBark.cpp</code>: <b>все 82 файла</b> (trees, colossus,
+  flora-colours, glade) совпали с полкой <i>байт в байт, кроме одного слова</i> — версии
+  контейнера 2→3, которая пришла из чужого коммита <code>9e2c8c9</code> (секция HOUS) и к этой
+  волне отношения не имеет. Полезная нагрузка и, значит, <code>content_hash</code> — прежние;
+  <code>INDEX.md</code> свежей выпечки совпал со старым построчно.</li>
+  <li><b>Сторож в ctest.</b> <code>trees_v1_frozen</code> (<code>tools/check_trees_frozen.py</code>)
+  печёт полку dfn_forge во временную папку и сверяет <code>content_hash</code> каждого рецепта со
+  строкой <code>INDEX.md</code>. Клятва стала прибором.</li>
+  <li><b>Атлас: ряды, а не колонка.</b> Пачка v2 заняла ряды 14–15, которые степень двойки уже
+  оплатила и которых не адресовал ни один испечённый <code>.dfo</code>. Ряд, а не колонка,
+  потому что ширина листа делит каждый запечённый <code>u</code>: при 16 рядах
+  <code>leaf_tile_uv</code> для рядов 0..13 возвращает <b>те же биты</b>, и старые деревья не
+  тронуты по построению, а не по аккуратности.</li>
+</ul>
+
+<h2>5. Что ещё сделано попутно, и о чём надо знать</h2>
+<div class="note warn">
+<b>Судья сцен не читал правку земли — и это касается не только меня.</b>
+<code>dfn_scene_check</code> мерил генератор плюс площадки и реки сцены, но ключ
+<code>relief</code> игнорировал. На карте, чья земля есть нарисованный склон, он докладывал
+<b>42 находки из 42 размещений</b>, все ровно на глубину склона. Заведён ключ
+<code>--relief</code>; с ним площадка второй итерации чиста: <b>42 размещения, 0 находок</b>.
+<br><br>
+<b>Умолчание НЕ переключено, и это осознанно:</b> <code>relief</code> носят и Вайтран, и Житнов,
+а по ним прямо сейчас идут городские волны — включить прибор всем сегодня значит сдвинуть их
+вердикты под руками. Переключение умолчания — за владельцем тех карт и на спокойном дереве.
+</div>
+
+<h2>6. Что осталось за краем волны</h2>
+<ul>
+  <li><b>Ярусы подлеска (разница №6)</b> — отдельная волна по записке №2 ресёрчера
+  (<code>docs/reports/trees-tiers/index.html</code>). Это расстановка, не дерево.</li>
+  <li><b>Дальние формы <code>&lt;имя&gt;-far</code></b> для пород v2 не испечены: ворота
+  <code>far_lod</code> в кузнице есть и работают, но сцена-композиция дальние формы не
+  спрашивает — их берёт поплиточный LOD скаттера, а во второй итерации ещё нет ни одной
+  скаттерной карты. Печь их сейчас значило бы добавить 12 непроверенных объектов на полку.</li>
+  <li><b>Доля листвы в треугольниках</b> — 25–30 % против 60–91 % у замеренных открытых моделей
+  (§1.7). Силуэт и масса вытянуты геометрией долей, а не бюджетом карточек; переносить бюджет из
+  древесины в листву — отдельная работа, и её надо мерить кадром, а не таблицей.</li>
+  <li><b>Боевые карты по-прежнему ссылаются на первую итерацию.</b> Переключение Вайтрана и
+  Житнова на v2 — решение владельца, не волны.</li>
+</ul>
+
+<p style="margin-top:48px;color:var(--dim);font-size:.9rem">
+<span class="tag">кадры</span>
+Все — из <code>trees/forest-v2</code>, внутреннее разрешение 1920×1080, время суток 0.42,
+камера редактора; кадр обрезан до области 3D и уменьшен вдвое честным боксом
+(<code>tools/archive_frame.py</code>). Референсные кадры Готики 3 — в
+<code>docs/reports/trees-g3/ref/</code> (в git не идут).
+<span class="tag" style="margin-left:12px">приборы</span>
+<code>render_tree_forge_v2</code> (13 случаев, 2757 проверок), <code>trees_v1_frozen</code>,
+<code>dfn_scene_check --relief</code>.
+</p>
+
+</div>
+</body>
+</html>
