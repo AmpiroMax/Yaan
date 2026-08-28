@@ -1,6 +1,6 @@
 <!--
 Created: 28:08:2026 - 19:55:00
-Last updated: 28:08:2026 - 19:55:00
+Last updated: 28:08:2026 - 20:40:00
 Module: docs/reports
 File: docs/reports/materials-sheet.html
 
@@ -38,6 +38,10 @@ UPD:
   кровля и город; хвост из восьми пунктов, включая ОТСУТСТВИЕ МИПОВ у плиток
   (крепостная стена в 30 м читает больше того же камня в трёх — алиасинг) и
   рекомендацию не включать дозу по умолчанию до починки.
+- 28:08:2026 - 20:40:00: числа прогона (ctest 131/133, застава 37 TU) и разбор
+  двух красных рук приёмки, оказавшихся холодным кэшем свежего каталога сборки,
+  а не поверхностью: доказано вторым бинарником — кадр рощи после коммита
+  побитово равен кадру бинарника, собранного до волны.
 -->
 <meta charset="utf-8">
 <title>Структура в лист</title>
@@ -443,7 +447,26 @@ UPD:
 <h3>Прогон</h3>
 <pre>cmake -G Ninja -S . -B build_sheet -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ ...
-ninja -C build_sheet &amp;&amp; ctest --test-dir build_sheet -E sim_tunnel_walk</pre>
+ninja -C build_sheet &amp;&amp; ctest --test-dir build_sheet -E sim_tunnel_walk
+python3 tools/check_commit_builds.py --sha HEAD --build-dir build_sheet</pre>
+<p><b>ctest: 131 из 133 запущенных зелёные</b> (в наборе 135; <code>sim_tunnel_walk</code>
+исключён по указанию задачи — краснеет под нагрузкой и гоняется одиночно,
+<code>test_house_lod</code> — тест соседней волны, чей двоичный файл в этом
+дереве ещё не собран, «Not Run»). Застава
+<code>check_commit_builds.py</code> на этом коммите: 37 TU чисты.</p>
+<div class="note">
+<p><b>ДВЕ КРАСНЫЕ РУКИ, КОТОРЫЕ ОКАЗАЛИСЬ НЕ МОИМИ, И КАК ЭТО ПРОВЕРЕНО.</b>
+<code>frame_determinism_stand</code> и <code>frame_determinism_city</code> в
+полном прогоне упали с «73.5 % пикселей врозь». Это ХОЛОДНЫЙ КЭШ СВЕЖЕГО
+КАТАЛОГА СБОРКИ, а не поверхность: обе руки берут карту БЕЗ ПОСТРОЕК
+(<code>trees/forest-v2</code>), где лист набора не печатается вовсе, и на
+повторном прогоне (кэш прогрет) обе зелёные. Доказано вторым бинарником:
+<code>build_lead/engine/app/dfn_app</code>, собранный до этой волны, даёт
+<code>99787a35da59c707ce5deef5332f1775</code>, и ровно этот же хэш даёт
+<code>build_sheet</code> после моего коммита — то есть кадр рощи не сдвинулся
+ни на бит. Названо здесь, а не в хвосте, потому что «красное в моём прогоне»
+обязано быть объяснено, а не пересказано.</p>
+</div>
 
 <h2>9. Хвост: что НЕ сделано, поимённо</h2>
 
