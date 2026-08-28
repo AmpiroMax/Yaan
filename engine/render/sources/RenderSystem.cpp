@@ -1273,7 +1273,6 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                 platform::DrawParams dp;
                 dp.aux_texture = tex_of(st.normal_asset);
                 dp.emissive = st.emissive;
-                dp.material = st.material;
                 renderer.submit(platform::MeshHandle{st.mesh_id},
                                 platform::ProgramHandle{prop_program_}, prop.transform,
                                 tex_of(st.texture_asset), dp);

@@ -475,8 +475,7 @@ void RenderSystem::set_loose_props(platform::IRenderer& renderer,
             gpu.streams.push_back({h.id, house_tile_asset(renderer, st.surface, st.tone),
                                    house_tile_asset(renderer, st.surface, st.tone,
                                                     /*normal=*/true),
-                                   local, st.emissive, st.pane_glow,
-                                   st.material});
+                                   local, st.emissive, st.pane_glow});
         }
         loose_props_.push_back(std::move(gpu));
     }
@@ -519,7 +518,7 @@ void RenderSystem::fill_house_slot(platform::IRenderer& renderer,
             out_streams.push_back(
                 {h.id, house_tile_asset(renderer, st.surface, st.tone),
                  house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true),
-                 box, st.emissive, st.pane_glow, st.material});
+                 box, st.emissive, st.pane_glow});
         }
     }
     // НОМЕР СТВОРКИ СОХРАНЯЕТСЯ. Пропуск пустой двери «сжал» бы список, и
