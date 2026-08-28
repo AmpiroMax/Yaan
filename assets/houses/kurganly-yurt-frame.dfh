@@ -1,0 +1,144 @@
+# dfh 1
+vertex v1 free 6.8500 0.0200 3.1500
+vertex v2 free 6.3543 0.0200 5.0000
+vertex v3 free 5.0000 0.0200 6.3543
+vertex v4 free 3.1500 0.0200 6.8500
+vertex v5 free 1.3000 0.0200 6.3543
+vertex v6 free -0.0543 0.0200 5.0000
+vertex v7 free -0.5500 0.0200 3.1500
+vertex v8 free -0.0543 0.0200 1.3000
+vertex v9 free 1.3000 0.0200 -0.0543
+vertex v10 free 3.1500 0.0200 -0.5500
+vertex v11 free 5.0000 0.0200 -0.0543
+vertex v12 free 6.3543 0.0200 1.3000
+vertex v13 free 6.3000 0.0000 3.1500
+vertex v14 free 6.3000 1.6200 3.1500
+vertex v15 free 5.8780 1.6200 4.7250
+vertex v16 free 5.8780 0.0000 4.7250
+vertex v17 free 4.7250 1.6200 5.8780
+vertex v18 free 4.7250 0.0000 5.8780
+vertex v19 free 3.1500 1.6200 6.3000
+vertex v20 free 3.1500 0.0000 6.3000
+vertex v21 free 1.5750 1.6200 5.8780
+vertex v22 free 1.5750 0.0000 5.8780
+vertex v23 free 0.4220 1.6200 4.7250
+vertex v24 free 0.4220 0.0000 4.7250
+vertex v25 free 0.0000 1.6200 3.1500
+vertex v26 free 0.0000 0.0000 3.1500
+vertex v27 free 0.4220 1.6200 1.5750
+vertex v28 free 0.4220 0.0000 1.5750
+vertex v29 free 1.5750 1.6200 0.4220
+vertex v30 free 1.5750 0.0000 0.4220
+vertex v31 free 3.1500 1.6200 0.0000
+vertex v32 free 3.1500 0.0000 0.0000
+vertex v33 free 4.7250 1.6200 0.4220
+vertex v34 free 4.7250 0.0000 0.4220
+vertex v35 free 5.8780 1.6200 1.5750
+vertex v36 free 5.8780 0.0000 1.5750
+vertex v37 free 5.1030 2.7360 3.1500
+vertex v38 free 3.7700 3.1700 3.1500
+vertex v39 free 3.6869 3.1700 3.4600
+vertex v40 free 4.8413 2.7360 4.1265
+vertex v41 free 3.4600 3.1700 3.6869
+vertex v42 free 4.1265 2.7360 4.8413
+vertex v43 free 3.1500 3.1700 3.7700
+vertex v44 free 3.1500 2.7360 5.1030
+vertex v45 free 2.8400 3.1700 3.6869
+vertex v46 free 2.1735 2.7360 4.8413
+vertex v47 free 2.6131 3.1700 3.4600
+vertex v48 free 1.4587 2.7360 4.1265
+vertex v49 free 2.5300 3.1700 3.1500
+vertex v50 free 1.1970 2.7360 3.1500
+vertex v51 free 2.6131 3.1700 2.8400
+vertex v52 free 1.4587 2.7360 2.1735
+vertex v53 free 2.8400 3.1700 2.6131
+vertex v54 free 2.1735 2.7360 1.4587
+vertex v55 free 3.1500 3.1700 2.5300
+vertex v56 free 3.1500 2.7360 1.1970
+vertex v57 free 3.4600 3.1700 2.6131
+vertex v58 free 4.1265 2.7360 1.4587
+vertex v59 free 3.6869 3.1700 2.8400
+vertex v60 free 4.8413 2.7360 2.1735
+surface e1 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 style=- closed=1 thickness=0.04 mat=5 tone=1 wear=0.8 unsupported=1
+line e2 v13 v14 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e3 v14 v15 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e4 v13 v15 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e5 v16 v14 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e6 v16 v15 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e7 v15 v17 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e8 v16 v17 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e9 v18 v15 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e10 v18 v17 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e11 v17 v19 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e12 v18 v19 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e13 v20 v17 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e14 v20 v19 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e15 v19 v21 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e16 v22 v21 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e17 v21 v23 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e18 v22 v23 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e19 v24 v21 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e20 v24 v23 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e21 v23 v25 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e22 v24 v25 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e23 v26 v23 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e24 v26 v25 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e25 v25 v27 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e26 v26 v27 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e27 v28 v25 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e28 v28 v27 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e29 v27 v29 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e30 v28 v29 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e31 v30 v27 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e32 v30 v29 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e33 v29 v31 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e34 v30 v31 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e35 v32 v29 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e36 v32 v31 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e37 v31 v33 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e38 v32 v33 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e39 v34 v31 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e40 v34 v33 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e41 v33 v35 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e42 v34 v35 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e43 v36 v33 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e44 v36 v35 style=- radius=0.05 mat=0 tone=1 wear=0.7
+line e45 v35 v14 style=- radius=0.055 mat=0 tone=1 wear=0.7
+line e46 v36 v14 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e47 v13 v35 style=- radius=0.032 mat=0 tone=1 wear=0.7
+line e48 v14 v37 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e49 v37 v38 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e50 v38 v39 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e51 v15 v40 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e52 v40 v39 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e53 v39 v41 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e54 v17 v42 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e55 v42 v41 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e56 v41 v43 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e57 v19 v44 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e58 v44 v43 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e59 v43 v45 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e60 v21 v46 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e61 v46 v45 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e62 v45 v47 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e63 v23 v48 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e64 v48 v47 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e65 v47 v49 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e66 v25 v50 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e67 v50 v49 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e68 v49 v51 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e69 v27 v52 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e70 v52 v51 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e71 v51 v53 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e72 v29 v54 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e73 v54 v53 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e74 v53 v55 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e75 v31 v56 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e76 v56 v55 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e77 v55 v57 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e78 v33 v58 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e79 v58 v57 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e80 v57 v59 style=- radius=0.06 mat=0 tone=2 wear=0.7
+line e81 v35 v60 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e82 v60 v59 style=- radius=0.042 mat=0 tone=1 wear=0.7
+line e83 v59 v38 style=- radius=0.06 mat=0 tone=2 wear=0.7

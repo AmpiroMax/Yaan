@@ -1,0 +1,21 @@
+# dfh 1
+vertex v1 free 0.0000 0.0600 0.0000
+vertex v2 free 0.0000 0.0600 1.1000
+vertex v3 free 1.8000 0.0600 1.1000
+vertex v4 free 1.8000 0.0600 0.0000
+vertex v5 free 0.9000 0.1000 0.5500
+vertex v6 free 0.9000 1.6200 0.5500
+vertex v7 free 0.4600 1.5800 0.5500
+vertex v8 free 1.3400 1.5800 0.5500
+vertex v9 free 0.9000 1.6600 0.5500
+vertex v10 free 0.9000 2.0600 0.5500
+vertex v11 free 0.6000 1.3000 0.2500
+vertex v12 free 0.8500 1.0200 0.2300
+vertex v13 free 1.2000 1.3000 0.2500
+vertex v14 free 0.9500 1.0200 0.2300
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.18 mat=3 tone=3 wear=0.8
+line e2 v5 v6 style=- radius=0.36 sides=6 mat=3 tone=0 wear=0.8
+line e3 v7 v8 style=- radius=0.20 sides=6 mat=3 tone=0 wear=0.8
+line e4 v9 v10 style=- radius=0.24 sides=6 mat=3 tone=0 wear=0.8
+line e5 v11 v12 style=- radius=0.075 mat=3 tone=0 wear=0.8
+line e6 v13 v14 style=- radius=0.075 mat=3 tone=0 wear=0.8

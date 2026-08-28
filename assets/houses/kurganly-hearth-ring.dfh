@@ -1,0 +1,41 @@
+# dfh 1
+vertex v1 free 7.4000 0.0200 3.7000
+vertex v2 free 6.9043 0.0200 5.5500
+vertex v3 free 5.5500 0.0200 6.9043
+vertex v4 free 3.7000 0.0200 7.4000
+vertex v5 free 1.8500 0.0200 6.9043
+vertex v6 free 0.4957 0.0200 5.5500
+vertex v7 free 0.0000 0.0200 3.7000
+vertex v8 free 0.4957 0.0200 1.8500
+vertex v9 free 1.8500 0.0200 0.4957
+vertex v10 free 3.7000 0.0200 0.0000
+vertex v11 free 5.5500 0.0200 0.4957
+vertex v12 free 6.9043 0.0200 1.8500
+vertex v13 free 4.4200 0.0200 3.7000
+vertex v14 free 4.4200 0.2400 3.7000
+vertex v15 free 4.2516 0.0200 4.1628
+vertex v16 free 4.2516 0.2400 4.1628
+vertex v17 free 3.8250 0.0200 4.4091
+vertex v18 free 3.8250 0.2400 4.4091
+vertex v19 free 3.3400 0.0200 4.3235
+vertex v20 free 3.3400 0.2400 4.3235
+vertex v21 free 3.0234 0.0200 3.9463
+vertex v22 free 3.0234 0.2400 3.9463
+vertex v23 free 3.0234 0.0200 3.4537
+vertex v24 free 3.0234 0.2400 3.4537
+vertex v25 free 3.3400 0.0200 3.0765
+vertex v26 free 3.3400 0.2400 3.0765
+vertex v27 free 3.8250 0.0200 2.9909
+vertex v28 free 3.8250 0.2400 2.9909
+vertex v29 free 4.2516 0.0200 3.2372
+vertex v30 free 4.2516 0.2400 3.2372
+surface e1 v1 v2 v3 v4 v5 v6 v7 v8 v9 v10 v11 v12 style=- closed=1 thickness=0.04 mat=5 tone=1 wear=0.85 unsupported=1
+line e2 v13 v14 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
+line e3 v15 v16 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
+line e4 v17 v18 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
+line e5 v19 v20 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
+line e6 v21 v22 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
+line e7 v23 v24 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
+line e8 v25 v26 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
+line e9 v27 v28 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
+line e10 v29 v30 style=- radius=0.13 sides=5 mat=3 tone=3 wear=0.8
