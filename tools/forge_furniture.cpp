@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 13:20:00
-Last updated: 28:08:2026 - 14:05:00
+Last updated: 28:08:2026 - 17:31:25
 Module: tools
 File: tools/forge_furniture.cpp
 
@@ -366,9 +366,16 @@ UPD:
   по осевой линии 0 — видно по тому, что щит головы зверя на отметке 0.026 невидим, а
   рога до 0.090 видны. Толщина плакетки и картины 3-5 см, то есть они помещались в зазор
   целиком. Вынос расстановок поднят до 0.120; чертежи не тронуты.
+- 28:08:2026 - 17:31:25: кузница принимает ИМЯ ВЕЩЕСТВА там, где брала
+  строку-ординал (волна 3 зоны МАТЕРИАЛЫ). Инвентаризация назвала её первым из четырёх
+  несогласованных словарей: `f.bar({...}, 0.026f, "0", "2")` — из чего
+  сделан стул, не сказать, не открыв чужую таблицу. Цифры пишутся как
+  писались (полка не перепекается), имя уезжает ключом `material`,
+  неизвестное имя — ОТКАЗ и выход, как у прочих отказов печи.
 */
 
 #include "engine/world/sources/HouseFile.h"
+#include "engine/core/materials/sources/MaterialRegistry.h"
 #include "engine/world/sources/HouseGraph.h"
 #include "engine/world/sources/HouseMesh.h"
 #include "tools/recipe_book.h"
@@ -376,6 +383,7 @@ UPD:
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <functional>
 
@@ -437,7 +445,56 @@ struct Forge {
         if (closed) {
             (void)g.set_closed(id, true);
         }
+        // ВЕЩЕСТВО МОЖНО НАЗВАТЬ ИМЕНЕМ (волна 3 зоны МАТЕРИАЛЫ). Инвентаризация
+        // назвала кузницу первым из четырёх несогласованных словарей вещества:
+        // `f.bar({...}, 0.026f, "0", "2")` — из чего сделан стул, не сказать,
+        // не открыв чужую таблицу. Теперь та же рука принимает и `"oak-log"`.
+        //
+        // ЦИФРЫ ОСТАЮТСЯ И ПИШУТСЯ КАК ПИСАЛИСЬ. Это условие волны, а не
+        // снисхождение: 35 предметов полки испечены цифрами, и всякая правка
+        // этого пути сменила бы их байты, то есть перепекла бы полку ради
+        // переименования.
+        //
+        // НЕИЗВЕСТНОЕ ИМЯ — ОТКАЗ ВСЛУХ И СРАЗУ. Печь уже отказывает бочке в
+        // износе и элементу в кривом параметре; вещество, которого нет в
+        // реестре, — та же порода ошибки, и молча подставленный дуб был бы
+        // ровно тем `mat=17 % 9`, ради отмены которого волна и затевалась.
+        bool named_substance = false;
         for (const auto& kv : params) {
+            if (std::strcmp(kv.first, "mat") != 0) {
+                continue;
+            }
+            const bool ordinal = kv.second != nullptr && kv.second[0] != '\0'
+                              && std::strspn(kv.second, "0123456789")
+                                     == std::strlen(kv.second);
+            if (ordinal) {
+                continue;
+            }
+            if (dfn::core::material_registry().find(kv.second)
+                == dfn::core::MATERIAL_NONE) {
+                std::fprintf(stderr,
+                             "forge: вещество \"%s\" реестру неизвестно "
+                             "(%s) — ОТКАЗ\n",
+                             kv.second, dfn::core::default_material_registry_path());
+                std::exit(2);
+            }
+            named_substance = true;
+        }
+        for (const auto& kv : params) {
+            if (named_substance && std::strcmp(kv.first, "mat") == 0) {
+                // ИМЯ ЕДЕТ СВОИМ КЛЮЧОМ. `mat` — координата в чужом атласе,
+                // `material` — вещество; писать имя в `mat` значило бы, что
+                // старый читатель прогонит его через atoi и получит ноль.
+                (void)g.set_param(id, "material", kv.second);
+                continue;
+            }
+            if (named_substance && std::strcmp(kv.first, "tone") == 0) {
+                // ТОН ПРИНАДЛЕЖИТ ВЕЩЕСТВУ, а не вызову: ряд листа — это тон
+                // И износ одной осью, и у названного вещества он уже выбран в
+                // реестре. Оставить здесь второй ответ значило бы завести
+                // место, где «дуб тёмный» может разойтись с «дубом».
+                continue;
+            }
             (void)g.set_param(id, kv.first, kv.second);
         }
         return id;

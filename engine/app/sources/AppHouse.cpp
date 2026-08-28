@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 28:08:2026 - 14:45:00
+Last updated: 28:08:2026 - 17:31:25
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -142,6 +142,12 @@ UPD:
   предметам падать. Доза DFN_PROPS=0 возвращает прежнюю комнату бит в бит:
   loose_prop_placement отвечает «нет» на всё, и предметы едут в потоки, как
   ехали.
+- 28:08:2026 - 17:31:25: потоки построек НАЗЫВАЮТ ВЕЩЕСТВО за дозой
+  DFN_MAT (волна 3 зоны МАТЕРИАЛЫ). Имя приходит из рецепта (ключ material в .dfh) либо из
+  файла предмета (.dfo v4, секция MTRL), а безымянной паре (поверхность,
+  тон) отвечает реестр. При дозе 0 вещество у всех потоков одно
+  (MATERIAL_NONE), ключ потока прежний бит-в-бит, нарезка и число дро те
+  же — кадр не меняется ни на пиксель.
 */
 
 #include "engine/app/sources/App.h"
@@ -153,7 +159,9 @@ UPD:
 #include "engine/editor/sources/EditorUi.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
 #include "engine/physics/sources/CollisionLayers.h"
+#include "engine/core/materials/sources/MaterialRegistry.h"
 #include "engine/render/sources/PartsAtlas.h"
+#include "engine/render/sources/PartsMaterial.h"
 #include "engine/render/sources/RenderSystem.h"
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseMesh.h"
@@ -577,6 +585,41 @@ void App::upload_house_mesh(bool interior_only) {
     // первой же правке материала, и разошлись бы молча — комната перестала бы
     // быть тем же домом, что снаружи (правило 39). Приёмник переключается
     // указателями, поэтому тело построителя не знает, на кого работает.
+    // ДОЗА ПОНЯТИЯ МАТЕРИАЛ (DFN_MAT). 0/нет — ни один поток города вещества
+    // НЕ НАЗЫВАЕТ, ключ потока прежний бит-в-бит, DrawParams выходит
+    // умолчанием, и кадр не меняется ни на пиксель. 1 — поток спрашивает
+    // реестр, и гранит выветренного ряда получает свой собранный блик вместо
+    // ламберта, которым он неотличим от крашеной штукатурки.
+    //
+    // ПОЧЕМУ ЗА ДОЗОЙ, А НЕ СРАЗУ. Волна обещала «кадр бит-в-бит при дозе 0»,
+    // а у гранита шероховатость 0.86 — то есть первое же названное вещество
+    // города ДВИГАЕТ пиксели, и это правильно, но обе руки замера обязаны
+    // выходить из одной сборки (правило 47).
+    const char* mat_dose = door_value("DFN_MAT");
+    const bool mat_on = mat_dose != nullptr && *mat_dose != '\0' && *mat_dose != '0';
+    // ВЕЩЕСТВО ПОТОКА ОДНИМ ОПРЕДЕЛЕНИЕМ НА ОБА МЕСТА (правило 39): его
+    // спрашивают и куски построек, и запечённые предметы полки, и разойдись
+    // эти два ответа — предмет в комнате красился бы иначе, чем та же деталь
+    // в стене.
+    const auto stream_material = [mat_on](std::string_view named,
+                                          std::uint32_t surface,
+                                          std::uint32_t tone) -> core::MaterialId {
+        if (!mat_on) {
+            return core::MATERIAL_NONE;
+        }
+        // ИМЯ — ПЕРВЫМ СЛОВОМ. Оно приезжает из рецепта (.dfh, ключ material)
+        // либо из файла предмета (.dfo v4, секция MTRL) и переживает любую
+        // перекладку листа; пара — запасной ход для всего, что имени ещё не
+        // получило, и она полна: у всех 36 клеток есть ответ.
+        if (!named.empty()) {
+            if (const core::MaterialId id = core::material_registry().find(named);
+                id != core::MATERIAL_NONE) {
+                return id;
+            }
+        }
+        return render::named_material_of(static_cast<render::PartSurface>(surface),
+                                         static_cast<render::PartTone>(tone));
+    };
     std::map<std::uint64_t, render::RenderSystem::HouseStream> city_streams;
     std::map<std::uint64_t, render::RenderSystem::HouseStream> int_streams;
     std::vector<render::RenderSystem::HouseDoor> city_doors;
@@ -610,7 +653,6 @@ void App::upload_house_mesh(bool interior_only) {
     std::erase_if(loose_placements_, [&](const LoosePlacement& lp) {
         return lp.interior || !interior_only;
     });
-
     // СКОЛЬКО ОКОН В ЭТОЙ КОМНАТЕ И ГОРЯТ ЛИ ОНИ — вслух. Строка заведена не
     // для отладки: «свет из окна не виден» имеет ровно два разных смысла —
     // «вставок в комнате ноль» (у зала без окон это норма, у таверны брак) и
@@ -940,10 +982,16 @@ void App::upload_house_mesh(bool interior_only) {
         // реестр объектов читателей стало двое, и копия правила в кузнице
         // разошлась бы с домом в первый же день правки (правило 39).
         const auto mat_of = [&](const world::Element& e, std::uint32_t& surface,
-                                std::uint32_t& tone) {
+                                std::uint32_t& tone, std::string* named = nullptr) {
             const world::HousePartTile t = world::house_part_tile(graph, e);
             surface = t.surface;
             tone = t.tone;
+            // ИМЯ ВЕЩЕСТВА, ЕСЛИ РЕЦЕПТ ЕГО НАЗВАЛ (ключ material в .dfh).
+            // Пусто у всего, что называет только координаты, — то есть у
+            // всего сегодняшнего города.
+            if (named != nullptr) {
+                *named = t.material;
+            }
         };
         // Штамп вместо переинициализации: remap.assign на каждую часть давал
         // квадратичный разгон (аудит #3, находка 7) — дом с паркетом и кровлей
@@ -959,7 +1007,8 @@ void App::upload_house_mesh(bool interior_only) {
             }
             std::uint32_t surface = 0;
             std::uint32_t tone = 0;
-            mat_of(*e, surface, tone);
+            std::string named_material;
+            mat_of(*e, surface, tone, &named_material);
             part_color = paint_of(*e);
             // ОКОННЫЙ ЛИСТ, КОТОРЫЙ ГОРИТ (28.08). Тон уезжает ВЕРШИННЫМ
             // ЦВЕТОМ: у вставки он не занят — краску (paint) кладут на
@@ -1178,12 +1227,21 @@ void App::upload_house_mesh(bool interior_only) {
                 // свечения — свойство ПОТОКА, и лист, попавший в один поток с
                 // пламенем, получил бы либо силу пламени, либо отдал бы свою.
                 const bool part_glow = (glow_on && part.emissive) || lit_pane;
-                auto& st = (*streams)[(cell_key << 16)
+                // ВЕЩЕСТВО ВХОДИТ В КЛЮЧ ПОТОКА, и это не украшение: смена
+                // вещества — это смена привязки текстуры и отражения, то есть
+                // НАСТОЯЩАЯ граница дро, а не выдуманная. При дозе 0 вещество
+                // у всех потоков одно (MATERIAL_NONE), и ключ ведёт себя ровно
+                // как прежний — нарезка на потоки та же, число дро то же.
+                const core::MaterialId part_material =
+                    stream_material(named_material, surface, tone);
+                auto& st = (*streams)[(static_cast<std::uint64_t>(part_material) << 32)
+                                   | (cell_key << 16)
                                    | (static_cast<std::uint64_t>(surface) << 8)
                                    | (part_glow ? (1ull << 15) : 0ull)
                                    | (lit_pane ? (1ull << 14) : 0ull) | tone];
                 st.surface = surface;
                 st.tone = tone;
+                st.material = part_material;
                 st.emissive = part_glow;
                 st.pane_glow = lit_pane ? pane_glow.strength : 0.0f;
                 into = &st.mesh;
@@ -1267,11 +1325,19 @@ void App::upload_house_mesh(bool interior_only) {
                     (stream_cell(p.position.x + origin.x) << 6)
                     | stream_cell(p.position.z + origin.z);
                 const bool sub_glow = glow_on && sub.emissive;
-                auto& st = (*streams)[(cell_key << 16)
+                // ВЕЩЕСТВО ЗАПЕЧЁННОГО КУСКА — ИЗ ЕГО СОБСТВЕННОГО ФАЙЛА
+                // (.dfo v4, секция MTRL), и это первый случай, когда имя
+                // вещества доезжает с диска до дро. Пусто у всей сегодняшней
+                // полки: 2544 файла испечены до v4 и вещества не называют.
+                const core::MaterialId sub_material =
+                    stream_material(sub.material, sub.surface, sub.tone);
+                auto& st = (*streams)[(static_cast<std::uint64_t>(sub_material) << 32)
+                                   | (cell_key << 16)
                                    | (static_cast<std::uint64_t>(sub.surface) << 8)
                                    | (sub_glow ? (1ull << 15) : 0ull) | sub.tone];
                 st.surface = sub.surface;
                 st.tone = sub.tone;
+                st.material = sub_material;
                 st.emissive = sub_glow;
                 const std::size_t before = st.mesh.vertices.size();
                 render::append_transformed(st.mesh, sub.mesh, p.position + origin,

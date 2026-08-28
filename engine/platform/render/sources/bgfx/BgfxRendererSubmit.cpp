@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 28:08:2026 - 12:49:39
+Last updated: 28:08:2026 - 17:31:25
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -72,9 +72,21 @@ UPD:
 - 28:08:2026 - 12:49:39: u_matParams ставится на КАЖДОМ дро (зона МАТЕРИАЛЫ, 28.08).
   Безусловно, а не «если материал задан»: uniform в bgfx липкий, и дро,
   промолчавший после золотого герба, унаследовал бы его блик.
+- 28:08:2026 - 17:31:25: дро НАЗЫВАЕТ вещество, а не несёт его числа
+  (волна 3 зоны МАТЕРИАЛЫ). u_matParams заполняется из ЗАПИСИ РЕЕСТРА по
+  DrawParams::material — это единственное место во всём движке, которое читает
+  числа вещества ради отрисовки. Поля roughness/metalness на дро сняты: у
+  вызова нет владельца, которому задать вопрос, почему у гранита здесь одно
+  число, а в файле другое. Сам uniform переезд пережил без правки — он был
+  нужен одинаково при обоих устройствах.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
+
+// РЕЕСТР ВЕЩЕСТВ ЖИВЁТ В ЯДРЕ, и платформа смотрит в ядро по DAG
+// (ARCHITECTURE.md): это и есть та причина, ради которой реестр переезжал из
+// engine/render — оттуда бэкенду его было не видно.
+#include "engine/core/materials/sources/MaterialRegistry.h"
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -398,12 +410,21 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         }
     }
     bgfx::setUniform(im.u_params, params);
-    // ОТРАЖАТЕЛЬНАЯ ПОЛОВИНА МАТЕРИАЛА (зона МАТЕРИАЛЫ, 28.08). Ставится
-    // БЕЗУСЛОВНО, а не «если материал задан»: uniform в bgfx липкий, и дро,
-    // промолчавший после золотого герба, унаследовал бы его блик. Один
-    // setUniform на дро — это цена того, что материал НЕ течёт между дро.
-    const float mat_params[4] = {params_in.roughness, params_in.metalness, 0.0f,
-                                 0.0f};
+    // ОТРАЖЕНИЕ ВЕЩЕСТВА, ВЗЯТОЕ У РЕЕСТРА ПО ИМЕНИ ДРО (волна 3 зоны
+    // МАТЕРИАЛЫ). Дро называет вещество номером записи; числа живут в данных
+    // (assets/materials/*.dfmat), и это ЕДИНСТВЕННОЕ место во всём движке,
+    // которое их читает ради отрисовки. До волны 3 числа приезжали прямо в
+    // DrawParams — то есть «вещество как свойство вызова», ровно та болезнь,
+    // которую свод уже осудил на трении тела: у вызова нет владельца,
+    // которому задать вопрос, почему у гранита здесь одно число, а в файле
+    // другое.
+    //
+    // Ставится БЕЗУСЛОВНО, а не «если вещество названо»: uniform в bgfx
+    // липкий, и дро, промолчавший после золотого герба, унаследовал бы его
+    // блик. Один setUniform на дро — цена того, что вещество НЕ течёт.
+    const core::MaterialRecord& mat = core::material_registry().record(
+        static_cast<core::MaterialId>(params_in.material));
+    const float mat_params[4] = {mat.roughness, mat.metalness, 0.0f, 0.0f};
     if (bgfx::isValid(im.u_mat_params)) {
         bgfx::setUniform(im.u_mat_params, mat_params);
     }

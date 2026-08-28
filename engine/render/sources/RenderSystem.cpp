@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 14:18:16
+Last updated: 28:08:2026 - 17:31:25
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -206,9 +206,15 @@ UPD:
   створки, и по той же причине: геометрия местная, место называет матрица.
   Разница одна — матрицу створки считает render (петля и угол), а матрицу
   предмета приносит физика: у падающего кувшина нет формулы, есть тело.
+- 28:08:2026 - 17:31:25: дро НАЗЫВАЕТ вещество вместо того, чтобы нести
+  его числа (волна 3 зоны МАТЕРИАЛЫ): DrawParams.material вместо roughness/metalness, и
+  program_for() у потоков построек и подвижных предметов. При
+  MATERIAL_NONE — прежний ламберт и прежняя программа, кадр бит-в-бит.
 */
 
 #include "engine/render/sources/RenderSystem.h"
+
+#include "engine/render/sources/PartsMaterial.h" // программу выбирает вещество (28.08)
 
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
@@ -237,6 +243,15 @@ UPD:
 #include <glm/matrix.hpp>
 
 namespace dfn::render {
+
+/// ПРОГРАММА ВЫБИРАЕТСЯ ПО ВЕЩЕСТВУ — см. объявление в RenderSystem.h и правило
+/// в PartsMaterial.h. Незагруженная программа даёт 0, и вызывающий пропускает
+/// дро: молча нарисовать листву сплошной было бы хуже, чем не нарисовать.
+uint32_t RenderSystem::program_for(core::MaterialId material) const {
+    const std::string_view want =
+        material_program(core::material_registry().record(material));
+    return want == "foliage" ? foliage_program_ : prop_program_;
+}
 
 namespace {
 /// DFN_PATH_RIBBON=1 brings the old over-the-ground path ribbon back, for a
@@ -1209,8 +1224,22 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             // у окна разные, и aux1 несёт эту силу программе prop. Ноль —
             // обычный самосветный поток (пламя), кадр прежний бит-в-бит.
             dp.aux1 = st.pane_glow;
+            // ИЗ ЧЕГО СДЕЛАН ПОТОК (волна 3). Дро называет вещество, числа
+            // берёт бэкенд из реестра. MATERIAL_NONE — прежний ламберт, то
+            // есть кадр бит-в-бит: город без DFN_MAT ни одного вещества не
+            // называет.
+            dp.material = st.material;
+            // ПРОГРАММУ СПРАШИВАЮТ У ВЕЩЕСТВА, А НЕ У ПОТОКА (§2.4 дизайна).
+            // Сегодня ответ у всех потоков города один и тот же — «сплошная»,
+            // — и потому кадр не меняется ни на пиксель; изменилось то, ЧЕМ
+            // этот ответ получен: раньше его давал выбор кузницы, куда
+            // положить треугольники.
+            const uint32_t program = program_for(st.material);
+            if (program == 0) {
+                continue;
+            }
             renderer.submit(platform::MeshHandle{st.mesh_id},
-                            platform::ProgramHandle{prop_program_}, identity,
+                            platform::ProgramHandle{program}, identity,
                             tex_of(st.texture_asset), dp);
         }
         // ДВЕРИ КАЧАЮТСЯ ВОКРУГ ПЕТЛИ. Ход демонстрационный (0..~85° и назад):
@@ -1273,8 +1302,13 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                 platform::DrawParams dp;
                 dp.aux_texture = tex_of(st.normal_asset);
                 dp.emissive = st.emissive;
+                dp.material = st.material;
+                const uint32_t program = program_for(st.material);
+                if (program == 0) {
+                    continue;
+                }
                 renderer.submit(platform::MeshHandle{st.mesh_id},
-                                platform::ProgramHandle{prop_program_}, prop.transform,
+                                platform::ProgramHandle{program}, prop.transform,
                                 tex_of(st.texture_asset), dp);
             }
         }
@@ -1426,15 +1460,16 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // висит перед глазом, и предмет обязан висеть там же, где бы ни стояла
     // камера в момент выхода в меню.
     if (screen_prop_.valid()) {
-        // МАТЕРИАЛ ПРЕДМЕТА ЭКРАНА (зона МАТЕРИАЛЫ, 28.08). Реестр — ОДНО
-        // место, где живёт «золото бликует золотым»; здесь только перенос его
-        // ответа в дро. При MATERIAL_NONE запись реестра нулевая (шероховатость
-        // 1, металличность 0), то есть DrawParams выходит ровно умолчанием и
-        // кадр не меняется ни на бит — контрольная рука из этого же бинарника.
-        const Material& mat = material(screen_prop_.material);
+        // ВЕЩЕСТВО ПРЕДМЕТА ЭКРАНА (зона МАТЕРИАЛЫ, 28.08; волна 3). Дро
+        // НАЗЫВАЕТ вещество и больше ничего: числа берёт бэкенд из реестра.
+        // До волны 3 здесь стояло два поля отражения, скопированных из записи,
+        // — и это работало ровно потому, что заполняющее место было одно; с
+        // двадцатым источником блика «шероховатость гранита» разъехалась бы по
+        // двадцати вызовам. При MATERIAL_NONE запись реестра нулевая
+        // (шероховатость 1, металличность 0), то есть кадр не меняется ни на
+        // бит — контрольная рука из этого же бинарника.
         platform::DrawParams dp;
-        dp.roughness = mat.roughness;
-        dp.metalness = mat.metalness;
+        dp.material = screen_prop_.material;
         renderer.submit(platform::MeshHandle{screen_prop_.mesh},
                         platform::ProgramHandle{screen_prop_.program},
                         glm::inverse(camera.view(alpha)) * screen_prop_.in_camera,

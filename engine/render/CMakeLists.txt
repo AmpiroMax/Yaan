@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 28:08:2026 - 16:55:00
+# Last updated: 28:08:2026 - 17:31:25
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -76,6 +76,10 @@
 #   (заказ владельца 28.08 по разнице с Готикой 3). Кузница v1 не тронута: новый
 #   строитель стоит РЯДОМ, а не флагом внутри — так неизменность 77 испечённых
 #   .dfo есть свойство построения, а не аккуратности.
+# - 28:08:2026 - 17:31:25: MaterialRegistry.cpp -> PartsMaterial.cpp (зона
+#   МАТЕРИАЛЫ, волна 3): записи о веществе уехали в engine/core и в данные,
+#   здесь остался МОСТ — перевод ординала листа набора в имя и обратно.
+#   dfn_core в зависимостях по той же причине.
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
     sources/CloudModel.cpp
@@ -92,7 +96,7 @@ add_library(dfn_render STATIC
     sources/LoadingScreen.cpp
     sources/LodTerrain.cpp
     sources/MapScreen.cpp
-    sources/MaterialRegistry.cpp
+    sources/PartsMaterial.cpp
     sources/ObjectRegistry.cpp
     sources/PartForge.cpp
     sources/PartForgeJoints.cpp
@@ -119,4 +123,4 @@ add_library(dfn_render STATIC
     sources/Tour.cpp
     sources/WaterMesher.cpp
     sources/PathMesher.cpp)
-target_link_libraries(dfn_render PUBLIC dfn_headers)
+target_link_libraries(dfn_render PUBLIC dfn_headers dfn_core)

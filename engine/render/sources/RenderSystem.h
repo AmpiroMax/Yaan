@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 28:08:2026 - 14:18:16
+Last updated: 28:08:2026 - 17:31:25
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -220,6 +220,14 @@ UPD:
   местная, место называет матрица, и приносит её физика — значит нарисованное
   и осязаемое не могут разъехаться по построению. Отсечение — ШАРОМ вокруг
   середины: предмет вертится, и ящик по осям мира верен ровно один кадр.
+- 28:08:2026 - 17:31:25: HouseStream.material / HouseStreamGpu.material и
+  program_for() (волна 3 зоны МАТЕРИАЛЫ). Здесь соединились два из четырёх словарей вещества,
+  названных инвентаризацией: БЕЗЫМЯННЫЙ материал HouseStreamGpu (четыре
+  поля, «уже готовый материал, у которого отняли имя») и одиннадцать ИМЁН
+  PartMaterial, до которых из данных было не дотянуться. Плюс выбор
+  программы переехал с ПОТОКА на ВЕЩЕСТВО. ScreenProp::material сменил тип
+  на core::MaterialId — реестр уехал в engine/core, потому что render не
+  виден ни world, ни платформе.
 */
 
 #pragma once
@@ -233,7 +241,7 @@ UPD:
 #include "engine/render/sources/GroundTufts.h"
 #include "engine/render/sources/LodTerrain.h"
 #include "engine/render/sources/MapScreen.h"
-#include "engine/render/sources/MaterialRegistry.h" // именованные вещества (28.08)
+#include "engine/core/materials/sources/MaterialRegistry.h" // реестр веществ (28.08)
 #include "engine/render/sources/PartsAtlas.h" // лист набора: тон, ревизия, размер плитки
 #include "engine/render/sources/ScatterBatcher.h" // FloraLod, per-chunk bake level
 
@@ -659,7 +667,7 @@ public:
         /// — «не сказано», то есть прежний ламберт по цвету вершины, кадр
         /// бит-в-бит. Первый клиент — золотой герб: у металла блик окрашен
         /// им самим, и никакой цвет вершины этого не выражает.
-        MaterialId material = MATERIAL_NONE;
+        core::MaterialId material = core::MATERIAL_NONE;
         [[nodiscard]] bool valid() const { return mesh != 0 && program != 0; }
     };
     /// Живёт ОДИН кадр и снимается сразу после отправки — как временные
@@ -771,6 +779,19 @@ public:
         MeshData mesh;
         std::uint32_t surface = 0; ///< PartSurface ordinal
         std::uint32_t tone = 1;    ///< PartTone ordinal
+        /// ИЗ ЧЕГО СДЕЛАН ПОТОК (волна 3 зоны МАТЕРИАЛЫ). Здесь соединились
+        /// два из четырёх словарей вещества, названных инвентаризацией:
+        /// БЕЗЫМЯННЫЙ материал `HouseStreamGpu{texture, normal, emissive,
+        /// pane_glow}` — «уже готовый материал, у которого отняли имя» — и
+        /// одиннадцать ИМЁН PartMaterial, до которых из данных было не
+        /// дотянуться. Теперь имя приезжает из рецепта или из .dfo, а числа
+        /// живут в реестре.
+        ///
+        /// MATERIAL_NONE — «не сказано», и это по-прежнему подавляющее
+        /// большинство потоков города: пара (surface, tone) кроет их так же,
+        /// как кроила. Кадр от этого поля не меняется, пока вещество не
+        /// названо, — и это ровно контрольная рука дозы DFN_MAT.
+        core::MaterialId material = core::MATERIAL_NONE;
         /// Самосветный поток (24.08): рисуется без освещения (пламя, стекло).
         bool emissive = false;
         /// СИЛА СВЕЧЕНИЯ ОКОННОЙ ВСТАВКИ (28.08), 0 — обычный поток. Читается
@@ -885,6 +906,11 @@ private:
         math::Aabb bounds{};
         bool emissive = false; ///< самосветный поток — DrawParams.emissive
         float pane_glow = 0.0f; ///< сила оконной вставки — DrawParams.aux1
+        /// ВЕЩЕСТВО ПОТОКА — DrawParams.material. Пятое поле у структуры,
+        /// которую инвентаризация назвала «безымянным материалом, самой
+        /// близкой к цели точкой сегодняшнего кода»: у неё было отнято имя, и
+        /// это оно.
+        core::MaterialId material = core::MATERIAL_NONE;
     };
     struct HouseDoorGpu {
         uint32_t mesh_id = 0;
@@ -1110,6 +1136,19 @@ private:
     uint32_t water_program_ = 0;   // ProgramHandle.id
     uint32_t prop_program_ = 0;    // ProgramHandle.id (lit+fog vertex color)
     uint32_t foliage_program_ = 0; // ProgramHandle.id (alpha-cutout leaf cards)
+
+    /// КАКОЙ ПРОГРАММОЙ РИСОВАТЬ ЭТО ВЕЩЕСТВО (волна 3 зоны МАТЕРИАЛЫ).
+    /// Единственное место, где выбор программы делается ЗДЕСЬ, и делается он
+    /// не по потоку файла, а по записи вещества: качается ли оно и вырезается
+    /// ли. Само правило живёт в render::material_program (PartsMaterial.h) —
+    /// сюда оно приходит именем, а имя переводится в загруженный
+    /// идентификатор.
+    ///
+    /// ЧТО ЭТО ЧИНИТ. До волны 3 «чтобы брус стал кирпичом, надо было перепечь
+    /// меш В ДРУГОЙ ПОТОК»: WOOD ехал prop, CARD и BARK — foliage, HOUS —
+    /// prop с вырезанной плиткой. Программа была следствием того, куда
+    /// кузница положила треугольники, а не того, из чего они сделаны.
+    [[nodiscard]] uint32_t program_for(core::MaterialId material) const;
     uint32_t overlay_program_ = 0; // ProgramHandle.id ("unlit" + alpha blend)
     uint32_t path_program_ = 0;    // ProgramHandle.id (§8.1 path surface)
     uint32_t atlas_texture_asset_ = 0; // terrain splat atlas (engine asset id)

@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:00
-# Last updated: 17:08:2026 - 19:17:13
+# Last updated: 28:08:2026 - 17:31:25
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -55,6 +55,10 @@
 #   держит третьи стороны в platform sources/, поэтому мост живёт здесь, а не в
 #   engine/app. Правка зоны редактора по разрешению лида (17.08); существующих
 #   проходов и чисел не тронуто.
+# - 28:08:2026 - 17:31:25: dfn_core в зависимостях (зона МАТЕРИАЛЫ, волна
+#   3): бэкенд разрешает DrawParams::material в шероховатость и
+#   металличность сам. По DAG платформа смотрит в ядро, и это единственное,
+#   что она оттуда берёт.
 
 include(FetchContent)
 
@@ -126,7 +130,11 @@ add_library(dfn_platform_render STATIC
     sources/bgfx/ImGuiBackend.cpp
     sources/null/NullRenderer.cpp)
 target_link_libraries(dfn_platform_render
-    PUBLIC dfn_headers
+    # dfn_core: РЕЕСТР ВЕЩЕСТВ (engine/core/materials). Бэкенд разрешает
+    # DrawParams::material в шероховатость и металличность сам — числа вещества
+    # живут в данных, а не на вызове отрисовки (MATERIALS.md §2.7). По DAG
+    # платформа смотрит в core, и это единственное, что она оттуда берёт.
+    PUBLIC dfn_headers dfn_core
     # PRIVATE: bgfx never escapes this layer. dfn_imgui is here for the same
     # reason bgfx is — the ImGui bgfx backend is a THIRD-PARTY BRIDGE, and
     # Rule 1 says third-party includes live in platform sources/. bgfx ships no

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 28:08:2026 - 14:18:16
+Last updated: 28:08:2026 - 17:31:25
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -107,6 +107,9 @@ UPD:
   ПРЕДМЕТОВ). Габарит считается ЗДЕСЬ и в МЕСТНЫХ осях по тем же вершинам,
   что ушли в буфер: предмет вертится в руках, поэтому мировой ящик по осям
   мира верен один кадр, а шар вокруг середины — при любом повороте.
+- 28:08:2026 - 17:31:25: вещество потока переносится в HouseStreamGpu на
+  заливке — рядом с emissive и pane_glow, по той же причине и тем же
+  способом (волна 3 зоны МАТЕРИАЛЫ).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -475,7 +478,8 @@ void RenderSystem::set_loose_props(platform::IRenderer& renderer,
             gpu.streams.push_back({h.id, house_tile_asset(renderer, st.surface, st.tone),
                                    house_tile_asset(renderer, st.surface, st.tone,
                                                     /*normal=*/true),
-                                   local, st.emissive, st.pane_glow});
+                                   local, st.emissive, st.pane_glow,
+                                   st.material});
         }
         loose_props_.push_back(std::move(gpu));
     }
@@ -518,7 +522,7 @@ void RenderSystem::fill_house_slot(platform::IRenderer& renderer,
             out_streams.push_back(
                 {h.id, house_tile_asset(renderer, st.surface, st.tone),
                  house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true),
-                 box, st.emissive, st.pane_glow});
+                 box, st.emissive, st.pane_glow, st.material});
         }
     }
     // НОМЕР СТВОРКИ СОХРАНЯЕТСЯ. Пропуск пустой двери «сжал» бы список, и

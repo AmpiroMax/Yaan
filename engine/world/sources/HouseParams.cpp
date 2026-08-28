@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 27:08:2026 - 22:25:00
+Last updated: 28:08:2026 - 17:31:25
 Module: engine/world
 File: engine/world/sources/HouseParams.cpp
 
@@ -41,10 +41,21 @@ UPD:
   открытого марша). Одна строка в param_slots: таблица — единственное место,
   где свойство становится читаемым, и вторая копия правила разбора здесь была
   бы ровно тем, что аудит #3 уже находил.
+- 28:08:2026 - 17:31:25: ключ `material` в рецепте и ДВА ОТКАЗА ВСЛУХ
+  (волна 3 зоны МАТЕРИАЛЫ). Имя вещества разрешается реестром в ядре и даёт ТУ ЖЕ клетку,
+  что координаты (иначе перевод 194 рецептов на имена был бы перекраской,
+  а не переименованием). Неизвестное имя — находка. И `mat=17`, который
+  молча становился `17 % 9 = 8` = глухим окном: остаток ОСТАВЛЕН (волна
+  обещала не двигать пиксели), но теперь о нём говорят.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
 
+// РЕЕСТР ВЕЩЕСТВ В ЯДРЕ. Правило 1 соблюдено: world смотрит в core и только
+// в core; про атлас, программу и плитку он по-прежнему не знает ничего.
+#include "engine/core/materials/sources/MaterialRegistry.h"
+
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string_view>
@@ -182,9 +193,13 @@ ElementParams parse_element_params(std::string_view style, std::vector<ParamIssu
             // коллайдер, то есть запечатывает оболочку. Читает его App при
             // заливке, как и door/hinge; геометрию он не меняет, и
             // построитель не знает его ПО ПРАВУ.
+            // `material` — ИМЯ ВЕЩЕСТВА (волна 3 зоны МАТЕРИАЛЫ). Чужой ключ
+            // для строителя геометрии по той же причине, что и `mat`: из
+            // чего сделана деталь, её форму не меняет. Читает его
+            // house_part_tile.
             const bool foreign = key == "mat" || key == "tone" || key == "door"
                               || key == "hinge" || key == "paint"
-                              || key == "portal";
+                              || key == "portal" || key == "material";
             if (!foreign) {
                 issues->push_back({std::string(tok), "неизвестное свойство"});
             }
@@ -248,8 +263,19 @@ ElementParams element_params_of(const Element& e, std::vector<ParamIssue>* issue
 }
 
 HousePartTile house_part_tile(const HouseGraph& graph, const Element& e,
-                              int mat_override, int tone_override) {
+                              int mat_override, int tone_override,
+                              std::vector<ParamIssue>* issues) {
     HousePartTile t;
+    const auto complain = [&](std::string token, std::string why) {
+        if (issues != nullptr) {
+            issues->push_back({std::move(token), std::move(why)});
+        } else {
+            // ВСЛУХ ДАЖЕ БЕЗ СБОРЩИКА НАХОДОК. Молчаливая подстановка — это
+            // ровно тот дефект, ради которого волна завела имена: опечатка,
+            // которую никто не увидит, живёт в принятых витринах годами.
+            std::fprintf(stderr, "[дом] %s: %s\n", token.c_str(), why.c_str());
+        }
+    };
     // УМОЛЧАНИЕ ВЫВЕДЕНО ИЗ ВИДА ЭЛЕМЕНТА, а не назначено таблицей: прямая —
     // это брус (тёсаный, средний тон), поверхность — это стена (штукатурка,
     // светлая). Рецепт, не сказавший mat, получает то, чем эта деталь бывает
@@ -257,13 +283,59 @@ HousePartTile house_part_tile(const HouseGraph& graph, const Element& e,
     const bool beam = e.kind == ElementKind::Line;
     t.surface = beam ? 0u : 5u; // HewnTimber : Plaster
     t.tone = beam ? 1u : 0u;    // Mid : Light
+    // ИМЯ ВЕЩЕСТВА — ПЕРВЫМ СЛОВОМ, координаты — запасным. Рецепт, сказавший
+    // `material = brick-red`, называет вещество, а не клетку чужого атласа
+    // (правило 5); реестр отдаёт координаты той же клетки, которую рецепт мог
+    // бы написать числами, — то есть кадр от перехода на имя не меняется.
+    const std::string named = graph.param(e.id, "material");
+    if (!named.empty()) {
+        const core::MaterialTable& table = core::material_registry();
+        const core::MaterialId id = table.find(named);
+        if (id == core::MATERIAL_NONE) {
+            // ОТКАЗ ВСЛУХ НА НЕИЗВЕСТНОМ ИМЕНИ, и это половина смысла имён:
+            // `mat=17` молча становился глухим окном, а «material = кирпыч»
+            // обязан сказать о себе.
+            complain("material=" + named, "неизвестное вещество — реестр его не знает");
+        } else {
+            std::uint32_t column = 0;
+            std::uint32_t row = 0;
+            if (table.cell_of(table.record(id), column, row)) {
+                t.surface = column;
+                t.tone = row;
+                t.material = named;
+            } else {
+                // Вещество есть, но зерна у него нет (полотно, металл,
+                // пергамент). Это не опечатка: клетку оставляем умолчанием
+                // рода элемента, а ИМЯ несём дальше — рисовальщик возьмёт из
+                // записи блик и оттенок, которых у пары нет вовсе.
+                t.material = named;
+            }
+        }
+    }
     const std::string m = graph.param(e.id, "mat");
     const std::string tn = graph.param(e.id, "tone");
     if (!m.empty()) {
-        t.surface = static_cast<std::uint32_t>(std::atoi(m.c_str())) % 9u;
+        const int raw = std::atoi(m.c_str());
+        if (raw < 0 || raw >= 9) {
+            // ТОТ САМЫЙ ДЕФЕКТ, НАЗВАННЫЙ ЧИСЛОМ: `mat=17` становится
+            // `17 % 9 = 8` = глухое окно, и стена застекляется без единого
+            // сообщения. Остаток оставлен — менять его значило бы двигать
+            // пиксели у любого рецепта, который на нём выехал, — но молчать
+            // о нём больше нельзя.
+            complain("mat=" + m,
+                     "номер колонки вне листа (их 9); взят остаток "
+                         + std::to_string(((raw % 9) + 9) % 9)
+                         + " — назовите вещество ключом material");
+        }
+        t.surface = static_cast<std::uint32_t>(raw) % 9u;
     }
     if (!tn.empty()) {
-        t.tone = static_cast<std::uint32_t>(std::atoi(tn.c_str())) % 4u;
+        const int raw = std::atoi(tn.c_str());
+        if (raw < 0 || raw >= 4) {
+            complain("tone=" + tn, "номер ряда вне листа (их 4); взят остаток "
+                                       + std::to_string(((raw % 4) + 4) % 4));
+        }
+        t.tone = static_cast<std::uint32_t>(raw) % 4u;
     }
     // СИЛЬНЫЙ ИЗНОС УВОДИТ ТОН В ВЫВЕТРЕННЫЙ РЯД атласа: серость и лишайник
     // НАРИСОВАНЫ там, а не выдумываются шейдером.

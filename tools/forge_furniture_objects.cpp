@@ -1,6 +1,6 @@
 /*
 Created: 27:08:2026 - 10:18:14
-Last updated: 28:08:2026 - 15:40:00
+Last updated: 28:08:2026 - 17:31:25
 Module: tools
 File: tools/forge_furniture_objects.cpp
 
@@ -106,8 +106,13 @@ UPD:
   перечнем прошлого коммита такой руки не даёт: она мерила бы заодно всё, что
   за сутки поменялось помимо фаски, и две одинаково неверные выпечки прошли бы
   её обе.
+- 28:08:2026 - 17:31:25: кусок режется по ПАРЕ (клетка, имя вещества), и
+  шаг повтора берётся из записи реестра (волна 3 зоны МАТЕРИАЛЫ). У полки, вещества не
+  называющей, ключ ведёт себя как прежний: 35 файлов перепечены с
+  отличием ровно в один байт версии контейнера, INDEX.md совпал.
 */
 
+#include "engine/core/materials/sources/MaterialRegistry.h"
 #include "engine/render/sources/ObjectRegistry.h"
 #include "engine/world/sources/HouseFile.h"
 #include "engine/world/sources/HouseGraph.h"
@@ -351,7 +356,10 @@ bool bake_item(const Item& item, const fs::path& houses_dir, float bevel_m,
     // же ключу, по которому их складывает загрузчик в партию отрисовки. Карта,
     // а не вектор: ключ упорядочен, и две выпечки одного чертежа дают
     // побайтово один файл.
-    std::map<std::uint64_t, std::size_t> at;
+    // КЛЮЧ КУСКА — ПАРА (клетка, ИМЯ ВЕЩЕСТВА). Имя пусто у всего, что
+    // вещества не назвало, и тогда ключ ведёт себя ровно как прежний
+    // uint64: полка, испечённая без имён, режется на те же куски.
+    std::map<std::pair<std::uint64_t, std::string>, std::size_t> at;
     for (const dfn::world::MeshPart& part : built.parts) {
         const dfn::world::Element* e = graph.element(part.element);
         if (e == nullptr) {
@@ -365,16 +373,37 @@ bool bake_item(const Item& item, const fs::path& houses_dir, float bevel_m,
         const dfn::world::HousePartTile tile =
             dfn::world::house_part_tile(graph, *e, part.mat_override,
                                         part.tone_override);
+        // КУСОК РЕЖЕТСЯ ПО ВЕЩЕСТВУ, а не только по паре (волна 3). Пока
+        // рецепт вещества не назвал, имя пусто и ключ — прежний, побитово:
+        // хэш ключа обязан совпасть с тем, которым испечена сегодняшняя
+        // полка, иначе куски разложились бы иначе и 35 файлов сменили бы
+        // личность, не изменившись ни на вершину. Имя входит в ключ ОТДЕЛЬНО
+        // от пары, потому что два вещества вправе делить одну клетку
+        // (крашеная доска и некрашеная — та же плитка, разный блик).
         const std::uint64_t key = (static_cast<std::uint64_t>(tile.surface) << 8)
                                 | (part.emissive ? (1ull << 16) : 0ull) | tile.tone;
-        auto it = at.find(key);
+        auto it = at.find({key, tile.material});
         if (it == at.end()) {
             HouseSubmesh sub;
             sub.surface = tile.surface;
             sub.tone = tile.tone;
             sub.emissive = part.emissive;
+            sub.material = tile.material;
+            // ШАГ ПОВТОРА — ИЗ ЗАПИСИ ВЕЩЕСТВА, и это первое место, где он
+            // доезжает до файла. До волны 3 span_m жил в PartSkin, тратился
+            // НА ВЫПЕЧКЕ и в .dfo не попадал вовсе: соломенная кровля
+            // повторялась с шагом дощатой стены. 0 — «штатный шаг вещества»,
+            // то есть ровно прежнее поведение у всего, что вещества не
+            // назвало.
+            if (!tile.material.empty()) {
+                const dfn::core::MaterialTable& table = dfn::core::material_registry();
+                const dfn::core::MaterialId id = table.find(tile.material);
+                if (id != dfn::core::MATERIAL_NONE) {
+                    sub.span_m = table.record(id).tile_span_m;
+                }
+            }
             out.house.push_back(std::move(sub));
-            it = at.emplace(key, out.house.size() - 1).first;
+            it = at.emplace(std::pair{key, tile.material}, out.house.size() - 1).first;
         }
         dfn::render::MeshData& mesh = out.house[it->second].mesh;
         const std::uint32_t colour = paint_of(graph, *e);

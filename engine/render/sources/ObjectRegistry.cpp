@@ -1,6 +1,6 @@
 /*
 Created: 14:08:2026 - 23:36:19
-Last updated: 27:08:2026 - 10:34:00
+Last updated: 28:08:2026 - 18:05:00
 Module: engine/render
 File: engine/render/sources/ObjectRegistry.cpp
 
@@ -43,6 +43,27 @@ UPD:
   AppHouse.cpp, лишь бы сошлась сверка хука, вместо того чтобы разобраться с
   чужой. Поставлено время коммита 9e2c8c9 (10:18:14). Текста записи и кода не
   трогал.
+- 28:08:2026 - 18:05:00: ФОРМАТ v4 — СЕКЦИЯ MTRL (ИМЯ вещества, шаг повтора и
+  износ на кусок) и ПОЧИНКА ВОРОТ ВЕРСИИ (волна 3 зоны МАТЕРИАЛЫ, решение
+  координатора В1). Три вещи и причина каждой.
+  (1) В ФАЙЛЕ ЛЕЖИТ ИМЯ, А НЕ НОМЕР записи реестра. Номер — идентичность
+      внутри процесса; на диске он был бы третьей копией порядка таблицы
+      (после файла реестра и после питоньего писателя), и день, когда кто-то
+      вставит вещество в середину, перекрасил бы 249 МБ полки молча. Имя — то
+      же решение, что уже принято для kind и source в INFO. Цена — строка на
+      КУСОК (не на вершину), около 20 байт на предмет.
+  (2) СЕКЦИЯ ВХОДИТ В ЛИЧНОСТЬ, ТОЛЬКО ЕСЛИ НЕПУСТА — прецедент HOUS, тем же
+      доводом: 2544 закоммиченных .dfo не назвали ни одного вещества, и хэш
+      обязан посчитаться у них ровно так же, как считался вчера, иначе полка
+      перестанет читаться до перепечки. Проверено сверкой байтов, а не
+      обещано (отчёт волны).
+  (3) ВОРОТА ВЕРСИИ ПОЧИНЕНЫ. Стояло «версия выше моей — отказать файлу
+      целиком», при том что механизм пропуска неизвестных секций существует и
+      работает: то есть подъём версии делал файл невидимым для старых сборок,
+      хотя добавленную секцию они бы спокойно пропустили, и длина секции была
+      мёртвым кодом. Теперь отказ — только при несовместимом изменении
+      СУЩЕСТВУЮЩЕЙ секции, и мерой этого служит SECTION_VERSION, который до
+      сегодня писался и не читался НИ РАЗУ (дефект 1.5.4 инвентаризации).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -60,7 +81,7 @@ namespace {
 
 /// 'DFNO' — Daggerfall N object file (.dfo).
 inline constexpr uint32_t OBJECT_MAGIC = serialization::make_tag('D', 'F', 'N', 'O');
-inline constexpr uint32_t OBJECT_FORMAT_VERSION = 3; // v3: + HOUS submeshes
+inline constexpr uint32_t OBJECT_FORMAT_VERSION = 4; // v4: + MTRL (имя вещества)
 
 namespace section {
 inline constexpr serialization::SectionTag INFO = serialization::make_tag('I', 'N', 'F', 'O');
@@ -72,9 +93,31 @@ inline constexpr serialization::SectionTag BARK = serialization::make_tag('B', '
 /// список, а не по секции на кусок: секция — это раздел формата, а не запись,
 /// и объект из трёх кусков не имеет права заводить три раздела.
 inline constexpr serialization::SectionTag HOUS = serialization::make_tag('H', 'O', 'U', 'S');
+/// ВЕЩЕСТВО КУСКА ПО ИМЕНИ (v4). Отдельной секцией, а не полем внутри HOUS, и
+/// это единственное, что позволило вводить её, не перепекая полку: HOUS у
+/// 2544 файлов уже записан своими байтами и входит в их личность. Секция
+/// параллельна HOUS кусок в кусок; пустая или отсутствующая означает «куски
+/// вещества не назвали» — то есть ровно поведение v3.
+inline constexpr serialization::SectionTag MTRL = serialization::make_tag('M', 'T', 'R', 'L');
 } // namespace section
 
+
 inline constexpr uint16_t SECTION_VERSION = 1;
+
+/// ЧТО МЫ УМЕЕМ ПРОЧЕСТЬ У КАЖДОЙ ЗНАКОМОЙ СЕКЦИИ. Ворота версии стоят
+/// ЗДЕСЬ, а не на контейнере: контейнер растёт секциями, и незнакомую читатель
+/// пропускает по построению (правило 7), а вот знакомая секция, переписанная
+/// несовместимо, — это единственный случай, в котором файл читать нельзя.
+[[nodiscard]] bool section_version_understood(serialization::SectionTag tag,
+                                              uint16_t version) {
+    if (tag == section::INFO || tag == section::WOOD || tag == section::CARD
+        || tag == section::GRND || tag == section::BARK || tag == section::HOUS
+        || tag == section::MTRL) {
+        return version <= SECTION_VERSION;
+    }
+    return true; // незнакомая: её и так пропустят
+}
+
 
 /// Far above any real object (the whole forest chunk is ~160k triangles) and
 /// far below "the machine dies allocating" — the same stance as the world
@@ -160,6 +203,18 @@ void hash_stream(serialization::Fnv1a64& h, const MeshData& mesh) {
     }
 }
 
+/// НАЗВАЛ ЛИ ОБЪЕКТ ХОТЬ ОДНО ВЕЩЕСТВО. Одно определение на запись, чтение и
+/// хэш (правило 39): разойдись эти три ответа, файл писался бы с секцией, а
+/// сверялся бы без неё — и полка отказала бы себе самой.
+[[nodiscard]] bool object_names_materials(const RegistryObject& obj) {
+    for (const HouseSubmesh& s : obj.house) {
+        if (!s.material.empty()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 uint64_t object_content_hash(const RegistryObject& obj) {
@@ -182,6 +237,20 @@ uint64_t object_content_hash(const RegistryObject& obj) {
             h.update_u64(s.tone);
             h.update_u64(s.emissive ? 1u : 0u);
             hash_stream(h, s.mesh);
+        }
+    }
+    // ВЕЩЕСТВО ВХОДИТ В ЛИЧНОСТЬ, ТОЛЬКО ЕСЛИ ОНО НАЗВАНО — тот же довод, что
+    // у HOUS строкой выше, и в этой волне он важнее, чем был: 2544
+    // закоммиченных .dfo не назвали ни одного вещества, и посчитайся секция у
+    // них — вся полка сменила бы хэш и перестала читаться, ни на вершину не
+    // изменившись. Условие проверяет ИМЕНА, а не размер списка: список,
+    // выровненный по кускам и целиком пустой, обязан хэшироваться как v3.
+    if (object_names_materials(obj)) {
+        h.update_u64(obj.house.size());
+        for (const HouseSubmesh& s : obj.house) {
+            h.update_length_prefixed(s.material);
+            h.update_u64(std::bit_cast<uint32_t>(s.span_m));
+            h.update_u64(std::bit_cast<uint32_t>(s.wear));
         }
     }
     return h.digest();
@@ -239,6 +308,19 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
         }
         w.end_section();
     }
+    // MTRL — ПАРАЛЛЕЛЬНО HOUS, КУСОК В КУСОК, и только когда есть что писать.
+    // Пустая секция — это лишние байты в каждом из 2544 файлов полок и повод
+    // читателю думать, что объект «какой-то другой».
+    if (object_names_materials(obj)) {
+        w.begin_section(section::MTRL, SECTION_VERSION);
+        w.write_u32(static_cast<uint32_t>(obj.house.size()));
+        for (const HouseSubmesh& s : obj.house) {
+            w.write_string(s.material);
+            w.write_f32(s.span_m);
+            w.write_f32(s.wear);
+        }
+        w.end_section();
+    }
     if (!w.ok()) {
         return false;
     }
@@ -250,13 +332,37 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
     if (!r.open_file(path, OBJECT_MAGIC)) {
         return std::nullopt;
     }
-    if (r.container_version() > OBJECT_FORMAT_VERSION) {
-        return std::nullopt; // newer than this build understands: refused
-    }
+    // ВОРОТА ВЕРСИИ КОНТЕЙНЕРА СНЯТЫ НАРОЧНО (дефект 1.5.3 инвентаризации
+    // материалов, решение координатора В1). Стояло «версия выше моей —
+    // отказать целиком», и это отменяло весь смысл секционного формата:
+    // механизм пропуска неизвестных секций существует и работает, то есть
+    // сборка постарше спокойно прочла бы у файла из будущего ровно те
+    // разделы, которые знает, а вместо этого не читала ничего, и длина
+    // секции была мёртвым кодом. Отказ переехал ТУДА, ГДЕ ОН ЧЕСТЕН, — на
+    // версию ЗНАКОМОЙ секции (см. section_version_understood ниже): не
+    // «файл новее меня», а «раздел, который я думаю, что знаю, переписан
+    // несовместимо».
+    //
+    // Что это значит на практике: v4-файл, у которого MTRL не назвал ничего,
+    // читается сборкой любой версии одинаково и даёт тот же хэш.
     RegistryObject obj;
     uint64_t stored_hash = 0;
     bool streams_ok = true;
+    /// Прочитанная MTRL до того, как она разнесена по кускам (см. ниже).
+    struct SubmeshMaterial {
+        std::string name;
+        float span_m = 0.0f;
+        float wear = -1.0f;
+    };
+    std::vector<SubmeshMaterial> materials;
     while (const auto s = r.next_section()) {
+        if (!section_version_understood(s->tag, s->version)) {
+            std::fprintf(stderr,
+                         "[dfo] \"%s\": раздел версии %u старше того, что "
+                         "понимает эта сборка -- ОТКАЗ\n",
+                         path.string().c_str(), static_cast<unsigned>(s->version));
+            return std::nullopt;
+        }
         if (s->tag == section::INFO) {
             obj.name = r.read_string();
             obj.kind = r.read_string();
@@ -282,11 +388,40 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
                 sub.emissive = r.read_u32() != 0u;
                 streams_ok = read_stream(r, sub.mesh) && streams_ok;
             }
+        } else if (s->tag == section::MTRL) {
+            // ПОРЯДОК СЕКЦИЙ В ФАЙЛЕ НАШ, И MTRL ИДЁТ ПОСЛЕ HOUS — но читатель
+            // на это не опирается: если MTRL встретился раньше, список кусков
+            // ещё пуст, и материалы легли бы в никуда. Поэтому имена
+            // складываются в свой буфер и разносятся по кускам ПОСЛЕ цикла.
+            const uint32_t count = r.read_u32();
+            if (static_cast<uint64_t>(count) > MAX_ELEMENTS) {
+                return std::nullopt;
+            }
+            materials.resize(count);
+            for (SubmeshMaterial& m : materials) {
+                m.name = r.read_string();
+                m.span_m = r.read_f32();
+                m.wear = r.read_f32();
+            }
         }
         // Unknown tags: next_section() steps over them (Rule 7).
     }
     if (!r.ok() || !streams_ok) {
         return std::nullopt;
+    }
+    // РАЗНОСИМ ВЕЩЕСТВА ПО КУСКАМ. Несовпадение длин — это испорченный файл, а
+    // не повод молча взять что дали: секция объявлена параллельной HOUS, и
+    // «на один кусок больше» означает, что мы толкуем чужие имена.
+    if (!materials.empty() && materials.size() != obj.house.size()) {
+        std::fprintf(stderr,
+                     "[dfo] \"%s\": MTRL на %zu кусков при HOUS на %zu -- ОТКАЗ\n",
+                     path.string().c_str(), materials.size(), obj.house.size());
+        return std::nullopt;
+    }
+    for (std::size_t i = 0; i < materials.size(); ++i) {
+        obj.house[i].material = std::move(materials[i].name);
+        obj.house[i].span_m = materials[i].span_m;
+        obj.house[i].wear = materials[i].wear;
     }
     // THE HASH IS VERIFIED ON EVERY READ. A registry is an index of
     // identities; an object whose bytes disagree with its stored identity is

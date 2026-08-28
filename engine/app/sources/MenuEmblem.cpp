@@ -1,6 +1,6 @@
 /*
 Created: 27:08:2026 - 12:41:00
-Last updated: 28:08:2026 - 11:14:50
+Last updated: 28:08:2026 - 17:31:25
 Module: engine/app
 File: engine/app/sources/MenuEmblem.cpp
 
@@ -27,6 +27,9 @@ UPD:
   покрашены rgb(199,153,56), — но число в вершине это АЛЬБЕДО, и на одном
   альбедо золото неотличимо от горчичной краски. Материал добавляет ровно
   недостающее: как поверхность отражает. Ни одна вершина полки не тронута.
+- 28:08:2026 - 17:31:25: герб спрашивает про gold-leaf РЕЕСТР В ЯДРЕ
+  (волна 3 зоны МАТЕРИАЛЫ): таблица уехала из engine/render в engine/core и стала данными
+  (assets/materials/yaan.dfmat). Строка вопроса та же, изменился адрес.
 */
 
 #include "engine/app/sources/MenuEmblem.h"
@@ -34,7 +37,7 @@ UPD:
 #include "engine/app/sources/AppDoors.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
-#include "engine/render/sources/MaterialRegistry.h"
+#include "engine/core/materials/sources/MaterialRegistry.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -281,7 +284,7 @@ MenuEmblem::screen_prop(const render::FirstPersonCamera& camera,
     // Обе руки замера выходят из одной сборки (правило 47).
     const char* dose = door_value("DFN_MAT");
     if (dose != nullptr && *dose != '\0' && *dose != '0') {
-        prop.material = render::material_by_name("gold-leaf");
+        prop.material = core::material_registry().find("gold-leaf");
     }
     return prop;
 }

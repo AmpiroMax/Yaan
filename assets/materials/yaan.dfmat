@@ -1,0 +1,371 @@
+# =============================================================================
+# РЕЕСТР МАТЕРИАЛОВ ЯАНА — .dfmat
+#
+# Created: 28:08:2026 - 16:20:00
+# Last updated: 28:08:2026 - 17:31:25
+#
+# UPD:
+# - 28:08:2026 - 16:20:00: Создан — волна 3 зоны МАТЕРИАЛЫ. Реестр веществ
+#   переехал из C++-таблицы в engine/render в ДАННЫЕ, потому что там имя
+#   вещества было физически недостижимо из рецептов домов (engine/world не
+#   имеет права смотреть в render).
+# - 28:08:2026 - 17:31:25: сюда же слита ось 6 — двадцать шесть веществ
+#   физики из engine/core/materials/sources/PhysicsSubstance.h, строка в
+#   строку. Двух реестров вещества больше нет; сверку держит тест
+#   core_material_table, и жить ему до тех пор, пока таблица физики не начнёт
+#   спрашивать реестр.
+#
+# ЭТО ДАННЫЕ, А НЕ КОД (правило 5, правило 6). До волны 3 таблица веществ жила
+# C++-массивом в engine/render, куда engine/world смотреть не имеет права, —
+# и потому рецепт дома физически не мог сказать «кирпич»: он говорил mat=4.
+# Здесь вещество называется ИМЕНЕМ, и это имя одинаково понимают рецепт,
+# кузница, файл объекта (.dfo v4, секция MTRL), рисовальщик и физика.
+#
+# ГРАММАТИКА (разбор — engine/core/materials/sources/MaterialRegistry.cpp):
+#   sheet <имя>              объявляет РАСКЛАДКУ листа: колонки и ряды по именам
+#     columns = ...          порядок колонок; ординал вычисляется отсюда
+#     rows    = ...          порядок рядов
+#   material <имя>           запись вещества
+#     cell = лист:колонка/ряд    где живёт его зерно; нет ключа — зерна нет
+#     span_m, tint, roughness, metalness, emission, wear, wear_amp,
+#     scatter_amp, motion (static|foliage), opacity (opaque|cutout)
+#     density, friction, restitution, surface, brittle    — ось 6, физика
+#     substance = <имя>      взять физику у названной записи
+#
+# ЧТО ЗНАЧАТ ЧИСЛА ОБЛИКА. roughness 1 — чистый ламберт, то есть В ТОЧНОСТИ
+# кадр до материалов; ниже — собранный блик. metalness 1 — блик окрашен самим
+# веществом (золото бликует золотым), 0 — белый блик диэлектрика.
+#
+# ПОРЯДОК ЗАПИСЕЙ НЕ ЯВЛЯЕТСЯ ИДЕНТИЧНОСТЬЮ. На диск едет ИМЯ; номер живёт
+# внутри процесса. Переставить записи местами можно, переименовать — нельзя.
+# =============================================================================
+
+# --- РАСКЛАДКА ЛИСТА НАБОРА --------------------------------------------------
+# Порядок колонок и рядов ОБЯЗАН совпадать с PartSurface/PartTone
+# (engine/render/sources/PartsAtlas.h) — это сверяется тестом
+# core_material_table («раскладка листа в данных совпадает с раскладкой атласа»),
+# а не доверием: разошедшийся порядок перекрасил бы всю полку молча.
+#
+# Правило колонки (PartsAtlas.h): колонку заслуживает только свой РИТМ — брус
+# идёт волокном, камень зернист, солома стеблями; вещество, отличающееся только
+# ЦВЕТОМ, — это РЯД, а не колонка. Правило ряда: тон и износ здесь ОДНА ось.
+sheet parts
+    columns = hewn-timber sawn-board end-grain stone fired-clay plaster thatch turf pane
+    rows = light mid dark weathered
+
+# =============================================================================
+# ВЕЩЕСТВА С ОБЛИКОМ
+# =============================================================================
+
+# --- ЕСТЬ ЗЕРНО: плитка листа набора ----------------------------------------
+
+material oak-log
+    cell = parts:hewn-timber/dark
+    span_m = 1.0
+    roughness = 1.0
+    wear = 0.55
+    substance = oak
+
+material pine-board
+    cell = parts:sawn-board/mid
+    span_m = 1.0
+    roughness = 1.0
+    wear = 0.35
+    substance = pine
+
+material brick-red
+    cell = parts:fired-clay/mid
+    span_m = 1.0
+    roughness = 1.0
+    wear = 0.40
+    substance = brick
+
+# Гранит — НЕ ламберт: у полевого шпата и слюды есть собранный блик, и именно
+# он отличает камень от крашеной штукатурки в косом солнце. 0.86 — «почти
+# матовый», не зеркало. Здесь же сошлись обе половины вещества: облик и физика
+# гранита — ОДНА запись, а не две таблицы с одним именем.
+material granite
+    cell = parts:stone/weathered
+    span_m = 1.0
+    roughness = 0.86
+    wear = 0.70
+    density = 2650
+    friction = 0.70
+    restitution = 0.10
+    surface = stone
+    brittle = 60
+
+material plaster-white
+    cell = parts:plaster/light
+    span_m = 1.0
+    roughness = 1.0
+    wear = 0.30
+    substance = plaster
+
+# СОЛОМА КРУПНЕЕ ДОСКИ: стебель — это ~0.5 м пучка, и метровый повтор доски на
+# кровле читается как ковёр. Первое поле, ради которого tile_span_m обязан был
+# доехать до файла объекта. Новой соломенной кровли не бывает — её кладут
+# пучками, и она седеет с первой зимы: 0.75 это норма ВЕЩЕСТВА, а не выбор
+# рецепта.
+material thatch
+    cell = parts:thatch/mid
+    span_m = 0.55
+    roughness = 1.0
+    wear = 0.75
+    substance = straw
+
+# --- ЗЕРНА НЕТ: плоское альбедо плюс то, как вещество отражает ---------------
+# У них плитки нет не потому, что до неё не дошли руки: у полотна и у
+# полированного металла на 4 мм/тексель нечего показывать, кроме отражения.
+
+material linen
+    tint = 0.86 0.83 0.74
+    roughness = 1.0
+    wear = 0.40
+    substance = cloth
+
+material iron
+    tint = 0.32 0.33 0.35
+    roughness = 0.55
+    metalness = 1.0
+    wear = 0.60
+    density = 7870
+    friction = 0.35
+    restitution = 0.20
+    surface = metal
+
+# ЗОЛОТО ГЕРБА, СНЯТОЕ С САМОГО ГЕРБА. Доминирующий цвет 72039 вершин поля
+# assets/objects/heraldry/oak-seal-relief.dfo — 0xFF3899C7, то есть
+# rgb(199,153,56). Материал не перекрашивает герб ни на единицу: он добавляет
+# ровно то, чего у альбедо нет.
+#
+# ШЕРОХОВАТОСТЬ 0.60 ВЫВЕДЕНА РАЗВЁРТКОЙ ПО КАДРАМ, А НЕ ВКУСОМ. Первая
+# догадка 0.22 («золото почти зеркало») физически правдоподобна и НЕВИДИМА:
+#     0.22 -> заметно 0.094 % кадра — блика не видно вовсе
+#     0.40 -> 1.066 % — читается
+#     0.60 -> 7.004 % — ветви несут бегущую золочёную кромку
+# Пик прибавки при этом один и тот же (89.4 / 89.8 / 89.8): нормировка по пику
+# двигает ПЛОЩАДЬ блика, а не яркость. Почему не физически правильные ~0.2:
+# наши источники — ТОЧКИ, а золочёное изделие бликует под ПРОТЯЖЁННЫМ светом.
+#
+# ФИЗИКИ У НЕГО НЕТ НАРОЧНО. Золочение — ПОКРЫТИЕ, и весит герб тем, что под
+# золотом (дуб). Пока краска и позолота — отдельный слой (вопрос В3 отложен),
+# приписать позолоте плотность значило бы соврать на порядок.
+material gold-leaf
+    tint = 0.7803921568627451 0.6 0.2196078431372549
+    roughness = 0.60
+    metalness = 1.0
+    wear = 0.0
+
+# --- ВЕЩЕСТВА ПИСЬМА (ТЗ владельца §7, «в реестр с первого дня») -------------
+# Заведены не «когда дойдёт очередь», а сразу — по той же причине, что и
+# золото: пока вещества нет, предмет им ПРИТВОРЯЕТСЯ, а притворство
+# закрепляется в принятых витринах и потом стоит отмены.
+
+material birch-bark
+    tint = 0.78 0.66 0.48
+    roughness = 0.72
+    wear = 0.45
+    substance = birchbark
+
+material parchment
+    tint = 0.84 0.79 0.66
+    roughness = 0.90
+    wear = 0.35
+    substance = parchment-stock
+
+material rag-paper
+    tint = 0.88 0.86 0.80
+    roughness = 0.95
+    wear = 0.25
+    substance = paper
+
+# Воск — не металл, но собирает блик: печать блестит, и это то, чем она
+# отличается от нарисованного кружка.
+material seal-wax
+    tint = 0.55 0.13 0.11
+    roughness = 0.45
+    wear = 0.10
+    substance = wax
+
+# Чернила — тоже покрытие, физики у них нет.
+material ink
+    tint = 0.09 0.08 0.11
+    roughness = 0.80
+    wear = 0.20
+
+# =============================================================================
+# ВЕЩЕСТВА БЕЗ ОБЛИКА — ОСЬ 6 (плотность, трение, упругость, тег, хрупкость)
+#
+# ЭТО ТА САМАЯ «ВТОРАЯ ТАБЛИЦА», КОТОРУЮ ВОЛНА 3 ОБЯЗАНА БЫЛА СЛИТЬ. До неё
+# существовали ДВА реестра вещества: облик в engine/render и физика в
+# engine/core/materials/sources/PhysicsSubstance.h. Два списка, отвечающих на
+# вопрос «какие у нас есть вещества», разошлись бы в первый же день, когда в
+# один добавят вещество, а в другой забудут. Числа ниже — те же, что были в
+# PhysicsSubstance.h, строка в строку; сверка держится тестом
+# core_material_table («таблица физики и реестр говорят одними числами»).
+#
+# Облика у них ещё нет, и это честная запись состояния: у хлеба, сыра, мяса и
+# кости нет ни своей колонки листа, ни похожей. Волна 6 даст им зерно — по
+# счёту полки: ткань (12) -> органика (10) -> металлы порознь (8) -> стекло (1).
+#
+# Трение: 0.2 — гладкое (стекло, лёд около нуля), 0.4-0.6 — обычное дерево и
+# глина, 0.8 — ворсистое и шершавое. Порядок — по возрастанию плотности, чтобы
+# список читался глазами как шкала «из чего лёгкое, из чего тяжёлое».
+# =============================================================================
+
+material straw
+    density = 120
+    friction = 0.70
+    restitution = 0.00
+    surface = straw
+
+material wicker
+    density = 200
+    friction = 0.60
+    restitution = 0.05
+    surface = wicker
+
+material dough
+    density = 250
+    friction = 0.60
+    restitution = 0.00
+    surface = soft
+
+material cloth
+    density = 300
+    friction = 0.70
+    restitution = 0.00
+    surface = cloth
+
+material veg
+    density = 400
+    friction = 0.55
+    restitution = 0.05
+    surface = soft
+
+material pine
+    density = 500
+    friction = 0.50
+    restitution = 0.05
+    surface = wood
+
+material birchbark
+    density = 600
+    friction = 0.55
+    restitution = 0.05
+    surface = wood
+
+material birch
+    density = 650
+    friction = 0.50
+    restitution = 0.05
+    surface = wood
+
+material oak
+    density = 700
+    friction = 0.50
+    restitution = 0.05
+    surface = wood
+
+material grain
+    density = 750
+    friction = 0.65
+    restitution = 0.00
+    surface = sack
+
+material paper
+    density = 800
+    friction = 0.45
+    restitution = 0.00
+    surface = paper
+
+material leather
+    density = 900
+    friction = 0.60
+    restitution = 0.05
+    surface = leather
+
+material wax
+    density = 950
+    friction = 0.35
+    restitution = 0.00
+    surface = soft
+
+material meat
+    density = 1000
+    friction = 0.55
+    restitution = 0.00
+    surface = soft
+
+# ИМЯ РАЗОШЛОСЬ С ФИЗИЧЕСКОЙ ТАБЛИЦЕЙ НАРОЧНО, И ЭТО НАДО ЗНАТЬ. В
+# PhysicsSubstance.h эта запись зовётся "parchment" — и там же, в реестре
+# облика, "parchment" уже занят ВЫДЕЛАННЫМ ЛИСТОМ (вещество письма выше).
+# Одно имя на два разных ответа было бы ровно той подделкой, ради отмены
+# которой волна и затевалась, поэтому сырьё зовётся своим именем, а лист
+# письма ссылается на него ключом substance.
+material parchment-stock
+    density = 1000
+    friction = 0.45
+    restitution = 0.00
+    surface = paper
+
+material cheese
+    density = 1050
+    friction = 0.50
+    restitution = 0.00
+    surface = soft
+
+material plaster
+    density = 1200
+    friction = 0.60
+    restitution = 0.05
+    surface = stone
+    brittle = 12
+
+material brick
+    density = 1800
+    friction = 0.65
+    restitution = 0.05
+    surface = stone
+    brittle = 25
+
+material bone
+    density = 1900
+    friction = 0.35
+    restitution = 0.15
+    surface = bone
+    brittle = 40
+
+material clay
+    density = 2000
+    friction = 0.55
+    restitution = 0.05
+    surface = crockery
+    brittle = 8
+
+material glass
+    density = 2500
+    friction = 0.25
+    restitution = 0.15
+    surface = glass
+    brittle = 3
+
+material limestone
+    density = 2600
+    friction = 0.65
+    restitution = 0.05
+    surface = stone
+    brittle = 30
+
+material tin
+    density = 7300
+    friction = 0.30
+    restitution = 0.20
+    surface = metal
+
+material brass
+    density = 8500
+    friction = 0.30
+    restitution = 0.25
+    surface = metal
