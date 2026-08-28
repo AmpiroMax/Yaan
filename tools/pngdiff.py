@@ -22,7 +22,18 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - READ THE LIMITATION BELOW BEFORE QUOTING A NUMBER OUT OF THIS.
 
-  THIS TOOL IS SOUND. THE FULL SCREENSHOT TOUR IS NOT YET A VALID INPUT TO IT.
+  СОСТОЯНИЕ НА 29.08.2026: ТУР ПОЧИНЕН, И ИМЕННО ЭТИМ ПРИБОРОМ ЭТО ИЗМЕРЕНО.
+  Ограничение ниже описывает мир ДО волны детерминизма тура и оставлено как
+  запись причины, а не как действующее предупреждение. Проверка, которую
+  обязан пройти всякий, кто хочет привести число по городу:
+
+      tools/check_frame_determinism.py --recipe city
+      tools/check_frame_determinism.py --recipe city --unpin all --expect differ
+
+  Первая рука обязана дать один md5 на два прогона, вторая — разойтись. Рука,
+  у которой не взят контроль, числа не подтверждает (правило 30).
+
+  THIS TOOL IS SOUND. THE FULL SCREENSHOT TOUR WAS NOT A VALID INPUT TO IT.
   Measured 10:08:2026 - 21:16:52, seed-1 testbed, 640x360 internal, DFN_PALETTE=0: two runs of
   the SAME binary at the SAME commit with NO change between them differ by
   17.448 % of pixels (max channel delta 247/255). Pinning the sky with
@@ -46,10 +57,19 @@ AI Agents Notice (must follow):
   control coming back at zero.
 
 Usage:
-  tools/pngdiff.py DIR_A DIR_B
+  tools/pngdiff.py A B [--threshold PCT] [--max-channel N]
+  A и B — либо два КАТАЛОГА кадров (сравниваются одноимённые), либо два ФАЙЛА.
+  С порогом прибор становится ПРИГОВОРОМ: код возврата 1, если доля
+  различающихся пикселей больше порога (или максимальный канальный перепад
+  больше --max-channel). Без порога — как было: печать и ноль.
 """
 """
 UPD:
+- 28:08:2026 - 18:45:00: ПОРОГ И ПРИГОВОР (--threshold/--max-channel) и пара файлов,
+  а не только пара каталогов. Печатать долю и оставлять читателю решать, много
+  это или мало, — значит не иметь критерия вовсе: величина, на которой стоит
+  порог, сама является измерением (правило 30). Ограничение про тур снято по
+  измерению, а не по вере: рецепт проверки назван прямо в шапке.
 - 10:08:2026 - 21:16:52: Created. Committed out of a scratchpad at the lead's instruction: an
   instrument living in a scratchpad is one the next agent rebuilds slightly
   differently, which is Rule 39 aimed at tooling. The tour-determinism
@@ -57,6 +77,7 @@ UPD:
   number it invalidates is the number someone will want to quote.
 """
 
+import argparse
 import os
 import struct
 import sys
@@ -126,9 +147,19 @@ def read_png(path):
     return w, h, nch, bytes(out)
 
 
-def diff_dirs(da, db):
-    names = sorted(set(os.listdir(da)) & set(os.listdir(db)))
-    names = [n for n in names if n.endswith(".png")]
+def diff_dirs(da, db, threshold=None, max_channel=None):
+    # ДВА ФАЙЛА — ТОЖЕ ПАРА. Приёмка кадра города сравнивает именно файлы, и
+    # заставлять её раскладывать их по каталогам значило бы плодить каталоги
+    # ради формы вызова.
+    if os.path.isfile(da) and os.path.isfile(db):
+        pair_b = os.path.basename(db)
+        names = [os.path.basename(da)]
+        da = os.path.dirname(da) or "."
+        db = os.path.dirname(db) or "."
+    else:
+        names = sorted(set(os.listdir(da)) & set(os.listdir(db)))
+        names = [n for n in names if n.endswith(".png")]
+        pair_b = None
     if not names:
         print("NO MATCHING FRAMES", file=sys.stderr)
         return 1
@@ -136,7 +167,7 @@ def diff_dirs(da, db):
     gmax = 0
     for n in names:
         wa, ha, ca, pa = read_png(os.path.join(da, n))
-        wb, hb, cb, pb = read_png(os.path.join(db, n))
+        wb, hb, cb, pb = read_png(os.path.join(db, pair_b or n))
         if (wa, ha, ca) != (wb, hb, cb):
             print(f"{n:34s} GEOMETRY MISMATCH {wa}x{ha}x{ca} vs {wb}x{hb}x{cb}")
             continue
@@ -160,10 +191,36 @@ def diff_dirs(da, db):
         tot_diff += ndiff
         gmax = max(gmax, mx)
         print(f"{n:34s} {100.0 * ndiff / npx:7.3f} %   maxch {mx:3d}   ({ndiff}/{npx})")
-    print(f"{'TOTAL':34s} {100.0 * tot_diff / tot_px:7.3f} %   maxch {gmax:3d}   "
+    pct = 100.0 * tot_diff / tot_px
+    print(f"{'TOTAL':34s} {pct:7.3f} %   maxch {gmax:3d}   "
           f"({tot_diff}/{tot_px})")
-    return 0
+    # ПРИГОВОР ТОЛЬКО ТАМ, ГДЕ НАЗВАН ПОРОГ. Прибор без порога остаётся тем,
+    # чем был, — печатью; прибор с порогом обязан возвращать код, иначе его
+    # нельзя поставить в ctest, а инструмент без add_test застаревает молча.
+    if threshold is None and max_channel is None:
+        return 0
+    bad = False
+    if threshold is not None and pct > threshold:
+        print(f"ОТКАЗ: {pct:.3f} % > порога {threshold:.3f} %")
+        bad = True
+    if max_channel is not None and gmax > max_channel:
+        print(f"ОТКАЗ: перепад канала {gmax} > порога {max_channel}")
+        bad = True
+    if not bad:
+        print(f"ПРОЙДЕНО: {pct:.3f} % при пороге "
+              f"{'—' if threshold is None else f'{threshold:.3f} %'}, "
+              f"перепад {gmax} при пороге "
+              f"{'—' if max_channel is None else max_channel}")
+    return 1 if bad else 0
 
 
 if __name__ == "__main__":
-    sys.exit(diff_dirs(sys.argv[1], sys.argv[2]))
+    ap = argparse.ArgumentParser()
+    ap.add_argument("a")
+    ap.add_argument("b")
+    ap.add_argument("--threshold", type=float, default=None,
+                    help="допустимая доля различающихся пикселей, %%")
+    ap.add_argument("--max-channel", type=int, default=None,
+                    help="допустимый максимальный перепад канала, 0..255")
+    args = ap.parse_args()
+    sys.exit(diff_dirs(args.a, args.b, args.threshold, args.max_channel))

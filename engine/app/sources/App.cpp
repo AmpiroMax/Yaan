@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 18:50:00
+Last updated: 28:08:2026 - 19:30:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -788,6 +788,23 @@ UPD:
   кровати — третье лицо схлопывалось в первое); кадр снимается тем же
   тангажом, которым считана стрела. Доза DFN_POSTURE_CAM, след
   DFN_POSTURE_TRACE рядом с posture_camera.
+- 28:08:2026 - 19:30:00: СЧЁТНЫЕ ЧАСЫ БЫЛИ ВЫДАНЫ КАРТИНКЕ, НО НЕ СИМУЛЯЦИИ — вторая половина
+  починки 13.08, дожившая до сегодня. game_seconds_ приколотили к номеру кадра, а
+  ЧИСЛО ШАГОВ симуляции за кадр осталось функцией стенной дельты: на быстром кадре
+  ноль шагов, на медленном до пяти. От этого зависело всё, что копится: сколько раз
+  позван стриминг (он под `steps > 0`, бюджет — один чанк на вызов), докуда доехала
+  дальняя земля, на сколько осела капсула и чему равна alpha — остаток аккумулятора,
+  чистая стенная дробь, которой интерполируется поза камеры. В беспилотном прогоне
+  часы мира и его физика шли с РАЗНОЙ скоростью, и расхождение было своё в каждом
+  прогоне. Замер (город Вайтран, дверь дозы, две руки одной сборки): 0.175 % пикселей
+  врозь до правки, 0.0000 % и один md5 после; изолированная рука DFN_UNPIN=steps
+  возвращает 0.204 %. Стенд давал один md5 и ДО правки и не сдвинулся после
+  (99787a35… на обеих сборках) — разделяет руки не «город сложнее», а объём
+  стриминга. Заодно: фокус стриминга считается ОДИН раз за кадр (лесенка «повтор /
+  тур / редактор / игрок» стояла двумя копиями), счётная дельта выдана растворению
+  дальней земли, рою и стреле камеры (раньше её получал только тур), и доза
+  DFN_CAPTURE_AFTER_FRAMES начинает счёт от ГОТОВНОСТИ МИРА, а не от запуска —
+  часы при этом стоят, пока затвор ждёт. Дверь контроля DFN_UNPIN.
 */
 
 #include "engine/app/sources/App.h"
@@ -872,6 +889,48 @@ UPD:
 namespace dfn::app {
 
 namespace {
+
+// ЧТО ОТКРЕПЛЕНО ОБРАТНО НА СТЕННЫЕ ЧАСЫ (дверь DFN_UNPIN — контрольные руки
+// детерминизма). `what` — одно из "clock", "steps", "fade", "gate"; "all"
+// открепляет всё, то есть возвращает прогон в то состояние, в каком он был до
+// волны детерминизма тура.
+//
+// ЧИТАЕТСЯ ЗДЕСЬ, А НЕ РЯДОМ С ТАБЛИЦЕЙ, и это не вкус: рукав app_doors
+// требует, чтобы у каждой описанной двери был читатель, и файл САМОЙ ТАБЛИЦЫ
+// из переписи читателей исключён — иначе строка засчитывалась бы читателем
+// сама себе, и правило «нет двери, которую никто не читает» ничего бы не
+// значило. Все пять точек, которые эту дверь спрашивают, живут в этом файле.
+//
+// Латчится один раз: значение не может смениться посреди прогона, а getenv на
+// каждом кадре в пяти местах кадрового цикла — это пять чтений ради строки,
+// которая не меняется.
+[[nodiscard]] bool unpinned(std::string_view what) {
+    static const std::string value = [] {
+        const char* v = door_value("DFN_UNPIN");
+        return std::string(v != nullptr ? v : "");
+    }();
+    if (value.empty()) {
+        return false;
+    }
+    if (value == "all" || value == "1") {
+        return true;
+    }
+    // Токены через запятую; сравнение по ЦЕЛОМУ токену, а не по вхождению
+    // подстроки: "fade" не имеет права зажечься от "no-fade".
+    std::size_t at = 0;
+    while (at <= value.size()) {
+        const std::size_t end = value.find(',', at);
+        const std::size_t stop = (end == std::string::npos) ? value.size() : end;
+        if (std::string_view(value).substr(at, stop - at) == what) {
+            return true;
+        }
+        if (end == std::string::npos) {
+            break;
+        }
+        at = end + 1;
+    }
+    return false;
+}
 
 // СЕТКА ТАЙЛОВ, ПЕРЕПРАВА ЧАНКОВ И pack_coord УЕХАЛИ В AppInternal.h: после
 // выноса enter_world в AppWorld.cpp они понадобились ДВУМ файлам, а
@@ -4555,12 +4614,29 @@ int App::run() {
         // ...and the same door counted in frames, which IS comparable bit for
         // bit. Counted here rather than in the render block so it advances once
         // per loop iteration, exactly like the frame the log names.
+        //
+        // И ДОЗА НАЧИНАЕТ СЧЁТ НЕ ОТ ЗАПУСКА, А ОТ ГОТОВНОСТИ МИРА. «Снять
+        // через 120 кадров» отвечает на вопрос «сколько ждать», ЧИСЛОМ, которое
+        // кто-то однажды угадал; настоящий вопрос — «всё ли приехало». Пока
+        // очередь чанков не пуста, крупная сетка строится, дальняя земля не
+        // доехала или капсула ещё оседает, эта доза НЕ ТИКАЕТ, а часы мира
+        // стоят (ниже). Тогда кадр съёмки — чистая функция рецепта: доза
+        // кадров после готовности, и ни одного кадра загрузки внутри.
+        //
+        // Заодно это снимает вопрос «а 120 кадров хватит?»: не хватит — доза
+        // просто начнётся позже, а потолок затвора скажет вслух, если мир не
+        // сошёлся вовсе. Дверь контроля DFN_UNPIN=gate возвращает счёт от
+        // запуска.
         if (capture_after_frames_ > 0) {
-            ++capture_after_frames_seen_;
-            if (capture_after_frames_seen_ >= capture_after_frames_) {
-                capture_pending_ = true;
-                capture_after_frames_ = 0;
-                capture_then_close_ = true;
+            const bool wait_for_world = counted_run() && !unpinned("gate")
+                                        && !world_settled_;
+            if (!wait_for_world) {
+                ++capture_after_frames_seen_;
+                if (capture_after_frames_seen_ >= capture_after_frames_) {
+                    capture_pending_ = true;
+                    capture_after_frames_ = 0;
+                    capture_then_close_ = true;
+                }
             }
         }
 
@@ -4568,6 +4644,18 @@ int App::run() {
         const double frame_dt = std::chrono::duration<double>(now - last).count();
         last = now;
         frame_clock_.push(static_cast<float>(frame_dt));
+        // ДЕЛЬТА ДЛЯ ВСЕГО, ЧТО ПЛАВНО ЕДЕТ В КАДРЕ, — ОДНА, И В БЕСПИЛОТНОМ
+        // ПРОГОНЕ ОНА СЧЁТНАЯ. Растворение дальней земли, рой светляков и
+        // сглаживание стрелы камеры — фильтры по ВРЕМЕНИ, и на стенной дельте
+        // каждый из них ловится в разной фазе двумя прогонами одного рецепта.
+        // Раньше счётную дельту получал ОДИН тур («tour_.active() ? SIM_DT :
+        // frame_dt» в трёх местах); дверь дозы, которой снимают города, не
+        // получала ничего — это тот же промах «проверка написана как „это
+        // тур?“ вместо свойства», что и у часов суток 13.08.
+        // Дверь контроля: DFN_UNPIN=fade.
+        const double visual_dt = (counted_run() && !unpinned("fade"))
+                                     ? static_cast<double>(config::SIM_DT)
+                                     : frame_dt;
         // Cleared before the tick that may set it again (the chunk ferry does).
         world_changed_this_frame_ = false;
 
@@ -4738,8 +4826,22 @@ int App::run() {
         // Rule 35, third consumer: `unattended_run()` already answers "nobody is
         // playing this" for the menu skip and the cursor grab. It answers this
         // question too, and answering it in one place is the point.
-        game_seconds_ += (tour_.active() || unattended_run())
-                             ? static_cast<double>(config::SIM_DT)
+        // И ЧАСЫ СТОЯТ, ПОКА ЗАТВОР ЖДЁТ МИР. Приколотить прибавку к номеру
+        // кадра было необходимо и НЕ ДОСТАТОЧНО: номер кадра, на котором
+        // открывается затвор, сам зависел от того, сколько кадров ушло на
+        // загрузку, — то есть час съёмки был функцией загрузки машины через
+        // вторую дверь. Со стоящими часами кадр снимается в час
+        // «начало + доза × SIM_DT» независимо от того, сколько заняла
+        // загрузка; и пара «до/после», у которой карта потяжелела, не
+        // получает вместе с правкой ещё и сдвинутое солнце.
+        const bool clock_counted = (tour_.active() || counted_run())
+                                   && !unpinned("clock");
+        const bool shutter_waits = counted_run() && !unpinned("gate")
+                                   && !world_settled_
+                                   && (tour_.active() || capture_after_frames_ > 0);
+        game_seconds_ += clock_counted
+                             ? (shutter_waits ? 0.0
+                                              : static_cast<double>(config::SIM_DT))
                              : frame_dt * time_scale;
         // REPLAY OVERRIDES THE CLOCK with the recorded value, so the sky, sun,
         // wind and everything else derived below is the recorded moment --
@@ -4863,7 +4965,35 @@ int App::run() {
             bus_.pump();
         }
 
-        const uint32_t steps = paused ? 0u : timestep_.accumulate(frame_dt);
+        // СЧЁТНЫЕ ЧАСЫ БЫЛИ ВЫДАНЫ ТОЛЬКО КАРТИНКЕ, А НЕ СИМУЛЯЦИИ, и это
+        // недостающая половина починки 13.08. Тогда game_seconds_ приколотили
+        // к номеру кадра — солнце, ветер и облака перестали зависеть от
+        // загрузки машины. Но ЧИСЛО ШАГОВ симуляции за кадр так и осталось
+        // функцией СТЕННОЙ дельты: на быстром кадре ноль шагов, на медленном
+        // до пяти. То есть в беспилотном прогоне часы мира и его физика шли с
+        // РАЗНОЙ скоростью, и расхождение было разным в каждом прогоне.
+        //
+        // Что от этого зависело, всё сразу: сколько раз позван стриминг (он
+        // стоит под `steps > 0`, а бюджет — один чанк на вызов, то есть на
+        // кадре без шага не приезжает НИЧЕГО), сколько шагов осела капсула
+        // игрока, докуда доехала дальняя земля, и alpha — остаток
+        // аккумулятора, чистая стенная дробь, которой интерполируется поза
+        // камеры и всё, что рисуется от неё.
+        //
+        // Замер: стенд (карта с коротким стримингом) давал два побитово равных
+        // кадра и ДО этой правки; город — 0.175 % пикселей врозь. Разделяет
+        // руки не «город сложнее», а объём стриминга: там, где очередь пуста
+        // почти сразу, стенной счёт шагов не успевает разойтись.
+        //
+        // Игровой режим не трогаем: игра не является доказательством, и
+        // фиксированный шаг на кадр сделал бы скорость мира функцией частоты
+        // кадров. Дверь контроля DFN_UNPIN=steps возвращает стенную дельту.
+        const bool counted_steps = counted_run() && !unpinned("steps");
+        const uint32_t steps =
+            paused ? 0u
+                   : timestep_.accumulate(counted_steps
+                                              ? static_cast<double>(config::SIM_DT)
+                                              : frame_dt);
 
         // STREAMING RUNS ONCE PER FRAME, NOT ONCE PER STEP -- and moving this
         // line out of the catch-up loop is the fix for the project's largest
@@ -4894,10 +5024,13 @@ int App::run() {
         // is given up is that steps 2..5 of a catch-up burst stream against a
         // focus up to 5 x 16.67 ms x 6 m/s = 0.5 m stale, against a streaming
         // radius measured in hundreds of metres.
-        if (steps > 0) {
-            // A step must never execute against a world whose collision bodies
-            // are one tick stale, or the player falls through terrain that has
-            // not been created yet.
+        // ФОКУС СТРИМИНГА СЧИТАЕТСЯ ОДИН РАЗ ЗА КАДР И СНАРУЖИ `steps > 0`.
+        // Раньше он жил внутри условия, а дальняя земля ниже по кадру считала
+        // его ВТОРОЙ РАЗ той же лесенкой — две копии одного решения, которые
+        // обязаны согласиться (правило 39). И снаружи он нужен затвору: «всё
+        // ли приехало в радиус» спрашивается КАЖДЫЙ кадр, в том числе на
+        // кадре, где шага не случилось.
+        {
             glm::vec3 focus{0.0f};
             if (replaying_) {
                 focus = replay_frame_.position; // stream around the replayed eye
@@ -4908,6 +5041,16 @@ int App::run() {
             } else if (const auto* t = world_.get<components::Transform>(player_)) {
                 focus = t->position;
             }
+            stream_focus_ = focus;
+        }
+        chunks_pending_ = render_system_.world_suspended()
+                              ? 0u
+                              : chunks_.pending_chunk_count(stream_focus_);
+        if (steps > 0) {
+            // A step must never execute against a world whose collision bodies
+            // are one tick stale, or the player falls through terrain that has
+            // not been created yet.
+            const glm::vec3 focus = stream_focus_;
             // ПОДВЕС ГОРОДА (И15): поток чанков ЗАМОРОЖЕН, пока игрок в
             // локации. Фокус в кармане на километр ниже выгрузил бы весь
             // город и загрузил бы пустоту вокруг кармана — то есть выход
@@ -5200,7 +5343,7 @@ int App::run() {
                                                                cam_boom_desc_);
                 }
                 length = gameplay::camera_boom_step(cam_boom_, length,
-                                                    static_cast<float>(frame_dt),
+                                                    static_cast<float>(visual_dt),
                                                     cam_boom_desc_);
                 const glm::vec3 cam1 = perch1.origin + aim1.direction * length;
                 const glm::vec3 cam0 = perch0.origin + aim0.direction * length;
@@ -5404,16 +5547,10 @@ int App::run() {
             const float r = static_cast<float>(config::CHUNK_LOAD_RADIUS);
             // Same focus the streaming loop used this frame: the tour drives it
             // during a tour, the player otherwise.
-            glm::vec3 lod_focus{0.0f};
-            if (replaying_) {
-                lod_focus = replay_frame_.position;
-            } else if (tour_.active()) {
-                lod_focus = tour_.focus_position();
-            } else if (editor) {
-                lod_focus = editor_cam_.position();
-            } else if (const auto* t = world_.get<components::Transform>(player_)) {
-                lod_focus = t->position;
-            }
+            // ТОТ ЖЕ ФОКУС, ЧТО У ПОТОКА ЧАНКОВ, и теперь буквально тот же:
+            // лесенка «повтор / тур / редактор / игрок» стояла здесь вторым
+            // экземпляром и была обязана совпадать с первым.
+            const glm::vec3 lod_focus = stream_focus_;
             const glm::vec2 fc{std::floor(lod_focus.x / cs), std::floor(lod_focus.z / cs)};
             render_system_.set_streamed_rect({(fc.x - r) * cs, (fc.y - r) * cs},
                                              {(fc.x + r + 1.0f) * cs,
@@ -5429,9 +5566,7 @@ int App::run() {
             // counted game clock took it to 14.73%. Neither was sufficient
             // alone, and each was a different quantity riding the same wall
             // clock. This is the third.
-            render_system_.update_lod(eye, tour_.active()
-                                               ? static_cast<float>(config::SIM_DT)
-                                               : static_cast<float>(frame_dt));
+            render_system_.update_lod(eye, static_cast<float>(visual_dt));
             refresh_scene_lod(eye);
 
             // THE SWARM: counted dt, never the wall clock — two acceptance runs
@@ -5444,8 +5579,7 @@ int App::run() {
             {
                 const float sun_y = render_system_.environment().sun_direction.y;
                 const float night01 = std::clamp((0.06f - sun_y) / 0.18f, 0.0f, 1.0f);
-                const float dt = tour_.active() ? static_cast<float>(config::SIM_DT)
-                                                : static_cast<float>(frame_dt);
+                const float dt = static_cast<float>(visual_dt);
                 fireflies_.update(dt, night01, [this](float x, float z) {
                     // The streamer knows the ground; a chunk that is not
                     // resident yet answers nothing, and a mote there simply

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:36:58
-Last updated: 20:08:2026 - 15:30:00
+Last updated: 28:08:2026 - 19:30:00
 Module: engine/app
 File: engine/app/sources/AppAfterFrame.cpp
 
@@ -48,12 +48,18 @@ UPD:
 - 18:08:2026 - 17:36:58: Создан. Слой 4 разбора App.cpp: хвост кадра (165 строк) уехал
   из run() сюда, вместе с доводом, по которому он там был.
 - 20:08:2026 - 15:30:00: Лента прохода DFN_RECORD_EVERY: каждый N-й показанный кадр — .png + строка rec.log тем же снимком, что F2.
+- 28:08:2026 - 19:30:00: Затвор один на всех, и у него появились две недостающие очереди:
+  ЧАНКИ (ChunkManager::pending_chunk_count — та самая «честная дыра», записанная
+  здесь же) и СХОДИМОСТЬ КАПСУЛЫ (PLAYER_SETTLE_EPS_M). Признак «мир успокоился»
+  выводился из событий ChunkLoaded за кадр — то есть отвечал «что-то приехало» на
+  вопрос «очередь пуста».
 */
 
 #include "engine/app/sources/App.h"
 
 #include "engine/app/sources/AppAfterFrame.h"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 
@@ -224,24 +230,67 @@ void App::after_frame(float alpha, float frame_dt) {
     // "something arrived" and blind to "something is queued and has not
     // arrived yet" -- a request to core is out for the real counter, and
     // until it lands the cap is doing more work than it should.
-    if (tour_.active()) {
-        const bool quiet = !world_changed_this_frame_
-                           && chunks_.coarse_pending_count() == 0
-                           && render_system_.lod_pending().empty();
-        // ГИСТЕРЕЗИС И ПОТОЛОК — В AppAfterFrame.h, где их можно прогнать без
-        // окна. Здесь остаётся ровно то, что окна требует: спросить три
-        // очереди и напечатать, если сдались.
-        const SettleGate::Verdict v = settle_gate_.observe(quiet);
-        if (v.capped && !v.settled) {
-            std::fprintf(stderr,
-                         "[tour] vantage never settled after %d frames "
-                         "(quiet=%d coarse=%zu lod=%zu) -- shooting anyway, "
-                         "this frame is NOT evidence\n",
-                         settle_gate_.unsettled_frames, settle_gate_.quiet_frames,
-                         chunks_.coarse_pending_count(),
-                         render_system_.lod_pending().size());
+    //
+    // ЧЕТВЁРТАЯ ОЧЕРЕДЬ — ОЧЕРЕДЬ ЧАНКОВ, и она была той самой «честной
+    // дырой», записанной выше: `pending_chunk_count` появился в
+    // engine/world 29.08 ровно по этой заявке. До него кадр, на котором
+    // ничего не приехало, читался успокоившимся, даже когда в радиусе не
+    // хватало пятнадцати клеток, — потому что признак был «событий не
+    // было», а не «очередь пуста».
+    //
+    // ПЯТОЕ УСЛОВИЕ — КАПСУЛА ИГРОКА. Восстановление ставит игрока в точку,
+    // а контроллер потом ОСАЖИВАЕТ его на пол; замер дверной волны — 1.3 мм
+    // между прогонами. Осадка сходится за считанные шаги, поэтому здесь она
+    // не «выключена», а ДОЖДАНА: порог в одну десятую миллиметра за кадр.
+    // Порог, а не равенство: контроллер и на сошедшейся позе шевелит
+    // последний бит.
+    //
+    // ЗАТВОР ОДИН НА ВСЕХ. Раньше этот блок стоял целиком внутри
+    // `if (tour_.active())`, и дверь дозы DFN_CAPTURE_AFTER_FRAMES — та,
+    // которой снимают города, — не ждала мир вообще: она отсчитывала свои
+    // 120 кадров от запуска и снимала то, что успело приехать. Вердикт
+    // считается КАЖДЫЙ кадр и латчится, потому что его спрашивают трое:
+    // тур, дверь дозы и часы мира (они стоят, пока затвор ждёт).
+    const bool shutter_armed = tour_.active() || capture_after_frames_ > 0;
+    if (!shutter_armed) {
+        // НИКТО НЕ ЖДЁТ — И СПРАШИВАТЬ НЕЧЕГО. Гонять затвор в живой игре
+        // значило бы каждый кадр пересчитывать очередь ради ответа, который
+        // никто не читает, и вдобавок печатать «мир не успокоился» на шестисотом
+        // кадре обычной ходьбы: мир в игре не обязан успокаиваться вовсе.
+        world_settled_ = true;
+        settle_gate_ = SettleGate{};
+        settle_cap_said_ = false;
+    } else {
+        float settle_step = 0.0f;
+        if (const auto* ps = world_.get<gameplay::PlayerState>(player_);
+            ps != nullptr && physics_ != nullptr) {
+            const float y = physics_->character_position(ps->character).y;
+            settle_step = std::fabs(y - last_player_y_);
+            last_player_y_ = y;
         }
-        if (v.shoot && tour_.post_frame(*renderer_)) {
+        const bool quiet = !world_changed_this_frame_
+                           && chunks_pending_ == 0
+                           && chunks_.coarse_pending_count() == 0
+                           && render_system_.lod_pending().empty()
+                           && settle_step <= PLAYER_SETTLE_EPS_M;
+        // ГИСТЕРЕЗИС И ПОТОЛОК — В AppAfterFrame.h, где их можно прогнать без
+        // окна. Здесь остаётся ровно то, что окна требует: спросить очереди и
+        // напечатать, если сдались.
+        const SettleGate::Verdict v = settle_gate_.observe(quiet);
+        world_settled_ = v.shoot;
+        if (v.capped && !v.settled && !settle_cap_said_) {
+            settle_cap_said_ = true;
+            std::fprintf(stderr,
+                         "[затвор] мир не успокоился за %d кадров "
+                         "(тихих %d, чанков %zu, крупных %zu, дальних %zu, "
+                         "осадка %.4f мм) -- снимаю всё равно, ЭТОТ КАДР НЕ "
+                         "ДОКАЗАТЕЛЬСТВО\n",
+                         settle_gate_.unsettled_frames, settle_gate_.quiet_frames,
+                         chunks_pending_, chunks_.coarse_pending_count(),
+                         render_system_.lod_pending().size(),
+                         static_cast<double>(settle_step) * 1000.0);
+        }
+        if (tour_.active() && v.shoot && tour_.post_frame(*renderer_)) {
             window_->request_close(); // tour finished (render's contract)
         }
     }

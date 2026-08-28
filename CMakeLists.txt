@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 28:08:2026 - 16:30:00
+# Last updated: 28:08:2026 - 19:30:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -145,6 +145,12 @@
 #   furn_bevel_gabarit с плечом --limit 0. Все четыре — пары «обязан пройти /
 #   обязан провалиться», иначе молчание прибора неотличимо от прибора
 #   неработающего.
+# - 28:08:2026 - 19:30:00: frame_determinism_stand / _city / _city_wallclock —
+#                          «два прогона одной сборки = один md5» в ctest, с ярлыком
+#                          unattended_frames (каждый тест — два полных прогона игры).
+#                          Прибор приёмки, который никто не прогоняет автоматически,
+#                          застаревает молча: дрейф тура нашла не проверка, а
+#                          несошедшаяся пара хэшей чужой волны.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -600,3 +606,48 @@ add_executable(dfn_furn_objects tools/forge_furniture_objects.cpp)
 target_link_libraries(dfn_furn_objects PRIVATE dfn_world dfn_render dfn_core)
 
 add_executable(dfn_newmap tools/new_map.cpp)
+
+# ПОВТОРЯЕМОСТЬ БЕСПИЛОТНОГО КАДРА — В ctest, С ОБЕИМИ РУКАМИ (волна
+# детерминизма тура, 29.08). Прибор приёмки, который никто не прогоняет
+# автоматически, застаревает молча: волна материалов обнаружила дрейф тура не
+# приборной проверкой, а тем, что её собственная пара хэшей не сошлась, и
+# ЛЮБОЕ утверждение по городу до этого дня стояло на неизвестно чём.
+#
+# ТРИ ТЕСТА, А НЕ ОДИН. Стенд — регрессия: карта с коротким стримингом давала
+# один md5 и ДО волны, значит починка не имеет права её сдвинуть. Город — сам
+# предмет: там дрейф и жил. Контроль — DFN_UNPIN=all возвращает прогон на
+# стенные часы и ОБЯЗАН краснеть; зелёный тест без красного контроля не
+# отличим от теста, который ничего не мерит (правило 30, та же пара, что у
+# bevel_k4_stand / _zero_dose выше).
+#
+# ЦЕНА ЧЕСТНО: каждый тест — ДВА полных прогона игры с окном и загрузкой
+# карты. Стенд ~40 с, город ~90 с на незагруженной машине. Поэтому у них свой
+# ярлык unattended_frames: `ctest -LE unattended_frames` отсекает всю тройку
+# одной строкой, когда нужен быстрый круг.
+add_test(NAME frame_determinism_stand
+         COMMAND python3 tools/check_frame_determinism.py --recipe stand
+                 --app $<TARGET_FILE:dfn_app> --out ${CMAKE_BINARY_DIR}/frame_det
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME frame_determinism_city
+         COMMAND python3 tools/check_frame_determinism.py --recipe city
+                 --app $<TARGET_FILE:dfn_app> --out ${CMAKE_BINARY_DIR}/frame_det
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+#
+# ПОЧЕМУ КОНТРОЛЬ НЕ НА WILL_FAIL, хотя рядом (bevel_k4_stand_zero_dose) он
+# именно на нём. WILL_FAIL засчитывает ЛЮБОЙ ненулевой выход: пропавший
+# dfn_app, пустой каталог кадров, упавший питон — всё это «красное плечо
+# сработало». То есть контроль, который обязан ловить отсутствие эффекта, сам
+# не отличает отсутствия ПРОГОНА. Здесь красное плечо выражено как
+# УТВЕРЖДЕНИЕ О РАСХОЖДЕНИИ (--expect differ): прибор возвращает 0 только
+# когда кадры действительно разошлись, 1 — когда сошлись (пин остался на
+# месте), 2 — когда мерить было нечем. Все три исхода читаются верно, и тест
+# краснеет на каждом, кроме настоящего.
+add_test(NAME frame_determinism_city_wallclock
+         COMMAND python3 tools/check_frame_determinism.py --recipe city
+                 --unpin all --expect differ
+                 --app $<TARGET_FILE:dfn_app> --out ${CMAKE_BINARY_DIR}/frame_det
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(frame_determinism_stand frame_determinism_city
+                     frame_determinism_city_wallclock
+                     PROPERTIES LABELS unattended_frames TIMEOUT 900
+                     RUN_SERIAL TRUE)

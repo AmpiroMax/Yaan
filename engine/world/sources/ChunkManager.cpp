@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:42:03
-Last updated: 17:08:2026 - 19:05:00
+Last updated: 28:08:2026 - 19:30:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -58,6 +58,9 @@ UPD:
   новый компонент, и разошлась бы ТОЛЬКО на пути перестройки: предметы теряют
   поле ровно тогда, когда композитор правит землю под ними, — дефект, который
   никто не прочтёт как дублирование.
+- 28:08:2026 - 19:30:00: pending_chunk_count — та же перепись клеток, что у пропуска
+  загрузки, без бюджета: спрашивают «сколько осталось», а не «сколько влезет
+  в кадр». Волна детерминизма тура.
 */
 
 #include "engine/world/sources/ChunkManager.h"
@@ -799,6 +802,30 @@ void ChunkManager::release_coarse_node(const CoarseNode& node) {
     if (it != impl_->requested.end()) {
         impl_->requested.erase(it);
     }
+}
+
+std::size_t ChunkManager::pending_chunk_count(const glm::vec3& focus_position) const {
+    if (!impl_->opened) {
+        return 0;
+    }
+    // ТА ЖЕ ПЕРЕПИСЬ, ЧТО У ПРОПУСКА ЗАГРУЗКИ, и это не совпадение: счётчик,
+    // считающий по своему списку клеток, отвечал бы на другой вопрос, чем тот,
+    // который очередь на самом деле разбирает (правило 39 в его приборном
+    // изводе). Бюджет здесь не применяется НАМЕРЕННО: спрашивают «сколько
+    // осталось», а не «сколько приедет в этот кадр».
+    const ChunkCoord focus = chunk_at_position({focus_position.x, focus_position.z});
+    const int32_t r = static_cast<int32_t>(impl_->params.load_radius);
+    std::size_t pending = 0;
+    for (int32_t dz = -r; dz <= r; ++dz) {
+        for (int32_t dx = -r; dx <= r; ++dx) {
+            const ChunkCoord coord{focus.x + dx, focus.z + dz};
+            if (!impl_->in_extent(coord) || impl_->resident.contains(chunk_group(coord))) {
+                continue;
+            }
+            ++pending;
+        }
+    }
+    return pending;
 }
 
 std::size_t ChunkManager::coarse_resident_count() const {
