@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 27:08:2026 - 23:05:00
+# Last updated: 28:08:2026 - 11:51:19
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -110,6 +110,14 @@
 #   assets/houses целиком и обе стопки локаций целиком, плюс шесть контрольных
 #   рук на замороженных отвергнутых случаях (tests/fixtures/stairs) и список
 #   известных находок с датой и причиной, который жжёт волна геометрии.
+
+# - 28:08:2026 - 11:51:19: ПРИЁМКА МОЩЕНИЯ (tools/check_paving.py) ЗАВЕДЕНА В ctest — ПЯТЬ РУК
+#   (волна хвостов). Прибор не имел ни одного add_test и потому ЗАСТАРЕЛ
+#   МОЛЧА: мощение 24.08 переехало из тел плит в строки path/pp рельефа, а он
+#   продолжал искать тела и печатал «покрыто 0.0%» на ОБОИХ городах при 100% по
+#   приёмке генератора. Заведены оба города и три замороженные оснастки
+#   (tests/fixtures/paving): paved обязан пройти, bare и blot — провалиться
+#   (WILL_FAIL). Прогон всех пяти — 0.50 с.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -399,6 +407,45 @@ add_test(NAME stairs_replica_still_rejected
          COMMAND dfn_stairs_check assets/houses/frame-replica.dfh
                  --expect ПРОСВЕТ:1 --expect ПОДЪЁМ:1
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# ПРИЁМКА МОЩЕНИЯ (tools/check_paving.py) — В ctest, ОБА ГОРОДА И ТРИ РУКИ.
+# До 28.08 у неё не было ни одного add_test: прибор запускали рукой, и он
+# ЗАСТАРЕЛ МОЛЧА. 24.08 мощение перестало быть телами плит и стало строками
+# path/pp рельефа; прибор продолжал искать в .scene тела city-cobble*, находил
+# ноль и печатал «покрыто 0.0%, ПРИЁМКА НЕ ПРОЙДЕНА» на ОБОИХ городах — при
+# 100% по собственной приёмке генератора. Два отчёта подряд переписали его
+# вердикт в «известную ложную тревогу», то есть выключили его.
+#
+# ЧЕТЫРЕ РУКИ, И ТРИ ИЗ НИХ — ОСНАСТКА (правило 30). Порог здесь ничего не
+# доказывает сам по себе: два города зелены, и без отвергнутых образцов это
+# значило бы только, что прибор молчит. Оснастка заморожена в
+# tests/fixtures/paving — один чертёж и ТРИ рельефа, отличающиеся ровно
+# полотном: paved (лента мостовой по оси) обязан пройти, bare (лент нет)
+# и blot (лента тёсаного камня поперёк улицы, к концам не примыкающая)
+# обязаны провалиться. WILL_FAIL, а не --expect: у питонового прибора вердикт
+# и есть код возврата.
+add_test(NAME paving_whiterun
+         COMMAND python3 tools/check_paving.py
+                 assets/scenes/whiterun.relief docs/WHITERUN_PLAN.json
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME paving_cornhall
+         COMMAND python3 tools/check_paving.py
+                 assets/scenes/cornhall.relief docs/CORNHALL_PLAN.json
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME paving_fixture_ok
+         COMMAND python3 tools/check_paving.py
+                 tests/fixtures/paving/paved.relief tests/fixtures/paving/plan.json
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME paving_bare_rejected
+         COMMAND python3 tools/check_paving.py
+                 tests/fixtures/paving/bare.relief tests/fixtures/paving/plan.json
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(paving_bare_rejected PROPERTIES WILL_FAIL TRUE)
+add_test(NAME paving_blot_rejected
+         COMMAND python3 tools/check_paving.py
+                 tests/fixtures/paving/blot.relief tests/fixtures/paving/plan.json
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(paving_blot_rejected PROPERTIES WILL_FAIL TRUE)
 
 # THE BUILDING KIT CLI (dfn_kit): forges the construction parts an agent
 # assembles houses out of. Same standing again — a kit that stopped compiling
