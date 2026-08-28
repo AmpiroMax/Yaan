@@ -1,6 +1,6 @@
 /*
 Created: 27:08:2026 - 10:18:14
-Last updated: 28:08:2026 - 14:05:00
+Last updated: 28:08:2026 - 15:40:00
 Module: tools
 File: tools/forge_furniture_objects.cpp
 
@@ -30,6 +30,7 @@ Usage:
     dfn_furn_objects [<out_dir>]        (умолчание assets/objects/furniture)
     dfn_furn_objects --list             (перечислить и остановиться, не пиша)
     dfn_furn_objects --houses <dir>     (черпать чертежи из другой папки)
+    dfn_furn_objects --bevel <метры>    (ширина фаски; 0 — прежняя острая полка)
 
 ЗАЧЕМ --houses. Проба «что будет, если у кровати сменить тон одеяла» не имеет
 права править ЖИВУЮ полку домов: по ней в это же время ходят другие волны, и
@@ -98,6 +99,13 @@ UPD:
   комнату за неимением комнатной вязанки. Теперь её место занимает ссылка на
   furn-firewood (0.62). Рецептом в комнате осталась ОДНА бочка — та, которой печь
   отказывает; было пять рецептов, стало четыре.
+- 28:08:2026 - 15:40:00: КЛЮЧ --bevel (ширина фаски, метры; умолчание —
+  движковое HOUSE_BEVEL_W_DEFAULT). Заведён волной фаски РАДИ КОНТРОЛЬНОЙ
+  РУКИ: сторож «фаска не двигает габарит» печёт полку дважды в одном прогоне —
+  с нулевой шириной и со штатной — и сверяет колонки x/z/низ/верх. Сверка с
+  перечнем прошлого коммита такой руки не даёт: она мерила бы заодно всё, что
+  за сутки поменялось помимо фаски, и две одинаково неверные выпечки прошли бы
+  её обе.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"
@@ -295,8 +303,8 @@ std::uint32_t paint_of(const dfn::world::HouseGraph& graph,
 
 /// Один предмет: чертёж -> объект. Пусто (nullopt) — печь отказала и СКАЗАЛА
 /// почему.
-bool bake_item(const Item& item, const fs::path& houses_dir, RegistryObject& out,
-               std::string& why) {
+bool bake_item(const Item& item, const fs::path& houses_dir, float bevel_m,
+               RegistryObject& out, std::string& why) {
     // ИМЯ ФАЙЛА ИЗ ТАБЛИЦЫ, ПАПКА — ИЗ КЛЮЧА: так проба и боевая печь читают
     // ОДИН И ТОТ ЖЕ чертёж по имени, и подмена не может случиться молча.
     const fs::path house = houses_dir / fs::path(item.house).filename();
@@ -317,7 +325,7 @@ bool bake_item(const Item& item, const fs::path& houses_dir, RegistryObject& out
     // ТО ЖЕ ТЕЛО И ТОТ ЖЕ СВЕТ, ЧТО У ЗАГРУЗЧИКА. Обе функции детерминированы
     // по построению (см. их заголовки), поэтому «запечено» и «построено по
     // месту» — это побайтово одно и то же, а не два похожих ответа.
-    const dfn::world::HouseMesh built = dfn::world::build_house_mesh(graph);
+    const dfn::world::HouseMesh built = dfn::world::build_house_mesh(graph, bevel_m);
     const std::vector<std::uint8_t> sky = dfn::world::bake_house_sky_visibility(built);
     for (const dfn::world::MeshFinding& mf : built.findings) {
         std::fprintf(stderr, "[мебель] %s e%u: %s\n", item.name,
@@ -410,6 +418,13 @@ int main(int argc, char** argv) {
     bool list_only = false;
     fs::path out_dir = "assets/objects/furniture";
     fs::path houses_dir = "assets/houses";
+    // ШИРИНА ФАСКИ, МЕТРЫ. Ключ заведён РАДИ КОНТРОЛЬНОЙ РУКИ, а не ради
+    // удобства: «фаска не двигает габарит» доказывается только двумя
+    // выпечками в одном прогоне — нулевой и штатной, — а не сверкой с
+    // перечнем прошлого коммита. Перечень прошлого коммита стареет вместе с
+    // деревом (правило 54) и молчит о том, что за сутки поменялось помимо
+    // фаски.
+    float bevel_m = dfn::world::HOUSE_BEVEL_W_DEFAULT;
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--list") == 0) {
             list_only = true;
@@ -419,6 +434,12 @@ int main(int argc, char** argv) {
                 return 2;
             }
             houses_dir = argv[++i];
+        } else if (std::strcmp(argv[i], "--bevel") == 0) {
+            if (i + 1 >= argc) {
+                std::fprintf(stderr, "[мебель] --bevel просит ширину в метрах — ОТКАЗ\n");
+                return 2;
+            }
+            bevel_m = std::strtof(argv[++i], nullptr);
         } else if (argv[i][0] == '-') {
             std::fprintf(stderr, "[мебель] неизвестный ключ \"%s\" — ОТКАЗ\n", argv[i]);
             return 2;
@@ -466,7 +487,7 @@ int main(int argc, char** argv) {
     for (const Item& item : ITEMS) {
         RegistryObject obj;
         std::string why;
-        if (!bake_item(item, houses_dir, obj, why)) {
+        if (!bake_item(item, houses_dir, bevel_m, obj, why)) {
             std::fprintf(stderr, "[мебель] %s — ОТКАЗ: %s\n", item.name, why.c_str());
             return 1;
         }
