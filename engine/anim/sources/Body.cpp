@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 11:08:2026 - 15:18:52
+Last updated: 28:08:2026 - 11:16:40
 Module: engine/anim
 File: engine/anim/sources/Body.cpp
 
@@ -39,11 +39,17 @@ UPD:
   7.166 mm down against a body that did not move at all. After: 0.007 mm,
   which is the zero-dose arm's own number to the last digit.
   docs/FINDING_CROUCH_AND_ALT_LEAN.md.
+- 28:08:2026 - 11:16:40: ПОЗЫ МЕБЕЛИ. evaluate_body_pose кладёт позу сидя/лёжа
+  ПОВЕРХ живого слоя весом posture_blend (интегратор ведётся здесь, линейно —
+  экспонента не доходит до нуля и eye_valid остался бы вечным); body_root_for
+  смешивает корень стоящего с корнем мебели тем же весом; глаз позы
+  публикуется из ТОЙ ЖЕ позы и того же корня, которыми поставлены сегменты.
 */
 
 #include "engine/anim/sources/Body.h"
 
 #include "engine/anim/sources/BodyMesh.h"
+#include "engine/anim/sources/Posture.h"
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
@@ -52,6 +58,7 @@ UPD:
 #include <cmath>
 #include <glm/geometric.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtc/constants.hpp>
 #include <glm/mat3x3.hpp>
 
 namespace dfn::anim {
@@ -206,10 +213,41 @@ LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
     }
     apply_crouch(rig, drive.crouch_blend, pose);
     apply_land_dip(rig, drive.land_dip, pose);
+    // ПОЗА МЕБЕЛИ ПОВЕРХ ВСЕГО ЖИВОГО, и именно поверх, а не вместо: пока
+    // блендер едет от 0 к 1, человек ещё частью стоит. Присяд и провал
+    // приземления при этом уже наложены — они и должны гаснуть вместе со
+    // стоячей рукой, а не сохраняться под сидящим.
+    if (drive.posture_blend > 0.0f) {
+        const LocalPose target =
+            drive.posture == Posture::Lie
+                ? lie_pose(rig, drive.posture_height_m)
+                : sit_pose(rig, drive.posture_height_m);
+        pose = blend(pose, target, drive.posture_blend);
+    }
     // LAST, after every layer: crouch and the landing dip both drive the knees,
     // and a blend of two legal poses is not automatically legal.
     apply_joint_limits(rig, pose);
     return pose;
+}
+
+BodyRoot body_root_for(const BodyDrive& drive, const glm::vec3& standing_ground) {
+    BodyRoot root{standing_ground, drive.facing_yaw};
+    const float w = std::clamp(drive.posture_blend, 0.0f, 1.0f);
+    if (w <= 0.0f) {
+        return root;
+    }
+    root.ground = glm::mix(standing_ground, drive.posture_ground, w);
+    // КОРОТКИМ ПУТЁМ ПО КРУГУ. Сесть спиной к лавке — законный случай, и
+    // линейная разность рыска развернула бы тело на 350° вместо 10°.
+    float d = drive.posture_yaw - drive.facing_yaw;
+    while (d > glm::pi<float>()) {
+        d -= 2.0f * glm::pi<float>();
+    }
+    while (d < -glm::pi<float>()) {
+        d += 2.0f * glm::pi<float>();
+    }
+    root.yaw = drive.facing_yaw + d * w;
+    return root;
 }
 
 void spawn_body(ecs::World& world, ecs::EntityId owner, const Rig& rig, bool hide_head) {
@@ -300,6 +338,17 @@ void update_bodies(ecs::World& world, const Rig& rig) {
         // zero-dose arm that reads 0.01 mm (Rule 48), and the user reported it
         // as «словно я шеей вперед двигаю». docs/FINDING_CROUCH_AND_ALT_LEAN.md
         drive.run_weight = gait_fade(drive.speed_mps) * drive.gear_weight;
+        // ПЕРЕХОД В ПОЗУ И ОБРАТНО — линейное доведение до заявки. Линейное
+        // ради того, чтобы он ДОХОДИЛ: экспонента оставила бы eye_valid
+        // истинным навсегда после первого вставания, и камера продолжала бы
+        // читать глаз позы, из которой человек вышел.
+        {
+            const float want = drive.posture == Posture::None ? 0.0f : 1.0f;
+            const float step = dt / POSTURE_BLEND_TIME_S;
+            drive.posture_blend = drive.posture_blend < want
+                                      ? std::min(want, drive.posture_blend + step)
+                                      : std::max(want, drive.posture_blend - step);
+        }
         if (drive.showcase_clip != SHOWCASE_NONE) {
             drive.showcase_time_s += dt;
         }
@@ -307,8 +356,16 @@ void update_bodies(ecs::World& world, const Rig& rig) {
         if (tr == nullptr) {
             continue;
         }
-        write_segments(world, body, rig, evaluate_body_pose(rig, drive),
-                       BodyRoot{tr->position, drive.facing_yaw});
+        const LocalPose pose = evaluate_body_pose(rig, drive);
+        const BodyRoot root = body_root_for(drive, tr->position);
+        write_segments(world, body, rig, pose, root);
+        // ГЛАЗ ПУБЛИКУЕТСЯ ИЗ ТОЙ ЖЕ ПОЗЫ И ТОГО ЖЕ КОРНЯ, которыми только что
+        // поставлены сегменты. Пересчитать его на стороне камеры — это второе
+        // описание одной вещи, и зона уже платила за такое дважды (присяд,
+        // беговой наклон): числа расходятся молча.
+        drive.eye_valid = drive.posture_blend > 0.0f;
+        drive.eye_point = drive.eye_valid ? posture_eye(rig, pose, root)
+                                          : glm::vec3{0.0f};
     }
 
     // Pass 2: mirror puppets — mirror THIS tick's source pose, or showcase.

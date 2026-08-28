@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 22:00:12
+Last updated: 28:08:2026 - 12:45:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -752,6 +752,15 @@ UPD:
   не в единице. Найдено СВОИМ ЖЕ ЛОГОМ: запуск с меню печатал «мир замолчал»
   про мир, которого ещё не существует, — строка была правдой про шину и
   неправдой про игру, а искать по ней пошли бы причину, которой нет.
+- 28:08:2026 - 12:45:00: СИДЕТЬ И ЛЕЖАТЬ (обязательство эпохи, заказ владельца 28.08:
+  «на стулья необходимо добавить возможность садиться, на кровати ложиться»).
+  Точки позы выводятся из ГЕОМЕТРИИ мебели одним правилом (FurnitureSeats.h),
+  прицел — радиус и взгляд по габариту предмета (SeatAim.h, та же школа, что у
+  дверей), клавиша E туда и обратно, капсула паркуется на точке, где человек
+  стоял, когда сел, а камера берёт глаз у НАРИСОВАННОЙ позы. Механика в
+  AppSeats.cpp; здесь — четыре точки врезки в тик (park_posture до pre_step,
+  posture_camera сразу за update_bodies, filter_seat_hover рядом с дверным,
+  take_seat после раздачи событий) и подсказка «Встать» в позе.
 */
 
 #include "engine/app/sources/App.h"
@@ -4473,6 +4482,11 @@ int App::run() {
                 }
             }
         }
+        // РУКА НА КЛАВИШЕ ПЕРЕД ЛАВКОЙ (DFN_SEAT_TAKE). Тот же приём и тот же
+        // довод, что у соседки строкой выше: она ЖМЁТ E, а не зовёт take_seat,
+        // — иначе прицел, подсказка и нажатие остались бы непроверенными, а
+        // именно там 27.08 и жил дефект, который беспилотный замер не увидел.
+        drive_seat_take();
         if (shot_after_frames_ > 0) {
             ++shot_after_frames_seen_;
             if (shot_after_frames_seen_ >= shot_after_frames_) {
@@ -4877,6 +4891,10 @@ int App::run() {
                 // The water callback is the authoritative source. Sampling the
                 // terrain and subtracting, or reading the drawn water, would
                 // let a primitive that extends past real water be swum in.
+                // ПОЗА ПАРКУЕТ КАПСУЛУ И ГАСИТ НАМЕРЕНИЯ — СТРОГО ДО pre_step,
+                // потому что именно он превращает намерение в перемещение.
+                // Гасить после значило бы дать сидящему полшага в тик.
+                park_posture();
                 gameplay::player_pre_step(world_, *physics_,
                     [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); },
                     step_ctx_);
@@ -4967,6 +4985,11 @@ int App::run() {
                     }
                 }
                 anim::update_bodies(world_, body_rig_);
+                // КАМЕРА ПОЗЫ — СРАЗУ ЗА ТЕЛОМ: update_bodies только что
+                // опубликовал глаз НАРИСОВАННОЙ позы, и ставить камеру раньше
+                // значило бы читать позу прошлого тика. Стоит ДО update_hover,
+                // потому что луч перекрестья обязан идти из того же глаза.
+                posture_camera();
 
                 // Invariant checks AFTER post_step; an incident screenshots.
                 if (playtest_ && !playtest_->finished) {
@@ -4991,6 +5014,11 @@ int App::run() {
                 // клавиша E читают ОДИН HoverTarget, и погасить его здесь —
                 // единственный способ не дать им разойтись.
                 filter_door_hover();
+                // ТОТ ЖЕ ПРИЁМ ДЛЯ МЕБЕЛИ, И ЭТО НЕ КОПИЯ, А ВТОРОЙ СПИСОК:
+                // геометрия у двери и у лавки разная (прямоугольник створки
+                // против габарита предмета), а правило одно — подсказка горит
+                // только когда СМОТРИМ.
+                filter_seat_hover();
                 // Actions AFTER the hover they act on: E interact, F light, I bag.
                 gameplay::player_actions_step(world_, bus_, *physics_);
                 // Carriers without a view model (NPCs with lanterns).
@@ -5005,6 +5033,11 @@ int App::run() {
                 // сделать это из обработчика значило бы править контейнеры,
                 // по которым шина сейчас идёт (И15).
                 take_portal();
+                // ПОЗА — ПОСЛЕ РАЗДАЧИ СОБЫТИЙ, по той же причине, что и
+                // переход: вход в позу правит PlayerState и телепортирует
+                // капсулу, а из обработчика шины это правка контейнеров, по
+                // которым шина сейчас идёт.
+                take_seat();
                 // ENTITIES QUEUED FOR DESTRUCTION ACTUALLY DIE HERE. World.h
                 // says this belongs to the app loop, "once per simulation tick,
                 // after all systems have run" -- and nothing called it, so every
@@ -5356,6 +5389,13 @@ int App::run() {
                     hover.prompt_key != 0) {
                     frame.prompt = localized(hover.prompt_key);
                 }
+            }
+            // В ПОЗЕ ПОДСКАЗКА ОДНА И ОНА ПЕРЕБИВАЕТ НАВЕДЕНИЕ: сидящий
+            // паркует капсулу в стороне от мебели, перекрестье смотрит куда
+            // угодно, а единственное, что клавиша E сейчас делает, — поднимает
+            // его. «Сесть» на уже сидящем звало бы делать сделанное.
+            if (!editor && in_posture()) {
+                frame.prompt = localized(serialization::fnv1a64("prompt.stand"));
             }
             if (const char* probe = door_value("DFN_HUD_PROBE");
                 probe != nullptr && *probe == '1') {

@@ -1,6 +1,6 @@
 #
 # Created: 10:08:2026 - 19:24:11
-# Last updated: 27:08:2026 - 21:40:30
+# Last updated: 28:08:2026 - 12:45:00
 # File: tests/app.cmake
 #
 # Responsibility:
@@ -125,6 +125,13 @@
 # - 27:08:2026 - 21:40:30: app_door_aim — прицел двери (радиус + взгляд). Рукав
 #   линкует только DoorAim.cpp; отвергнутый образец настоящий — поза, в которой
 #   прежний прицел зажигал «Выйти» без всякого взгляда (крит владельца 28.08).
+# - 28:08:2026 - 12:45:00: app_seat_aim — прицел мебели и МЕТА, выведенная из её
+#   геометрии (обязательство эпохи «сидеть и лежать»). Цель линкует SeatAim.cpp,
+#   FurnitureSeats.cpp и dfn_world: правило «самая широкая горизонтальная
+#   площадка» обязано проверяться на треугольниках НАСТОЯЩИХ чертежей полки —
+#   все 46 файлов семейства furn-, — а не на выдуманных коробках. Отвергнутый
+#   образец настоящий: сундук furn-chest проходит оба размера сиденья и
+#   отсекается ровно высотой колена.
 
 if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
@@ -315,6 +322,15 @@ if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_door_aim app/DoorAimTests.cpp dfn_core)
     target_sources(app_door_aim PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/DoorAim.cpp)
+
+    # ПОЗЫ МЕБЕЛИ: прицел предмета и МЕТА, выведенная из его геометрии. Та же
+    # выгородка, что у прицела двери, и по той же причине — правило «самая
+    # широкая горизонтальная площадка» обязано проверяться на треугольниках
+    # НАСТОЯЩИХ чертежей полки, без окна, без физики и без карты.
+    add_dfn_test(app_seat_aim app/SeatAimTests.cpp dfn_world dfn_core)
+    target_sources(app_seat_aim PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SeatAim.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/FurnitureSeats.cpp)
 
     # НАСТРОЙКИ. Цель линкует ТОЛЬКО AppSettings.cpp: разбор текста отделён от
     # файла и от окна, и это единственная причина, по которой вынос из App.cpp

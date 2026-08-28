@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 22:25:12
+Last updated: 28:08:2026 - 11:16:40
 Module: engine/anim
 File: engine/anim/sources/Clips.cpp
 
@@ -26,6 +26,9 @@ UPD:
 - 10:08:2026 - 20:22:44: eye_lean_offset() — the eye rides the trunk's lean (sim's request; both zones derived it independently and agree to the millimetre); the head counter-pitch is named HEAD_STABILIZE now that it has a second reader.
 - 10:08:2026 - 21:34:24: THIGH_SWING_MAX_SIN now READS its NUMBERS row. The row landed 19:26:40 and this file kept a private 0.55, so the row had zero readers in the engine and zero in the suite — a row that guards nothing while looking like it guards something.
 - 10:08:2026 - 22:25:12: THE CROUCHED EYE IS WHERE THE SKULL IS. eye_pitch_offset() extracted (one two-rotation derivation, two callers: the run lean and the crouch hunch); crouch_pelvis_drop() is now the ONE copy of the squat depth, read by apply_crouch and by the camera's producer; the crouch hunch finally counter-pitches the head (HEAD_STABILIZE), which it never did.
+- 28:08:2026 - 11:16:40: HEAD_STABILIZE уехал в Clips.h (пятый читатель —
+  наклон сидящего в Posture.cpp — живёт в другом файле). Ни одного числа не
+  изменено; значение то же 0.6.
 */
 
 #include "engine/anim/sources/Clips.h"
@@ -107,17 +110,12 @@ constexpr float TORSO_ROLL = 0.06f;       // rad, upper-body list toward the
     // test's penetration check before any frame was shot).
 constexpr float TORSO_TWIST = 0.10f;      // rad, counter-rotation vs the pelvis.
 constexpr float RUN_LEAN = 0.20f;         // rad, forward trunk lean at full run.
-constexpr float HEAD_STABILIZE = 0.6f;    // the head counter-pitches this
-    // fraction of the trunk's lean, so the gaze stays nearer the horizon and
-    // the skull's NET world pitch is only (1 - this) x lean. NAMED because it
-    // has a second reader: eye_lean_offset() has to counter-rotate the eye by
-    // the same fraction, and a literal 0.6 in two places is the two-copies
-    // defect at file scope (Rule 35's shape, one file down).
-    // IT NOW HAS FOUR READERS AND THAT IS THE POINT: the crouch hunch stabilizes
-    // by the SAME fraction as the run lean, because it is the same reflex — you
-    // do not look at the floor because you squatted. Before this, the crouch
-    // pitched the skull the full -0.25 rad and a crouched character stared 14.3
-    // deg down (visible on the mirror double and on every future NPC).
+// HEAD_STABILIZE MOVED TO Clips.h (28:08:2026). It had four readers in this
+// file — the run lean, its eye offset, the crouch hunch and its eye offset —
+// which is what earned it a name; the seated lean in Posture.cpp is the FIFTH
+// and it lives in another file, so the constant had to leave file scope or
+// become two copies (Rule 35). Same reflex in all five: you do not look at the
+// floor because you leaned, squatted or sat.
 constexpr float CROUCH_HUNCH = 0.25f;     // rad, trunk hunch at full crouch —
     // a bolt-upright crouch reads as sitting. Same axis and same sign as
     // RUN_LEAN, hence the same two-rotation eye model (eye_pitch_offset).

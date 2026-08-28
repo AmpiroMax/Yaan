@@ -1,6 +1,6 @@
 /*
 Created: 23:08:2026 - 23:50:00
-Last updated: 28:08:2026 - 11:35:00
+Last updated: 28:08:2026 - 12:45:00
 Module: engine/app
 File: engine/app/sources/AppInterior.cpp
 
@@ -114,6 +114,12 @@ UPD:
   постройки. И ЧАС СУТОК СТАЛ ФУНКЦИЕЙ (interior_day_factor): читателей стало
   двое, а окно, горящее полднем в комнате с ночным ambient, — брак, а не
   полутон. Выражение перенесено буква в букву.
+- 28:08:2026 - 12:45:00: ТОЧКИ ПОЗЫ ЖИВУТ ВМЕСТЕ С ЛОКАЦИЕЙ (сидеть и лежать, 28.08):
+  spawn_furniture_seats() зовётся после композиции И после заливки — обе нужны
+  (посадку мебели знает композиция, её геометрию — прочитанный граф), и
+  зовётся КАЖДЫЙ вход, включая резидентный, иначе во второй раз в дом садиться
+  уже нельзя. Выход наружу сносит точки и поднимает сидящего: остаться сидеть
+  на лавке, выйдя на улицу, — состояние, из которого нет выхода.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -1487,6 +1493,17 @@ bool App::enter_interior(const std::string& scene_path,
 
     spawn_scene_portals(doc, /*interior=*/true, &spawn);
     interior_doc_ = std::move(doc);
+    // ТОЧКИ ПОЗЫ — ПОСЛЕ КОМПОЗИЦИИ И ПОСЛЕ ЗАЛИВКИ (сидеть и лежать, 28.08).
+    // Обе нужны: посадку мебели знает композиция, а её геометрию — граф,
+    // прочитанный заливкой. Собирается КАЖДЫЙ вход, включая резидентный: на
+    // резидентном заливки не было, но список точек снесён выходом из прошлой
+    // комнаты, и оставить его пустым значило бы, что во второй раз в дом
+    // садиться уже нельзя.
+    spawn_furniture_seats();
+    if (const char* probe = door_value("DFN_SEAT_PROBE");
+        probe != nullptr && *probe != '\0' && *probe != '0') {
+        probe_seats();
+    }
     render_system_.set_world_suspended(true);
     state.visited = true;
     loading_.stage("переход и точка входа");
@@ -1524,6 +1541,10 @@ void App::leave_interior() {
     // бесплатен.
     render_system_.set_world_suspended(false);
     clear_scene_portals(/*interior=*/true);
+    // ТОЧКИ ПОЗЫ УХОДЯТ ВМЕСТЕ С ПЕРЕХОДАМИ. Сидящий при этом поднимается сам
+    // (clear_furniture_seats): выйти на улицу, оставшись сидеть на лавке в
+    // комнате, — это состояние, из которого нет выхода.
+    clear_furniture_seats();
 
     if (city_lights_saved_) {
         render_system_.set_scene_lights(city_lights_);

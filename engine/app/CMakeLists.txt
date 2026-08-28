@@ -106,6 +106,7 @@ if(DFN_APP_READY)
         sources/AppHud.cpp
         sources/AppInput.cpp
         sources/AppInterior.cpp
+        sources/AppSeats.cpp
     sources/AppSettings.cpp
     sources/AppWorld.cpp
         sources/AssetBake.cpp
@@ -115,6 +116,8 @@ if(DFN_APP_READY)
         sources/Controls.cpp
         sources/DebugOverlay.cpp
         sources/DoorAim.cpp
+        sources/FurnitureSeats.cpp
+        sources/SeatAim.cpp
         sources/EditorCamera.cpp
         sources/EditorPlant.cpp
         sources/EditorHud.cpp
@@ -177,6 +180,8 @@ endif()
 #   касается ни видеокарты, ни камеры, а герб — меш, программа и свет кадра.
 #   Разрез заодно делает раскладку и темп проверяемыми без окна
 #   (tests/app/MenuEmblemTests.cpp, рукав app_menu_emblem).
+# - 28:08:2026 - 12:20:00: sources/AppSeats.cpp, FurnitureSeats.cpp, SeatAim.cpp —
+#   сидеть и лежать (обязательство эпохи, заказ владельца 28.08).
 # - 27:08:2026 - 21:40:30: sources/DoorAim.cpp — геометрия прицела двери
 #                          (радиус до полотна и луч взгляда против его
 #                          прямоугольника). Отдельный файл потому, что его

@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 11:08:2026 - 15:18:52
+Last updated: 28:08:2026 - 11:16:40
 Module: engine/anim
 File: engine/anim/sources/Body.h
 
@@ -46,12 +46,19 @@ UPD:
 - 10:08:2026 - 20:00:23: BodyDrive::gait — the ferry target lead's parked switch writes into.
 - 10:08:2026 - 20:41:06: BodyDrive::run_weight — the eased gear weight, read by this zone's trunk lean AND ferried to sim's eye so the two cannot drift.
 - 11:08:2026 - 15:18:52: BodyDrive::gear_weight is the ease's own integrator; run_weight now PUBLISHES gait_fade(speed) * gear_weight, i.e. the lean the trunk is actually drawn with. Not cosmetic: the ferried eye was leaning by a number the body was not (docs/FINDING_CROUCH_AND_ALT_LEAN.md).
+- 28:08:2026 - 11:16:40: ПОЗЫ МЕБЕЛИ (обязательство эпохи «сидеть и лежать»,
+  заказ владельца 28.08). BodyDrive получил заявку позы (posture, её землю,
+  рыск и высоту сиденья), собственный интегратор перехода posture_blend и
+  ВЫХОД eye_point — глаз нарисованной позы. body_root_for() смешивает корень
+  стоящего и корень позы тем же весом, что и сами углы, иначе тело уезжает на
+  мебель раньше (или позже) собственных суставов.
 */
 
 #pragma once
 
 #include "engine/anim/sources/Clips.h"
 #include "engine/anim/sources/Pose.h"
+#include "engine/anim/sources/Posture.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/core/ecs/sources/EntityId.h"
 
@@ -126,7 +133,43 @@ struct BodyDrive {
     // Showcase override (mirror map techno-demo): SHOWCASE_NONE = live body.
     uint8_t showcase_clip = SHOWCASE_NONE;
     float showcase_time_s = 0.0f;
+
+    // --- ПОЗА МЕБЕЛИ: СИДЕТЬ И ЛЕЖАТЬ (заказ владельца 28.08) --------------
+    // ЧТО СЕЙЧАС ЗАКАЗАНО телу, и это ЗАЯВКА, а не состояние картинки:
+    // `posture_blend` — единственное, чем поза нарисована, и он доезжает до
+    // заявки за POSTURE_BLEND_TIME_S. Одно поле на «хочу» и «нарисовано» дало
+    // бы мгновенный скачок скелета на каждом входе и выходе.
+    Posture posture = Posture::None;
+    /// 0 — живое тело (локомоция/воздух/присяд), 1 — поза целиком. Ведётся
+    /// ЗДЕСЬ (update_bodies), как и `gear_weight`: ease обязан интегрировать
+    /// собственное состояние, иначе он множится каждый тик.
+    float posture_blend = 0.0f;
+    /// ЗЕМЛЯ ПОЗЫ, мировые: точка ПОЛА под сиденьем/лежаком. Отдельно от
+    /// Transform владельца НАМЕРЕННО — капсула на время позы паркуется там,
+    /// где человек стоял, когда нажал E (она законно стоит на полу и ни во что
+    /// не воткнута), а тело рисуется на мебели. Сведение этих двух точек в
+    /// одну означало бы телепорт капсулы внутрь лавки.
+    glm::vec3 posture_ground{0.0f};
+    float posture_yaw = 0.0f;
+    /// Высота СИДЕНЬЯ (лежака) над `posture_ground`. Замер с чертежа предмета
+    /// (0.45 у лавки, 0.50 у кровати), а не строка мира.
+    float posture_height_m = 0.0f;
+    /// ВЫХОД, а не вход: где оказался глаз НАРИСОВАННОЙ позы. Пишется в
+    /// update_bodies из той же позы и того же корня, которыми только что
+    /// поставлены сегменты, — камера и тело не могут разойтись, потому что
+    /// число одно (тот же довод, что у `run_weight`).
+    glm::vec3 eye_point{0.0f};
+    /// Есть ли смысл в `eye_point`. Ложь при posture_blend == 0: у стоящего
+    /// глаз ставит sim, и подменять его позой значило бы завести вторую камеру.
+    bool eye_valid = false;
 };
+
+/// СКОЛЬКО ДЛИТСЯ ПЕРЕХОД ВСТАТЬ/СЕСТЬ, с. Короткий фейд, а не анимация:
+/// настоящий переход (наклон, опора рукой, перенос веса) — следующий шаг, и
+/// он ляжет сюда же, заменив линейное доведение блендом клипа перехода.
+/// ЛИНЕЙНОЕ, А НЕ ЭКСПОНЕНЦИАЛЬНОЕ: экспонента не доходит до нуля, и признак
+/// `eye_valid` остался бы истинным навсегда после первого же вставания.
+inline constexpr float POSTURE_BLEND_TIME_S = 0.18f;
 
 // Mirrors `source`'s pose across the vertical plane each tick (I turn left,
 // it turns right); or, in showcase mode, floats at hover_height cycling clips.
@@ -161,6 +204,14 @@ void note_landed(ecs::World& world, ecs::EntityId owner, float impact_speed_mps)
 // (idle <-> gait by speed, air when not grounded, crouch and landing layers)
 // or the showcase clip when drive.showcase_clip != SHOWCASE_NONE.
 [[nodiscard]] LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive);
+
+// КОРЕНЬ ТЕЛА С УЧЁТОМ ПОЗЫ. При posture_blend 0 это в точности прежнее
+// «низ капсулы + рыск взгляда»; при 1 — земля и рыск мебели; между ними —
+// прямая. Отдельной функцией, а не внутри evaluate_body_pose, потому что
+// поза — это углы суставов, а корень — место в мире: смешать их в одном
+// возврате значило бы, что тест позы не может спросить про место.
+[[nodiscard]] BodyRoot body_root_for(const BodyDrive& drive,
+                                     const glm::vec3& standing_ground);
 
 // Fixed-tick system: advances internal clocks (SIM_DT), evaluates every body,
 // runs FK, writes segment Transform pairs. Mirror puppets are evaluated after

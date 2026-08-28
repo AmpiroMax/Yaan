@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 22:25:12
+Last updated: 28:08:2026 - 11:16:40
 Module: engine/anim
 File: engine/anim/sources/Clips.h
 
@@ -42,6 +42,9 @@ UPD:
 - 10:08:2026 - 20:00:23: anim::Gait + gait_run_weight(): the gear is ferried and looked up, never re-derived from speed (Rules 35, 37).
 - 10:08:2026 - 20:22:44: eye_lean_offset() declared — producer/consumer with sim, deliberately not a NUMBERS row.
 - 10:08:2026 - 22:25:12: crouch_eye_offset() declared — the crouched camera comes from the RIG, not from CROUCH_EYE_HEIGHT.
+- 28:08:2026 - 11:16:40: HEAD_STABILIZE поднят из Clips.cpp в этот заголовок:
+  пятый читатель (наклон сидящего, Posture.cpp) живёт в другом файле, и
+  литерал 0.6 в двух файлах — это правило 35 в чистом виде.
 */
 
 #pragma once
@@ -53,6 +56,15 @@ UPD:
 #include <glm/vec2.hpp>
 
 namespace dfn::anim {
+
+// THE HEAD COUNTER-PITCHES THIS FRACTION OF THE TRUNK'S LEAN, so the gaze
+// stays nearer the horizon and the skull's NET world pitch is only
+// (1 - this) x lean. IT LIVED IN Clips.cpp UNTIL A FIFTH READER APPEARED
+// OUTSIDE THE FILE (the seated lean, Posture.cpp): four readers in one file
+// justified a file-scope constant, a reader in a second file makes a literal
+// 0.6 the two-copies defect (Rule 35). The reflex is the same one in every
+// case — you do not look at the floor because you leaned, squatted or sat.
+inline constexpr float HEAD_STABILIZE = 0.6f;
 
 // Breathing sway. time_s is the app's animation time (render-visual, seconds).
 [[nodiscard]] LocalPose idle_pose(float time_s);

@@ -1,6 +1,6 @@
 <!--
 Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 20:06:45
+Last updated: 28:08:2026 - 12:45:00
 -->
 <!--
 UPD:
@@ -10,6 +10,11 @@ UPD:
   ferried, never re-derived from speed); `BodyDrive::gait`; the wave's wag
   moved off the elbow onto humeral rotation, and the standing rule that
   came out of it.
+- 28:08:2026 - 12:45:00: `Posture.h` — позы сидя и лёжа (обязательство эпохи
+  «сидеть и лежать», заказ владельца 28.08); `BodyDrive` получил заявку позы и
+  свой интегратор перехода; `body_root_for()`; глаз позы публикуется телом.
+  `HEAD_STABILIZE` поднят в `Clips.h` — у него появился пятый читатель в
+  другом файле.
 -->
 
 # engine/anim — humanoid rig, procedural animation, rigid-segmented body
@@ -33,6 +38,15 @@ upgrade behind the same bone indices.
 - `Pose.h` — `LocalPose` (quat per bone relative to rest + pelvis offset),
   `BodyRoot`, `forward_kinematics()`, `mirror_pose()` (involution),
   `mirror_point()/mirror_yaw()`, `blend()`.
+- `Posture.h` — `Posture` (None/Sit/Lie), `sit_pose(rig, seat_above_ground)`,
+  `lie_pose(rig, deck_above_ground)`, `posture_eye()`, `lie_yaw_for_head_dir()`.
+  ОДИН ВХОД — ВЫСОТА ПЛОЩАДКИ: 0.45 у лавки, 0.50 у кровати, и оба числа
+  ЗАМЕРЕНЫ с геометрии предмета приложением, а не выбраны здесь. Сидя бедро
+  выводится ДВУЗВЕННИКОМ по лодыжке (стопа встаёт на пол; недосягаемый пол
+  честно даёт висящие ноги); лёжа всё тело кладёт ОДИН поворот таза на +90°
+  вокруг X — руки и стопы ложатся правильно сами, потому что висят по -Y.
+  Следствие, о котором надо помнить: у лежащего голова уходит в местное +Z
+  (назад), отсюда `lie_yaw_for_head_dir`.
 - `Clips.h` — `idle_pose`, `gait_pose(phase, step_length, run_weight)` (one
   evaluator for walk+run; compass-gait pelvis arc keeps the stance foot
   grounded and touching down exactly on `FOOTFALL_PHASE_LEFT/RIGHT`),
@@ -61,7 +75,22 @@ upgrade behind the same bone indices.
   stride phase/speed/GAIT/etc — never a second clock and never a re-derived
   gear), `MirrorPuppet`; systems
   `spawn_body`, `spawn_mirror_puppet`, `note_landed`, `evaluate_body_pose`,
-  `update_bodies` (fixed tick, after `player_post_step`).
+  `update_bodies` (fixed tick, after `player_post_step`), `body_root_for`.
+
+  **ПОЗА МЕБЕЛИ — ЗАЯВКА И ЕЁ ИНТЕГРАТОР, А НЕ ОДНО ПОЛЕ.** `BodyDrive::posture`
+  говорит, чего хотят; `posture_blend` — то, чем поза нарисована, и он доезжает
+  до заявки за `POSTURE_BLEND_TIME_S` (0.18 с, ЛИНЕЙНО: экспонента не доходит
+  до нуля, и признак `eye_valid` остался бы истинным навсегда после первого
+  вставания). Углы смешиваются в `evaluate_body_pose`, МЕСТО — в
+  `body_root_for` тем же весом; смешать только одно значило бы, что тело
+  уезжает на мебель раньше собственных суставов. `eye_point` — ВЫХОД: глаз
+  нарисованной позы, публикуемый из той же позы и того же корня, которыми
+  поставлены сегменты (у камеры не бывает второго описания того, где голова —
+  на присяде зона уже платила за это 0.36 м).
+
+  Плавная анимация ПЕРЕХОДА (наклон, опора рукой, перенос веса) — СЛЕДУЮЩИЙ
+  ШАГ: сегодня переход это короткий фейд между двумя позами, и он ляжет сюда
+  же, заменив линейное доведение блендом клипа.
 
 ## Usage example
 

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 27:08:2026 - 10:34:00
+Last updated: 28:08:2026 - 12:45:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -82,6 +82,9 @@ UPD:
   AppHouse.cpp, лишь бы сошлась сверка хука, вместо того чтобы разобраться с
   чужой. Поставлено время коммита 9e2c8c9 (10:18:14). Текста записи и кода не
   трогал.
+- 28:08:2026 - 12:45:00: обработчик Used смотрит ВТОРОЙ список — точки позы (сидеть и
+  лежать, 28.08); заявка такая же отложенная, что и у перехода. Выгрузка мира
+  сносит точки вместе со створками.
 */
 
 #include "engine/app/sources/App.h"
@@ -200,6 +203,7 @@ void App::unload_world() {
     }
     portals_.clear();
     house_doorways_.clear();
+    clear_furniture_seats(); // точки позы уходят вместе с миром (28.08)
     interior_houses_.clear();
     interior_positions_.clear();
     interior_doc_ = {};
@@ -1550,6 +1554,16 @@ bool App::enter_world(uint32_t stand) {
         for (const PortalLink& link : portals_) {
             if (link.action == e.action) {
                 pending_portal_ = e.action;
+                return;
+            }
+        }
+        // ТОЧКИ ПОЗЫ — ВТОРОЙ СПИСОК, И ЗАЯВКА У НИХ ТАКАЯ ЖЕ ОТЛОЖЕННАЯ
+        // (сидеть и лежать, 28.08): вход в позу телепортирует капсулу и правит
+        // PlayerState, а из обработчика это правка контейнеров, по которым
+        // шина сейчас идёт. Исполняет take_seat() после раздачи событий.
+        for (const SeatLink& link : seats_) {
+            if (link.action == e.action) {
+                pending_seat_ = e.action;
                 return;
             }
         }
