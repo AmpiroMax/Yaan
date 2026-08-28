@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:35:09
-# Last updated: 28:08:2026 - 11:51:19
+# Last updated: 28:08:2026 - 16:30:00
 # File: CMakeLists.txt
 #
 # Responsibility:
@@ -123,6 +123,12 @@
 #   приёмке генератора. Заведены оба города и три замороженные оснастки
 #   (tests/fixtures/paving): paved обязан пройти, bare и blot — провалиться
 #   (WILL_FAIL). Прогон всех пяти — 0.50 с.
+# - 28:08:2026 - 16:30:00: dfn_bevel_check (прибор К4 и счёт треугольников) и
+#   четыре рукава волны фаски: bevel_k4_stand с плечом нулевой дозы
+#   (WILL_FAIL), quality_surface_selftest (контрольные руки прибора К1-К6),
+#   furn_bevel_gabarit с плечом --limit 0. Все четыре — пары «обязан пройти /
+#   обязан провалиться», иначе молчание прибора неотличимо от прибора
+#   неработающего.
 
 cmake_minimum_required(VERSION 3.28)
 
@@ -328,6 +334,60 @@ target_link_libraries(dfn_scene_check PRIVATE dfn_world dfn_render dfn_core)
 # в день, когда он нужнее всего.
 add_executable(dfn_interior_check tools/check_interior.cpp)
 target_link_libraries(dfn_interior_check PRIVATE dfn_world dfn_render dfn_core)
+
+# ПРИБОР ФАСКИ (dfn_bevel_check, критерий К4 ТЗ материалов): доля выпуклых
+# рёбер с фаской И счёт треугольников, которым она куплена, — на одном прогоне
+# и по одному мешу. Оба плеча живут в одном двоичном файле (`--zero` — это
+# «до»), потому что «до» из прошлого коммита мерило бы заодно и всё остальное,
+# что за сутки поменялось в дереве.
+add_executable(dfn_bevel_check tools/check_bevel.cpp)
+target_link_libraries(dfn_bevel_check PRIVATE dfn_world dfn_core)
+
+# К4 НА СТЕНДЕ УБРАНСТВА, ДВА ПЛЕЧА В ОДНОМ БИНАРНИКЕ (правила 30 и 47).
+# Положительное: полка убранства при штатной фаске обязана дать 100 % рёбер с
+# фаской. Отрицательное: она же при нулевой дозе обязана ПРОВАЛИТЬ тот же
+# порог — это измеренный дефект 3 ТЗ материалов («ни одной фаски во всём
+# убранстве»), и без него «сто процентов» доказывало бы только, что прибор
+# всегда зелен.
+#
+# ПОЛКА, А НЕ ГОРОД: К4 назван в ТЗ на ОБЪЕКТЕ УБРАНСТВА. Ряды кладки и кровли
+# фаски не носят по бюджету (HOUSE_BEVEL_COURSES, довод и цена там же), и
+# требовать с города ста процентов значило бы требовать вчетверо больший мир.
+set(DFN_BEVEL_STAND
+    assets/houses/furn-table.dfh assets/houses/furn-chair.dfh
+    assets/houses/furn-chest.dfh assets/houses/furn-barrel.dfh
+    assets/houses/furn-bed.dfh assets/houses/furn-cupboard.dfh
+    assets/houses/furn-shelf.dfh assets/houses/furn-bench.dfh)
+add_test(NAME bevel_k4_stand
+         COMMAND dfn_bevel_check ${DFN_BEVEL_STAND} --require-k4 1.0
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME bevel_k4_stand_zero_dose
+         COMMAND dfn_bevel_check ${DFN_BEVEL_STAND} --zero --require-k4 1.0
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(bevel_k4_stand_zero_dose PROPERTIES WILL_FAIL TRUE)
+
+# ПРИБОР ПРИЁМКИ ПОВЕРХНОСТИ К1-К6 (tools/quality/measure_surface.py) СО
+# СВОИМИ КОНТРОЛЬНЫМИ РУКАМИ. Прогоняются фикстуры, которые обязаны
+# ПРОВАЛИТЬСЯ (ровная заливка — К1; два побитово одинаковых стула — К6; блик,
+# выбитый в белый, — ветвь гладких), и те, что обязаны ПРОЙТИ (структура,
+# полированное золото, кадр владельца, если он лежит на машине).
+add_test(NAME quality_surface_selftest
+         COMMAND python3 tools/quality/measure_surface.py --self-test
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+
+# СТОРОЖ ПЕРЕПЕЧКИ ПОЛКИ УБРАНСТВА: габарит, бюджет тела, повторяемость.
+# Отрицательное плечо — тот же сторож с нулевым пределом усадки: он обязан
+# покраснеть на голове зверя и табурете, чью крайнюю точку держит острая
+# вершина (срезанный угол короче несрезанного — это определение фаски).
+add_test(NAME furn_bevel_gabarit
+         COMMAND python3 tools/quality/check_furn_gabarit.py
+                 $<TARGET_FILE:dfn_furn_objects>
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+add_test(NAME furn_bevel_gabarit_control
+         COMMAND python3 tools/quality/check_furn_gabarit.py
+                 $<TARGET_FILE:dfn_furn_objects> --limit 0
+         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(furn_bevel_gabarit_control PROPERTIES WILL_FAIL TRUE)
 
 # ДВЕ ДОЗЫ ОДНОГО ПРИБОРА В ctest (правило 30 и свод И15, дельта-5).
 # Отрицательное плечо: верная локация пилота обязана дать НОЛЬ находок.

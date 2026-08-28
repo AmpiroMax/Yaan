@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 28:08:2026 - 11:25:00
+Last updated: 28:08:2026 - 14:05:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -56,6 +56,11 @@ UPD:
   площадки с проверкой заслонения лучом до самого проёма. blocked получил
   дальность аргументом: луч на окно обязан остановиться ПЕРЕД листом
   остекления, который стоит ровно в проёме.
+- 28:08:2026 - 14:05:00: build_house_mesh получила ШИРИНУ ФАСКИ (bevel_m,
+  умолчание HOUSE_BEVEL_W_DEFAULT) и кладёт её построителю до первого
+  элемента. Сама фаска — в push_prism (HouseBodies.cpp): все девять
+  модулей-алгоритмов кладут тела через него, поэтому одна строка здесь
+  доводит фаску до дома, убранства и запечённого предмета реестра разом.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -135,9 +140,14 @@ const MeshPart* HouseMesh::part_of(ElementId id) const {
     return nullptr;
 }
 
-HouseMesh build_house_mesh(const HouseGraph& g) {
+HouseMesh build_house_mesh(const HouseGraph& g, float bevel_m) {
     HouseMesh mesh;
     MeshBuilder mb{&mesh};
+    // ФАСКА ОДНА НА ВСЮ ПОСТРОЙКУ, и ставится ДО первого элемента: тела
+    // рождаются в push_prism, а он читает построителя. Ноль сюда — прежняя
+    // геометрия бит-в-бит, потому что нулевая ширина уводит призму на прежнюю
+    // ветку целиком, а не на ту же со сдвигом в ноль.
+    mb.bevel_m = std::max(bevel_m, 0.0f);
     for (const ElementId id : ordered_elements(g)) {
         const Element* e = g.element(id);
         if (e == nullptr || e->refs.empty()) {

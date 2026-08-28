@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:29:01
-Last updated: 20:08:2026 - 20:30:00
+Last updated: 28:08:2026 - 15:05:00
 Module: tests
 File: tests/core/HouseMeshTests.cpp
 
@@ -39,6 +39,15 @@ UPD:
 - 20:08:2026 - 17:30:00: Кровля рядами и износ (контроль: гладкий скат/свежая кладка); детали дают геометрию; окно сквозное с листом Pane.
 - 20:08:2026 - 18:40:00: Кровля при износе кусков не теряет — только дрожь.
 - 20:08:2026 - 20:30:00: Правило опоры крыш: на стенах молчит, в воздухе говорит, руина выходит.
+- 28:08:2026 - 15:05:00: ВСЕ 38 СБОРКИ ЭТОГО РУКАВА ЗОВУТСЯ С НУЛЕВОЙ ФАСКОЙ
+  (build_house_mesh(g, 0.0f)). Рукав писался против геометрии БЕЗ фаски и
+  проверяет её числами — 28 треугольников марша, радиус кольца 0.12, ход
+  балок 0.10; с фаской те же тела дают другие числа, и «поправить ожидания»
+  значило бы потерять единственное, чем доза 0 доказуема (правило 47).
+  Теперь рукав — ПЛЕЧО НУЛЕВОЙ ДОЗЫ: пока он зелёный, прежняя геометрия
+  воспроизводится бит-в-бит. Плечо ненулевой дозы — соседний
+  test_house_bevel, и оно живёт отдельным файлом нарочно: у двух плеч разные
+  поводы к правке.
 */
 
 #include <doctest/doctest.h>
@@ -213,7 +222,7 @@ TEST_CASE("прямая: тело замкнуто, а radius меряется �
     ElementId post = 0;
     REQUIRE(g.add_element(ElementKind::Line, {a, b}, "oak;form=round;radius=0.12", post).ok);
 
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     REQUIRE(m.findings.empty());
     const MeshPart* p = m.part_of(post);
     REQUIRE(p != nullptr);
@@ -249,7 +258,7 @@ TEST_CASE("квадратный брус: radius=0.12 значит 24 см то�
     const VertexId b = g.add_vertex(Anchoring::Free, {0.0f, 2.0f, 0.0f});
     ElementId post = 0;
     REQUIRE(g.add_element(ElementKind::Line, {a, b}, "oak;form=square;radius=0.12", post).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     const MeshPart* p = m.part_of(post);
     REQUIRE(p != nullptr);
     CHECK(p->index_count / 3 == 12); // 4 боковых четырёхугольника + 2 торца по 2
@@ -270,8 +279,8 @@ TEST_CASE("ГЛАВНОЕ ПРАВИЛО: смена радиуса столба
     // можно», и это не должно стоить пересчёта стен.
     const HouseGraph thin = post_and_wall("oak;form=round;radius=0.15");
     const HouseGraph fat = post_and_wall("oak;form=round;radius=0.45");
-    const HouseMesh a = dfn::world::build_house_mesh(thin);
-    const HouseMesh b = dfn::world::build_house_mesh(fat);
+    const HouseMesh a = dfn::world::build_house_mesh(thin, 0.0f);
+    const HouseMesh b = dfn::world::build_house_mesh(fat, 0.0f);
 
     const MeshPart* wall_a = a.part_of(2);
     const MeshPart* wall_b = b.part_of(2);
@@ -354,7 +363,7 @@ TEST_CASE("Г-образный пол: коллайдер разбирается
     // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
     // у контура появился свой признак, и построитель читает его.
     REQUIRE(g.set_closed(floor, true).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     REQUIRE(m.findings.empty());
 
     // Четыре уха — четыре выпуклые призмы по шесть точек. Не выпуклая оболочка:
@@ -421,9 +430,9 @@ TEST_CASE("нормаль берётся из ПОРЯДКА ОБХОДА, а fa
     REQUIRE(plain.add_element(ElementKind::Surface, {pa, pb, pc, pd}, "oak", flat).ok);
     // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08).
     REQUIRE(plain.set_closed(flat, true).ok);
-    const HouseMesh before = dfn::world::build_house_mesh(plain);
+    const HouseMesh before = dfn::world::build_house_mesh(plain, 0.0f);
     REQUIRE(plain.set_facing(flat, true).ok);
-    const HouseMesh after = dfn::world::build_house_mesh(plain);
+    const HouseMesh after = dfn::world::build_house_mesh(plain, 0.0f);
     const MeshPart* pb1 = before.part_of(flat);
     const MeshPart* pb2 = after.part_of(flat);
     REQUIRE(pb1 != nullptr);
@@ -475,7 +484,7 @@ TEST_CASE("поворот текстуры ВОКРУГ НОРМАЛИ не тя
     float worst_around_normal = 0.0f;
     for (const float deg : {0.0f, 30.0f, 45.0f, 90.0f, 180.0f, 270.0f}) {
         const HouseGraph g = slope(deg);
-        const HouseMesh m = dfn::world::build_house_mesh(g);
+        const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
         const MeshPart* p = m.part_of(1);
         REQUIRE(p != nullptr);
         for (std::uint32_t i = 0; i < p->index_count; i += 3) {
@@ -504,7 +513,7 @@ TEST_CASE("поворот текстуры ВОКРУГ НОРМАЛИ не тя
     // наклонной грани он тянет узор в 1/cos(наклон) раз. Считается ЗДЕСЬ, а не
     // словами, на тех же самых треугольниках.
     const HouseGraph g = slope(0.0f);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     const MeshPart* p = m.part_of(1);
     REQUIRE(p != nullptr);
     float worst_planar = 0.0f;
@@ -586,7 +595,7 @@ TEST_CASE("кривой контур ГОВОРИТСЯ находкой, но �
     // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
     // у контура появился свой признак, и построитель читает его.
     REQUIRE(g.set_closed(bad, true).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
 
     REQUIRE(m.findings.size() == 1);
     CHECK(m.findings.front().issue == MeshIssue::ContourNonPlanar);
@@ -617,7 +626,7 @@ TEST_CASE("контур-бантик ловится самопересечени
     // ЗАМКНУТОСТЬ ТЕПЕРЬ ЗАДАЁТСЯ, А НЕ УГАДЫВАЕТСЯ ПО ВЫСОТЕ (18.08):
     // у контура появился свой признак, и построитель читает его.
     REQUIRE(g.set_closed(tie, true).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     const auto found = std::find_if(m.findings.begin(), m.findings.end(), [](const auto& f) {
         return f.issue == MeshIssue::ContourSelfIntersects;
     });
@@ -634,7 +643,7 @@ TEST_CASE("стена-цепочка: излом даёт ДВА тела, и о
     ElementId wall = 0;
     REQUIRE(g.add_element(ElementKind::Surface, {a, b, c}, "frame;height=2.6;thickness=0.2", wall)
                 .ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     REQUIRE(m.findings.empty());
     const MeshPart* p = m.part_of(wall);
     REQUIRE(p != nullptr);
@@ -661,7 +670,7 @@ TEST_CASE("цепочка без высоты не выдумывает стен
     const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
     ElementId wall = 0;
     REQUIRE(g.add_element(ElementKind::Surface, {a, b}, "frame", wall).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     REQUIRE(m.findings.size() == 1);
     CHECK(m.findings.front().issue == MeshIssue::ChainNeedsHeight);
     CHECK(m.triangle_count() == 0);
@@ -673,7 +682,7 @@ TEST_CASE("прямая на ОДНОЙ вершине: углы задают н
         const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
         ElementId e = 0;
         g.add_element(ElementKind::Line, {a}, style, e);
-        const HouseMesh m = dfn::world::build_house_mesh(g);
+        const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
         glm::vec3 far{0.0f};
         float best = -1.0f;
         const MeshPart* p = m.part_of(e);
@@ -703,7 +712,7 @@ TEST_CASE("прямая на ОДНОЙ вершине: углы задают н
     const VertexId a = g.add_vertex(Anchoring::OnGround, {0.0f, 0.0f, 0.0f});
     ElementId e = 0;
     REQUIRE(g.add_element(ElementKind::Line, {a}, "oak", e).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     REQUIRE(m.findings.size() == 1);
     CHECK(m.findings.front().issue == MeshIssue::LineNeedsLength);
 }
@@ -715,7 +724,7 @@ TEST_CASE("angle_z вращает ПРОФИЛЬ, и для квадратног
         const VertexId b = g.add_vertex(Anchoring::Free, {0.0f, 2.0f, 0.0f});
         ElementId e = 0;
         g.add_element(ElementKind::Line, {a, b}, style, e);
-        const HouseMesh m = dfn::world::build_house_mesh(g);
+        const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
         const MeshPart* p = m.part_of(e);
         float widest = 0.0f;
         for (const glm::vec3& q : part_positions(m, *p)) {
@@ -736,7 +745,7 @@ TEST_CASE("angle_z вращает ПРОФИЛЬ, и для квадратног
         const VertexId b = g.add_vertex(Anchoring::Free, {0.0f, 2.0f, 0.0f});
         ElementId e = 0;
         g.add_element(ElementKind::Line, {a, b}, style, e);
-        const HouseMesh m = dfn::world::build_house_mesh(g);
+        const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
         float widest = 0.0f;
         for (const glm::vec3& q : part_positions(m, *m.part_of(e))) {
             widest = std::max(widest, std::fabs(q.x));
@@ -804,8 +813,8 @@ TEST_CASE("две сборки одного графа дают ПОБАЙТОВ
                           "frame;height=2.6;thickness=0.2", wall)
                 .ok);
 
-    const HouseMesh a = dfn::world::build_house_mesh(g);
-    const HouseMesh b = dfn::world::build_house_mesh(g);
+    const HouseMesh a = dfn::world::build_house_mesh(g, 0.0f);
+    const HouseMesh b = dfn::world::build_house_mesh(g, 0.0f);
     REQUIRE(a.vertices.size() == b.vertices.size());
     REQUIRE(a.indices.size() == b.indices.size());
     CHECK(a.indices == b.indices);
@@ -849,14 +858,14 @@ TEST_CASE("вершина НА ОСИ тянет за собой геометр�
         }
         return best;
     };
-    const HouseMesh before = dfn::world::build_house_mesh(g);
+    const HouseMesh before = dfn::world::build_house_mesh(g, 0.0f);
     const float y_before = top_of_beam(before);
     CHECK(y_before == doctest::Approx(2.0f).epsilon(0.1));
 
     // Подняли ВЕРХ СТОЛБА — балка поехала за серединой оси, хотя её никто не
     // трогал. Ни одной строки пересчёта: геометрия нигде не хранится.
     REQUIRE(g.move_vertex(b, {0.0f, 8.0f, 0.0f}).ok);
-    const HouseMesh after = dfn::world::build_house_mesh(g);
+    const HouseMesh after = dfn::world::build_house_mesh(g, 0.0f);
     const float y_after = top_of_beam(after);
     CHECK(y_after == doctest::Approx(4.0f).epsilon(0.1));
     CHECK(y_after - y_before == doctest::Approx(2.0f).epsilon(0.1));
@@ -877,8 +886,8 @@ TEST_CASE("обшивка: доски, раскосы и рамы — ГЕОМЕ
                                wall)
                     .ok);
     }
-    const HouseMesh bare = dfn::world::build_house_mesh(bare_g);
-    const HouseMesh clad = dfn::world::build_house_mesh(clad_g);
+    const HouseMesh bare = dfn::world::build_house_mesh(bare_g, 0.0f);
+    const HouseMesh clad = dfn::world::build_house_mesh(clad_g, 0.0f);
 
     // ГОЛАЯ СТЕНА — КОНТРОЛЬ: одна коробка, 12 треугольников. Без него проверка
     // ниже прошла бы и на обшивке, которая строится всегда.
@@ -910,7 +919,7 @@ TEST_CASE("обшивка: доски, раскосы и рамы — ГЕОМЕ
     REQUIRE(tight.add_element(ElementKind::Surface, {ta, tb},
                               "frame;height=2.5;thickness=0.1;clad=1;windows=5", tw)
                 .ok);
-    const HouseMesh tm = dfn::world::build_house_mesh(tight);
+    const HouseMesh tm = dfn::world::build_house_mesh(tight, 0.0f);
     bool said = false;
     for (const dfn::world::MeshFinding& f : tm.findings) {
         if (f.issue == dfn::world::MeshIssue::CladdingSaid) {
@@ -932,7 +941,7 @@ TEST_CASE("кладка — КУСКИ с перевязкой, и у куско
     REQUIRE(g.add_element(ElementKind::Surface, {a, b},
                           "frame;height=2.0;thickness=0.1;fill=2", wall)
                 .ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
 
     // Кирпичей на 3x2 м при кирпиче 25x6.5 см — сотни; каждый кусок 12
     // треугольников. Порог грубый нарочно: он ловит «кладку не построили»,
@@ -1002,7 +1011,7 @@ TEST_CASE("лестница: ступени РОВНЫЕ, горизонталь
     const VertexId hi = g.add_vertex(Anchoring::Free, {2.8f, 1.4f, 0.0f});
     ElementId st = 0;
     REQUIRE(g.add_element(ElementKind::Line, {lo, hi}, "frame;stairs=1;radius=0.5", st).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
 
     // 1.4 м / 0.175 = ровно 8 ступеней; каждая — короб (12 тр.) + две тетивы.
     // ВЫСОТЫ ВЕРХНИХ ГРАНЕЙ: кратны подъёму 0.175 — «всегда на равном
@@ -1037,7 +1046,7 @@ TEST_CASE("лестница: ступени РОВНЫЕ, горизонталь
     const VertexId b2 = g2.add_vertex(Anchoring::Free, {2.8f, 1.4f, 0.0f});
     ElementId beam = 0;
     REQUIRE(g2.add_element(ElementKind::Line, {a2, b2}, "frame;radius=0.5", beam).ok);
-    const HouseMesh m2 = dfn::world::build_house_mesh(g2);
+    const HouseMesh m2 = dfn::world::build_house_mesh(g2, 0.0f);
     int flat_up = 0;
     for (const auto& v : m2.vertices) {
         if (std::fabs(v.normal.y - 1.0f) < 1e-3f) {
@@ -1055,7 +1064,7 @@ TEST_CASE("дверной проём: кладка расступается от
     REQUIRE(g.add_element(ElementKind::Surface, {a, b},
                           "frame;height=2.5;thickness=0.1;fill=2;doors=1;windows=2", wall)
                 .ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     // В полосе двери (середина стены, от пола до ~2 м) кирпичей НЕТ: ни одна
     // глиняная вершина не попадает в прямоугольник проёма.
     int in_doorway = 0;
@@ -1094,7 +1103,7 @@ TEST_CASE("паркет: доска РЕЖЕТСЯ по кромке и укры
                           "oak;thickness=0.1;fill=5", floor)
                 .ok);
     REQUIRE(g.set_closed(floor, true).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
 
     // ДОСКИ — куски с mat_override=1 (пилёная доска); пластина несёт -1.
     // 1) НИ ОДНА вершина доски не выходит за контур (раньше ряд с перевязкой
@@ -1146,7 +1155,7 @@ TEST_CASE("лестница на ЧЕТЫРЁХ точках: ширина от 
                           "frame;thickness=0.1;fill=6", st)
                 .ok);
     REQUIRE(g.set_closed(st, true).ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
 
     // Ступени: верхние грани на кратных 0.175 высотах (1.4/0.175 = 8 ровно).
     std::vector<float> tops;
@@ -1186,7 +1195,7 @@ TEST_CASE("доска: профиль 4:1 — ширина в четыре ра�
     REQUIRE(g.add_element(ElementKind::Line, {a, b},
                           "frame;form=plank;radius=0.2;paint=3", plank)
                 .ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     glm::vec3 lo{1e9f};
     glm::vec3 hi{-1e9f};
     for (const auto& v : m.vertices) {
@@ -1205,7 +1214,7 @@ TEST_CASE("доска: профиль 4:1 — ширина в четыре ра�
     const VertexId b2 = g2.add_vertex(Anchoring::Free, {0.0f, 2.0f, 0.0f});
     ElementId sq = 0;
     REQUIRE(g2.add_element(ElementKind::Line, {a2, b2}, "frame;form=square;radius=0.2", sq).ok);
-    const HouseMesh m2 = dfn::world::build_house_mesh(g2);
+    const HouseMesh m2 = dfn::world::build_house_mesh(g2, 0.0f);
     glm::vec3 lo2{1e9f};
     glm::vec3 hi2{-1e9f};
     for (const auto& v : m2.vertices) {
@@ -1233,7 +1242,7 @@ TEST_CASE("дверной проём СКВОЗНОЙ: в полосе двер�
                                         : "frame;height=2.5;thickness=0.2",
                               wall)
                     .ok);
-        const HouseMesh m = dfn::world::build_house_mesh(g);
+        const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
         // Полоса двери: середина пролёта ±0.35 м, от 0.2 до 1.8 м высоты,
         // вся толщина. Стена осевая — тела оцениваются ГАБАРИТАМИ (AABB), а
         // не углами: у сплошной пластины углы стоят на краях пролёта, и тест
@@ -1269,7 +1278,7 @@ TEST_CASE("кровля рядами: скат собирается из дра�
         ElementId roof = 0;
         REQUIRE(g.add_element(ElementKind::Surface, {a, b, c, d}, style, roof).ok);
         REQUIRE(g.set_closed(roof, true).ok);
-        const HouseMesh m = dfn::world::build_house_mesh(g);
+        const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
         // Куски одного материала сливаются в один MeshPart — считается
         // ГЕОМЕТРИЯ (треугольники), а не части.
         int tris = 0;
@@ -1299,7 +1308,7 @@ TEST_CASE("износ кладки: куски выпадают, дрожь гл
         const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
         ElementId wall = 0;
         REQUIRE(g.add_element(ElementKind::Surface, {a, b}, style, wall).ok);
-        return dfn::world::build_house_mesh(g);
+        return dfn::world::build_house_mesh(g, 0.0f);
     };
     const HouseMesh fresh = build("frame;height=2.5;thickness=0.2;fill=2");
     const HouseMesh worn = build("frame;height=2.5;thickness=0.2;fill=2;wear=1");
@@ -1327,7 +1336,7 @@ TEST_CASE("детали стены: перерубы, ставни, крыльц
         const VertexId b = g.add_vertex(Anchoring::OnGround, {4.0f, 0.0f, 0.0f});
         ElementId wall = 0;
         REQUIRE(g.add_element(ElementKind::Surface, {a, b}, style, wall).ok);
-        const HouseMesh m = dfn::world::build_house_mesh(g);
+        const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
         return static_cast<int>(m.indices.size() / 3);
     };
     const int plain = tri_count("frame;height=2.8;thickness=0.25");
@@ -1347,7 +1356,7 @@ TEST_CASE("детали стены: перерубы, ставни, крыльц
     REQUIRE(g.add_element(ElementKind::Surface, {a, b},
                           "frame;height=2.8;thickness=0.25;clad=1;windows=1", wall)
                 .ok);
-    const HouseMesh m = dfn::world::build_house_mesh(g);
+    const HouseMesh m = dfn::world::build_house_mesh(g, 0.0f);
     bool pane = false;
     for (const auto& part : m.parts) {
         if (part.mat_override == 8) {
@@ -1389,7 +1398,7 @@ TEST_CASE("правило опоры крыш: висящая вершина Г�
                     .ok);
         REQUIRE(g.set_closed(roof, true).ok);
         int n = 0;
-        for (const auto& f : dfn::world::build_house_mesh(g).findings) {
+        for (const auto& f : dfn::world::build_house_mesh(g, 0.0f).findings) {
             if (f.what.find("висит без стены") != std::string::npos) {
                 ++n;
             }

@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 23:08:2026 - 18:20:00
+Last updated: 28:08:2026 - 14:05:00
 Module: engine/world
 File: engine/world/sources/HouseRoof.cpp
 
@@ -27,6 +27,10 @@ UPD:
 - 23:08:2026 - 18:20:00: подошва нижнего ряда — РОВНО на лице настила, дрожь топит кусок
   внутрь настила, а не поднимает над ним (судья связности: черепица храма и
   каменного дома висела полем в 0.021 м над скатом, отдельным островом).
+- 28:08:2026 - 14:05:00: РЯДЫ КРОВЛИ ФАСКИ НЕ НОСЯТ (BevelHold; довод и цена —
+  HOUSE_BEVEL_COURSES в HouseMesh.h). Дранка и черепица лежат внахлёст: у куска
+  свободна только видимая кромка, и она уже имеет собственную тень от
+  напуска. Замер: 0.67 млн треугольников Вайтрана.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -57,6 +61,8 @@ void build_roof_courses(const Element& e, const ElementParams& p,
     const float piece_l = tile ? 0.40f : 0.45f;
     const float expose = tile ? 0.30f : 0.28f;
     const float th = tile ? 0.035f : 0.022f;
+    // РЯДЫ КРОВЛИ ФАСКИ НЕ НОСЯТ (HOUSE_BEVEL_COURSES; довод и цена — там же).
+    const BevelHold bevel_hold(mb, HOUSE_BEVEL_COURSES ? mb.bevel_m : 0.0f);
 
     // РЯДЫ — ПОПЕРЁК УКЛОНА: вниз по скату смотрит проекция мировой вертикали
     // на плоскость. Горизонтальному «скату» (навес без уклона) направление

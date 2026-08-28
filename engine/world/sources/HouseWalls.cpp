@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 28:08:2026 - 11:22:00
+Last updated: 28:08:2026 - 14:05:00
 Module: engine/world
 File: engine/world/sources/HouseWalls.cpp
 
@@ -34,6 +34,13 @@ UPD:
   (mesh.windows) — свет из окна. Геометрия не сдвинута ни на бит: та же
   призма, тот же материал 8, те же координаты; добавлены признак части и
   запись в список апертур, который читает печка видимости.
+- 28:08:2026 - 14:05:00: РЯДЫ КЛАДКИ ФАСКИ НЕ НОСЯТ (BevelHold на всю руку
+  build_courses; HOUSE_BEVEL_COURSES и цена — HouseMesh.h). Кусок ряда ложится
+  В ПОВЕРХНОСТЬ: тыл в плите, бока у соседей, низ под верхним рядом — свободен
+  только обвод лица, а на нём уже есть шов, перевязка и дрожь глубины. Замер:
+  фаска на кладке стоит 2.55 млн треугольников Вайтрана из 4.53 млн всей
+  прибавки. Рама проёма и наличники — ТЕЛА и фаску получают: возврат ширины
+  стоит на выходе из руки, не в конце цикла.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -105,6 +112,10 @@ static void build_courses(const Element& e, const ElementParams& p, const glm::v
     const float unit_h = stone ? 0.22f : 0.065f;
     const float gap = stone ? 0.015f : 0.010f;
     const float th = stone ? 0.045f : 0.030f; // вынос от пластины
+    // РЯДЫ КЛАДКИ ФАСКИ НЕ НОСЯТ (HOUSE_BEVEL_COURSES; довод и цена — там же).
+    // Восстановление в конце руки, а не в конце цикла: у стены за кладкой идут
+    // рама проёма и наличники, и они ТЕЛА — им фаска нужна.
+    const BevelHold bevel_hold(mb, HOUSE_BEVEL_COURSES ? mb.bevel_m : 0.0f);
     int row = 0;
     for (float v = 0.0f; v + unit_h * 0.5f < p.height; v += unit_h + gap, ++row) {
         const float v1 = std::min(v + unit_h, p.height);

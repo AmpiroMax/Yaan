@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 23:08:2026 - 18:05:00
+# Last updated: 28:08:2026 - 14:05:00
 # File: engine/world/CMakeLists.txt
 #
 # Responsibility:
@@ -104,6 +104,10 @@
 #   коллайдера и его компоненты (заказ владельца «верхние яруса не присоединены
 #   к башне»). Отдельным файлом по тому же правилу: это ПРАВИЛО-СУДЬЯ, а не
 #   построитель, и вызывается оно кузницей, а не сборкой меша.
+# - 28:08:2026 - 14:05:00: HouseEdges.cpp — ПЕРЕПИСЬ РЁБЕР готового меша, мера
+#   критерия К4 ТЗ материалов («доля рёбер с фаской»). Отдельным файлом по тому
+#   же правилу, что HouseConnect: это МЕРА, а не построитель, и правят их по
+#   разным поводам — построителя ради вида, меру ради приёмки.
 
 add_library(dfn_world STATIC
     sources/Chunk.cpp
@@ -115,6 +119,7 @@ add_library(dfn_world STATIC
     sources/HouseConnect.cpp
     sources/HouseFile.cpp
     sources/HouseBodies.cpp
+    sources/HouseEdges.cpp
     sources/HouseGeom.cpp
     sources/HouseMesh.cpp
     sources/HouseParams.cpp

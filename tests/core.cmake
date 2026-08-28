@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:42:03
-# Last updated: 20:08:2026 - 15:50:00
+# Last updated: 28:08:2026 - 15:20:00
 # File: tests/core.cmake
 #
 # Responsibility:
@@ -103,6 +103,10 @@
 #   центре, ноль пересечений обшивки с проёмом против 6 у неразрезанной колонны,
 #   и полоса фактического угла раскоса, ВЫВЕДЕННАЯ из округления к ближайшему.
 # - 20:08:2026 - 15:50:00: test_house_passability — судья проходимости готовых построек.
+# - 28:08:2026 - 15:20:00: test_house_bevel — плечо НЕНУЛЕВОЙ дозы фаски
+#   (критерий К4 ТЗ материалов). Все 38 сборок test_house_mesh переведены на
+#   0.0f и стали плечом нулевой дозы: они меряют прежнюю острую геометрию
+#   числами, и пока они зелены, доза 0 воспроизводит её бит-в-бит.
 
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_house_passability core/HousePassabilityTests.cpp dfn_world)
@@ -130,6 +134,11 @@ add_dfn_test(test_house_graph core/HouseGraphTests.cpp dfn_world)
 # (что нарисовано и во что упирается игрок). Одна модель может быть верной, а
 # геометрия из неё неверной, и наоборот; общий рукав скрыл бы, которая из двух.
 add_dfn_test(test_house_mesh core/HouseMeshTests.cpp dfn_world)
+# ПЛЕЧО НЕНУЛЕВОЙ ДОЗЫ ФАСКИ (критерий К4 ТЗ материалов). Отдельным файлом от
+# test_house_mesh нарочно: тот меряет прежнюю острую геометрию числами и
+# зовётся с 0.0f — у двух плеч разные поводы к правке, и склеенные в один файл
+# они правились бы вместе, то есть плечо нулевой дозы поехало бы за фаской.
+add_dfn_test(test_house_bevel core/HouseBevelTests.cpp dfn_world)
 add_dfn_test(test_house_style core/HouseStyleTests.cpp dfn_world)
 add_dfn_test(test_layout_load core/LayoutLoadTests.cpp dfn_world)
 add_dfn_test(test_ground_relief core/GroundReliefTests.cpp dfn_world)
