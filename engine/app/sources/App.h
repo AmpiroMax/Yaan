@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 15:45:00
+Last updated: 28:08:2026 - 18:50:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -231,6 +231,9 @@ UPD:
 - 28:08:2026 - 15:45:00: ЗВУК ОТ ИСТОЧНИКА (заказ владельца 28.08): поле
   wind_loop_ заменено на ambience_ + ambience_bank_ + прибор ambience_log_.
   Разница не в имени: у ветра не было места в мире, у рощ и русел оно есть.
+- 28:08:2026 - 18:50:00: поля насеста стрелы в позе (posture_perch_, его потолок тангажа) и
+  прибора перехода, posture_cam_enabled/posture_trace_step — второй хвост
+  зоны поз, коммит ed8bf25.
 */
 
 #pragma once
