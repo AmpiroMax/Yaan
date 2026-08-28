@@ -8,8 +8,15 @@ size_chunks = 1
 # assets/scenes/trees-v2.scene: шесть пар «первая итерация рядом со второй»
 # на ровном лугу, три рощицы на склоне (лесной дуб, бук, многоствольная
 # ольха) и многоствольные одиночки на верхней террасе.
+#
+# ЯРУСЫ (волна 28.08 по записке docs/reports/trees-tiers/index.html): под
+# рощицы посеяны КУРТИНЫ подлеска, сплошной ковёр мха и травы с переключением
+# по видимости неба, редкие акценты группами и ярус ПОДРОСТА 1-3 м. Закон
+# посева — tools/flora_sow.py; платы ковра и подрост — assets/objects/tiers.
+# ТРИ ПОЛКИ, потому что композиция стоит на деревьях v2, кузницах полянки и
+# новой полке ярусов сразу.
 source = stand:Gallery
 scene = assets/scenes/trees-v2.scene
-objects = assets/objects/trees
-description = Вторая итерация деревьев: пары до/после, три рощицы, склон.
+objects = assets/objects/trees;assets/objects/glade;assets/objects/tiers
+description = Деревья v2 и ЯРУСЫ: куртины подлеска, ковёр по свету, подрост.
 built_commit =

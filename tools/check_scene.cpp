@@ -1,6 +1,6 @@
 /*
 Created: 15:08:2026 - 16:24:04
-Last updated: 28:08:2026 - 18:40:00
+Last updated: 28:08:2026 - 21:40:00
 Module: tools
 File: tools/check_scene.cpp
 
@@ -70,6 +70,11 @@ UPD:
   носят и Вайтран, и Житнов: включить его всем сегодня значит сдвинуть
   вердикты под руками городских волн. Переключение умолчания — за владельцем
   тех карт и на спокойном дереве.
+- 28:08:2026 - 21:40:00: --path-field <шаг> — выгрузка ПОЛЯ ТРОП
+  (dist_from_worn_edge) сеткой, из того же gen->paths, которым судья ловит
+  [off-path]. Волна ЯРУСОВ ФЛОРЫ: правило опушки — порог по этой величине, и
+  сеятель обязан знать её ДО посева. Своя копия сетки троп в генераторе была
+  бы вторым источником — тем самым, против которого написан path_clearance.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -402,6 +407,8 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "usage: dfn_scene_check <file.scene> [--stand <id>] "
                              "[--objects <dir>[;<dir>...]] [--fix] [--relief]\n"
                              "       dfn_scene_check - --ground <x> <z> [<span>] "
+                             "[--stand <id>]\n"
+                             "       dfn_scene_check - --path-field <step_m> "
                              "[--stand <id>]\n");
         return 2;
     }
@@ -413,6 +420,8 @@ int main(int argc, char** argv) {
     bool use_relief = false;
     std::string solid_group;
     bool ground_query = false;
+    /// ВЫГРУЗКА ПОЛЯ ТРОП, м между отсчётами; 0 = не просили.
+    float path_field_step = 0.0f;
     float query_x = 0.0f;
     float query_z = 0.0f;
     float query_span = 8.0f;
@@ -432,6 +441,8 @@ int main(int argc, char** argv) {
             if (i + 1 < argc && argv[i + 1][0] != '-') {
                 query_span = std::strtof(argv[++i], nullptr);
             }
+        } else if (std::strcmp(argv[i], "--path-field") == 0 && i + 1 < argc) {
+            path_field_step = std::strtof(argv[++i], nullptr);
         } else if (std::strcmp(argv[i], "--stand") == 0 && i + 1 < argc) {
             stand = argv[++i];
         } else if (std::strcmp(argv[i], "--objects") == 0 && i + 1 < argc) {
@@ -447,9 +458,10 @@ int main(int argc, char** argv) {
     // In a --ground query the scene is OPTIONAL (pass "-" for none), but when
     // one is given it is read: a builder asking "how high is the ground here"
     // while his own terraces are in the file wants the answer AFTER them.
-    const bool want_scene = !ground_query || scene_path != "-";
+    const bool want_scene = !(ground_query || path_field_step > 0.0f)
+                            || scene_path != "-";
     if (want_scene && !read_scene(scene_path, doc, error)) {
-        if (ground_query) {
+        if (ground_query || path_field_step > 0.0f) {
             std::fprintf(stderr, "[scene] %s: %s -- measuring the natural ground\n",
                          scene_path.string().c_str(), error.c_str());
             doc = SceneDoc{};
@@ -537,6 +549,40 @@ int main(int argc, char** argv) {
     // and the alternative — placing at a guessed height and letting --fix
     // correct it — cannot work for a house, whose parts rest on each other and
     // are never sat down by the fixer.
+    // ПОЛЕ ТРОП ОДНИМ ВОПРОСОМ (--path-field, волна ярусов флоры 28.08).
+    // ЗАЧЕМ. Правило опушки — «подлесок только на бортик, деревья дальше
+    // кустов» — это порог по ОДНОЙ величине: dist_from_worn_edge, той самой,
+    // которой судья ловит [off-path]. Сеятель обязан знать её ДО посева, иначе
+    // он сеет вслепую и отступает по находкам — а находок у ковра из тысяч
+    // пучков были бы тысячи. Второй источник (своя копия сетки троп в питоне)
+    // — ровно та ошибка, от которой предостерегает SceneWorld::path_clearance:
+    // судья запрещал бы там, где земля тропы не показывает. Поэтому поле
+    // ВЫДАЁТ ТОТ ЖЕ судья из того же gen->paths.
+    if (path_field_step > 0.0f) {
+        const float span = doc.world_span_m > 0.0f ? doc.world_span_m : 256.0f;
+        const int n = static_cast<int>(span / path_field_step);
+        std::printf("[path-field] step %.4f span %.2f n %d\n",
+                    static_cast<double>(path_field_step),
+                    static_cast<double>(span), n);
+        if (gen.paths.routes.empty()) {
+            std::printf("[path-field] no routes on this world\n");
+            return 0;
+        }
+        for (int iz = 0; iz <= n; ++iz) {
+            for (int ix = 0; ix <= n; ++ix) {
+                const glm::vec2 at{static_cast<float>(ix) * path_field_step,
+                                   static_cast<float>(iz) * path_field_step};
+                const float d = gen.paths.sample(at).dist_from_worn_edge;
+                // Далеко от троп поле неинтересно и стоит места: печатается
+                // только полоса, в которой пороги опушки вообще срабатывают.
+                if (d < 8.0f) {
+                    std::printf("pf %d %d %.3f\n", ix, iz, static_cast<double>(d));
+                }
+            }
+        }
+        return 0;
+    }
+
     if (ground_query) {
         float lo = 1e9f;
         float hi = -1e9f;
