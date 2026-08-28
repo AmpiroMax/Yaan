@@ -9870,7 +9870,7 @@ note = убранство: barn-old
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 58.854 24.180 321.756
+pos = 58.926 24.180 321.943
 yaw = 3.511099
 note = убранство: barn-old
 
@@ -10258,7 +10258,7 @@ note = убранство: barn-old
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 466.450 24.180 309.048
+pos = 466.509 24.180 309.239
 yaw = 3.438273
 note = убранство: barn-old
 
@@ -10970,7 +10970,7 @@ note = убранство: скотный баз
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 214.643 25.148 474.305
+pos = 214.449 25.148 474.258
 yaw = 1.331970
 note = убранство: скотный баз
 
@@ -18367,7 +18367,7 @@ note = убранство: barn
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 300.292 24.180 479.936
+pos = 300.289 24.180 479.736
 yaw = 0.013688
 note = убранство: barn
 

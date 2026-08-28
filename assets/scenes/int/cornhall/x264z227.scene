@@ -121,7 +121,7 @@ note = убранство яруса: jetty
 
 [place]
 object = furn-bed
-pos = 2.300 3.520 7.600
+pos = 2.300 3.520 7.400
 yaw = 0.000000
 scale = 1
 note = убранство яруса: jetty
@@ -178,7 +178,7 @@ note = убранство яруса: jetty
 
 [place]
 object = furn-bed
-pos = 4.600 6.320 8.300
+pos = 5.100 6.320 8.100
 yaw = 0.000000
 scale = 1
 note = убранство яруса: jetty

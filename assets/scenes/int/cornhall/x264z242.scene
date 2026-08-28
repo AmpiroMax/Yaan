@@ -166,13 +166,13 @@ note = убранство яруса: arcade
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 8.000 4.580 0.250
+pos = 8.000 4.580 4.200
 yaw = 0.000000
 note = убранство яруса: arcade
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 8.800 4.580 0.250
+pos = 8.900 4.580 4.200
 yaw = 0.000000
 note = убранство яруса: arcade
 

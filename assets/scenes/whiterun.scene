@@ -3693,7 +3693,7 @@ note = убранство: амбар
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 91.218 26.148 199.979
+pos = 91.018 26.148 199.979
 yaw = 1.570796
 note = убранство: амбар
 
@@ -3941,7 +3941,7 @@ note = убранство: конюшни
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 110.487 26.180 183.920
+pos = 110.686 26.180 183.909
 yaw = 4.764972
 note = убранство: конюшни
 
