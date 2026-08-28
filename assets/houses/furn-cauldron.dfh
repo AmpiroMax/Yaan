@@ -1,0 +1,40 @@
+# dfh 1
+vertex v1 free 0.5500 0.0000 1.0700
+vertex v2 free 0.5500 1.2000 0.5500
+vertex v3 free 0.0997 0.0000 0.2900
+vertex v4 free 1.0003 0.0000 0.2900
+vertex v5 free 0.5500 0.5200 0.5500
+vertex v6 free 0.5500 1.1800 0.5500
+vertex v7 free 0.5500 0.2000 0.5500
+vertex v8 free 0.5500 0.2800 0.5500
+vertex v9 free 0.5500 0.3800 0.5500
+vertex v10 free 0.5500 0.5400 0.5500
+vertex v11 free 0.5500 0.5800 0.5500
+vertex v12 free 0.7563 0.5825 0.4001
+vertex v13 free 0.6288 0.5825 0.3075
+vertex v14 free 0.4712 0.5825 0.3075
+vertex v15 free 0.3437 0.5825 0.4001
+vertex v16 free 0.2950 0.5825 0.5500
+vertex v17 free 0.3437 0.5825 0.6999
+vertex v18 free 0.4712 0.5825 0.7925
+vertex v19 free 0.6288 0.5825 0.7925
+vertex v20 free 0.7563 0.5825 0.6999
+vertex v21 free 0.8050 0.5825 0.5500
+vertex v22 free 0.6366 0.0000 0.6000
+vertex v23 free 0.6539 0.2400 0.6100
+vertex v24 free 0.4634 0.0000 0.6000
+vertex v25 free 0.4461 0.2400 0.6100
+vertex v26 free 0.5500 0.0000 0.4500
+vertex v27 free 0.5500 0.2400 0.4300
+line e1 v1 v2 style=- radius=0.024 form=square mat=0 tone=2
+line e2 v3 v2 style=- radius=0.024 form=square mat=0 tone=2
+line e3 v4 v2 style=- radius=0.024 form=square mat=0 tone=2
+line e4 v5 v6 style=- radius=0.011 form=square mat=3 tone=2 paint=6
+line e5 v7 v8 style=- radius=0.130 form=ngon n=10 mat=3 tone=2 paint=6
+line e6 v8 v9 style=- radius=0.195 form=ngon n=10 mat=3 tone=2 paint=6
+line e7 v9 v10 style=- radius=0.235 form=ngon n=10 mat=3 tone=2 paint=6
+line e8 v10 v11 style=- radius=0.215 form=ngon n=10 mat=3 tone=2 paint=6
+surface e9 v12 v13 v14 v15 v16 v17 v18 v19 v20 v21 style=- closed=1 thickness=0.035 mat=3 tone=2 paint=6
+line e10 v22 v23 style=- radius=0.016 form=square mat=3 tone=2 paint=6
+line e11 v24 v25 style=- radius=0.016 form=square mat=3 tone=2 paint=6
+line e12 v26 v27 style=- radius=0.016 form=square mat=3 tone=2 paint=6

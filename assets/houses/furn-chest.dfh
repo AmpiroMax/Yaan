@@ -1,0 +1,63 @@
+# dfh 1
+vertex v1 free 0.0000 0.0250 0.0000
+vertex v2 free 0.0000 0.0250 0.5000
+vertex v3 free 0.9000 0.0250 0.5000
+vertex v4 free 0.9000 0.0250 0.0000
+vertex v5 free 0.0175 0.0400 0.0000
+vertex v6 free 0.0175 0.0400 0.5000
+vertex v7 free 0.0175 0.4600 0.5000
+vertex v8 free 0.0175 0.4600 0.0000
+vertex v9 free 0.8825 0.0400 0.0000
+vertex v10 free 0.8825 0.0400 0.5000
+vertex v11 free 0.8825 0.4600 0.5000
+vertex v12 free 0.8825 0.4600 0.0000
+vertex v13 free 0.0000 0.0400 0.0175
+vertex v14 free 0.9000 0.0400 0.0175
+vertex v15 free 0.9000 0.4600 0.0175
+vertex v16 free 0.0000 0.4600 0.0175
+vertex v17 free 0.0000 0.0400 0.4825
+vertex v18 free 0.9000 0.0400 0.4825
+vertex v19 free 0.9000 0.4600 0.4825
+vertex v20 free 0.0000 0.4600 0.4825
+vertex v21 free -0.0200 0.5100 -0.0200
+vertex v22 free -0.0200 0.5100 0.5200
+vertex v23 free 0.9200 0.5100 0.5200
+vertex v24 free 0.9200 0.5100 -0.0200
+vertex v25 free 0.1000 0.0400 -0.0050
+vertex v26 free 0.1000 0.5650 -0.0050
+vertex v27 free 0.1000 0.0400 0.5050
+vertex v28 free 0.1000 0.5650 0.5050
+vertex v29 free 0.1000 0.5750 0.0000
+vertex v30 free 0.1000 0.5750 0.5000
+vertex v31 free 0.4500 0.0400 -0.0050
+vertex v32 free 0.4500 0.5650 -0.0050
+vertex v33 free 0.4500 0.0400 0.5050
+vertex v34 free 0.4500 0.5650 0.5050
+vertex v35 free 0.4500 0.5750 0.0000
+vertex v36 free 0.4500 0.5750 0.5000
+vertex v37 free 0.8000 0.0400 -0.0050
+vertex v38 free 0.8000 0.5650 -0.0050
+vertex v39 free 0.8000 0.0400 0.5050
+vertex v40 free 0.8000 0.5650 0.5050
+vertex v41 free 0.8000 0.5750 0.0000
+vertex v42 free 0.8000 0.5750 0.5000
+vertex v43 free 0.3800 0.3600 -0.0120
+vertex v44 free 0.5200 0.3600 -0.0120
+vertex v45 free 0.5200 0.5400 -0.0120
+vertex v46 free 0.3800 0.5400 -0.0120
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.050 mat=1 tone=2
+surface e2 v5 v6 v7 v8 style=- closed=1 thickness=0.035 mat=1 tone=2
+surface e3 v9 v10 v11 v12 style=- closed=1 thickness=0.035 mat=1 tone=2
+surface e4 v13 v14 v15 v16 style=- closed=1 thickness=0.035 mat=1 tone=2
+surface e5 v17 v18 v19 v20 style=- closed=1 thickness=0.035 mat=1 tone=2
+surface e6 v21 v22 v23 v24 style=- closed=1 thickness=0.100 mat=1 tone=1
+line e7 v25 v26 style=- radius=0.022 form=square mat=3 tone=2
+line e8 v27 v28 style=- radius=0.022 form=square mat=3 tone=2
+line e9 v29 v30 style=- radius=0.022 form=square mat=3 tone=2
+line e10 v31 v32 style=- radius=0.022 form=square mat=3 tone=2
+line e11 v33 v34 style=- radius=0.022 form=square mat=3 tone=2
+line e12 v35 v36 style=- radius=0.022 form=square mat=3 tone=2
+line e13 v37 v38 style=- radius=0.022 form=square mat=3 tone=2
+line e14 v39 v40 style=- radius=0.022 form=square mat=3 tone=2
+line e15 v41 v42 style=- radius=0.022 form=square mat=3 tone=2
+surface e16 v43 v44 v45 v46 style=- closed=1 thickness=0.024 mat=3 tone=2

@@ -1,0 +1,11 @@
+# dfh 1
+vertex v1 free 0.0000 0.0060 0.0000
+vertex v2 free 0.0000 0.0060 1.4000
+vertex v3 free 2.0000 0.0060 1.4000
+vertex v4 free 2.0000 0.0060 0.0000
+vertex v5 free 0.1400 0.0120 0.1400
+vertex v6 free 0.1400 0.0120 1.2600
+vertex v7 free 1.8600 0.0120 1.2600
+vertex v8 free 1.8600 0.0120 0.1400
+surface e1 v1 v2 v3 v4 style=- closed=1 thickness=0.012 mat=6 tone=2 paint=3
+surface e2 v5 v6 v7 v8 style=- closed=1 thickness=0.010 mat=6 tone=1 paint=2

@@ -1,0 +1,477 @@
+<!doctype html>
+<!--
+Created: 28:08:2026 - 11:47:00
+Last updated: 28:08:2026 - 12:35:00
+Module: docs/reports
+File: docs/reports/furniture-nomenclature.html
+
+Responsibility:
+- Отвечает на три вопроса заказа 28.08 («достаточно объектов для повторения
+  комнат Скайрима»): что стоит на девятнадцати скринах интерьеров владельца и
+  как часто; что из этого испечено первой партией; чего не хватает до
+  «достаточно». Мерило объявлено кадром, а не длиной списка: комната стенда
+  рядом со скрином, по которому она собрана.
+- Колонка «материал словами» — ЗАДАНИЕ на перекраску для зоны МАТЕРИАЛОВ, а не
+  описание достигнутого: каждый обход нынешнего конвейера назван вслух.
+
+Dependencies:
+- Uses: images_examples/houses_indoors (эталон, 19 скринов);
+  assets/objects/furniture/INDEX.md (замеры и хэши полки);
+  assets/scenes/furniture-room.scene + assets/maps/interiors/furniture-room.map
+  (стенд); docs/reports/furniture-nomenclature/ (кадры стенда).
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly. Каждое число здесь — счёт или прогон, а
+  не оценка; страница не правится задним числом, к ней дописывается UPD.
+-->
+<!--
+UPD:
+- 28:08:2026 - 11:47:00: Создан волной первой партии номенклатуры: таблица
+  инвентаризации 19 скринов по частоте категорий, перечень двадцати объектов
+  полки с замером и хэшем, кадр стенда рядом с эталоном, список из десяти
+  нехваток следующей партии.
+- 28:08:2026 - 12:35:00: Шапка по контракту заголовков (застава коммита
+  отвергла страницу без неё). Раздел 7 — приёмка воспроизводимости, прогнанная
+  ПОСЛЕ падения среды предшественника: 210 рецептов и 20 объектов перепечены
+  начисто и сошлись побайтово, ctest 117/118. Числа разделов 0-6 не тронуты:
+  они перепроверены, а не переписаны.
+-->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Номенклатура убранства — инвентаризация 19 скринов и первая партия</title>
+<style>
+:root{--ink:#1c1712;--dim:#6b6055;--line:#d8cdbd;--bg:#f6f1e7;--warm:#8a3a1f;--ok:#2f6b3a;--no:#9a3b2c}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+ font:16px/1.55 "Iowan Old Style","Palatino Linotype",Georgia,serif;padding:0 0 80px}
+header{background:#221c15;color:#f0e8da;padding:34px 40px 30px}
+header h1{margin:0 0 6px;font-size:30px;letter-spacing:.2px}
+header p{margin:4px 0;color:#c3b6a2;max-width:64em}
+main{max-width:1180px;margin:0 auto;padding:0 24px}
+h2{margin:44px 0 6px;font-size:23px;border-bottom:2px solid var(--line);padding-bottom:6px}
+h3{margin:26px 0 6px;font-size:18px;color:#3a2f24}
+p,li{max-width:62em}
+.lede{color:var(--dim)}
+table{border-collapse:collapse;width:100%;margin:14px 0;font-size:14.5px;background:#fffdf8}
+th,td{border:1px solid var(--line);padding:6px 9px;text-align:left;vertical-align:top}
+th{background:#efe7d8;font-weight:600}
+td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.mono,code{font-family:"SF Mono",Menlo,Consolas,monospace;font-size:13px}
+tr.have td:first-child{border-left:4px solid var(--ok)}
+tr.batch td:first-child{border-left:4px solid var(--warm)}
+tr.next td:first-child{border-left:4px solid var(--no)}
+.tag{display:inline-block;padding:1px 7px;border-radius:9px;font-size:12px;
+ font-family:"SF Mono",Menlo,monospace;white-space:nowrap}
+.t-new{background:#f3e0d3;color:#8a3a1f}
+.t-old{background:#dfe9dd;color:#2f6b3a}
+.t-no{background:#f0dcd8;color:#9a3b2c}
+.strip{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}
+.strip figure{margin:0;width:150px}
+.strip img{width:150px;height:88px;object-fit:cover;border:1px solid var(--line);display:block}
+.strip figcaption{font-size:11px;color:var(--dim);text-align:center;padding-top:2px}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+.pair img{width:100%;border:1px solid var(--line);display:block}
+.pair figure{margin:0}
+.pair figcaption{font-size:13px;color:var(--dim);padding-top:5px}
+.wide img{width:100%;border:1px solid var(--line);display:block}
+blockquote{margin:14px 0;padding:10px 16px;border-left:4px solid var(--warm);
+ background:#fdf7ec;color:#4a3d30}
+.note{background:#fdf7ec;border:1px solid var(--line);padding:12px 16px;margin:14px 0}
+footer{max-width:1180px;margin:50px auto 0;padding:16px 24px 0;border-top:1px solid var(--line);
+ color:var(--dim);font-size:14px}
+</style>
+</head>
+<body>
+<header>
+<h1>Номенклатура убранства: инвентаризация девятнадцати скринов и первая партия</h1>
+<p>Волна 28.08. Заказ владельца дословно: «делай до тех пор, пока не будет заготовлено
+достаточно объектов для ПОВТОРЕНИЯ КОМНАТ СКАЙРИМА из скринов».</p>
+<p>Эталон — <code>images_examples/houses_indoors</code>, девятнадцать скринов интерьеров.
+Отчёт отвечает на три вопроса: <b>что там стоит и как часто</b>, <b>что из этого испечено
+сейчас</b>, <b>чего не хватает на «достаточно»</b>.</p>
+</header>
+
+<main>
+
+<h2>0. Что здесь мерило</h2>
+<p>Мерилом объявлена не длина списка, а <b>кадр</b>: комната, собранная из полки
+объектов, рядом со скрином, по которому она собрана. Список из тридцати имён, из
+которых комната не складывается, ничего не доказывает; шестнадцать имён, которыми
+комната складывается, доказывают всё. Кадр — в разделе 4.</p>
+
+<div class="note">
+<b>Оговорка о покраске, названная прежде выводов.</b> Параллельно идёт зона МАТЕРИАЛОВ
+(понятие <code>Material</code> вместо четырёх жёстких программ). Ценность этой волны —
+<b>инвентаризация</b> и <b>геометрия</b>: они переживут смену покраски целиком. Тона
+здесь положены тем, что умеет нынешний конвейер, — парами
+<code>surface/tone</code> девятигранного листа набора плюс слой краски, каким загрузчик
+красит город. Металла, ткани и стекла отдельными колонками у набора нет, поэтому железо
+ходит камнем тёмного ряда под дёгтем, мешковина и плетение — соломой, стекло — глухим
+окном. <b>Каждый такой обход назван словом</b> в колонке «материал словами» — это
+готовое задание на перекраску, а не описание достигнутого.
+</div>
+
+<h2>1. Девятнадцать скринов</h2>
+<p class="lede">Пройдены глазами по одному. Ниже — их порядок и краткое «что за комната»;
+номера ссылаются на имена файлов, чтобы счёт можно было перепроверить.</p>
+<div class="strip">
+<figure><img src="../../images_examples/houses_indoors/image.png"><figcaption>S1 image — зал с камином и книжным шкафом</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy.png"><figcaption>S2 copy — чердачная площадка</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 2.png"><figcaption>S3 copy 2 — общая зала с очажной ямой</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 3.png"><figcaption>S4 copy 3 — каморка со столом и окном</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 4.png"><figcaption>S5 copy 4 — медовый зал, длинный очаг</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 5.png"><figcaption>S6 copy 5 — кухня-кладовая</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 6.png"><figcaption>S7 copy 6 — богатый дом, камин и кресла</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 7.png"><figcaption>S8 copy 7 — алхимия и очаг с котлами</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 8.png"><figcaption>S9 copy 8 — каменная спальня</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 9.png"><figcaption>S10 copy 9 — <b>общая комната сруба (эталон стенда)</b></figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 10.png"><figcaption>S11 copy 10 — библиотека</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 11.png"><figcaption>S12 copy 11 — светлая гостиная</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 12.png"><figcaption>S13 copy 12 — спаленка на две кровати</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 13.png"><figcaption>S14 copy 13 — горница с камином</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 14.png"><figcaption>S15 copy 14 — очажная яма с котлом</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 15.png"><figcaption>S16 copy 15 — угол у камина</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 16.png"><figcaption>S17 copy 16 — покои с балдахином</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 17.png"><figcaption>S18 copy 17 — парадные сени</figcaption></figure>
+<figure><img src="../../images_examples/houses_indoors/image copy 18.png"><figcaption>S19 copy 18 — таверна с ярусом</figcaption></figure>
+</div>
+
+<h2>2. Инвентаризация: предмет → на скольких скринах → есть ли у нас</h2>
+<p class="lede">Счёт — глазами, один проход, знаменатель везде 19. Считалась
+<b>категория</b>, а не штука: две миски на одном столе — это один скрин, а не два.
+Порядок строк — по убыванию частоты; он же был порядком выпечки.</p>
+
+<table>
+<tr><th>предмет</th><th class="n">скринов<br>из 19</th><th>было до волны</th>
+<th>эта партия</th><th>материал словами <span style="font-weight:400">(задание на перекраску)</span></th></tr>
+
+<tr class="batch"><td><b>Стул со спинкой</b></td><td class="n">16</td>
+<td>нет вовсе — сидеть было не на чем, кроме лавки</td>
+<td><span class="tag t-new">furn-chair</span></td><td>дуб: тёсаный брус ножек, пилёная доска сиденья и спинки</td></tr>
+
+<tr class="batch"><td><b>Стол</b></td><td class="n">16</td>
+<td>рецепт <code>furn-table</code>, в реестре не было</td>
+<td><span class="tag t-old">furn-table → в реестр</span></td><td>дуб</td></tr>
+
+<tr class="batch"><td><b>Посуда: миска, тарелка</b></td><td class="n">15</td><td>нет</td>
+<td><span class="tag t-new">furn-bowl</span></td><td>обожжённая глина, полива</td></tr>
+
+<tr class="batch"><td><b>Кувшин, бутыль</b></td><td class="n">15</td><td>нет</td>
+<td><span class="tag t-new">furn-jug</span> <span class="tag t-new">furn-bottle</span></td>
+<td>кувшин — глина под поливой; бутыль — <b>зелёное стекло</b> и пробковая кора
+(стекло сегодня ходит «глухим окном»)</td></tr>
+
+<tr class="batch"><td><b>Свеча, канделябр</b></td><td class="n">15</td>
+<td>только уличный фонарь <code>furn-lamp-wall</code></td>
+<td><span class="tag t-new">furn-candlestick</span></td>
+<td><b>кованое железо</b> стана, <b>воск</b> свечей, пламя (самосветное, glow=1)</td></tr>
+
+<tr class="batch"><td><b>Ковёр</b></td><td class="n">15</td><td>нет</td>
+<td><span class="tag t-new">furn-rug</span></td>
+<td><b>шерсть, тканьё</b>: кайма и поле (сегодня — солома под краской фалу и охры)</td></tr>
+
+<tr class="batch"><td><b>Комод, буфет, тумба</b></td><td class="n">13</td><td>нет</td>
+<td><span class="tag t-new">furn-cupboard</span></td><td>дуб; ручки — <b>кованое железо</b></td></tr>
+
+<tr class="batch"><td><b>Полка</b> (настенная доска и стеллаж)</td><td class="n">13</td>
+<td>стеллаж <code>furn-shelf</code>; настенной не было, а в кадре чаще именно она</td>
+<td><span class="tag t-new">furn-shelf-wall</span> <span class="tag t-old">furn-shelf → в реестр</span></td>
+<td>пилёная доска, косынки — тёсаный брус</td></tr>
+
+<tr class="batch"><td><b>Очаг и огонь</b></td><td class="n">12</td>
+<td><code>furn-hearth</code>, <code>furn-fire</code> — есть</td>
+<td>—<br><span style="font-size:12.5px;color:#6b6055">в реестр не берутся: у камня износ по месту, пламя косметическое</span></td>
+<td>камень, зола, пламя</td></tr>
+
+<tr class="batch"><td><b>Книги</b></td><td class="n">8</td><td>нет</td>
+<td><span class="tag t-new">furn-books</span></td><td><b>кожа</b> переплёта (краска фалу/синяя/зелёная/дёготь), <b>бумага</b> блока</td></tr>
+
+<tr class="batch"><td><b>Котёл</b></td><td class="n">8</td><td>нет</td>
+<td><span class="tag t-new">furn-cauldron</span></td>
+<td><b>чугун</b> тулова (сегодня — камень под дёгтем), <b>жердь</b> треноги, крюк — железо</td></tr>
+
+<tr class="batch"><td><b>Лавка</b></td><td class="n">8</td>
+<td>рецепт <code>furn-bench</code>, в реестре не было</td>
+<td><span class="tag t-old">furn-bench → в реестр</span></td><td>дуб</td></tr>
+
+<tr class="next"><td>Подвешенная снедь: связки чеснока, пучки трав, вяленое мясо и рыба</td>
+<td class="n">8</td><td>нет</td><td><span class="tag t-no">следующая партия</span></td>
+<td>лук и чеснок, сушёная зелень, солонина, бечёвка</td></tr>
+
+<tr class="batch"><td><b>Сундук</b></td><td class="n">7</td><td>нет</td>
+<td><span class="tag t-new">furn-chest</span></td><td>дуб; полосы и накладка замка — <b>кованое железо</b></td></tr>
+
+<tr class="batch"><td><b>Корзина</b></td><td class="n">7</td><td>нет</td>
+<td><span class="tag t-new">furn-basket</span></td><td><b>ивовый прут</b>, плетение</td></tr>
+
+<tr class="batch"><td><b>Шкура на полу</b></td><td class="n">7</td><td>нет</td>
+<td><span class="tag t-new">furn-hide</span></td><td><b>мех</b> (белая медвежья/козья; сегодня — солома под белилами)</td></tr>
+
+<tr class="batch"><td><b>Кубок, кружка</b></td><td class="n">7</td><td>нет</td>
+<td><span class="tag t-new">furn-cup</span></td><td><b>олово</b>, пьютер</td></tr>
+
+<tr class="next"><td>Круглая настенная плакетка, щит-блюдо</td><td class="n">6</td><td>нет</td>
+<td><span class="tag t-no">следующая партия</span></td><td>дерево, роспись, оковка</td></tr>
+
+<tr class="next"><td>Картина в раме</td><td class="n">6</td><td>нет</td>
+<td><span class="tag t-no">следующая партия</span></td><td>рама — дуб, поле — <b>холст</b></td></tr>
+
+<tr class="next"><td>Растение в горшке, кадка с зеленью</td><td class="n">6</td>
+<td>уличный <code>furn-planter</code> — не комнатный</td>
+<td><span class="tag t-no">следующая партия</span></td><td>глина горшка, листва</td></tr>
+
+<tr class="next"><td>Еда: хлеб, круги сыра, овощи</td><td class="n">6</td><td>нет</td>
+<td><span class="tag t-no">следующая партия</span></td><td>печёный хлеб, сыр, репа и капуста</td></tr>
+
+<tr class="batch"><td><b>Табурет</b></td><td class="n">5</td><td>нет</td>
+<td><span class="tag t-new">furn-stool</span></td><td>дуб</td></tr>
+
+<tr class="batch"><td><b>Кровать</b></td><td class="n">5</td>
+<td><code>furn-bed</code> — единственный жилец полки до этой волны</td>
+<td><span class="tag t-old">был</span></td><td>дуб рамы, <b>лён</b> настила, <b>шерсть</b> одеяла</td></tr>
+
+<tr class="next"><td>Голова зверя на стене</td><td class="n">5</td><td>нет</td>
+<td><span class="tag t-no">следующая партия</span></td><td><b>мех</b>, <b>рог</b>, дубовый щит основания</td></tr>
+
+<tr class="next"><td>Бочка</td><td class="n">5</td>
+<td>рецепт <code>furn-barrel</code> есть</td>
+<td><span class="tag t-no">печь ОТКАЗАЛА</span><br>
+<span style="font-size:12.5px;color:#6b6055">см. раздел 5</span></td><td>дуб клёпки, обручи — железо</td></tr>
+
+<tr class="batch"><td><b>Мешок</b></td><td class="n">3</td><td>нет</td>
+<td><span class="tag t-new">furn-sack</span></td><td><b>мешковина</b>, лён, бечёвка на горловине</td></tr>
+
+<tr class="next"><td>Дрова у очага</td><td class="n">3</td>
+<td>дворовая поленница <code>furn-woodpile</code></td>
+<td><span class="tag t-no">следующая партия</span><br>
+<span style="font-size:12.5px;color:#6b6055">комнатная вязанка, 1.5 м — не для комнаты</span></td><td>берёзовые поленья, кора</td></tr>
+
+<tr class="next"><td>Гобелен, знамя</td><td class="n">3</td><td>нет</td>
+<td><span class="tag t-no">следующая партия</span></td><td><b>шерсть</b>, <b>лён</b>, кисти</td></tr>
+</table>
+
+<h3>Что видно из таблицы</h3>
+<p>Первые двенадцать строк — это <b>всё, что стоит больше чем на половине скринов</b>, и
+до этой волны из них у нас было <b>три с половиной</b>: стол, лавка, стеллаж и очаг с
+огнём — и ни одного из них не было в перечне объектов, кроме кровати. Отсутствовали
+целиком: стул со спинкой (16 из 19!), вся посуда, свеча, ковёр, комод. Комнату из
+трёх столов не соберёшь; отсюда состав партии.</p>
+
+<h2>3. Что испечено</h2>
+<p class="lede">Шестнадцать новых чертежей (<code>tools/forge_furniture.cpp</code>,
+процедурно, теми же руками <code>slab/panel/bar/quad/drum/disc_n</code>, что стол и
+кровать) и <b>двадцать</b> объектов реестра
+(<code>tools/forge_furniture_objects.cpp</code> → <code>assets/objects/furniture</code>).
+Габариты и число треугольников — <b>замер с самого объекта</b>
+(<code>render::measure_object</code>), не паспорт рецепта.</p>
+
+<table>
+<tr><th>объект</th><th class="n">пятно, м</th><th class="n">верх, м</th><th class="n">треуг.</th>
+<th class="n">кусков</th><th class="mono">хэш содержимого</th><th>материал словами</th></tr>
+<tr><td>furn-chair <span class="tag t-new">новый</span></td><td class="n">0.48 × 0.48</td><td class="n">0.94</td><td class="n">156</td><td class="n">3</td><td class="mono">fbff484fbde4c487</td><td>дуб</td></tr>
+<tr><td>furn-stool <span class="tag t-new">новый</span></td><td class="n">0.36 × 0.36</td><td class="n">0.46</td><td class="n">108</td><td class="n">2</td><td class="mono">6b7efce14414dc7e</td><td>дуб</td></tr>
+<tr><td>furn-cupboard <span class="tag t-new">новый</span></td><td class="n">1.05 × 0.54</td><td class="n">0.92</td><td class="n">132</td><td class="n">4</td><td class="mono">5b87a907483b337e</td><td>дуб; ручки — железо</td></tr>
+<tr><td>furn-chest <span class="tag t-new">новый</span></td><td class="n">0.94 × 0.55</td><td class="n">0.60</td><td class="n">192</td><td class="n">3</td><td class="mono">2fbfd55d245de44d</td><td>дуб; полосы и замок — железо</td></tr>
+<tr><td>furn-shelf-wall <span class="tag t-new">новый</span></td><td class="n">1.10 × 0.28</td><td class="n">0.32</td><td class="n">72</td><td class="n">2</td><td class="mono">34b414ad24b88bbb</td><td>пилёная доска, косынки — брус</td></tr>
+<tr><td>furn-cauldron <span class="tag t-new">новый</span></td><td class="n">1.02 × 1.09</td><td class="n">1.21</td><td class="n">264</td><td class="n">2</td><td class="mono">6eeb716266255504</td><td>чугун, жердь, железо</td></tr>
+<tr><td>furn-basket <span class="tag t-new">новый</span></td><td class="n">0.50 × 0.49</td><td class="n">0.40</td><td class="n">180</td><td class="n">2</td><td class="mono">a62ccb37b76ba086</td><td>ивовый прут</td></tr>
+<tr><td>furn-sack <span class="tag t-new">новый</span></td><td class="n">0.44 × 0.45</td><td class="n">0.62</td><td class="n">168</td><td class="n">1</td><td class="mono">c91841e5b40e86bc</td><td>мешковина, лён</td></tr>
+<tr><td>furn-hide <span class="tag t-new">новый</span></td><td class="n">1.68 × 1.23</td><td class="n">0.02</td><td class="n">60</td><td class="n">1</td><td class="mono">563da2e7a7163ca4</td><td>мех</td></tr>
+<tr><td>furn-rug <span class="tag t-new">новый</span></td><td class="n">2.00 × 1.40</td><td class="n">0.02</td><td class="n">24</td><td class="n">2</td><td class="mono">3747e0214f98008c</td><td>шерсть, тканьё</td></tr>
+<tr><td>furn-bowl <span class="tag t-new">новый</span></td><td class="n">0.24 × 0.23</td><td class="n">0.08</td><td class="n">136</td><td class="n">2</td><td class="mono">d6877c8319690948</td><td>обожжённая глина</td></tr>
+<tr><td>furn-jug <span class="tag t-new">новый</span></td><td class="n">0.24 × 0.19</td><td class="n">0.30</td><td class="n">180</td><td class="n">1</td><td class="mono">c0bf5465ee93cc5c</td><td>глина под поливой</td></tr>
+<tr><td>furn-bottle <span class="tag t-new">новый</span></td><td class="n">0.11 × 0.11</td><td class="n">0.32</td><td class="n">140</td><td class="n">2</td><td class="mono">d985730dc5ac3642</td><td>зелёное стекло, пробка</td></tr>
+<tr><td>furn-cup <span class="tag t-new">новый</span></td><td class="n">0.11 × 0.10</td><td class="n">0.12</td><td class="n">128</td><td class="n">1</td><td class="mono">5c544e388ce8872e</td><td>олово</td></tr>
+<tr><td>furn-candlestick <span class="tag t-new">новый</span></td><td class="n">0.26 × 0.22</td><td class="n">0.51</td><td class="n">292</td><td class="n">3</td><td class="mono">f43e4353658d30ec</td><td>железо, воск, пламя</td></tr>
+<tr><td>furn-books <span class="tag t-new">новый</span></td><td class="n">0.23 × 0.17</td><td class="n">0.18</td><td class="n">192</td><td class="n">2</td><td class="mono">fea2864ed5868e89</td><td>кожа, бумага</td></tr>
+<tr><td>furn-table <span class="tag t-old">был рецептом</span></td><td class="n">1.80 × 0.90</td><td class="n">0.80</td><td class="n">144</td><td class="n">3</td><td class="mono">8ff4af74ee71d277</td><td>дуб</td></tr>
+<tr><td>furn-bench <span class="tag t-old">был рецептом</span></td><td class="n">1.60 × 0.35</td><td class="n">0.45</td><td class="n">48</td><td class="n">3</td><td class="mono">569c22b47d6d8941</td><td>дуб</td></tr>
+<tr><td>furn-shelf <span class="tag t-old">был рецептом</span></td><td class="n">1.18 × 0.35</td><td class="n">2.05</td><td class="n">96</td><td class="n">3</td><td class="mono">19df8619ca510d03</td><td>пилёная доска</td></tr>
+<tr><td>furn-bed <span class="tag t-old">был в реестре</span></td><td class="n">1.15 × 2.05</td><td class="n">1.14</td><td class="n">336</td><td class="n">3</td><td class="mono">09b01647bd52a00a</td><td>дуб, лён, шерсть</td></tr>
+</table>
+<p><b>Сумма полки — 3048 треугольников на двадцать предметов, в среднем 152 на
+предмет.</b> Самый дорогой — кровать (336), самый дешёвый — ковёр (24). Посуда,
+набранная стопкой призм, стоит 128–180: это цена скругления, и она названа в коде.</p>
+
+<h3>Контрольная рука печи</h3>
+<p>Правило: перепечка даёт <b>тот же</b> файл. Проверено сравнением sha256 боевой полки
+и повторной выпечки в отдельный каталог:</p>
+<table>
+<tr><th>объект</th><th class="mono">боевая полка (sha256, 16)</th><th class="mono">контрольная выпечка</th><th>итог</th></tr>
+<tr><td>furn-chair</td><td class="mono">ff5bd843ce80c659</td><td class="mono">ff5bd843ce80c659</td><td>совпало</td></tr>
+<tr><td>furn-cauldron</td><td class="mono">40e8ffe91b0b336c</td><td class="mono">40e8ffe91b0b336c</td><td>совпало</td></tr>
+<tr><td>furn-candlestick</td><td class="mono">02fbb68bf28c5aa9</td><td class="mono">02fbb68bf28c5aa9</td><td>совпало</td></tr>
+<tr><td>furn-bed</td><td class="mono">9faeb8a6b25af6e5</td><td class="mono">9faeb8a6b25af6e5</td><td>совпало</td></tr>
+</table>
+<p><b>Второй контроль, и он важнее первого:</b> хэш содержимого кровати
+<code>09b01647bd52a00a</code> <b>не изменился</b> после того, как в печь добавили
+девятнадцать соседей. Единственный прежний жилец полки — контрольная рука на саму
+правку печи: если бы новые предметы что-то сдвинули в общем коде, кровать это показала бы
+первой. И все 30 прежних рецептов <code>furn-*</code> перепеклись
+<b>байт-в-байт</b> (<code>git status assets/houses</code> после полного прогона кузницы
+показал изменённым только манифест — он вырос на шестнадцать строк).</p>
+
+<h2>4. Стенд: комната по скрину S10</h2>
+<p>Эталон выбран не на вкус, а по счёту: на <b>image copy 9</b> одновременно стоят
+одиннадцать позиций партии — больше, чем на любом другом скрине.</p>
+<p>Карта <code>interiors/furniture-room</code>, сцена
+<code>assets/scenes/furniture-room.scene</code>. <b>Тридцать пять расстановок,
+девятнадцать разных объектов</b>, и каждый предмет обстановки стоит <b>ссылкой</b>
+<code>[place] object=</code> — телом с полки, тем самым, что в перечне с замером и
+хэшем. Рецептами (<code>[house]</code>) стоят только оболочка дома, каменный очаг,
+пламя, бочка и поленница — те пять, кому печь реестра отказывает или у кого нет тела
+предмета.</p>
+
+<div class="pair">
+<figure>
+<img src="../../images_examples/houses_indoors/image copy 9.png">
+<figcaption><b>Эталон.</b> Скайрим: общая комната сруба. Два стола со стульями,
+полка со снедью, бочка, корзина, шкура, ковёр, посуда, котёл над очагом, люстра,
+голова зверя, связки трав.</figcaption>
+</figure>
+<figure>
+<img src="furniture-nomenclature/stand-eye.png">
+<figcaption><b>Наш стенд, кадр с уровня глаз от двери</b> (тот же спавн, куда попадает
+пришедший; 1920×1080, HUD снят). Видно: стол со столешницей 0.92, четыре стула со
+спинками, канделябр, две миски, кувшин, два кубка, бутыль, комод с посудой, бочка,
+корзина, мешок, полка на косынках с книгами и кувшином, лавка вдоль стены, очаг с
+огнём, поленница, край ковра.</figcaption>
+</figure>
+</div>
+
+<figure class="wide">
+<img src="furniture-nomenclature/stand-high.png">
+<figcaption><b>Тот же стенд сверху-сбоку</b> — кадр из редактора, обрезан до окна вида
+(панели редактора вырезаны, ни один предмет сцены не убран). Здесь видно то, чего
+не видит стоящий человек: <b>ковёр</b> с каймой под столом, стеллаж с бутылью,
+кувшином, миской и книгами по трём полкам, и вся раскладка группы.</figcaption>
+</figure>
+
+<h3>Чего в кадре нет и почему — честно</h3>
+<ul>
+<li><b>Люстры</b> над столом (эталон) — в партию не вошла; её место взял канделябр.</li>
+<li><b>Головы зверя</b> на стене нет — следующая партия.</li>
+<li><b>Связок трав и чеснока</b> под потолком нет — следующая партия, и это самая
+заметная нехватка: они на восьми скринах из девятнадцати и держат весь верхний
+ярус комнаты, который у нас пуст.</li>
+<li><b>Шкура</b> стоит в сцене, но с уровня глаз в кадр не попадает: комната 4.5 × 6, а
+пол при взгляде горизонтально начинает быть виден с 3.3 м. Это свойство кадра, не
+предмета; на верхнем кадре она в правом нижнем углу.</li>
+</ul>
+
+<h2>5. Найденное по дороге</h2>
+
+<h3>Печь реестра ОТКАЗАЛА бочке — и это измерено, а не предсказано</h3>
+<blockquote><code>[мебель] furn-barrel — ОТКАЗ: элемент e1: кусок носит мох и грязь ПО
+МЕСТУ (износ 0.45, габарит меньше 1.4 м) — запечённый штамп поехал бы по всему городу
+одинаковым пятном</code></blockquote>
+<p>Проба ставилась нарочно (бочка временно вписывалась в перечень печи, прогон,
+откат). <b>Следствие для всей полки:</b> ни один предмет с <code>wear&nbsp;&gt;&nbsp;0</code>
+на куске мельче 1.4 м в реестр не попадёт никогда, пока слой мха считается по месту.
+Это касается бочки и, по тому же правилу, дворовой поленницы (её проба не доводилась —
+прогон обрывается на первом отказе, и я не выдаю непроверенное за проверенное).
+Поэтому <b>ни один предмет новой партии не несёт <code>wear</code></b>: износ ставится
+не рецептом предмета, а слоем отделки по месту, и это решение записано в коде.</p>
+
+<h3>Ковёр читался вторым полом — и это чинилось краской, а не тоном</h3>
+<p>Первая выпечка ковра шла голой соломой (mat 6, тона 1 и 2). На кадре стенда он был
+<b>неотличим от сосновой половицы</b>: солома светлого ряда и половая доска сходятся по
+светлоте. Тот же дефект был у котла: камень тёмного ряда светлее закопчённого чугуна на
+ступень, и котёл читался каменной ступой. Оба вылечены слоем <b>краски</b> — тем же
+механизмом, каким загрузчик красит город и каким уже пользуется бордюр
+<code>furn-curb</code> (фалу и охра ковру, дёготь котлу). Своего механизма цвета не
+заведено ни одного. <b>Это и есть та строка задания, ради которой заведена колонка
+«материал словами»:</b> когда приедут материалы, у ковра будет шерсть, а у котла чугун,
+и краска-затычка уйдёт.</p>
+
+<h3>Стеклу, железу и ткани в наборе не из чего быть</h3>
+<p>Девять поверхностей листа — брус, доска, торец, камень, глина, штукатурка, солома,
+дёрн, глухое окно. Металла нет, ткани нет, стекла нет, меха нет, кожи нет. Обходы,
+которыми пользуется партия, перечислены в таблице раздела 2 колонкой «материал
+словами»; их <b>девять</b>, и все девять — заявка зоне материалов.</p>
+
+<h2>6. Чего не хватает до «достаточно» — следующая партия</h2>
+<p class="lede">Порядок — тот же, по частоте на скринах.</p>
+<ol>
+<li><b>Подвешенная снедь</b> (8/19): связка чеснока, пучок сухих трав, вяленая рыба,
+окорок на крюке, и <b>жердь-вешало под потолком</b>, на которую они садятся. Самая
+дорогая нехватка: у нас пуст весь ярус выше 1.8 м, и комната от этого читается
+недообставленной даже при полном столе.</li>
+<li><b>Плакетка на стену</b> (6/19): круглый резной щит-блюдо, две-три размерности.</li>
+<li><b>Картина в раме</b> (6/19).</li>
+<li><b>Комнатное растение в кадке</b> (6/19).</li>
+<li><b>Еда</b> (6/19): каравай, круг сыра, репа и капуста россыпью — они всегда лежат
+на полке или в ящике, поэтому просятся вместе с ящиком-лотком.</li>
+<li><b>Голова зверя на щите</b> (5/19).</li>
+<li><b>Вязанка дров у очага</b> (3/19): комнатная, 0.7 м, а не дворовая 1.5.</li>
+<li><b>Гобелен и знамя</b> (3/19).</li>
+<li><b>Люстра-обод со свечами</b> — на четырёх скринах, и она единственный источник
+верхнего света в комнате.</li>
+<li><b>Кресло с подлокотниками</b> — отдельный предмет от стула, стоит на пяти
+скринах у очага богатого дома.</li>
+</ol>
+<p>После этих десяти набор закроет всё, что стоит хотя бы на трёх скринах из
+девятнадцати, кроме двух вещей, которые не мебель, а другая зона: <b>оружейная стойка
+и витрина</b> (S18) и <b>кровать с балдахином</b> (S9, S17).</p>
+
+<h2>7. Приёмка воспроизводимости — прогон начисто</h2>
+<p class="lede">Разделы 0–6 писались одной средой, и она упала до коммита. Прежде чем
+партия ушла в дерево, вся выпечка прогнана <b>заново, с нуля</b>, второй рукой: не
+«числа переписаны из отчёта», а получены повторно и сверены с уже лежавшими на полке.</p>
+<table>
+<tr><th>что проверялось</th><th>как</th><th>итог</th></tr>
+<tr><td>Двадцать объектов полки</td>
+<td><code>dfn_furn_objects</code> в отдельный каталог, sha256 всех двадцати файлов
+против боевых</td><td><b>20 из 20 совпали побайтово</b>, расхождений нет</td></tr>
+<tr><td>Перечень полки</td><td><code>diff</code> свежего <code>INDEX.md</code> против
+лежащего</td><td>идентичен, включая все хэши и замеры</td></tr>
+<tr><td>Все рецепты кузницы</td><td><code>dfn_furniture</code> целиком (46 рецептов),
+затем <code>cmp</code> каждого из <b>210</b> файлов <code>assets/houses/*.dfh</code>
+против снимка</td><td><b>дрейфа нет ни в одном</b>: шестнадцать новых воспроизвелись,
+194 прежних не сдвинулись</td></tr>
+<tr><td>Манифест домов</td><td><code>diff</code> перезаписанного
+<code>INDEX.txt</code> против снимка</td><td>идентичен — манифест
+идемпотентен, он замеряет файлы</td></tr>
+<tr><td>Чужие строки в общем манифесте</td><td>застава перед <code>--only</code>:
+diff манифеста минус мои шестнадцать строк</td><td>пусто — коммит не унёс чужого</td></tr>
+<tr><td>Сторожа реестра</td><td><code>ctest</code>, 118 тестов</td>
+<td><b>117 прошли</b>; <code>render_object_registry_house</code> и
+<code>core_scene_house_rules</code> — зелёные</td></tr>
+</table>
+
+<div class="note">
+<b>Единственный красный тест — не этой волны, и это проверено, а не предположено.</b>
+<code>render_material_registry</code> падает на утверждении «золото отражает не так, как
+штукатурка»: <code>5.37 &gt; 10</code> — не сошёлся порог блеска. И тест
+(<code>tests/render/MaterialRegistryTests.cpp</code>), и предмет
+(<code>engine/render/sources/MaterialRegistry.cpp</code>) в дереве
+<b>незакоммичены</b> и принадлежат параллельной зоне МАТЕРИАЛОВ; мебель не трогает ни
+того, ни другого. Ни один файл этой волны в тот тест не входит. Отдано зоне материалов
+как находка, а не починено чужими руками.
+</div>
+
+<h3>Что судья сцен говорит о стенде — и почему это не дефект</h3>
+<p><code>dfn_scene_check</code> на стенде даёт <b>35 находок на 35 расстановок</b>, все
+одного вида: «висит над землёй» на 0.12, 0.67, 0.92, 1.75 м. Числа читаются сразу:
+0.12 — это <b>пол дома</b>, остальные — <b>столешница, полка, стеллаж</b>. Судья мерит
+высоту ЗЕМЛИ под точкой, и для уличной сцены это верно; в комнате предмет обязан стоять
+на полу и на мебели, а не на грунте. То есть находки не про стенд, а про то, что
+интерьерной мерки у этого судьи нет — <b>ровно тот же класс, что измеренная им же дыра
+с ключом <code>relief</code></b>. Названо здесь, чтобы следующий, кто прогонит судью по
+стенду, не начал «чинить» правильную сцену.</p>
+
+</main>
+
+<footer>
+<p>Кузница рецептов — <code>tools/forge_furniture.cpp</code>; печь реестра —
+<code>tools/forge_furniture_objects.cpp</code>; перечень полки —
+<code>assets/objects/furniture/INDEX.md</code>; стенд —
+<code>assets/maps/interiors/furniture-room.map</code> +
+<code>assets/scenes/furniture-room.scene</code>.
+Боевые города (whiterun, cornhall) этой волной не тронуты: расстановка партии по домам —
+следующая волна правил дизайна.</p>
+</footer>
+
+</body>
+</html>

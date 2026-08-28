@@ -1,0 +1,12 @@
+name = Комната по скрину: стенд номенклатуры
+zone = interiors
+size_chunks = 1
+# СТЕНД ПЕРВОЙ ПАРТИИ НОМЕНКЛАТУРЫ (28.08). Общая комната бревенчатого дома,
+# собранная ССЫЛКАМИ на полку assets/objects/furniture: эталон —
+# images_examples/houses_indoors/image copy 9.png. Мерило владельца «наш набор
+# повторяет их комнату»; ни один боевой город этой картой не затронут.
+source = stand:Gallery
+scene = assets/scenes/furniture-room.scene
+objects = assets/objects/furniture
+description = Двадцать предметов полки мебели, разложенные по скайримскому скрину: очаг с котлом, обеденная группа, комод и стеллаж с посудой, сундук, шкура и ковёр.
+built_commit =
