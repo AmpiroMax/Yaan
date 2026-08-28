@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 28:08:2026 - 11:40:00
+Last updated: 28:08:2026 - 14:40:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -125,6 +125,10 @@ UPD:
   входа в город (довод у флага interior_pass).
   mat_of теперь зовёт world::house_part_tile — то же правило, что читает
   кузница объекта; ни одного числа не изменено.
+- 28:08:2026 - 14:40:00: ДОЗА ФАСКИ DFN_HOUSE_BEVEL доходит до сборки меша
+  (метры; умолчание HOUSE_BEVEL_W_DEFAULT, 0 — прежняя острая геометрия
+  бит-в-бит). Читается один раз на процесс — по тому же доводу, что соседние
+  дозы: дом с фаской рядом с домом без неё был бы молчаливой бедой.
 */
 
 #include "engine/app/sources/App.h"
@@ -752,11 +756,23 @@ void App::upload_house_mesh(bool interior_only) {
         const char* e = door_value("DFN_HOUSE_GLOW");
         return (e == nullptr || *e == '\0') || std::strtof(e, nullptr) > 0.5f;
     }();
+    // ШИРИНА ФАСКИ НА РЁБРАХ ТЕЛ (дверь DFN_HOUSE_BEVEL, метры). Читается
+    // ОДИН раз на процесс, как соседние дозы: город заливается один раз на
+    // карту, и всё, что взято на заливке, у него замирает — доза, меняющаяся
+    // между двумя постройками одного города, дала бы дом с фаской рядом с
+    // домом без неё и ни одного сообщения об этом.
+    static const float bevel_m = [] {
+        const char* e = door_value("DFN_HOUSE_BEVEL");
+        if (e == nullptr || *e == '\0') {
+            return world::HOUSE_BEVEL_W_DEFAULT;
+        }
+        return std::max(0.0f, std::strtof(e, nullptr));
+    }();
 
     const auto append_graph = [&](const world::HouseGraph& graph,
                                   const auto& to_world) {
         const auto t_mesh = tick();
-        const world::HouseMesh built = world::build_house_mesh(graph);
+        const world::HouseMesh built = world::build_house_mesh(graph, bevel_m);
         bclock.mesh_s += sec(t_mesh, tick());
         ++bclock.meshes;
         // ДОЗА ОКОН ДОХОДИТ ДО ПЕЧКИ ТОЛЬКО НА ИНТЕРЬЕРНОМ ПРОХОДЕ, и это не

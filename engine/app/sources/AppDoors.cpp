@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:32:10
-Last updated: 28:08:2026 - 11:45:00
+Last updated: 28:08:2026 - 14:40:00
 Module: engine/app
 File: engine/app/sources/AppDoors.cpp
 
@@ -127,6 +127,10 @@ UPD:
   AppHouse): доза света ИЗ ОКНА — свечение оконной вставки и апертуры в печке
   небесной видимости. Длина массива пересчитана `grep -c '^    {"DFN_'`, а не
   прибавлена к запомненной: соседняя волна добавила свою строку в тот же час.
+- 28:08:2026 - 14:40:00: DFN_HOUSE_BEVEL (95 -> 96, читает AppHouse):
+  ШИРИНА ФАСКИ на рёбрах тел, метры; 0 — прежняя острая геометрия бит-в-бит
+  (дефект 3 ТЗ материалов, критерий К4). Длина массива ПЕРЕСЧИТАНА
+  `grep -c '^    {"DFN_'` по строкам таблицы, а не прибавлена к запомненной.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -143,7 +147,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 95> TABLE{{
+constexpr std::array<Door, 96> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -454,6 +458,13 @@ constexpr std::array<Door, 95> TABLE{{
      "доза самосветных деталей построек (glow=1 рецепта — пламя, стекло "
      "фонаря): 1 (дефолт) — рисуются без освещения и горят на любом "
      "удалении; 0 — прежние освещённые потоки бит-в-бит.",
+     DoorRead::Once, false},
+    {"DFN_HOUSE_BEVEL",
+     "ШИРИНА ФАСКИ на рёбрах тел построек и убранства, МЕТРЫ (не 0/1): "
+     "умолчание HOUSE_BEVEL_W_DEFAULT = 0.010; 0 — прежняя острая геометрия "
+     "бит-в-бит. Дверь названа шириной, а не выключателем, потому что цена "
+     "фаски в треугольниках от ширины НЕ зависит, а вид зависит только от "
+     "неё: сравнивать надо 5 мм с 15 мм, а не «есть» с «нет».",
      DoorRead::Once, false},
     {"DFN_LIGHT_FLICKER",
      "доза мерцания живого огня (ключ flicker у [light]): 0 — ровный свет "
