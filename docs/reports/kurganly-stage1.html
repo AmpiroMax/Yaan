@@ -1,0 +1,183 @@
+<!doctype html>
+<!--
+Created: 28:08:2026 - 20:10:00
+Last updated: 28:08:2026 - 20:10:00
+Module: docs
+File: docs/reports/kurganly-stage1.html
+Responsibility: отчёт волны «Курганлы, этап 1» — что сдано, что нет и почему.
+UPD:
+- 28:08:2026 - 20:10:00: Создан. Волна остановлена распоряжением владельца на
+  готовой части: сдана кузня (12 рецептов), паспорт и чертёж не начаты.
+-->
+<meta charset="utf-8"><title>Курганлы — этап 1</title>
+<body style="max-width:920px;margin:1.5em auto;font:15px/1.6 -apple-system,system-ui,sans-serif;color:#222;background:#faf8f4;padding:0 1.2em">
+
+<h1 style="margin:.2em 0">Курганлы — этап 1, отчёт</h1>
+<p style="color:#666;margin-top:0">Город №11 эпохи «12 городов» (степь/юг, бывш. Барроустеп).
+Коммит <code>542e640</code>, ветка <code>main</code>, не запушен.</p>
+
+<div style="background:#fff4e0;border-left:4px solid #d08a20;padding:.9em 1.2em;margin:1.4em 0">
+<b>ВОЛНА ОСТАНОВЛЕНА РАСПОРЯЖЕНИЕМ ВЛАДЕЛЬЦА.</b> Сдана одна самодостаточная
+часть — <b>кузня</b>. Паспорт <code>tools/cities/kurganly.py</code> и чертёж
+<code>tools/gen_kurganly_plan.py</code> <b>не начаты</b>; сцены, рельефа, карты
+в меню и кадров нет. Пробных карт в <code>assets/</code> не оставлено ни одной.
+</div>
+
+<h2>1. Что сдано</h2>
+<p><b>Двенадцать рецептов <code>kurganly-*</code></b> — степная школа города, в
+одном файле <code>tools/pack_kurganly.h</code> (1293 строки) плюс две строки
+подключения в <code>tools/forge_houses.cpp</code>. Ни одного щипца во всём
+пакете (§3 паспорта: «ни одного щипца во всём городе»).</p>
+
+<table style="border-collapse:collapse;width:100%;font-size:14px">
+<tr style="background:#efe9dc;text-align:left">
+<th style="padding:.35em .6em">рецепт</th><th>что это</th><th style="text-align:right">трис</th>
+<th style="text-align:right">верх, м</th><th style="text-align:right">габарит X×Z</th></tr>
+<tr><td style="padding:.3em .6em"><code>kurganly-house-l</code></td><td>саманный дом-куб, большой (§4.1&ndash;4.5)</td><td align=right>11&nbsp;052</td><td align=right>4.62</td><td align=right>11.39×9.20</td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.3em .6em"><code>kurganly-house-s</code></td><td>он же, малый и беднее</td><td align=right>10&nbsp;080</td><td align=right>4.07</td><td align=right>8.19×7.60</td></tr>
+<tr><td style="padding:.3em .6em"><code>kurganly-yurt</code></td><td>войлочное жилище, состояние 1 — собрано</td><td align=right>16&nbsp;228</td><td align=right>3.27</td><td align=right>7.40×7.40</td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.3em .6em"><code>kurganly-yurt-frame</code></td><td>состояние 2 — только каркас</td><td align=right>5&nbsp;012</td><td align=right>3.17</td><td align=right>7.40×7.40</td></tr>
+<tr><td style="padding:.3em .6em"><code>kurganly-hearth-ring</code></td><td>состояние 3 — круг и кострище (§4.9)</td><td align=right>776</td><td align=right>0.24</td><td align=right>7.40×7.40</td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.3em .6em"><code>kurganly-hitch</code></td><td>коновязь: примета «военного лагеря» и Сеферидского двора</td><td align=right>840</td><td align=right>1.53</td><td align=right>6.64×0.94</td></tr>
+<tr><td style="padding:.3em .6em"><code>kurganly-dugout</code></td><td>полуземлянка «нора» (§4.7)</td><td align=right>6&nbsp;088</td><td align=right>0.55</td><td align=right>6.30×7.94</td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.3em .6em"><code>kurganly-dromos</code></td><td>дромос-вход в главный курган (§4.11)</td><td align=right>7&nbsp;232</td><td align=right>2.85</td><td align=right>3.40×6.17</td></tr>
+<tr><td style="padding:.3em .6em"><code>kurganly-baba</code></td><td>каменная баба на вершине (§4.10)</td><td align=right>456</td><td align=right>2.06</td><td align=right>1.80×1.10</td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.3em .6em"><code>kurganly-saltworks</code></td><td>варница «Белого поля» (§4.13)</td><td align=right>5&nbsp;568</td><td align=right>2.71</td><td align=right>10.10×7.90</td></tr>
+<tr><td style="padding:.3em .6em"><code>kurganly-windbreak</code></td><td>ветровой заслон-плетень (§4.6)</td><td align=right>1&nbsp;920</td><td align=right>2.00</td><td align=right>6.20×1.19</td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.3em .6em"><code>kurganly-chute</code></td><td>раскол-воронка с весами, «Раскол» (§4.15)</td><td align=right>9&nbsp;096</td><td align=right>2.76</td><td align=right>14.09×14.60</td></tr>
+<tr style="font-weight:bold;border-top:2px solid #999"><td style="padding:.35em .6em">итого</td><td></td><td align=right>74&nbsp;348</td><td></td><td></td></tr>
+</table>
+
+<h2>2. Три состояния поля стойбищ — где они лежат</h2>
+<p>Паспорт просит <b>два</b> сезонных состояния, лор-ревью 28.08 добавило
+<b>третье</b> — «военный лагерь». В кузне это <b>не три юрты</b>, а три тела
+плюс четвёртое, потому что разница между сезоном и лагерем не в жилище, а в
+том, что стоит рядом:</p>
+<ol>
+<li><b>сезон</b> — <code>kurganly-yurt</code> (войлок на решётке, обод-шанырак открыт);</li>
+<li><b>снимают / ставят</b> — <code>kurganly-yurt-frame</code> (то же тело без войлока, 5&nbsp;012 трис против 16&nbsp;228);</li>
+<li><b>пусто</b> — <code>kurganly-hearth-ring</code> (круг вытоптанной земли и венец камней, 776 трис, ни одного тела выше 20&nbsp;см);</li>
+<li><b>военный лагерь</b> — тот же круг-кострище <b>плюс</b> <code>kurganly-hitch</code>, коновязь ремонтёров.</li>
+</ol>
+<p>Кто из четырёх наборов выходит на карту, обязан решать <b>чертёж</b>
+(задуманный ключ <code>--state</code>), а не кузня: одна карта в трёх
+состояниях — вопрос посадки. Чертежа нет, поэтому <b>механика состояний
+заложена телами, но ни разу не собрана</b>.</p>
+
+<h2>3. Два «новых механизма» задания оказались данными</h2>
+<p>Задание разрешало точечные правки <code>gen_city.py</code> под два новых
+механизма. <b>Правок ноль</b>, и оба разобраны:</p>
+<ul>
+<li><b>Курган как рельеф.</b> <code>build_plan_heights()</code> (gen_city.py:5975)
+берёт многоугольники <code>micro</code> чертежа и сглаживает поле тремя
+проходами box, сигма&nbsp;≈2.2, ядро&nbsp;≈13 клеток при шаге 1&nbsp;м. Полигон
+в 24&nbsp;м с <code>dh&nbsp;+4.5</code> выходит насыпью с плоской маковкой ≈14&nbsp;м
+и склоном 20&ndash;25&nbsp;% — то есть <b>курганом</b>. Кузнице остаётся вход,
+и он сделан (<code>kurganly-dromos</code>).</li>
+<li><b>Состояние 3.</b> Выражается набором тел в чертеже (см. §2). Механизм не нужен.</li>
+</ul>
+
+<h2>4. Вещества — словами, координатами и на будущее</h2>
+<p>По решению BIG_WORLD покраска веществами юга придёт волной веществ.
+Рецепты говорят числами (<code>mat</code>&nbsp;=&nbsp;колонка листа,
+<code>tone</code>&nbsp;=&nbsp;ряд), а слово стоит в шапке — чтобы перекраска была
+механической (<code>{"mat","5"},{"tone","1"}</code> → <code>{"material","adobe"}</code>):</p>
+<table style="border-collapse:collapse;font-size:14px;margin:.6em 0">
+<tr style="background:#efe9dc"><th style="padding:.3em .8em;text-align:left">вещество</th><th style="text-align:left;padding:.3em .8em">сегодня</th><th style="text-align:left;padding:.3em .8em">что заводить волне веществ</th></tr>
+<tr><td style="padding:.25em .8em">саман, глинобит</td><td style="padding:.25em .8em"><code>mat=5</code> Plaster, <code>tone=0/1</code></td><td style="padding:.25em .8em"><code>adobe</code> → <code>parts:plaster/mid</code>, <code>substance=clay</code></td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.25em .8em">побелка с синим</td><td style="padding:.25em .8em"><code>paint=1</code> / <code>paint=5</code></td><td style="padding:.25em .8em">краска уже есть в палитре</td></tr>
+<tr><td style="padding:.25em .8em">тростник</td><td style="padding:.25em .8em"><code>mat=6</code> Thatch</td><td style="padding:.25em .8em"><code>reed</code> → <code>parts:thatch/light</code></td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.25em .8em">дёрн</td><td style="padding:.25em .8em"><code>mat=7</code> Turf</td><td style="padding:.25em .8em">первое применение колонки Turf в проекте</td></tr>
+<tr><td style="padding:.25em .8em">войлок</td><td style="padding:.25em .8em"><code>mat=5</code>, <code>tone=0</code></td><td style="padding:.25em .8em"><code>felt</code> — <b>тинт, не колонка</b>: колонку заслуживает ритм</td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.25em .8em">песчаник / бут</td><td style="padding:.25em .8em"><code>mat=3</code> Stone, <code>tone=0/3</code></td><td style="padding:.25em .8em"><code>sandstone</code> → <code>parts:stone/light</code></td></tr>
+<tr><td style="padding:.25em .8em">соляная корка</td><td style="padding:.25em .8em"><code>mat=5</code>, <code>tone=0</code></td><td style="padding:.25em .8em"><code>salt</code> — тоже тинт</td></tr>
+<tr style="background:#f6f3ec"><td style="padding:.25em .8em">привозное дерево</td><td style="padding:.25em .8em"><code>mat=0</code> HewnTimber</td><td style="padding:.25em .8em">есть (<code>oak-log</code>); в городе его мало нарочно</td></tr>
+</table>
+
+<h2>5. Бюджет: техблок паспорта сошёлся числом</h2>
+<p>Техблок Курганлы — единственный в эпохе, где закон Г2 заменён на
+<b>«мало тел на гектар»</b>: «степь плоская и всё видно», и держаться город
+обязан не закрытостью, а дешевизной. Замер:</p>
+<pre style="background:#f0ece2;padding:.8em 1em;overflow-x:auto">школа Курганлы   74 348 трис на 12 тел  =  6 200 на тело
+дом Житнова      79 460 трис на 1 тело (cornhall-house-s-thatch)</pre>
+<p>То есть <b>вся степная школа дешевле одного соломенного дома равнины</b>.
+Причина названа в шапке пакета: у жилья нет ни одной кладки рядами
+(<code>fill=2/3</code>) — глинобитная стена в жизни монолитна, её не кладут, её
+трамбуют, и саман-кирпич виден только там, где он виден на деле. Это же снимает
+вторую находку Житнова — сверхлинейный рост времени сборки по треугольникам
+в одном теле.</p>
+
+<h2>6. Судьи</h2>
+<pre style="background:#eef3ea;padding:.8em 1em;overflow-x:auto">dfn_houses --check ......... 237/237 OK (допуск 0.020 м)
+dfn_stairs_check полка ..... тел 237, БОЕВЫХ НАХОДОК 0, известных 63
+                             (все известные — чужие; ни одной строки в
+                              tests/known_stair_findings.txt не добавлено)
+ctest -R stairs_shelf ...... Passed, 53.17 s
+чужие .dfh ................. 225 файлов байт-в-байт (shasum до и после)
+манифест ................... 225 -> 237 строк
+застава check_commit_builds  1 TU чист за 1.4 с</pre>
+<p>Пять «протухших» строк списка известных находок по Житнову
+(<code>tests/known_stair_findings.txt:103&ndash;107</code>) застали HEAD и
+<b>не мои</b>: его <code>.dfh</code> не тронуты ни на байт. Файл общий, я его
+не правил.</p>
+<p>Судьи <code>dfn_scene_check</code>, <code>dfn_interior_check</code>,
+<code>check_paving</code>, <code>gen_city --check</code> и
+<code>measure_scene_budget</code> <b>не запускались: предмета нет</b> — сцены
+Курганлы не существует. Мировые сцены Вайтрана и Житнова не тронуты
+(в коммите их нет).</p>
+
+<h2>7. Девять отказов судей — разобраны по месту</h2>
+<p>Первая выпечка дала 4 отказа судьи связности и 13 находок судьи лестниц.
+Каждый назван в том комментарии, который его чинит, вместе с намеренным
+зазором — это продукт волны наравне с телами:</p>
+<ul>
+<li><b>коновязь</b> — 8 островов: кольца висели в 0.05 под прогоном при допуске 0.02, корыто стояло без лежня;</li>
+<li><b>юрта</b> — шест аркана в 4.10&nbsp;м от середины при круге 3.70: зазор 0.39. Круг вытоптанной земли — единственное, чем подошва стойбища держится одним телом;</li>
+<li><b>дромос</b> — подошвы бунчуков не доставали 0.20 до щеки портала: толщина стены идёт <b>поперёк</b> цепочки, а не вдоль неё;</li>
+<li><b>раскол</b> — 6 островов: две стенки воронки сходятся, но не смыкаются (0.9&nbsp;м в свету), и свести их обязан помост весов;</li>
+<li><b>нора</b> — внутри 1.17&nbsp;м при росте капсулы 1.80. Глубина ямы перевыведена из роста: <code>SINK + RIM ≥ 2.23</code>;</li>
+<li><b>дромос, нора</b> — спуск был вдвое положе нижней границы судьи (15.8° против 30.6°) и начинался внутри кладки.</li>
+</ul>
+
+<h2>8. Хвост — что осталось</h2>
+<ol>
+<li><b>Паспорт <code>tools/cities/kurganly.py</code> и чертёж
+<code>tools/gen_kurganly_plan.py</code> — не начаты.</b> Контракт разобран
+полностью и лежит готовым: 61 обязательное поле паспорта, ключи чертежа,
+15 стадий, процедура <code>BARE → probe_ground → .natural</code>, снимок
+<code>.pathfield</code>, два прохода поля высот, <code>--check</code>. Правок
+<code>gen_city.py</code> не потребуется.</li>
+<li><b>Наружная лестница на кровлю (§4.3) — снята с тел, рука лежит в файле.</b>
+<code>dfn_stairs_check</code> отверг её проступью 0.139 при пороге 0.233, и
+сойтись рецепт с судьёй могут только в одном месте: <b>судья печатает ход на
+0.45&nbsp;м больше заказанного</b> (4.35 при 3.90 у большого дома, 3.90 при 3.45
+у малого) при объявленном <code>rise=0.28</code>, который в <code>.dfh</code>
+стоит и который у Житнова на той же руке даёт проступь 0.28. Пока эти 0.45 не
+измерены, лестницы нет вовсе: непроходимый марш, оставленный «до выяснения», —
+это боевая находка судьи, сданная как норма. <b>Первое дело этапа 2.</b></li>
+<li><b>Ветряк</b> — решено брать общий <code>cornhall-windmill</code>
+(лор-ревью прямо называет Славицу источником привозного дерева для трёх
+ветряков). Свой рецепт понадобится под <b>парусные</b> крылья на растяжках.</li>
+<li><b>Интерьеры</b> — не заведены: <code>tools/recipes_props.py</code> не
+тронут, поэтому дома выходят чистыми болванками, как и просит BIG_WORLD.
+Раскладка убранства для <code>house-l</code>, <code>house-s</code>,
+<code>dugout</code> — заказ этапа 2.</li>
+<li><b>У норы нет <code>wpoly</code></b> (стены начинаются на &minus;1.95, вершин
+на <code>y==0</code> нет по построению) — генератор обведёт ей ленту фундамента
+по габариту. Для полуземлянки это скорее верно, но названо, чтобы не всплыло
+находкой.</li>
+<li><b>Лор-детали этапа 2</b>: кошмы и ковры на оградах, кизячные брикеты
+штабелями, бурдюки, ткацкие рамы, телеги-кибитки, колодец-журавль (§4.17),
+варденский столб-часовенка у Старшей Бабы, лошадь-рынок у весов Раскола.</li>
+</ol>
+
+<h2>9. Файлы</h2>
+<pre style="background:#f0ece2;padding:.8em 1em;overflow-x:auto">tools/pack_kurganly.h            новый, 1293 строки
+tools/forge_houses.cpp           +2 строки подключения, +1 запись UPD
+assets/houses/kurganly-*.dfh     12 новых тел
+assets/houses/INDEX.txt          225 -> 237 строк
+docs/reports/kurganly-stage1.html  этот отчёт</pre>
+<p>Сборка: <code>build_kurganly</code> (Ninja, RelWithDebInfo,
+<code>/opt/homebrew/opt/llvm/bin/clang++</code>). <code>build_lead</code> не тронут.</p>
+
+</body>
