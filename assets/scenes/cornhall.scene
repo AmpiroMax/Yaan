@@ -712,56 +712,56 @@ note = стена кольца
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 402.737 23.800 214.519
+pos = 402.116 23.900 217.106
 yaw = 1.099569
 note = башня кольца (наружу)
 sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 340.021 23.865 159.045
+pos = 339.330 23.931 160.324
 yaw = 0.579427
 note = башня кольца (наружу)
 sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 168.379 23.800 159.045
+pos = 169.658 23.900 158.353
 yaw = 5.703759
 note = башня кольца (наружу)
 sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 105.663 23.800 214.519
+pos = 108.250 23.900 213.898
 yaw = 5.183616
 note = башня кольца (наружу)
 sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 105.663 22.800 365.881
+pos = 109.884 22.900 366.894
 yaw = 4.241162
 note = башня кольца (наружу)
 sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 168.379 22.800 421.355
+pos = 172.670 22.900 423.676
 yaw = 3.721019
 note = башня кольца (наружу)
 sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 340.021 23.547 421.355
+pos = 342.342 23.409 425.647
 yaw = 2.562166
 note = башня кольца (наружу)
 sealed = 1
 
 [house]
 file = assets/houses/city-tower.dfh
-pos = 402.737 23.800 365.881
+pos = 403.750 23.899 370.102
 yaw = 2.042024
 note = башня кольца (наружу)
 sealed = 1
