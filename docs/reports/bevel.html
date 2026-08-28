@@ -1,0 +1,422 @@
+<!doctype html>
+<!--
+Created: 28:08:2026 - 17:10:00
+Last updated: 28:08:2026 - 17:10:00
+Module: docs/reports
+File: docs/reports/bevel.html
+
+Responsibility:
+- Приёмка волны ФАСКИ (дефект 3 ТЗ материалов, критерий К4): устройство,
+  измеренная цена в треугольниках, судьба хэшей полок, прибор приёмки К1-К6 с
+  контрольными руками и кадры до/после из ОДНОГО бинарника через дозу
+  DFN_HOUSE_BEVEL.
+
+Dependencies:
+- Uses: docs/reports/materials-spec/index.html (ТЗ и пороги К1-К6),
+  docs/reports/materials-divergence (расхождение Р1 — две ветви К1),
+  docs/reports/furniture-nomenclature.html (замер полки, §9),
+  tools/check_bevel.cpp и tools/quality/*.py (приборы),
+  docs/reports/bevel/*.png (кадры).
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- ВСЯКОЕ ЧИСЛО ЗДЕСЬ ВОСПРОИЗВОДИМО ОДНОЙ КОМАНДОЙ, и команда названа рядом.
+  Кадры «до» и «после» сняты одним двоичным файлом с одной камеры: разница
+  между ними — только доза.
+-->
+<meta charset="utf-8">
+<title>Фаска на рёбра: устройство, цена, приёмка</title>
+<style>
+  :root{--bg:#14120f;--panel:#1e1b17;--line:#3a342c;--ink:#e8e2d6;--dim:#a89e8c;
+        --accent:#c8a24a;--ok:#a9d18a;--bad:#e0928a;--them:#8fbf6a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:16px/1.62 "Iowan Old Style","Palatino Linotype",Georgia,serif}
+  .wrap{max-width:1120px;margin:0 auto;padding:48px 24px 96px}
+  h1{font-size:2.05rem;line-height:1.2;margin:0 0 8px}
+  .sub{color:var(--dim);margin:0 0 40px}
+  h2{font-size:1.4rem;margin:56px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  h3{font-size:1.05rem;margin:28px 0 8px;color:var(--accent)}
+  p{margin:0 0 14px}
+  code{font-family:ui-monospace,Menlo,monospace;font-size:.86em;background:#262119;
+       padding:1px 5px;border-radius:3px;color:#e0c98a}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:.9rem}
+  th,td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--accent);font-size:.74rem;letter-spacing:.06em;text-transform:uppercase}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;
+       font-family:ui-monospace,Menlo,monospace;font-size:.87em}
+  .bad{color:var(--bad);font-weight:600}
+  .ok{color:var(--ok);font-weight:600}
+  .note{background:var(--panel);border-left:3px solid var(--accent);padding:13px 17px;margin:18px 0;font-size:.95rem}
+  .note.warn{border-left-color:var(--bad)}
+  .note.key{border-left-color:var(--them);background:#1c2118}
+  figure{margin:24px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  figure img{width:100%;display:block;border:1px solid var(--line);border-radius:3px}
+  figcaption{color:var(--dim);font-size:.87rem;margin-top:7px}
+  ul,ol{margin:0 0 14px;padding-left:22px} li{margin-bottom:7px}
+  .scroll{overflow-x:auto}
+</style>
+<div class="wrap">
+
+<h1>Фаска на рёбра</h1>
+<p class="sub">Волна материалов-1 · 28.08.2026 · дефект 3 ТЗ материалов, критерий К4 ·
+устройство, судьба хэшей, прибор приёмки, числа до/после</p>
+
+<div class="note key">
+<b>Одной фразой.</b> Тела построек и убранства получили фаску на рёбрах — не затенением, а
+гранями: прямой угол распадается на два излома по 45°, и каждый ловит свой блик и свою тень.
+Мера К4 на полке убранства: <b>14.06 % → 99.96 %</b> (34 предмета из 35 — ровно 100 %).
+Бюджет: полка домов <b>×1.48</b>, Вайтран <b>×1.72</b>, Житнов <b>×1.48</b> — правило
+«полка не удваивается» удержано. Доза <code>DFN_HOUSE_BEVEL=0</code> воспроизводит прежнюю
+геометрию бит-в-бит, и это проверено с двух сторон.
+</div>
+<!--
+UPD:
+- 28:08:2026 - 17:10:00: Создан по сдаче волны фаски.
+-->
+
+<h2>1. Что было измерено до</h2>
+<p>Записка ресёрчера №3 назвала это дефектом 3: во всём дереве слово <code>bevel</code>
+встречалось ровно в одном файле — <code>engine/anim/sources/BodyMesh.cpp</code>, тела
+персонажей. У домов, у убранства и у кузницы двора каждое ребро было идеально острым под 90°.
+Прибор <code>dfn_bevel_check</code>, написанный этой волной, подтверждает диагноз числом:
+на полке домов <b>1.03 %</b> выпуклых рёбер имели излом мягче 50°, на полке убранства —
+<b>14.06 %</b>, и оба остатка — это восьмигранные бревна и бочки, у которых 45° выходят по
+построению, а не от фаски.</p>
+
+<h2>2. Устройство</h2>
+<h3>Где</h3>
+<p>Фаска живёт в <code>push_prism()</code> (<code>engine/world/sources/HouseBodies.cpp</code>) —
+и это единственное место, где она вообще должна была появиться. Девять модулей-алгоритмов
+постройки (стены, плиты, лестницы, паркет, кровля, тела вокруг оси) кладут ВСЕ свои тела через
+эту руку, поэтому одна правка доводит фаску до дома, до убранства и до запечённого предмета
+реестра разом — без трёх копий, которые разошлись бы в первый день.</p>
+
+<h3>Как</h3>
+<p>Призма — это контур, выдавленный вдоль оси. Фаска строит вокруг контура <b>два кольца</b>:
+внешнее (контур со срезанными выпуклыми углами — это продольные рёбра) и внутреннее (то же
+кольцо, вжатое внутрь на ширину фаски). Крышка и днище встают на внутреннем, между кольцами
+идут три пояса — фаска у днища, сам рант, фаска у крышки. Узкие грани углов приходят поясами
+наравне с широкими, отдельного кода у них нет. Нормали новых граней — под 45°, поэтому ребро
+ловит блик отдельной полоской, а не остаётся математической линией.</p>
+
+<h3>Параметры</h3>
+<div class="scroll"><table>
+<tr><th>имя</th><th>значение</th><th>что решает</th></tr>
+<tr><td><code>HOUSE_BEVEL_W_DEFAULT</code></td><td class="n">0.010 м</td>
+    <td>отступ грани от прежнего ребра; полоска фаски выходит в √2 раза шире — 1.4 см, то есть
+        23 пикселя с метра в FullHD. Верхняя граница — столярная правда: шире полутора
+        сантиметров на доске в 4 см это уже не фаска, а восьмигранник.</td></tr>
+<tr><td><code>HOUSE_BEVEL_MIN_THICK_M</code></td><td class="n">0.008 м</td>
+    <td>тоньше — не брусок, а полотно: у ковра кромка завёрнута, у шкуры рвана, у бумаги смята.
+        Столярной фаски там не бывает, а платить за неё пришлось бы вчетверо.</td></tr>
+<tr><td><code>HOUSE_BEVEL_COURSES</code></td><td class="n">false</td>
+    <td>ряды кладки и кровли фаски не носят. Довод и цена — §4.</td></tr>
+<tr><td><code>HOUSE_BEVEL_TURN_DEG</code></td><td class="n">50°</td>
+    <td>предел излома, за которым ребро считается острым. Прямой угол под фаской распадается
+        на два по 45°; порог обязан лежать между 45 и 90 с запасом в обе стороны.</td></tr>
+<tr><td><code>DFN_HOUSE_BEVEL</code></td><td class="n">метры</td>
+    <td>доза (таблица AppDoors, 95→96 строк, пересчитано grep&#39;ом). Названа ШИРИНОЙ, а не
+        выключателем: цена в треугольниках от ширины не зависит вовсе, а вид зависит только от
+        неё — сравнивать надо 5 мм с 15 мм, а не «есть» с «нет».</td></tr>
+</table></div>
+
+<h3>Ширина приходит от куска, а не от константы</h3>
+<p>Заказанные 10 мм — верхняя граница, не приказ. Каждое тело урезает её тремя ограничителями:
+четверть высоты (боковая грань не должна быть уже самих фасок), четверть кратчайшего ребра
+(вжатое кольцо не должно вывернуться), и по 0.45 длины каждого соседнего ребра на конкретном
+углу. Замер: выпечка полки убранства при <code>--bevel 0.06</code> побайтово равна выпечке при
+штатных <code>0.010</code> — на убранстве ширина УЖЕ упёрта в размер куска, и
+«переусердствовать» фаска не может по построению.</p>
+
+<h3>Чего фаска НЕ трогает</h3>
+<ul>
+<li><b>Коллайдер — бит-в-бит при любой ширине.</b> Выпуклые куски по-прежнему строятся на
+    исходном контуре и исходной оси: фаска в сантиметр не имеет права двигать опору под ногами.
+    Держится рукавом <code>test_house_bevel</code>.</li>
+<li><b>Габарит.</b> У тела с прямыми углами крайнюю точку держит ГРАНЬ, а не вершина, и срез
+    углов её не касается. 33 предмета полки из 35 — ноль расхождения; см. §5.</li>
+<li><b>Невыпуклые рёбра.</b> Внутренний угол комнаты фаска не берёт: там она забирала бы
+    материал снаружи тела, то есть строила бы другой предмет.</li>
+<li><b>Неострые углы.</b> У восьмигранника излом 45° есть и без фаски — срезать его значило бы
+    сделать шестнадцатигранник и подвинуть силуэт внутрь. Это же и починило съехавшие габариты
+    кубка и корзины (§5).</li>
+</ul>
+
+<h2>3. Судьба хэшей</h2>
+<div class="scroll"><table>
+<tr><th>что</th><th>меняется?</th><th>почему</th></tr>
+<tr><td>Полка чертежей <code>assets/houses/*.dfh</code></td><td class="ok">нет, ни байтом</td>
+    <td>Фаска — свойство СБОРКИ тела, а не чертежа. Ни один рецепт её не объявляет и не мог бы:
+        в чертеже нет ни поля, ни значения.</td></tr>
+<tr><td>Личность объекта реестра (<code>object_content_hash</code>)</td><td class="bad">да</td>
+    <td>В хэш входит сам меш (<code>HouseSubmesh.mesh</code>), а меш изменился. Это не побочный
+        эффект, а определение: тело стало другим.</td></tr>
+<tr><td>Полка объектов <code>assets/objects/furniture</code></td><td class="bad">перепечена</td>
+    <td>35 <code>.dfo</code> и <code>INDEX.md</code> переизданы этой же волной
+        (<code>dfn_furn_objects</code>) — иначе перечень разошёлся бы с движком молча.
+        Кладущий назван координатором.</td></tr>
+<tr><td>Полки деревьев, набора, табличек</td><td class="ok">нет</td>
+    <td>Они не ходят через <code>build_house_mesh</code>: у них пустая секция HOUS, а пустой
+        список в личность объекта не входит (<code>ObjectRegistry.cpp</code>).</td></tr>
+<tr><td>Боевые сцены городов</td><td class="ok">нет</td>
+    <td>Дом города строится из <code>.dfh</code> на загрузке — фаска приходит рантайм.</td></tr>
+</table></div>
+
+<div class="note">
+<b>Контрольная рука на саму перепечку — от волны номенклатуры, и я её не закладывал.</b>
+Ключ <code>dfn_furn_objects --bevel 0</code> воспроизвёл вчерашнюю полку (коммиты f8a9a8f,
+bd28526, снятые ДО появления фаски в дереве) ПОБАЙТОВО: все 35 <code>.dfo</code> сошлись,
+<code>INDEX.md</code> совпал. Это доказывает больше, чем внутренние рукава: правка не тащит за
+собой никаких иных изменений движка, и ноль — действительно «прежняя острая полка», а не
+«почти прежняя».
+</div>
+
+<h2>4. Бюджет: за что заплачено и чем</h2>
+<p>Полностью обфасоченная коробка — это 60 треугольников против 12. Это не расточительность
+реализации, а геометрический минимум требования «ни одного ребра без фаски»: два восьмиугольных
+торца плюс три пояса по восемь четырёхугольников. Ровно столько же даёт фаска любого
+пакета моделирования.</p>
+<p>Отсюда столкновение, которое пришлось решать числами: <b>К4 = 100 % и «полка не удваивается»
+несовместимы, если фаску получает ВСЁ.</b> Замер на Вайтране:</p>
+<div class="scroll"><table>
+<tr><th>что</th><th class="n">трис</th><th class="n">к базе</th><th class="n">К4</th></tr>
+<tr><td>без фаски вовсе (доза 0)</td><td class="n">1 275 072</td><td class="n">×1.00</td><td class="n">1.71 %</td></tr>
+<tr><td>фаска ВЕЗДЕ, кладка и кровля тоже</td><td class="n">5 808 547</td><td class="n bad">×4.56</td><td class="n">99.29 %</td></tr>
+<tr><td>фаска на телах, ряды без неё (принято)</td><td class="n">2 194 386</td><td class="n ok">×1.72</td><td class="n">54.74 %</td></tr>
+</table></div>
+<p>Ряды кладки и кровли стоят 3.2 млн треугольников — <b>71 % всей прибавки</b>. Довод, по
+которому платят именно они, геометрический, а не бюджетный: <b>кусок ряда ложится В
+ПОВЕРХНОСТЬ.</b> Тыл кирпича утоплен в плиту стены, бока прижаты к соседям по ряду, низ уходит
+под кусок верхнего ряда — свободен у него только обвод лицевой грани, а на нём уже есть то,
+что фаска покупает: шов раствора, перевязка вполкуска и дрожь глубины. Из двенадцати рёбер
+фаска давала бы восемь замурованных.</p>
+<p>Это рычаг, а не закон: <code>HOUSE_BEVEL_COURSES = true</code> вернёт фаску камню кладки за
+втрое больший бюджет, и цена названа здесь, чтобы решение принимали по ней.</p>
+
+<h3>Итоговые числа</h3>
+<div class="scroll"><table>
+<tr><th>предмет замера</th><th class="n">трис до</th><th class="n">трис после</th><th class="n">к базе</th>
+    <th class="n">К4 до</th><th class="n">К4 после</th></tr>
+<tr><td>полка домов, 225 рецептов</td><td class="n">3 594 110</td><td class="n">5 306 112</td>
+    <td class="n ok">×1.48</td><td class="n">1.03 %</td><td class="n">43.28 %</td></tr>
+<tr><td>Вайтран, 868 построек</td><td class="n">1 275 072</td><td class="n">2 194 386</td>
+    <td class="n ok">×1.72</td><td class="n">1.71 %</td><td class="n">54.74 %</td></tr>
+<tr><td>Житнов (Корнхолл), 5661 постройка</td><td class="n">11 829 248</td><td class="n">17 539 454</td>
+    <td class="n ok">×1.48</td><td class="n">1.77 %</td><td class="n">42.23 %</td></tr>
+<tr><td>стенд убранства, оболочка+очаг+пламя</td><td class="n">6 428</td><td class="n">25 886</td>
+    <td class="n">×4.03</td><td class="n">3.49 %</td><td class="n">96.29 %</td></tr>
+<tr><td><b>полка убранства, 35 предметов</b></td><td class="n">5 556</td><td class="n">19 840</td>
+    <td class="n">×3.57</td><td class="n bad">14.06 %</td><td class="n ok">99.96 %</td></tr>
+</table></div>
+<p>Городские числа ниже полочных не случайно: город — это кладка, кровля и бревна, а убранство —
+доски и бруски, у которых свободны все двенадцать рёбер. Дороже всего фаска именно там, где она
+нужнее всего, и это верный порядок вещей, а не дефект.</p>
+
+<h2>5. Габарит: три правила вместо одного</h2>
+<p>Волна номенклатуры измерила у первой версии съехавшие габариты — кубок 0.11→0.10, корзина
+0.50→0.49, голова зверя 0.51→0.49 — и это важная беда: габарит стоит колонкой в перечне
+объектов, по ней раскладка садит предметы на столешницы, и молча уехавший сантиметр — это
+уехавшая посуда.</p>
+<p>Причина оказалась одна и чинилась целиком: у многогранника (кубок, корзина, бочка) крайнюю
+точку силуэта держит ОДНА вершина, и срез её двигал габарит внутрь. Но у восьмигранника излом и
+так 45° — фаска ему не нужна. С правилом «неострый угол не срезается» кубок и корзина сошлись
+ровно.</p>
+<p>Осталось два тела из 35, и они не чинятся, потому что чинить нечего: у головы зверя и у косо
+поставленной ножки табурета крайнюю точку держит ОСТРАЯ ВЕРШИНА, а срезанный угол короче
+несрезанного — это определение фаски. Поэтому сторож проверяет не «ни одной десятой», а три
+вещи: габарит НЕ РАСТЁТ никогда; усадка не глубже ширины фаски на каждый срезанный конец;
+и всякая усадка ПЕЧАТАЕТСЯ поимённо — молчаливой она быть не может.</p>
+
+<h2>6. Прибор приёмки К1–К6</h2>
+<p>Черновик ресёрчера (<code>tools/quality/measure_surface.py</code>, 43 строки, вшитый список
+работ и путь в чужой временный каталог) переведён в штатный прибор: разбор ключей, шапка с
+авторством и порогами из §2 записки, декодер PNG с собственной шапкой, четыре рукава в ctest.</p>
+<div class="scroll"><table>
+<tr><th>критерий</th><th>чем меряется</th><th>где</th></tr>
+<tr><td>К1 СТРУКТУРА</td><td>ДЕТАЛЬ ≥ 4.0 у матовых; поведение блика у гладких</td><td>кадр, участок</td></tr>
+<tr><td>К2 ТОН</td><td>энтропия яркости ≥ 6.3 бит</td><td>кадр, участок</td></tr>
+<tr><td>К3 ЦВЕТНОСТЬ</td><td>≥ 200 цветов на 1000 пикселей</td><td>кадр, участок</td></tr>
+<tr><td>К4 РЕБРО</td><td>доля выпуклых рёбер с изломом не круче 50°</td><td><b>геометрия</b>, <code>dfn_bevel_check</code></td></tr>
+<tr><td>К5 ПОСАДКА</td><td>полоса контакта темнее той же поверхности на ≥ 15 %</td><td>кадр, два участка</td></tr>
+<tr><td>К6 РАЗБРОС</td><td>два экземпляра расходятся по яркости на ≥ 4 %</td><td>кадр, два участка</td></tr>
+</table></div>
+
+<h3>Две ветви К1 (расхождение Р1, принято координатором)</h3>
+<p>Порог ДЕТАЛЬ ≥ 4.0 выведен на матовых участках и честен только там. У полированного золота,
+стекла, льда, стоячей воды и свежей побелки локальной детальности почти нет ПО ПРИРОДЕ: такой
+участок провалит К1 именно потому, что сделан правильно, а исполнитель, глядя на красное число,
+добавит золоту зерно, которого там быть не должно. Поэтому К1 матовой ветвью применяется к
+веществам с шероховатостью ≥ 0.5, а гладкие судятся тремя замерами блика: блик ЕСТЬ; он НЕСЁТ
+ЦВЕТ вещества; он НЕ ВЫБИТ В БЕЛЫЙ. Второго прибора не заведено нарочно.</p>
+
+<h3>Единица измерения — часть, а не объект</h3>
+<p>23 объекта полки из 35 несут в одном теле два вещества и больше: окованный сундук — это дуб И
+железо, и средняя детальность такого объекта не описывает ни дуб, ни железо. Участок обязан
+лежать внутри одной ЧАСТИ, а часть — это пара (плитка, тон), не «вещество»: у ковра кайма и поле
+одного вещества, но разного тона, и это две части. На полке 83 части на 35 тел, счёт стоит
+колонкой «кусков» в <code>INDEX.md</code>. Однородных по части тел шесть (jug, hide, cup, sack,
+rail, bread). Список «гладких» ведётся поимённо и НЕ выводится из ординала вещества: земляной ком
+в <code>furn-plant</code> — тот же <code>mat=3</code>, что и камень, и обязан остаться матовым.</p>
+
+<h3>Контрольные руки (правило 30)</h3>
+<div class="scroll"><table>
+<tr><th>рука</th><th>ждём</th><th>получили</th></tr>
+<tr><td>ровная заливка против К1</td><td>КРАСНЫЙ</td><td class="n">ДЕТАЛЬ 0.000</td></tr>
+<tr><td>волокно + зерно + шов против К1</td><td>ЗЕЛЁНЫЙ</td><td class="n">17.523</td></tr>
+<tr><td>референсный кадр владельца, половицы (image copy 9)</td><td>ЗЕЛЁНЫЙ</td>
+    <td class="n">ДЕТАЛЬ 5.538, энтропия 7.619, цветность 416.1</td></tr>
+<tr><td>полированное золото против МАТОВОЙ ветви К1</td><td>КРАСНЫЙ</td><td class="n">ДЕТАЛЬ 0.132</td></tr>
+<tr><td>оно же против ветви блика</td><td>ЗЕЛЁНЫЙ</td><td class="n">блик ×2.81, цвет 1.00, выбито 0.0 %</td></tr>
+<tr><td>блик, выбитый в белый, против ветви блика</td><td>КРАСНЫЙ</td><td class="n">выбито 100 %</td></tr>
+<tr><td>два побитово одинаковых стула против К6</td><td>КРАСНЫЙ</td><td class="n">расхождение 0.00 %</td></tr>
+<tr><td>экземпляры со сдвигом тона против К6</td><td>ЗЕЛЁНЫЙ</td><td class="n">10.36 %</td></tr>
+<tr><td>затемнение 22 % / 5 % против К5</td><td>ЗЕЛЁНЫЙ / КРАСНЫЙ</td><td class="n">порог 15 %</td></tr>
+</table></div>
+<p>Строка о кадре владельца воспроизводит его же число из таблицы записки №3
+(«СКР половицы 5.538 7.619 416») — прибор считает ровно то, что считал черновик. Кадры владельца
+в git не идут, поэтому рука на них ПРОПУСКАЕТСЯ вслух, а не молча.</p>
+
+<h2>7. Рукава в ctest</h2>
+<div class="scroll"><table>
+<tr><th>рукав</th><th>что держит</th><th>плечо-отрицание</th></tr>
+<tr><td><code>test_house_bevel</code></td><td>восемь случаев: К4 коробки 0→100 %, габарит,
+    полотно тоньше порога, ряды кладки, доза ниже порога побайтово, коллайдер, детерминизм</td>
+    <td>у каждого случая свой контроль внутри</td></tr>
+<tr><td><code>test_house_mesh</code></td><td>ПЛЕЧО НУЛЕВОЙ ДОЗЫ: все 38 сборок переведены на
+    <code>0.0f</code> и меряют прежнюю острую геометрию числами</td>
+    <td>оно само и есть плечо</td></tr>
+<tr><td><code>bevel_k4_stand</code></td><td>К4 = 100 % на восьми телах убранства</td>
+    <td><code>bevel_k4_stand_zero_dose</code> — тот же порог при нулевой дозе, WILL_FAIL</td></tr>
+<tr><td><code>quality_surface_selftest</code></td><td>девять контрольных рук прибора К1–К6</td>
+    <td>пять из девяти обязаны ПРОВАЛИТЬСЯ</td></tr>
+<tr><td><code>furn_bevel_gabarit</code></td><td>габарит, бюджет тела (×3.57 при пределе ×4.5),
+    перепечка дважды = одинаково</td>
+    <td><code>furn_bevel_gabarit_control</code> с <code>--limit 0</code>, WILL_FAIL</td></tr>
+</table></div>
+<p>Прогон целиком: <b>127 из 127 зелёных</b> (<code>build_bevel</code>, clang 22.1.8).</p>
+
+<h2>8. Кадры приёмки</h2>
+<h3>Стенд убранства, стол и стулья с метра</h3>
+<div class="grid2">
+<figure><img src="bevel/stand-before.png" alt="стенд до">
+<figcaption>ДО (доза 0, полка испечена с <code>--bevel 0</code>). Каждое ребро — линия без
+ширины: стойка стула читается силуэтом, а не телом.</figcaption></figure>
+<figure><img src="bevel/stand-after.png" alt="стенд после">
+<figcaption>ПОСЛЕ. Вдоль стойки, вдоль планок спинки и по кромке столешницы идут светлые и
+тёмные полоски фаски — то, что владелец назвал «не ровное».</figcaption></figure>
+</div>
+<h3>Дом Житнова, фасад с двух метров</h3>
+<div class="grid2">
+<figure><img src="bevel/house-before.png" alt="дом до">
+<figcaption>ДО. Доски обшивки, укосины фахверка и наличники стыкуются без единой грани.</figcaption></figure>
+<figure><img src="bevel/house-after.png" alt="дом после">
+<figcaption>ПОСЛЕ. Доски разделены фасками, укосины получили рёберный блик, наличники —
+кромку. Кладка НАМЕРЕННО осталась прежней (§4) — и это же видно на числах ниже.</figcaption></figure>
+</div>
+
+<h3>Числа по кадрам (тот же прибор, участки одного вещества)</h3>
+<div class="scroll"><table>
+<tr><th>кадр и участок</th><th class="n">ДЕТАЛЬ до</th><th class="n">после</th>
+    <th class="n">СКО до</th><th class="n">после</th><th class="n">энтроп. до</th><th class="n">после</th></tr>
+<tr><td>дом: доски стены</td><td class="n">1.673</td><td class="n">2.576</td>
+    <td class="n">7.36</td><td class="n">8.78</td><td class="n">4.406</td><td class="n">4.767</td></tr>
+<tr><td>дом: кладка (фаски НЕ получала)</td><td class="n">3.409</td><td class="n">3.458</td>
+    <td class="n">8.08</td><td class="n">8.19</td><td class="n">4.850</td><td class="n">4.867</td></tr>
+<tr><td>стенд: столешница (внутренность грани)</td><td class="n">0.196</td><td class="n">0.197</td>
+    <td class="n">5.22</td><td class="n">5.22</td><td class="n">3.966</td><td class="n">3.967</td></tr>
+</table></div>
+<div class="note warn">
+<b>Честно о К1: фаска его не сдаёт и не должна.</b> На досках стены детальность выросла в
+полтора раза (1.673 → 2.576) — но это побочный доход, а не предмет. Порог К1 — 4.0, и он про
+<b>внутренность грани</b>: столешница не сдвинулась ни на тысячную, потому что фаска меняет
+РЁБРА. К1 закрывается волной структуры листа (§8 записки, пункт 4), и до неё красное число
+там — верное число.
+<br><br>
+Заодно эти три строки — контроль по правилу 48 внутри самого замера: величина ответила на дозу
+там, где доза применялась (доски), и НЕ ответила там, где не применялась (кладка, внутренность
+столешницы). Если бы сдвинулось всё, мерилось бы что-то другое — например, случайная разница
+двух кадров.
+</div>
+
+<h2>9. Полка убранства поимённо</h2>
+<p>35 предметов, испечённых заново. Красным — тела, не дошедшие до 100 %.</p>
+<div class="scroll"><table>
+<tr><th>предмет</th><th class="n">трис до</th><th class="n">после</th><th class="n">к базе</th>
+    <th class="n">К4 до</th><th class="n">К4 после</th></tr>
+<tr><td>furn-armchair</td><td class=n>192</td><td class=n>960</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-basket</td><td class=n>180</td><td class=n>380</td><td class=n>x2.11</td><td class=n>33.3</td><td class=n>100.0</td></tr>
+<tr><td>furn-beasthead</td><td class=n>108</td><td class=n>300</td><td class=n>x2.78</td><td class=n>25.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-bed</td><td class=n>336</td><td class=n>1664</td><td class=n>x4.95</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-bench</td><td class=n>48</td><td class=n>240</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-books</td><td class=n>192</td><td class=n>768</td><td class=n>x4.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-bottle</td><td class=n>140</td><td class=n>300</td><td class=n>x2.14</td><td class=n>33.3</td><td class=n>100.0</td></tr>
+<tr><td>furn-bowl</td><td class=n>136</td><td class=n>288</td><td class=n>x2.12</td><td class=n>33.3</td><td class=n>100.0</td></tr>
+<tr><td>furn-bread</td><td class=n>144</td><td class=n>304</td><td class=n>x2.11</td><td class=n>33.3</td><td class=n>100.0</td></tr>
+<tr><td>furn-candlestick</td><td class=n>292</td><td class=n>840</td><td class=n>x2.88</td><td class=n>21.7</td><td class=n>100.0</td></tr>
+<tr><td>furn-cauldron</td><td class=n>264</td><td class=n>800</td><td class=n>x3.03</td><td class=n>21.4</td><td class=n>100.0</td></tr>
+<tr><td>furn-chair</td><td class=n>156</td><td class=n>780</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-chandelier</td><td class=n>476</td><td class=n>2124</td><td class=n>x4.46</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-cheese</td><td class=n>108</td><td class=n>276</td><td class=n>x2.56</td><td class=n>26.7</td><td class=n>100.0</td></tr>
+<tr><td>furn-chest</td><td class=n>192</td><td class=n>960</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-cup</td><td class=n>128</td><td class=n>272</td><td class=n>x2.12</td><td class=n>33.3</td><td class=n>100.0</td></tr>
+<tr><td>furn-cupboard</td><td class=n>132</td><td class=n>660</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-firewood</td><td class=n>224</td><td class=n>480</td><td class=n>x2.14</td><td class=n>33.3</td><td class=n>100.0</td></tr>
+<tr><td>furn-fish</td><td class=n>120</td><td class=n>544</td><td class=n>x4.53</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-garlic</td><td class=n>180</td><td class=n>420</td><td class=n>x2.33</td><td class=n>30.8</td><td class=n>100.0</td></tr>
+<tr><td>furn-ham</td><td class=n>196</td><td class=n>476</td><td class=n>x2.43</td><td class=n>28.6</td><td class=n>100.0</td></tr>
+<tr><td>furn-herbs</td><td class=n>124</td><td class=n>532</td><td class=n>x4.29</td><td class=n>6.7</td><td class=n>100.0</td></tr>
+<tr><td>furn-hide</td><td class=n>60</td><td class=n>160</td><td class=n>x2.67</td><td class=n>5.0</td><td class=n class="bad">91.8</td></tr>
+<tr><td>furn-jug</td><td class=n>180</td><td class=n>452</td><td class=n>x2.51</td><td class=n>28.2</td><td class=n>100.0</td></tr>
+<tr><td>furn-painting</td><td class=n>60</td><td class=n>300</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-plant</td><td class=n>204</td><td class=n>604</td><td class=n>x2.96</td><td class=n>22.2</td><td class=n>100.0</td></tr>
+<tr><td>furn-plaque</td><td class=n>212</td><td class=n>932</td><td class=n>x4.40</td><td class=n>5.9</td><td class=n>100.0</td></tr>
+<tr><td>furn-rail</td><td class=n>52</td><td class=n>180</td><td class=n>x3.46</td><td class=n>16.7</td><td class=n>100.0</td></tr>
+<tr><td>furn-rug</td><td class=n>24</td><td class=n>96</td><td class=n>x4.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-sack</td><td class=n>168</td><td class=n>360</td><td class=n>x2.14</td><td class=n>33.3</td><td class=n>100.0</td></tr>
+<tr><td>furn-shelf</td><td class=n>96</td><td class=n>480</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-shelf-wall</td><td class=n>72</td><td class=n>360</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-stool</td><td class=n>108</td><td class=n>540</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-table</td><td class=n>144</td><td class=n>720</td><td class=n>x5.00</td><td class=n>0.0</td><td class=n>100.0</td></tr>
+<tr><td>furn-tapestry</td><td class=n>108</td><td class=n>288</td><td class=n>x2.67</td><td class=n>37.5</td><td class=n>100.0</td></tr>
+
+</table></div>
+<p>Единственное тело ниже ста процентов — <code>furn-hide</code> (шкура на полу): 8 рёбер из 98
+остались острыми на вырезах между лапами, где соседнее ребро контура короче того, что фаска
+просит. Остальные 34 — ровно 100.00 %.</p>
+
+<h2>10. Что осталось и кому</h2>
+<ul>
+<li><b>Ширина по веществу.</b> Сегодня одно умолчание на всё, урезаемое размером куска. Дерево
+    просит 1–2 см, тёсаный камень крупнее, металл мельче — но вещества как ИМЕНИ сегодня нет, оно
+    живёт четырьмя несогласованными словарями (дефект 2 ТЗ). Ось материала — волне материалов;
+    место, куда она подключается, одно и названо: <code>MeshBuilder::bevel_m</code>.</li>
+<li><b>Фаска на кладке.</b> Рычаг <code>HOUSE_BEVEL_COURSES</code> с ценой ×3 по городу — решение
+    координатора, не моё.</li>
+<li><b>К4 на кладке и кровле.</b> Городские 42–55 % — это ровно ряды. Число не скрыто и не
+    объявлено сотней: критерий К4 назван в ТЗ на ОБЪЕКТЕ УБРАНСТВА, и там он сдан.</li>
+<li><b>Восемь рёбер шкуры.</b> Вырезы между лапами короче фаски. Чинится либо сгущением контура
+    в рецепте (кузница убранства), либо отказом от требования на вырезах — вопрос номенклатуры.</li>
+</ul>
+
+<h2>11. Файлы</h2>
+<div class="scroll"><table>
+<tr><th>файл</th><th>что</th></tr>
+<tr><td><code>engine/world/sources/HouseBodies.cpp</code></td><td>фаска в <code>push_prism</code>: два кольца, три пояса</td></tr>
+<tr><td><code>engine/world/sources/HouseMesh.h/.cpp</code></td><td>четыре константы, параметр <code>bevel_m</code>, объявление меры К4</td></tr>
+<tr><td><code>engine/world/sources/HouseEdges.cpp</code></td><td>новый: перепись рёбер меша — мера К4</td></tr>
+<tr><td><code>engine/world/sources/HouseMeshDetail.h</code></td><td><code>MeshBuilder::bevel_m</code>, <code>BevelHold</code></td></tr>
+<tr><td><code>engine/world/sources/HouseWalls.cpp</code>, <code>HouseRoof.cpp</code></td><td>ряды кладки и кровли без фаски</td></tr>
+<tr><td><code>engine/app/sources/AppDoors.cpp</code>, <code>AppHouse.cpp</code></td><td>доза <code>DFN_HOUSE_BEVEL</code></td></tr>
+<tr><td><code>tools/check_bevel.cpp</code></td><td>новый: <code>dfn_bevel_check</code> — К4 и счёт треугольников</td></tr>
+<tr><td><code>tools/quality/measure_surface.py</code>, <code>png_read.py</code></td><td>штатный прибор К1–К6</td></tr>
+<tr><td><code>tools/quality/check_furn_gabarit.py</code></td><td>новый: сторож перепечки полки</td></tr>
+<tr><td><code>tools/forge_furniture_objects.cpp</code></td><td>ключ <code>--bevel</code> ради контрольной руки</td></tr>
+<tr><td><code>tests/core/HouseBevelTests.cpp</code></td><td>новый: плечо ненулевой дозы</td></tr>
+<tr><td><code>tests/core/HouseMeshTests.cpp</code></td><td>38 сборок переведены на <code>0.0f</code> — плечо нулевой дозы</td></tr>
+<tr><td><code>assets/objects/furniture/*</code></td><td>35 <code>.dfo</code> и <code>INDEX.md</code> перепечены</td></tr>
+</table></div>
+
+</div>
