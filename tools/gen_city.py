@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 24:08:2026 - 12:40:00
-# Last updated: 28:08:2026 - 11:51:19
+# Last updated: 29:08:2026 - 05:40:00
 # Module: tools
 # File: tools/gen_city.py
 #
@@ -607,6 +607,32 @@
 #   -0.12, стало ровно -0.10 (просадка) у всех. Просадка 0.20 -> 0.10: она
 #   обязана быть глубже верха плиты пола (0.045) и не съедать высоту проёма
 #   (2.05 при 0.20 оставляли 1.85 м против капсулы 1.80 — запаса нет).
+# - 29:08:2026 - 05:40:00: ЗАКОН ПОСЕВА ФЛОРЫ ПРИШЁЛ В БОЕВЫЕ ГОРОДА (вторая
+#   волна ярусов). Стадия 14б `sow_city_tiers()` — между полотном и выпуском;
+#   ЗАКОН НЕ ТРОНУТ (tools/flora_sow.py, ни одного числа), город добавляет к
+#   нему ровно две вещи: МАСКИ ЗАПРЕТА (полотно и мощение, тела, дворы, вода,
+#   кольцо стен по паспорту, мировые тракты из снимка судьи --path-field) и
+#   ОБЛАСТИ ЯРУСОВ (под рощей, а не под каждым деревом: TIER_GROVE_MIN = 2).
+#   ПОСЕЯНО: Вайтран 359 растений (подрост 11, подлесок 146, ковёр 147 —
+#   мох 141 / трава 6, акценты 55) при пологе в 35 деревьев; Житнов 192
+#   (подрост 6, подлесок 58, ковёр 98 — мох 93 / трава 5, акценты 30) при 36.
+#   Маски сняли: Вайтран 26 в телах + 47 прореживанием, Житнов 120 + 12.
+#   ЧТО ИСПРАВЛЕНО ПО ЗАМЕРУ, А НЕ ПО ВКУСУ: первый вид волны давал ковру
+#   ПОЛНЫЙ охват рощи (20 м) — самый широкий охват самому дорогому ярусу
+#   (плата 480-1206 трис против 114 у папоротника). В худшей плитке Житнова
+#   87 плат мха занимали 42 840 трис — 53% плитки при 5% её растений. Охват
+#   ковра приравнен охвату подлеска (TIER_CARPET_REACH_M = 13 м, «ковёр — пол
+#   подлеска»): худшая плитка Житнова 80 702 -> 62 468 трис (-23%), дро
+#   128 -> 117. Сводка бюджета — docs/reports/tiers-city.html.
+#   ЧЕГО ЭТА ВОЛНА НЕ ДОБИЛАСЬ И НЕ МОГЛА: потолка «худшая плитка не хуже
+#   нынешней худшей Житнова» (36 770). Худшая плитка Вайтрана СЕГОДНЯ, БЕЗ
+#   ЕДИНОГО ЯРУСНОГО РАСТЕНИЯ, — 58 662 трис, и это плитка (1,1) с шестью
+#   хвойными, то есть ровно та роща, под которую закон обязан сеять. Ковёр там
+#   не при чём: при охвате 6 м та же плитка держит 80 814. Потолок, который
+#   волна ДЕРЖИТ: обе сцены ниже того, что дерево играет с 17.08 (trees-glade,
+#   худшая плитка 430 120 трис) и ниже стенда ярусов (128 938).
+#   Рельеф, классы земли и все приёмки полотна ярусы не трогают: они живут
+#   только в [place]. Контрольная рука — DFN_CITY_TIERS=0 (правило 30).
 import hashlib
 import importlib
 import json
@@ -619,6 +645,8 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import dfo_read                                               # noqa: E402
+import flora_sow                                              # noqa: E402
 import recipes_props                                          # noqa: E402
 
 # --- ПАСПОРТ ГОРОДА: ДАННЫЕ ПРИХОДЯТ СНАРУЖИ ---------------------------------
@@ -629,6 +657,7 @@ import recipes_props                                          # noqa: E402
 # которого волна И1 обязана избежать. Паспорт выбирается ОДИН РАЗ на процесс:
 # двух городов в одном прогоне не бывает, у каждого своя карта.
 CITY = None      # модуль паспорта
+CITY_NAME = ""   # его имя: им зовутся входы прогона рядом с паспортом
 PLAN = None      # чертёж города (JSON)
 # ИМЕНА ПАСПОРТА ОБЪЯВЛЕНЫ ЗДЕСЬ, ХОТЯ ЗНАЧЕНИЯ ИМ ДАЁТ load_city(). Без этого
 # списка они существовали бы только внутри globals()[...] — то есть были бы
@@ -646,6 +675,12 @@ FOOT_CLEAR = FOOT_BURY = FOOT_OUT = FOOT_SEG = FOOT_TH = FOOT_MAX = None
 STOOP_W = STOOP_MIN = STOOP_MAX = None
 LAMP_PITCH = LAMP_ROADS = AXIS_ROAD = AXIS_FIRE_NODES = None
 SIZE_CHUNKS = PLACES = INTERIORS = None
+# ЯРУСЫ ФЛОРЫ — ПАЛИТРЫ ГОРОДА (закон посева живёт в tools/flora_sow.py, здесь
+# только «что именно растёт в этом биоме»). Все с умолчанием: паспорт, который
+# о них молчит, собирает свой город без ярусов и байт-в-байт как прежде.
+TIER_UNDER = TIER_CARPET_MOSS = TIER_CARPET_SWARD = None
+TIER_ACCENT_LIGHT = TIER_ACCENT_SHADE = TIER_SAPLINGS = TIER_SCALE = None
+TIER_SEED = TIER_INSIDE_WALLS = TIER_YARD_CARPET = None
 # ...И ИМЕНА С УМОЛЧАНИЕМ. Ключей у паспорта одиннадцать городов вперёд, и
 # требовать их все от каждого значило бы, что новое правило чинит все прежние
 # паспорта. Здесь — ровно те, у которых есть ЧЕСТНОЕ УМОЛЧАНИЕ «как было до
@@ -655,6 +690,28 @@ SIZE_CHUNKS = PLACES = INTERIORS = None
 OPTIONAL = {
     # вид огненного ремесла: чей двор получает горн, наковальню и бочку
     "FORGE_KINDS": ("smithy",),
+    # --- ЯРУСЫ ФЛОРЫ (вторая волна ярусов) ---------------------------------
+    # ПАЛИТРЫ, А НЕ ПЛОТНОСТИ: сколько сеять и как — знает закон посева
+    # (tools/flora_sow.py), ЧТО ИМЕННО растёт — знает биом города. Пустая
+    # палитра выключает свой ярус и этим отвечает «здесь такого не растёт»
+    # (тот же приём, что у пустого BUSH_KINDS: находка пилота №4).
+    "TIER_UNDER": {"shade": (), "light": (), "any": ()},
+    "TIER_CARPET_MOSS": (),
+    "TIER_CARPET_SWARD": (),
+    "TIER_ACCENT_LIGHT": (),
+    "TIER_ACCENT_SHADE": (),
+    "TIER_SAPLINGS": (),
+    # масштаб посадки экземпляра: та же ручка, что CITY_FLOWER_SCALE, и та же
+    # причина — форма детали верна, неверен рост (папоротник полки 0.36 м).
+    "TIER_SCALE": {},
+    "TIER_SEED": 20260829,
+    # РАСТЁТ ЛИ ЧТО-НИБУДЬ ВНУТРИ КОЛЬЦА СТЕН. У каменного города вся зелень
+    # вынесена за стену, и сказать это должен паспорт, а не механизм: маска
+    # «внутри кольца» — свойство города, как и пустой BUSH_KINDS.
+    "TIER_INSIDE_WALLS": True,
+    # ДВОР — НЕ ЛЕС: подлеска, акцентов и подроста в нём нет никогда, а ковёр
+    # (трава под ногой) — по слову паспорта.
+    "TIER_YARD_CARPET": True,
     # щель фасадного ряда ПО МЕСТУ: ({"rect": ..., "gap": м}, ...) поверх GAP_M
     "GAP_ZONES": (),
     # сплошное мощение КВАРТАЛА: пятна полотном, а не ленты улиц
@@ -825,10 +882,11 @@ def _dump_read(tag, path, need, fatal=False):
 def load_city(name):
     """Связывает паспорт с глобальными именами модуля. Зовётся ПЕРВОЙ строкой
     main() и ничего, кроме связывания и чтения чертежа, не делает."""
-    global CITY, PLAN, SPAN, LAST, EDGE, OUT, HEIGHTS_PATH, NATURAL_PATH
+    global CITY, CITY_NAME, PLAN, SPAN, LAST, EDGE, OUT, HEIGHTS_PATH, NATURAL_PATH
     global _H, _NAT
     global RING, RIVERS, PLAZA_RECTS, HOUSE_PAD_DROP
     CITY = importlib.import_module("cities." + name)
+    CITY_NAME = name
     PLAN = json.load(open(os.path.join(ROOT, CITY.PLAN_PATH), encoding="utf-8"))
     SPAN = int(CITY.SPAN)
     LAST = SPAN - 1
@@ -3673,6 +3731,13 @@ def spot_free(px, pz, r, skip=None, plaza_ok=False):
     return True
 
 FORGE_SPOTS = []   # (x, z, радиус) — занятое кузнечным набором во дворе
+# ДВОР КАК ОБЛАСТЬ, А НЕ КАК НАБОР ПРЕДМЕТОВ (вторая волна ярусов флоры).
+# Прежде двор существовал только в виде поставленных в нём вещей, и спросить
+# «эта точка во дворе?» было не у кого. Ярусам это нужно: двор — не лес, в нём
+# не сеется ни подлесок, ни подрост. Четырёхугольник пишется здесь же, где
+# двор строится, и теми же самыми yard_loc/loc_to_world — второй расчёт того
+# же прямоугольника разошёлся бы с первым на первой же правке.
+YARDS = []   # [[(x, z) x4]] — четырёхугольник двора в мире
 
 def smithy_yard():
     """ДВОР КУЗНИЦЫ: ГОРН, НАКОВАЛЬНЯ, ЗАКАЛОЧНАЯ БОЧКА (выпечка кузни-2).
@@ -3784,6 +3849,10 @@ def yards():
         if span_m >= YARD_WIDE_M:
             kit += [(ff, yard_t(t), deep, rad)
                     for ff, t, deep, rad in YARD_KIT_WIDE]
+        YARDS.append([loc_to_world(ox, oz, yaw, *yard_loc(t, deep))
+                      for (t, deep) in ((0.0, 0.0), (span_m, 0.0),
+                                        (span_m, YARD_DEPTH_M),
+                                        (0.0, YARD_DEPTH_M))])
         for ff, t, deep, rad in kit:
             lx, lz = yard_loc(t, deep)
             lyaw = yaw_along
@@ -7780,6 +7849,374 @@ def plan_flora(Hh):
         ty = sit(t["x"], t["z"], 25.0, half=1.0)
         place(opts[i % len(opts)], t["x"], ty, t["z"], (i * 47) % 360)
 
+# =============================================================================
+# ЯРУСЫ ФЛОРЫ ГОРОДА (вторая волна ярусов по записке docs/reports/trees-tiers)
+# =============================================================================
+# ЗАКОН ПОСЕВА ОДИН НА СТЕНД И НА ГОРОД, И ОН ЛЕЖИТ В tools/flora_sow.py:
+# куртины подлеска, ковёр с переключением мох/трава по видимости неба, редкие
+# акценты группами, ярус подроста, правило опушки. Ни одного из его чисел
+# здесь нет и быть не может: две плотности куртины — два закона, и кадр
+# перестал бы быть доводом о законе.
+#
+# ЧТО ГОРОД ДОБАВЛЯЕТ К ЗАКОНУ. Ровно две вещи, и обе — не числа посева:
+#   (1) МАСКИ ЗАПРЕТА: где в городе не растёт ничего;
+#   (2) ОБЛАСТИ ЯРУСОВ: где какой ярус вообще уместен.
+# Стенду они не нужны — там пустая плитка мира и шесть троп; городу без них
+# ярусы вырастут на мостовой, в теле дома и посреди двора.
+#
+# ШЕСТЬ МАСОК, И КАЖДАЯ — СВОЙ ИСТОЧНИК, А НЕ СВОЯ КОПИЯ:
+#   * ПОЛОТНО И МОЩЕНИЕ — сами ленты PATHS (улицы, дорожки, полы мест, пятна
+#     кварталов): у города они уже собраны к этой стадии, и генератор им АВТОР,
+#     а не читатель. Кромкой считается half + FAB_CLASS_REACH_M — та самая, до
+#     которой Fabric отдаёт класс полотна, то есть до которой земля каменная.
+#   * ТЕЛА ГОРОДА — ВСЕ записи [house] этого прогона: кладка кольца, дома,
+#     фундаменты, крыльца, бордюр, плетни, дворовый скарб, прилавки. Не PLACED
+#     (там только тела для приёмок) и не FRAMES (там только дома): куст,
+#     выросший сквозь поленницу, — такой же дефект, как куст в стене.
+#   * ДВОРЫ — ДВОР НЕ ЛЕС. Решение волны, и вот довод: двор — это утоптанная
+#     хозяйская земля за глухой стеной, по ней ходят с дровами и водой.
+#     Подлеска, акцентов и подроста в нём нет ВОВСЕ; ковёр есть — трава под
+#     ногой растёт и во дворе.
+#   * ВОДА — русла чертежа: в воде не сеется ничего.
+#   * КОЛЬЦО СТЕН — по паспорту (TIER_INSIDE_WALLS): у каменного города вся
+#     зелень вынесена за стену, и это сказано паспортом, а не механизмом.
+#   * МИРОВЫЕ ТРАКТЫ — поле троп СУДЬИ (tools/cities/<город>.pathfield). Их
+#     генератор не рисует и не знает: их прокладывает worldgen между целями
+#     мира, и ловит [off-path] по ним же судья. Своя копия была бы вторым
+#     источником — тем самым, против которого написан path_clearance.
+# ГДЕ У ЛЕНТЫ ГОРОДА КОНЧАЕТСЯ ИЗНОШЕННОЕ. Ровно на её полуширине, и это не
+# выбор, а ЧУЖОЕ ОПРЕДЕЛЕНИЕ: relief_path_wear (ReliefLayer.cpp) возвращает
+# износ 0 за half, а судья мерит своё dist_from_worn_edge от worn_half_width.
+# Обе половины поля троп меряются одной меркой, иначе «не ближе 0.60 м» значило
+# бы у улицы одно, а у мирового тракта другое.
+# ПОЛОСА КЛАССА (Fabric отдаёт класс до half + 0.75) СЮДА НЕ ВХОДИТ НАРОЧНО:
+# это ширина ПОКРАСКИ земли, а не полотна. Куст на её краю стоит на каменистой
+# обочине — обочина и есть то место, где кусту расти положено.
+FAB_CLASS_REACH_M = 0.0
+# ГЛУБИНА ДВОРА. Не назначена: межевой плетень yards() встаёт на deep_fence =
+# 3.6 + (i % 3) * 0.35, то есть дальний двор кончается на 4.30 м от задней
+# грани. Двор — это то, что внутри ограды.
+YARD_DEPTH_M = 4.30
+# ВКОП ЯРУСНОГО РАСТЕНИЯ — НОЛЬ, И ЭТО ЗАМЕР, А НЕ ВКУС. Дворовый скарб
+# вкапывается на 0.03-0.05, чтобы бочка не висела на неровности; ярусное
+# растение так вкапывать НЕЛЬЗЯ, и вот почему. Судья мерит отметку против
+# СВОЕЙ земли (worldgen + relief), а генератор сажает на СВОЁ поле высот, и
+# два этих ответа расходятся на пару сантиметров: поле интерполируется
+# билинейно по клетке 1 м, а земля движка гладкая. Допуск судьи — ±0.05 в обе
+# стороны (ground_tolerance_m), и любой вкоп СЪЕДАЕТ ПОЛОВИНУ ЗАПАСА с одной
+# стороны. Замер: при вкопе 0.02 из 776 растений двух городов трое ушли за
+# порог (-0.05, -0.05, -0.06), при нуле — ни одного. Ноль ставит растение в
+# середину допуска, а не на его край.
+TIER_SINK_M = 0.0
+# ЛАДОНЬ ВОКРУГ ТЕЛА. Судья мерит проникновение осевых коробок; растение,
+# впритык поставленное к бревну, читается вросшим в него.
+TIER_BODY_SLACK_M = 0.30
+# «ЛЕС» ВОКРУГ ДЕРЕВА — ЭТО ОБЛАСТЬ, А НЕ ЗАКОН. Ярусам место там, где есть
+# полог: 20 м — тот же охват, каким пользуется стенд (половина пролёта между
+# рощицами), и он же в городе отделяет рощу от улицы.
+TIER_REACH_M = 20.0
+# ...а подлесок жмётся к пологу теснее ковра: куртина в двадцати метрах от
+# единственной берёзы стоит в чистом поле и читается клумбой.
+TIER_UNDER_REACH_M = 13.0
+# ОХВАТ КОВРА РАВЕН ОХВАТУ ПОДЛЕСКА, И ЭТО ПОПРАВКА ПО ЗАМЕРУ, А НЕ ПО ВКУСУ.
+# Первый вид волны давал ковру ПОЛНЫЙ охват рощи (TIER_REACH_M = 20 м), то
+# есть самый ШИРОКИЙ охват — самому ДОРОГОМУ ярусу: плата ковра стоит 480-1206
+# трис против 114 у папоротника и 184 у куста, и в худшей плитке Житнова 87
+# плат мха давали 42 840 трис — 53% всей плитки при 5% её растений. Мерка
+# (tools/measure_scene_budget.py) на охватах 20/13/10/8 м: худшая плитка
+# Житнова 80 702 / 62 468 / 43 292 / 38 864 трис, ковёр города 253 / 98 / 21 /
+# 3 платы. Двадцать метров — газон ценой в полплитки; десять — ковра в
+# Житнове больше нет вовсе. Тринадцать оставляет ковёр ковром и снимает 23%
+# худшей плитки.
+# ПОЧЕМУ ИМЕННО ОХВАТ ПОДЛЕСКА, А НЕ СВОЁ ЧИСЛО: ковёр — ПОЛ подлеска. Где
+# куртине уже чистое поле, там и подстилке не подо что стелиться, и город
+# обходится ОДНОЙ областью «под рощей» вместо двух. Плотность внутри области
+# по-прежнему целиком закон (flora_sow.py) — здесь меняется ГДЕ, а не СКОЛЬКО.
+TIER_CARPET_REACH_M = TIER_UNDER_REACH_M
+# ЯРУСЫ — ПОД РОЩЕЙ, А НЕ ПОД КАЖДЫМ ДЕРЕВОМ, И ЭТО НЕ ЭКОНОМИЯ, А ТО ЖЕ
+# УТВЕРЖДЕНИЕ, ЧТО И КУРТИНА. Ярус существует во множественном числе: под
+# одиночной берёзой у ворот подлеска нет — есть трава и сама берёза; ярусы
+# начинаются там, где кроны знают друг о друге. ДВА — минимальное множественное
+# число, и оно же ровно то, что отделяет рощу от уличного дерева.
+# ЧИСЛОМ ЭТО СТОИЛО ДЕСЯТИ ДРО: без правила посев ставил по одной плате и по
+# одной куртине на тринадцать чужих плиток 32 м, и каждая такая плитка — от
+# одной до четырёх партий в кадр ради пяти растений (замер в отчёте волны).
+TIER_GROVE_MIN = 2
+TIERS = []     # (имя, x, z, yaw, заметка, ярус) — для отчёта и приёмки
+
+
+class CityPaths(flora_sow.PathField):
+    """ПОЛЕ ТРОП ГОРОДА: мировые тракты СУДЬИ плюс полотно самого города.
+
+    Величина одна — расстояние от изношенной кромки наружу, — и берётся она
+    по МИНИМУМУ двух источников, потому что тропа и улица одинаково не терпят
+    куста на полотне. Разница между источниками не в мере, а в авторстве:
+    тракты мира рисует worldgen (их поле снимает судья ключом --path-field, и
+    снимок лежит рядом с паспортом, как натуральная земля), полотно города
+    рисует этот же генератор пятьюдесятью вызовами lay().
+    """
+
+    def __init__(self, step, values, paths, cell=8.0):
+        flora_sow.PathField.__init__(self, step, values)
+        self.cell = cell
+        self.seg = []
+        self.grid = {}
+        for pts, half, soft, cls, _note in paths:
+            curve = path_polyline(pts)
+            edge = half + FAB_CLASS_REACH_M
+            # Полоса, шире которой поле уже никого не интересует: за кромкой
+            # ещё бортик опушки (EDGE_BAND_M) и след самого растения.
+            reach = edge + flora_sow.EDGE_BAND_M + 2.0
+            for a, b in zip(curve, curve[1:]):
+                i = len(self.seg)
+                self.seg.append((a[0], a[1], b[0], b[1], edge))
+                x0 = int(math.floor((min(a[0], b[0]) - reach) / cell))
+                x1 = int(math.floor((max(a[0], b[0]) + reach) / cell))
+                z0 = int(math.floor((min(a[1], b[1]) - reach) / cell))
+                z1 = int(math.floor((max(a[1], b[1]) + reach) / cell))
+                for cz in range(z0, z1 + 1):
+                    for cx in range(x0, x1 + 1):
+                        self.grid.setdefault((cx, cz), []).append(i)
+
+    def city_clearance(self, x, z):
+        best = self.FAR
+        for i in self.grid.get((int(math.floor(x / self.cell)),
+                                int(math.floor(z / self.cell))), ()):
+            ax, az, bx, bz, edge = self.seg[i]
+            vx, vz = bx - ax, bz - az
+            L2 = vx*vx + vz*vz or 1e-9
+            t = max(0.0, min(1.0, ((x-ax)*vx + (z-az)*vz) / L2))
+            best = min(best, math.hypot(x - ax - vx*t, z - az - vz*t) - edge)
+        return best
+
+    def clearance(self, x, z):
+        return min(flora_sow.PathField.clearance(self, x, z),
+                   self.city_clearance(x, z))
+
+
+class CityMask:
+    """ТЕЛА, ДВОРЫ, ВОДА И КОЛЬЦО — одной решёткой, потому что спрашивают их
+    об одной точке и по многу тысяч раз. Прямого перебора здесь быть не может:
+    у Житнова 5661 тело и 1210 дворов против тридцати тысяч кандидатов."""
+
+    def __init__(self, cell=8.0):
+        self.cell = cell
+        self.bodies = {}
+        self.yards = {}
+        for (file, x, y, z, yaw, note) in H:
+            rec = file.split("/")[-1]
+            try:
+                lcx, lcz, w, d, _axis, _o = recipe_box(rec)
+            except OSError:
+                continue      # рецепта нет на полке — его габарит не выдумать
+            deg = math.degrees(yaw)
+            cx, cz = loc_to_world(x, z, deg, lcx, lcz)
+            self._put(self.bodies, cx, cz, max(w, d) * 0.5,
+                      (cx, cz, w, d, deg))
+        for poly in YARDS:
+            cx = sum(p[0] for p in poly) / len(poly)
+            cz = sum(p[1] for p in poly) / len(poly)
+            r = max(math.hypot(px - cx, pz - cz) for px, pz in poly)
+            self._put(self.yards, cx, cz, r, poly)
+
+    def _put(self, grid, cx, cz, r, item):
+        x0 = int(math.floor((cx - r) / self.cell))
+        x1 = int(math.floor((cx + r) / self.cell))
+        z0 = int(math.floor((cz - r) / self.cell))
+        z1 = int(math.floor((cz + r) / self.cell))
+        for gz in range(z0, z1 + 1):
+            for gx in range(x0, x1 + 1):
+                grid.setdefault((gx, gz), []).append(item)
+
+    def _cell(self, grid, x, z):
+        return grid.get((int(math.floor(x / self.cell)),
+                         int(math.floor(z / self.cell))), ())
+
+    def body_free(self, x, z, r):
+        """Не в теле города и не вплотную к нему."""
+        for (cx, cz, w, d, deg) in self._cell(self.bodies, x, z):
+            c = math.cos(math.radians(deg))
+            sn = math.sin(math.radians(deg))
+            dx, dz = x - cx, z - cz
+            if (abs(dx*c - dz*sn) < w/2 + r
+                    and abs(dx*sn + dz*c) < d/2 + r):
+                return False
+        return True
+
+    def in_yard(self, x, z):
+        return any(point_in_poly(x, z, poly)
+                   for poly in self._cell(self.yards, x, z))
+
+    def in_water(self, x, z, r):
+        return any(d < riv["half_w"] + 1.0 + r for d, riv in river_near(x, z))
+
+
+def tier_trees(objects):
+    """ПОЛОГ ГОРОДА — ЭТО ЕГО ЖЕ ДЕРЕВЬЯ, а не список пород паспорта: под
+    ярусами лежит та расстановка, которая уже написана в P. Мерка кроны и
+    роста берётся с самой детали (габарит .dfo), помноженная на масштаб
+    расстановки, — тем же правилом, каким её берёт сеятель и судья."""
+    out = []
+    for (obj, x, y, z, yaw, note, sc) in P:
+        o = objects.get(obj)
+        if o is None or o.height * sc < flora_sow.CANOPY_MIN_HEIGHT_M:
+            continue
+        out.append((x, z, o.radius * sc * flora_sow.CANOPY_R_FRAC,
+                    o.height * sc))
+    return out
+
+
+def tier_field():
+    """Поле мировых трактов из снимка судьи. Снимок — ВХОД ПРОГОНА, как и
+    натуральная земля: снять его может только собранный движок (ключ
+    --path-field), а генератор о трактах мира не знает ничего."""
+    path = env("PATHFIELD", os.path.join(ROOT, f"tools/cities/{CITY_NAME}.pathfield"))
+    if not os.path.exists(path):
+        print("!" * 78)
+        print(f"! ПОЛЕ МИРОВЫХ ТРАКТОВ НЕ НАЙДЕНО: {path}")
+        print("! Ярусы сеются БЕЗ правила опушки по трактам мира: судья будет")
+        print("! ловить [off-path] там, где генератор земли троп не видит.")
+        print("! Снимок: dfn_scene_check assets/scenes/<город>.scene "
+              "--path-field 1.0")
+        print("!" * 78)
+        GROUND_LOST.append(("поле мировых трактов", path))
+        return flora_sow.PathField()
+    raw = open(path, "rb").read()
+    GROUND_LOG.append(
+        f"  поле мировых трактов: sha1 {hashlib.sha1(raw).hexdigest()[:12]}  "
+        f"{time.strftime('%d.%m %H:%M', time.localtime(os.path.getmtime(path)))}"
+        f"  {path}")
+    return flora_sow.PathField.parse(raw.decode("utf-8"))
+
+
+def sow_city_tiers(Hh):
+    """ЯРУСЫ ПОВЕРХ ГОТОВОГО ГОРОДА. Стадия стоит ПОСЛЕ полотна и дворов и
+    ДО выпуска: раньше полотна ей нечего спрашивать про мощение, раньше
+    дворов — про дворы, а после выпуска её посев не попал бы в файл."""
+    # КОНТРОЛЬНАЯ РУКА (правило 30): DFN_CITY_TIERS=0 — тот же город БЕЗ
+    # ярусов. Не отладка: «ярусы не тронули ни рельеф, ни классы земли, ни одну
+    # приёмку» — утверждение о РАЗНИЦЕ, и мерить её надо двумя прогонами одного
+    # дерева, а не памятью о прошлом выпуске.
+    if env("TIERS") == "0":
+        print("ярусы флоры: ОТКЛЮЧЕНЫ рукой (DFN_CITY_TIERS=0) — контрольное "
+              "плечо волны: сцена без ярусов при том же рельефе")
+        return 0
+    if not TIER_UNDER["shade"] and not TIER_CARPET_MOSS and not TIER_SAPLINGS:
+        print("ярусы флоры: выключены паспортом (палитры пусты) — в этом "
+              "городе не сеется ни подлесок, ни ковёр, ни подрост")
+        return 0
+    objects = dfo_read.shelf([os.path.join(ROOT, d)
+                              for d in map_objects().split(";") if d])
+    shelf_t = flora_sow.Shelf(objects, TIER_SCALE)
+    trees = tier_trees(objects)
+    canopy = flora_sow.Canopy(trees)
+    fld = tier_field()
+    paths = CityPaths(fld.step, fld.values, PATHS)
+    mask = CityMask()
+
+    def near_trees(x, z, reach, need=None):
+        """Сколько крон рядом — и хватает ли их на рощу (TIER_GROVE_MIN)."""
+        need = TIER_GROVE_MIN if need is None else need
+        n = 0
+        for (tx, tz, tr, th) in trees:
+            if (x - tx) ** 2 + (z - tz) ** 2 < reach * reach:
+                n += 1
+                if n >= need:
+                    return True
+        return False
+
+    def allowed(x, z):
+        """Общая маска запрета: кольцо по паспорту, вода, тела."""
+        if not TIER_INSIDE_WALLS and point_in_poly(x, z, PLAN["wall"]):
+            return False
+        if mask.in_water(x, z, 0.5):
+            return False
+        return True
+
+    def forest(x, z):
+        return (allowed(x, z) and not mask.in_yard(x, z)
+                and near_trees(x, z, TIER_REACH_M))
+
+    def under_region(x, z):
+        return (allowed(x, z) and not mask.in_yard(x, z)
+                and near_trees(x, z, TIER_UNDER_REACH_M))
+
+    def carpet_region(x, z):
+        """КОВЁР ГОРОДА — ПОД ПОЛОГОМ И ВО ДВОРЕ, А НЕ НА ВСЕЙ КАРТЕ.
+        Порог берётся у самого закона: CARPET_GRASS_ABOVE — та отметка, выше
+        которой закон уже не видит полога вовсе. Ковёр на всей площади города
+        стоил бы дро, которых у города нет (замеры в отчёте волны), и был бы
+        не подстилкой, а газоном."""
+        if not allowed(x, z):
+            return False
+        if mask.in_yard(x, z):
+            return TIER_YARD_CARPET
+        return (near_trees(x, z, TIER_CARPET_REACH_M)
+                and canopy.openness(x, z) <= flora_sow.CARPET_GRASS_ABOVE)
+
+    span = float(SPAN)
+    saplings = flora_sow.sow_saplings(span, TIER_SEED, canopy, paths, shelf_t,
+                                      TIER_SAPLINGS, trees, region=forest) \
+        if TIER_SAPLINGS else []
+    under = flora_sow.sow_undergrowth(span, TIER_SEED, canopy, paths, shelf_t,
+                                      TIER_UNDER, region=under_region) \
+        if TIER_UNDER["shade"] else []
+    carpet = flora_sow.sow_carpet(span, TIER_SEED, canopy, paths, shelf_t,
+                                  TIER_CARPET_MOSS, TIER_CARPET_SWARD,
+                                  region=carpet_region) \
+        if TIER_CARPET_MOSS else []
+    accents = flora_sow.sow_accents(span, TIER_SEED, canopy, paths, shelf_t,
+                                    TIER_ACCENT_LIGHT, TIER_ACCENT_SHADE,
+                                    region=forest) \
+        if TIER_ACCENT_LIGHT else []
+
+    # МАСКА ТЕЛ ПРИКЛАДЫВАЕТСЯ ПОСЛЕ ЗАКОНА, А НЕ ВМЕСТО НЕГО: закон решает,
+    # где растению место по свету и по куртине, город — где ему места нет.
+    n_body = [0]
+
+    def keep(group):
+        out = []
+        for (nm, x, z, yaw, note) in group:
+            if mask.body_free(x, z, shelf_t.radius(nm) + TIER_BODY_SLACK_M):
+                out.append((nm, x, z, yaw, note))
+            else:
+                n_body[0] += 1
+        return out
+
+    saplings, under, carpet, accents = (keep(saplings), keep(under),
+                                        keep(carpet), keep(accents))
+    # ПРОРЕЖИВАНИЕ СПЛОШНЫХ — ПРАВИЛОМ СУДЬИ, и в очередь ставится ТО, ЧТО В
+    # ГОРОДЕ УЖЕ РАСТЁТ: озеленение у стен и деревья чертежа посеяны раньше и
+    # уступать ярусам не обязаны.
+    grown = [(nm, x, z) for (nm, x, y, z, yaw, note, sc) in P if nm in objects]
+    saplings, d1 = flora_sow.thin_solids(saplings, shelf_t, existing=grown)
+    grown += [(nm, x, z) for (nm, x, z, yaw, note) in saplings]
+    under, d2 = flora_sow.thin_solids(under, shelf_t, existing=grown)
+    grown += [(nm, x, z) for (nm, x, z, yaw, note) in under]
+    accents, d3 = flora_sow.thin_solids(accents, shelf_t, existing=grown)
+
+    n = 0
+    for tier, group in (("подрост", saplings), ("подлесок", under),
+                        ("ковёр", carpet), ("акценты", accents)):
+        for (nm, x, z, yaw, note) in group:
+            place(nm, x, hh_at(Hh, x, z) - TIER_SINK_M, z,
+                  math.degrees(yaw) % 360.0, "ярус — " + note,
+                  scale=TIER_SCALE.get(nm, 1.0))
+            TIERS.append((nm, x, z, yaw, note, tier))
+            n += 1
+    moss = sum(1 for (nm, x, z, yaw, note) in carpet if nm in TIER_CARPET_MOSS)
+    print(f"ЯРУСЫ ФЛОРЫ: {n} растений — подрост {len(saplings)}, подлесок "
+          f"{len(under)}, ковёр {len(carpet)} (мох {moss}, трава "
+          f"{len(carpet) - moss}), акценты {len(accents)}; полог {len(trees)} "
+          f"деревьев")
+    print(f"  маски города сняли: {n_body[0]} в телах и вплотную к ним, "
+          f"{d1 + d2 + d3} прореживанием сплошных (правило судьи no-overlap); "
+          f"дворов {len(YARDS)} (в них ковёр "
+          f"{'растёт' if TIER_YARD_CARPET else 'не растёт'}, подлеска нет), "
+          f"внутри кольца стен ярусы "
+          f"{'сеются' if TIER_INSIDE_WALLS else 'НЕ сеются (паспорт)'}")
+    return n
+
 def lay_roads():
     """ДОРОГИ — ТРОПАМИ РЕЛЬЕФА, НЕСУЩИМИ МАТЕРИАЛ. Приказ владельца 22.08:
     «тропинки опять плитами кладутся, а не тропинкой каменной». Движок
@@ -7998,6 +8435,15 @@ def main(city="whiterun"):
     relief_paths, FABRIC, HARD = fabric_out()
     n_kerb = kerbs_along(PATHS)
 
+    # 14б. ЯРУСЫ ФЛОРЫ — ПОСЛЕ ПОЛОТНА И ДВОРОВ, ДО ВЫПУСКА. Очерёдность тут
+    # такая же часть контракта, как и везде в этом оркестраторе: посев города
+    # обязан считаться с мощением (полотно собрано строкой выше), с дворами
+    # (стадия 10) и с телами (стадии 6-13), а сам не меняет НИ ОДНОГО из них —
+    # ярусы живут только в [place] сцены. Рельеф, классы земли и все приёмки
+    # полотна остаются побайтово теми же, что и без ярусов, и это проверяемо
+    # ключом DFN_CITY_TIERS=0.
+    n_tier = sow_city_tiers(PLAN_H)
+
     # 14а. ИНТЕРЬЕРЫ-ЛОКАЦИИ (И15 волна Б). Между полотном и выпуском: убранство
     # уже собрано put_house'ом, дома расставлены окончательно, а строки города
     # ещё не написаны — значит ссылки interior= попадут в них тем же проходом.
@@ -8037,6 +8483,8 @@ def main(city="whiterun"):
         print("ЗЕМЛЯ ЭТОГО ПРОГОНА:")
         for line in GROUND_LOG:
             print(line)
+    print(f"{OUT}: ярусов флоры {n_tier} из {len(P)} расстановок "
+          f"(подрост/подлесок/ковёр/акценты — см. строку ЯРУСЫ ФЛОРЫ выше)")
     print(f"{OUT}: {len(H)} построек, {len(P)} расстановок, "
           f"{len(LIGHTS)} огней ({n_fire} уличных), {n_yard} дворовых "
           f"(+{n_forge} кузнечных), "

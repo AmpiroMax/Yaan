@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Created: 24:08:2026 - 16:40:00
-# Last updated: 27:08:2026 - 23:30:00
+# Last updated: 29:08:2026 - 05:40:00
 # Module: tools
 # File: tools/cities/cornhall.py
 #
@@ -304,6 +304,16 @@
 #   огня loft. Поправка стояла законно, а число в ней было ПЛОСКОСТЬЮ плиты
 #   вместо её ВЕРХА: 150 находок судьи локаций из 169 по обоим городам —
 #   вся мебель трёх постоялых дворов. Разбор — у самой строки FLOOR.
+# - 29:08:2026 - 05:40:00: ПАЛИТРЫ ЯРУСОВ ФЛОРЫ (вторая волна ярусов), и у
+#   Житнова к ним ДВА ГОРОДСКИХ ОТВЕТА, которых у Вайтрана нет.
+#   (1) TIER_INSIDE_WALLS = False — ВНУТРИ КОЛЬЦА НЕ РАСТЁТ НИЧЕГО: та же
+#   причина, по которой у него пуст BUSH_KINDS, вся зелень вынесена за стену —
+#   в рощу у западного тракта, в огороды предместий и в межи полей.
+#   (2) Палитра РАВНИННАЯ, а не лесная: папоротник — растение сомкнутого леса,
+#   на хлебной равнине его место только в тени рощи, а на свету стоят ягодники
+#   и злаки. Это разница в СОСТАВЕ, а не в плотности: плотность — закон
+#   (tools/flora_sow.py), состав — биом. Полка assets/objects/tiers добавлена
+#   в MAP_OBJECTS.
 """Паспорт Корнхолла: данные для tools/gen_city.py."""
 
 # =============================================================================
@@ -355,7 +365,8 @@ MAP_NOTE = ("# Житнов (в конвейере cornhall) — пилот эп
             "(docs/CORNHALL_PLAN.html).")
 MAP_SOURCE = "stand:Gallery"
 MAP_OBJECTS = ("assets/objects/parts;assets/objects/signs;"
-               "assets/objects/trees;assets/objects/glade")
+               "assets/objects/trees;assets/objects/glade;"
+               "assets/objects/tiers")
 MAP_DESC = ("Ярмарочная столица равнины: правильное кольцо стен с четырьмя "
             "воротами, длинная рыночная улица сплошными фасадными рядами, "
             "предместья лентами вдоль трактов, ярмарочное поле с каменными "
@@ -783,6 +794,41 @@ BUSH_KINDS = ()
 FLOWER_KINDS = ("glade-flowers-white", "glade-flowers-pink",
                 "glade-flowers-yellow")
 CITY_FLOWER_SCALE = 0.5
+
+# =============================================================================
+# ЯРУСЫ ФЛОРЫ: ЧТО РАСТЁТ ЗА КОЛЬЦОМ ЖИТНОВА
+# =============================================================================
+# ЗАКОН ПОСЕВА — tools/flora_sow.py; здесь только палитры. И у Житнова к ним
+# ДВА ГОРОДСКИХ ОТВЕТА, которых у Вайтрана нет:
+#   * ВНУТРИ КОЛЬЦА НЕ РАСТЁТ НИЧЕГО. Это первая строка паспорта каменного
+#     города и та же причина, по которой у него пуст BUSH_KINDS: вся зелень
+#     вынесена за стену — в рощу у западного тракта, в огороды предместий и в
+#     межи полей. Сказано ключом, а не молчанием механизма.
+#   * ПАЛИТРА РАВНИННАЯ, А НЕ ЛЕСНАЯ. Папоротник — растение сомкнутого леса;
+#     на хлебной равнине его место только в тени рощи, а на свету стоят
+#     ягодники и злаки. Это разница в СОСТАВЕ, а не в плотности: плотность —
+#     закон, состав — биом.
+TIER_UNDER = {
+    "shade": ("glade-fern", "glade-juniper-creep"),
+    "light": ("glade-bush-a", "glade-berry-red", "glade-bush-b",
+              "glade-berry-pink", "glade-juniper-creep"),
+    "any": ("glade-berry-pink", "glade-berry-dark", "glade-bush-c"),
+}
+TIER_CARPET_MOSS = ("tier-moss-a", "tier-moss-b", "tier-moss-c", "tier-moss-d")
+TIER_CARPET_SWARD = ("tier-sward-a", "tier-sward-b", "tier-sward-c",
+                     "tier-sward-d")
+TIER_ACCENT_LIGHT = ("glade-grass-b", "glade-grass-c", "glade-flowers-yellow",
+                     "glade-flowers-white")
+TIER_ACCENT_SHADE = ("glade-mushrooms-brown", "glade-grass-a")
+TIER_SAPLINGS = ("tier-sapling-oak-a", "tier-sapling-beech-a",
+                 "tier-sapling-alder-a", "tier-sapling-alder-b")
+TIER_SCALE = {
+    "glade-fern": 1.9,
+    "glade-mushrooms-brown": 1.7,
+    "glade-juniper-creep": 0.8,
+}
+TIER_INSIDE_WALLS = False
+TIER_YARD_CARPET = True
 
 # =============================================================================
 # ДВОРЫ (бургажная полоса 12-20 м за фасадом)

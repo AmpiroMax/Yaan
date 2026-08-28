@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Created: 28:08:2026 - 22:05:00
-# Last updated: 28:08:2026 - 22:05:00
+# Last updated: 29:08:2026 - 03:10:00
 # File: tools/flora_sow.py
 #
 # Responsibility:
@@ -29,7 +29,8 @@
 #
 # Dependencies:
 # - Uses: Python stdlib; tools/dfo_read.py (габариты объектов полки).
-# - Used by: tools/gen_trees_v2.py (смотровая площадка); готов к gen_city.py.
+# - Used by: tools/gen_trees_v2.py (смотровая площадка), tools/gen_city.py
+#   (боевые города — вторая волна ярусов).
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
@@ -40,6 +41,13 @@
 # UPD:
 # - 28:08:2026 - 22:05:00: Создан — первая волна ярусов (пункты 1, 2, 3 и 5
 #   очереди записки №2).
+# - 29:08:2026 - 03:10:00: ВТОРАЯ ВОЛНА (закон посева — в города). Ни одного
+#   нового числа и ни одного изменённого: у акцентов и подроста появилась
+#   ручка region, которая у подлеска и ковра была с первого дня. Причина —
+#   город: у него ярусам место в лесу и рощах, а не во дворе, на мостовой и
+#   в теле дома, и сказать это можно только областью. Область приходит
+#   СНАРУЖИ (маска зовущего), потому что закон не знает ни про стенд, ни про
+#   город — и это ровно то свойство, ради которого он лежит отдельным файлом.
 
 import math
 
@@ -541,15 +549,23 @@ def sow_carpet(span, seed, canopy, paths, shelf, moss_names, grass_names,
 # =====================================================================
 # §3 АКЦЕНТЫ
 # =====================================================================
-def sow_accents(span, seed, canopy, paths, shelf, light_names, shade_names):
+def sow_accents(span, seed, canopy, paths, shelf, light_names, shade_names,
+                region=None):
     """Редкие ВЫСОКИЕ акценты группами. Своя решётка, своя плотность, свой
     порог света — «ковёр и акцент разные сущности» (§1.4) выражено числами,
-    а не словом."""
+    а не словом.
+
+    region — ГДЕ этому ярусу вообще место (та же ручка, что у подлеска и
+    ковра). Ярусу нужна не только плотность, но и ОБЛАСТЬ: у стенда это лес,
+    у города — лес и рощи, а не двор и не мостовая. Маска приходит снаружи,
+    потому что закон про стенд и город не знает и знать не должен."""
     salt = (seed * 0x100015B) ^ 0xACCE_1177
     out = []
     for (cx, cz, x0, z0) in _clump_centres(salt, span, ACCENT_CELL_M,
                                            ACCENT_JITTER, ACCENT_OCCUPANCY):
         if not (0.0 <= x0 <= span and 0.0 <= z0 <= span):
+            continue
+        if region is not None and not region(x0, z0):
             continue
         light = canopy.openness(x0, z0)
         if light >= ACCENT_LIGHT_MIN:
@@ -587,11 +603,13 @@ SAPLING_CLEAR_M = 3.0        # молодое деревце всё же дер�
 SAPLING_TREE_GAP_M = 2.6     # не в стволе взрослого
 
 
-def sow_saplings(span, seed, canopy, paths, shelf, names, trees):
+def sow_saplings(span, seed, canopy, paths, shelf, names, trees, region=None):
     """Ярус подроста: молодые деревца 1-3 м под пологом и на опушке.
 
     Не куртинами: подрост — это ОДИНОЧКИ и двойки там, где до земли дошёл
-    свет. Куртинный процесс дал бы «питомник», а не лес."""
+    свет. Куртинный процесс дал бы «питомник», а не лес.
+
+    region — та же ручка области, что у прочих ярусов (см. sow_accents)."""
     salt = (seed * 0x1000201) ^ 0x5AB1_1465
     out = []
     n = int(math.ceil(span / SAPLING_CELL_M))
@@ -602,6 +620,8 @@ def sow_saplings(span, seed, canopy, paths, shelf, names, trees):
             z = (cz + 0.5 + (h01(salt, cx, cz, 41) - 0.5) * 2 * SAPLING_JITTER) \
                 * SAPLING_CELL_M
             if not (2.0 <= x <= span - 2.0 and 2.0 <= z <= span - 2.0):
+                continue
+            if region is not None and not region(x, z):
                 continue
             light = canopy.openness(x, z)
             p = SAPLING_P_SHADE + (SAPLING_P_LIGHT - SAPLING_P_SHADE) * light

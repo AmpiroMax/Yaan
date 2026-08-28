@@ -230,6 +230,1350 @@ pos = 320.000 23.950 502.000
 yaw = 4.118977
 scale = 1
 
+[place]
+object = tier-sapling-alder-b
+pos = 26.851 24.000 126.323
+yaw = 2.505901
+scale = 1
+note = ярус — подрост: свет 1.00
+
+[place]
+object = tier-sapling-oak-a
+pos = 421.589 24.000 217.383
+yaw = 5.424754
+scale = 1
+note = ярус — подрост: свет 1.00
+
+[place]
+object = tier-sapling-alder-a
+pos = 461.603 24.000 222.267
+yaw = 3.672471
+scale = 1
+note = ярус — подрост: свет 1.00
+
+[place]
+object = tier-sapling-oak-a
+pos = 33.682 24.000 485.472
+yaw = 6.022631
+scale = 1
+note = ярус — подрост: свет 1.00
+
+[place]
+object = tier-sapling-oak-a
+pos = 42.109 24.000 489.492
+yaw = 4.783675
+scale = 1
+note = ярус — подрост: свет 1.00
+
+[place]
+object = tier-sapling-alder-a
+pos = 196.766 24.000 484.294
+yaw = 6.011239
+scale = 1
+note = ярус — подрост: свет 1.00
+
+[place]
+object = glade-fern
+pos = 34.381 23.000 383.826
+yaw = 4.495360
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 34.695 23.000 384.159
+yaw = 3.538926
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 36.082 23.000 384.048
+yaw = 1.162722
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 40.000 23.000 383.571
+yaw = 6.246769
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 42.309 23.000 384.028
+yaw = 1.834894
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 43.279 23.000 384.143
+yaw = 4.296123
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 34.563 23.000 384.868
+yaw = 4.117145
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 36.507 23.000 385.189
+yaw = 5.125394
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 36.988 23.000 384.465
+yaw = 3.586141
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 41.656 23.000 384.886
+yaw = 0.039957
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 42.602 23.000 384.578
+yaw = 3.460842
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 35.356 23.000 385.868
+yaw = 3.536800
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 36.612 23.000 385.654
+yaw = 3.820012
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 37.273 23.000 386.059
+yaw = 1.619692
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 37.825 23.000 385.708
+yaw = 1.177327
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.235 23.000 385.718
+yaw = 0.644535
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.988 23.000 386.117
+yaw = 1.838642
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 41.279 23.000 385.678
+yaw = 4.789779
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 42.504 23.000 385.923
+yaw = 6.086482
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 44.113 23.000 385.544
+yaw = 3.960305
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 35.587 23.000 387.164
+yaw = 0.214981
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 35.896 23.000 386.828
+yaw = 3.918782
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 37.963 23.000 386.959
+yaw = 4.399365
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.771 23.000 386.755
+yaw = 3.185703
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 40.748 23.000 387.360
+yaw = 0.016493
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 36.300 23.000 388.030
+yaw = 5.982852
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 36.853 23.000 388.265
+yaw = 5.028662
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 38.235 23.000 388.354
+yaw = 0.743666
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.498 23.000 388.374
+yaw = 0.482223
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 40.470 23.000 387.779
+yaw = 0.418042
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 41.878 23.000 388.065
+yaw = 5.947897
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 42.657 23.000 388.087
+yaw = 3.751572
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 34.370 23.000 388.686
+yaw = 0.089998
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 36.369 23.000 388.606
+yaw = 0.721764
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 37.510 23.000 389.474
+yaw = 4.808698
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 37.927 23.000 389.185
+yaw = 4.853980
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.331 23.000 388.546
+yaw = 4.629374
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.931 23.000 388.846
+yaw = 4.680279
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 41.693 23.000 388.760
+yaw = 0.448933
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 43.046 23.000 389.002
+yaw = 1.126142
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 36.733 23.000 389.956
+yaw = 2.576050
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 37.561 23.000 390.373
+yaw = 4.517546
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 38.224 23.000 389.769
+yaw = 5.669067
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 38.894 23.000 390.442
+yaw = 5.476034
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 40.498 23.000 390.370
+yaw = 0.981971
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 38.061 23.000 391.589
+yaw = 0.025890
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.188 23.000 390.754
+yaw = 1.364496
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 40.178 23.000 390.932
+yaw = 3.354663
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 41.788 23.000 391.036
+yaw = 2.091317
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 40.534 23.000 392.019
+yaw = 1.443917
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.104 23.000 393.415
+yaw = 4.245771
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 41.033 23.000 393.297
+yaw = 2.955686
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-fern
+pos = 39.945 23.000 393.773
+yaw = 5.483761
+scale = 1.9
+note = ярус — подлесок: куртина (2,24) R=5.3 м, свет 0.28
+
+[place]
+object = glade-bush-b
+pos = 30.632 24.000 491.566
+yaw = 6.007861
+scale = 1
+note = ярус — подлесок: куртина (2,30) R=5.5 м, свет 1.00
+
+[place]
+object = glade-bush-b
+pos = 36.742 24.000 491.533
+yaw = 2.153180
+scale = 1
+note = ярус — подлесок: куртина (2,30) R=5.5 м, свет 1.00
+
+[place]
+object = glade-bush-b
+pos = 35.730 24.000 496.078
+yaw = 5.608129
+scale = 1
+note = ярус — подлесок: куртина (2,30) R=5.5 м, свет 1.00
+
+[place]
+object = glade-berry-pink
+pos = 38.658 24.000 495.896
+yaw = 3.306222
+scale = 1
+note = ярус — подлесок: куртина (2,30) R=5.5 м, свет 1.00
+
+[place]
+object = glade-berry-pink
+pos = 37.872 24.000 498.400
+yaw = 2.356858
+scale = 1
+note = ярус — подлесок: куртина (2,30) R=5.5 м, свет 1.00
+
+[place]
+object = tier-moss-b
+pos = 442.749 24.000 205.707
+yaw = 2.658865
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 439.214 24.000 208.915
+yaw = 3.875642
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 442.180 24.000 208.954
+yaw = 4.518142
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-sward-b
+pos = 436.678 24.000 212.046
+yaw = 3.644925
+scale = 1
+note = ярус — ковёр: трава, свет 0.52
+
+[place]
+object = tier-moss-b
+pos = 439.286 24.000 211.429
+yaw = 1.596293
+scale = 1
+note = ярус — ковёр: мох, свет 0.31
+
+[place]
+object = tier-moss-b
+pos = 97.602 24.000 215.024
+yaw = 1.839753
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 100.016 24.000 214.663
+yaw = 1.480571
+scale = 1
+note = ярус — ковёр: мох, свет 0.41
+
+[place]
+object = tier-moss-a
+pos = 445.373 24.000 214.531
+yaw = 0.125978
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 447.955 24.000 214.355
+yaw = 6.197620
+scale = 1
+note = ярус — ковёр: мох, свет 0.44
+
+[place]
+object = tier-moss-a
+pos = 442.066 24.000 217.721
+yaw = 0.658299
+scale = 1
+note = ярус — ковёр: мох, свет 0.34
+
+[place]
+object = tier-moss-d
+pos = 448.793 24.000 217.180
+yaw = 1.488966
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-sward-c
+pos = 100.158 24.000 221.004
+yaw = 3.659833
+scale = 1
+note = ярус — ковёр: трава, свет 0.57
+
+[place]
+object = tier-moss-c
+pos = 448.499 24.000 220.454
+yaw = 1.916474
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 100.470 24.000 223.537
+yaw = 4.317941
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-sward-a
+pos = 97.729 24.000 226.184
+yaw = 3.227342
+scale = 1
+note = ярус — ковёр: трава, свет 0.56
+
+[place]
+object = tier-moss-d
+pos = 448.900 24.000 226.796
+yaw = 3.391647
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-sward-a
+pos = 451.942 24.000 226.129
+yaw = 1.581068
+scale = 1
+note = ярус — ковёр: трава, свет 0.54
+
+[place]
+object = tier-moss-c
+pos = 446.011 24.000 229.520
+yaw = 0.385983
+scale = 1
+note = ярус — ковёр: мох, свет 0.36
+
+[place]
+object = tier-moss-c
+pos = 448.293 24.000 229.945
+yaw = 2.967294
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 64.264 23.000 358.977
+yaw = 1.066227
+scale = 1
+note = ярус — ковёр: мох, свет 0.27
+
+[place]
+object = tier-sward-c
+pos = 67.107 23.000 358.253
+yaw = 5.197739
+scale = 1
+note = ярус — ковёр: трава, свет 0.46
+
+[place]
+object = tier-moss-d
+pos = 36.985 23.000 361.747
+yaw = 1.182458
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 40.498 23.000 361.711
+yaw = 4.147344
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 43.434 23.000 361.795
+yaw = 2.411885
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 46.634 23.000 361.845
+yaw = 5.221927
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 49.583 23.000 361.987
+yaw = 0.733145
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 55.080 23.000 361.353
+yaw = 5.396352
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-d
+pos = 58.662 23.000 361.566
+yaw = 1.615931
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-c
+pos = 61.944 23.000 361.987
+yaw = 2.611213
+scale = 1
+note = ярус — ковёр: мох, свет 0.09
+
+[place]
+object = tier-moss-b
+pos = 64.363 23.000 361.180
+yaw = 1.861231
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-a
+pos = 67.275 23.000 361.393
+yaw = 3.549821
+scale = 1
+note = ярус — ковёр: мох, свет 0.10
+
+[place]
+object = tier-moss-b
+pos = 34.953 23.000 365.012
+yaw = 0.861652
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 37.907 23.000 364.781
+yaw = 3.345577
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 40.079 23.000 364.207
+yaw = 3.766955
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 43.229 23.000 364.237
+yaw = 0.547952
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 46.843 23.000 363.960
+yaw = 2.374256
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 49.894 23.000 363.952
+yaw = 4.589011
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 58.159 23.000 364.639
+yaw = 5.355656
+scale = 1
+note = ярус — ковёр: мох, свет 0.25
+
+[place]
+object = tier-moss-c
+pos = 61.646 23.000 364.219
+yaw = 3.148355
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-d
+pos = 64.045 23.000 364.791
+yaw = 4.866869
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-b
+pos = 34.949 23.000 367.137
+yaw = 0.019074
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 37.190 23.000 367.480
+yaw = 4.027064
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 40.130 23.000 367.037
+yaw = 4.806213
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 49.284 23.000 367.546
+yaw = 3.076275
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 52.851 23.000 367.856
+yaw = 0.561568
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 55.987 23.000 367.990
+yaw = 6.067788
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 58.250 23.000 367.922
+yaw = 4.529254
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 61.865 23.000 367.559
+yaw = 0.083906
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-b
+pos = 64.235 23.000 367.578
+yaw = 2.852694
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-d
+pos = 31.588 23.000 369.987
+yaw = 3.845515
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 34.133 23.000 370.161
+yaw = 4.472041
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 37.968 23.000 370.138
+yaw = 1.815577
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 52.327 23.000 370.357
+yaw = 1.241858
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 55.230 23.000 370.901
+yaw = 0.170205
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 58.581 23.000 370.379
+yaw = 3.742665
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 61.276 23.000 370.920
+yaw = 4.595630
+scale = 1
+note = ярус — ковёр: мох, свет 0.23
+
+[place]
+object = tier-moss-c
+pos = 64.957 23.000 370.050
+yaw = 1.198769
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-c
+pos = 70.981 23.000 370.944
+yaw = 5.148096
+scale = 1
+note = ярус — ковёр: мох, свет 0.42
+
+[place]
+object = tier-moss-a
+pos = 31.616 23.000 373.408
+yaw = 1.863983
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 52.344 23.000 373.664
+yaw = 1.560921
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 55.690 23.000 373.475
+yaw = 4.064206
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 58.584 23.000 373.051
+yaw = 5.703596
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 61.742 23.000 373.883
+yaw = 0.500069
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 64.134 23.000 372.953
+yaw = 4.216349
+scale = 1
+note = ярус — ковёр: мох, свет 0.26
+
+[place]
+object = tier-moss-d
+pos = 67.787 23.000 373.618
+yaw = 3.156500
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 69.954 23.000 373.512
+yaw = 0.397315
+scale = 1
+note = ярус — ковёр: мох, свет 0.38
+
+[place]
+object = tier-moss-d
+pos = 34.500 23.000 376.338
+yaw = 4.154550
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 55.762 23.000 376.785
+yaw = 3.737432
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 63.973 23.000 376.399
+yaw = 4.813370
+scale = 1
+note = ярус — ковёр: мох, свет 0.12
+
+[place]
+object = tier-moss-c
+pos = 67.004 23.000 376.752
+yaw = 3.443675
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 70.285 23.000 376.713
+yaw = 4.345164
+scale = 1
+note = ярус — ковёр: мох, свет 0.44
+
+[place]
+object = tier-moss-d
+pos = 34.293 23.000 379.974
+yaw = 3.712811
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 37.701 23.000 379.126
+yaw = 2.613571
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 46.587 23.000 380.012
+yaw = 5.022611
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 49.595 23.000 379.247
+yaw = 6.067547
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 52.740 23.000 379.919
+yaw = 1.244578
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 37.671 23.000 382.619
+yaw = 2.476284
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 40.150 23.000 381.993
+yaw = 2.375299
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 43.084 23.000 382.881
+yaw = 6.167385
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 46.773 23.000 382.013
+yaw = 2.331151
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 49.379 23.000 382.046
+yaw = 2.955835
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 53.017 23.000 382.685
+yaw = 1.310176
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-b
+pos = 55.028 23.000 382.049
+yaw = 3.034726
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 58.511 23.000 382.511
+yaw = 2.392030
+scale = 1
+note = ярус — ковёр: мох, свет 0.15
+
+[place]
+object = tier-moss-d
+pos = 40.509 23.000 385.301
+yaw = 4.093890
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 58.345 23.000 385.695
+yaw = 1.178133
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 37.855 23.000 388.484
+yaw = 4.858996
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 40.072 23.000 388.698
+yaw = 0.378825
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 52.890 23.000 389.023
+yaw = 5.372102
+scale = 1
+note = ярус — ковёр: мох, свет 0.08
+
+[place]
+object = tier-moss-c
+pos = 55.977 23.000 388.425
+yaw = 4.384329
+scale = 1
+note = ярус — ковёр: мох, свет 0.24
+
+[place]
+object = tier-moss-c
+pos = 58.582 23.000 388.311
+yaw = 4.513528
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-a
+pos = 61.790 23.000 388.269
+yaw = 2.674058
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-d
+pos = 37.191 23.000 391.333
+yaw = 4.362992
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 40.971 23.000 391.155
+yaw = 1.886832
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 58.723 23.000 391.884
+yaw = 2.760638
+scale = 1
+note = ярус — ковёр: мох, свет 0.30
+
+[place]
+object = tier-moss-c
+pos = 61.005 23.000 390.993
+yaw = 5.722305
+scale = 1
+note = ярус — ковёр: мох, свет 0.34
+
+[place]
+object = tier-moss-a
+pos = 37.172 23.000 393.983
+yaw = 4.637232
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = tier-moss-c
+pos = 40.200 23.000 394.050
+yaw = 2.527087
+scale = 1
+note = ярус — ковёр: мох, свет 0.28
+
+[place]
+object = glade-grass-c
+pos = 479.414 25.000 133.199
+yaw = 2.529048
+scale = 1
+note = ярус — акцент: световое пятно, группа (28,7), свет 1.00
+
+[place]
+object = glade-grass-c
+pos = 478.845 25.000 134.279
+yaw = 5.627826
+scale = 1
+note = ярус — акцент: световое пятно, группа (28,7), свет 1.00
+
+[place]
+object = glade-grass-c
+pos = 479.492 25.000 133.671
+yaw = 1.016676
+scale = 1
+note = ярус — акцент: световое пятно, группа (28,7), свет 1.00
+
+[place]
+object = glade-flowers-yellow
+pos = 75.537 24.000 216.654
+yaw = 0.325228
+scale = 1
+note = ярус — акцент: световое пятно, группа (4,12), свет 1.00
+
+[place]
+object = glade-grass-c
+pos = 76.999 24.000 217.787
+yaw = 1.045567
+scale = 1
+note = ярус — акцент: световое пятно, группа (4,12), свет 1.00
+
+[place]
+object = glade-flowers-yellow
+pos = 79.509 24.000 217.994
+yaw = 5.450739
+scale = 1
+note = ярус — акцент: световое пятно, группа (4,12), свет 1.00
+
+[place]
+object = glade-flowers-yellow
+pos = 76.883 24.000 219.003
+yaw = 0.988598
+scale = 1
+note = ярус — акцент: световое пятно, группа (4,12), свет 1.00
+
+[place]
+object = glade-grass-b
+pos = 438.005 24.000 239.163
+yaw = 1.405019
+scale = 1
+note = ярус — акцент: световое пятно, группа (25,14), свет 1.00
+
+[place]
+object = glade-grass-b
+pos = 436.882 24.000 241.157
+yaw = 1.872435
+scale = 1
+note = ярус — акцент: световое пятно, группа (25,14), свет 1.00
+
+[place]
+object = glade-grass-c
+pos = 441.743 24.000 241.266
+yaw = 4.856677
+scale = 1
+note = ярус — акцент: световое пятно, группа (26,14), свет 1.00
+
+[place]
+object = glade-grass-c
+pos = 443.374 24.000 241.169
+yaw = 5.042956
+scale = 1
+note = ярус — акцент: световое пятно, группа (26,14), свет 1.00
+
+[place]
+object = glade-grass-c
+pos = 442.173 24.000 242.218
+yaw = 1.675067
+scale = 1
+note = ярус — акцент: световое пятно, группа (26,14), свет 1.00
+
+[place]
+object = glade-grass-c
+pos = 443.820 24.000 242.278
+yaw = 0.418907
+scale = 1
+note = ярус — акцент: световое пятно, группа (26,14), свет 1.00
+
+[place]
+object = glade-grass-c
+pos = 443.176 24.000 243.515
+yaw = 4.715581
+scale = 1
+note = ярус — акцент: световое пятно, группа (26,14), свет 1.00
+
+[place]
+object = glade-mushrooms-brown
+pos = 32.483 23.000 357.503
+yaw = 4.209249
+scale = 1.7
+note = ярус — акцент: тень полога, группа (1,21), свет 0.08
+
+[place]
+object = glade-mushrooms-brown
+pos = 29.569 23.000 358.208
+yaw = 0.879543
+scale = 1.7
+note = ярус — акцент: тень полога, группа (1,21), свет 0.08
+
+[place]
+object = glade-mushrooms-brown
+pos = 30.958 23.000 358.017
+yaw = 4.866248
+scale = 1.7
+note = ярус — акцент: тень полога, группа (1,21), свет 0.08
+
+[place]
+object = glade-mushrooms-brown
+pos = 32.301 23.000 357.809
+yaw = 6.143143
+scale = 1.7
+note = ярус — акцент: тень полога, группа (1,21), свет 0.08
+
+[place]
+object = glade-mushrooms-brown
+pos = 31.206 23.000 359.663
+yaw = 2.609696
+scale = 1.7
+note = ярус — акцент: тень полога, группа (1,21), свет 0.08
+
+[place]
+object = glade-mushrooms-brown
+pos = 43.149 23.000 363.468
+yaw = 1.965830
+scale = 1.7
+note = ярус — акцент: тень полога, группа (2,21), свет 0.28
+
+[place]
+object = glade-grass-a
+pos = 44.658 23.000 364.186
+yaw = 1.560437
+scale = 1
+note = ярус — акцент: тень полога, группа (2,21), свет 0.28
+
+[place]
+object = glade-grass-a
+pos = 43.608 23.000 365.428
+yaw = 5.306070
+scale = 1
+note = ярус — акцент: тень полога, группа (2,21), свет 0.28
+
+[place]
+object = glade-mushrooms-brown
+pos = 40.726 23.000 390.086
+yaw = 3.509088
+scale = 1.7
+note = ярус — акцент: тень полога, группа (2,22), свет 0.28
+
+[place]
+object = glade-mushrooms-brown
+pos = 41.404 23.000 391.241
+yaw = 1.071985
+scale = 1.7
+note = ярус — акцент: тень полога, группа (2,22), свет 0.28
+
+[place]
+object = glade-grass-a
+pos = 51.922 23.000 381.360
+yaw = 5.486009
+scale = 1
+note = ярус — акцент: тень полога, группа (3,22), свет 0.28
+
+[place]
+object = glade-grass-a
+pos = 53.307 23.000 381.238
+yaw = 2.306926
+scale = 1
+note = ярус — акцент: тень полога, группа (3,22), свет 0.28
+
+[place]
+object = glade-grass-a
+pos = 54.508 23.000 381.879
+yaw = 1.697045
+scale = 1
+note = ярус — акцент: тень полога, группа (3,22), свет 0.28
+
+[place]
+object = glade-grass-a
+pos = 53.712 23.000 382.861
+yaw = 1.900104
+scale = 1
+note = ярус — акцент: тень полога, группа (3,22), свет 0.28
+
+[place]
+object = glade-grass-a
+pos = 53.092 23.000 384.930
+yaw = 1.610368
+scale = 1
+note = ярус — акцент: тень полога, группа (3,22), свет 0.28
+
+[place]
+object = glade-grass-c
+pos = 79.476 23.000 378.431
+yaw = 4.454388
+scale = 1
+note = ярус — акцент: световое пятно, группа (4,22), свет 1.00
+
 [house]
 file = assets/houses/city-gate.dfh
 pos = 262.000 23.965 142.095
