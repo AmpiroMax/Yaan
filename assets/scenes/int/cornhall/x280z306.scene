@@ -9,7 +9,7 @@ world_span_m = 64
 
 [spawn]
 name = door
-pos = 2.258 0.250 3.025
+pos = 3.200 0.250 4.200
 yaw = 0.000000
 note = сразу за порогом, лицом в комнату
 
@@ -22,50 +22,50 @@ note = оболочка: тот же чертёж, что снаружи (кал
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 0.250 0.150 0.550
+pos = 0.180 0.150 0.800
 yaw = 0.000000
 note = убранство: каланча
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 0.250 0.150 1.450
+pos = 0.180 0.150 1.550
 yaw = 0.000000
 note = убранство: каланча
 
 [house]
 file = assets/houses/furn-barrel.dfh
-pos = 0.250 0.150 2.350
-yaw = 0.000000
-note = убранство: каланча
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 0.250 0.150 3.250
+pos = 0.180 0.150 2.300
 yaw = 0.000000
 note = убранство: каланча
 
 [house]
 file = assets/houses/furn-bench.dfh
-pos = 1.800 0.150 0.300
-yaw = 0.000000
-note = убранство: каланча
-
-[house]
-file = assets/houses/furn-barrel.dfh
-pos = 5.500 0.150 0.550
+pos = 0.300 0.150 0.220
 yaw = 0.000000
 note = убранство: каланча
 
 [house]
 file = assets/houses/furn-woodpile.dfh
-pos = 5.950 0.150 1.600
+pos = 2.440 0.150 0.520
 yaw = 4.712389
 note = убранство: каланча
 
 [house]
 file = assets/houses/furn-shelf.dfh
-pos = 5.850 0.150 3.400
+pos = 2.260 0.150 2.100
 yaw = 4.712389
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 0.200 0.150 4.100
+yaw = 0.000000
+note = убранство: каланча
+
+[house]
+file = assets/houses/furn-barrel.dfh
+pos = 5.300 0.150 4.100
+yaw = 0.000000
 note = убранство: каланча
 
 [air]
@@ -74,7 +74,7 @@ fog_end = 120
 ambient = 0.10
 
 [portal]
-at = 2.258 1.150 3.525
+at = 3.200 1.150 4.700
 radius_m = 1.10
 to = ^back
 note = обратная дверь

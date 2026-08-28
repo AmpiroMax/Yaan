@@ -27205,7 +27205,7 @@ note = фонарь у двери: thatch
 
 [house]
 file = assets/houses/furn-lamp-wall.dfh
-pos = 281.775 24.000 304.850
+pos = 280.600 24.000 304.850
 yaw = 4.712389
 note = фонарь у двери: каланча
 
@@ -34914,12 +34914,12 @@ flicker = 0.17
 note = фонарь у двери: thatch
 
 [light]
-pos = 281.315 26.340 305.030
-color = 0.844 0.573 0.322
-radius_m = 3.94
+pos = 280.140 26.340 305.030
+color = 0.974 0.671 0.383
+radius_m = 4.25
 casts_shadow = 0
 softness = 0.5
-flicker = 0.13
+flicker = 0.16
 note = фонарь у двери: каланча
 
 [light]
