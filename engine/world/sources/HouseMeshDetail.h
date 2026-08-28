@@ -1,6 +1,6 @@
 /*
 Created: 21:08:2026 - 00:40:00
-Last updated: 23:08:2026 - 18:09:35
+Last updated: 28:08:2026 - 11:20:00
 Module: engine/world
 File: engine/world/sources/HouseMeshDetail.h
 
@@ -33,6 +33,9 @@ UPD:
 - 23:08:2026 - 05:20:00: push_prism получил uv_shift (сдвиг фазы плитки в метрах; ноль —
 - 23:08:2026 - 18:09:35: MeshBuilder.glow — самосвечение элемента переносится в части.
   прежняя рамка бит-в-бит) — против «дощечек-клонов» (владелец 23.08).
+- 28:08:2026 - 11:20:00: MeshBuilder.pane — оконный лист переносится в MeshPart
+  при flush_part (свет из окна). Порядок «сначала set_material, потом флаг»
+  назван в шапке поля: признак читается на закрытии ПРЕДЫДУЩЕЙ части.
 */
 
 #pragma once
@@ -73,6 +76,13 @@ struct MeshBuilder {
     bool collider_only = false;
     /// САМОСВЕЧЕНИЕ ЭЛЕМЕНТА (glow=1): все его части эмиссивны.
     bool glow = false;
+    /// ОСТЕКЛЕНИЕ: следующая часть — лист окна (MeshPart.pane).
+    ///
+    /// ПОРЯДОК ВЫСТАВЛЕНИЯ НЕ ПРОИЗВОЛЕН, и ошибка здесь молчалива. Признак
+    /// читается в flush_part(), то есть в момент, когда закрывается ПРЕДЫДУЩАЯ
+    /// часть: поднять флаг НАДО ПОСЛЕ set_material(8), которая эту предыдущую
+    /// часть и закрывает, — иначе оконным листом окажется помечен простенок.
+    bool pane = false;
 
     void begin_element(ElementId id) {
         part_element = id;
@@ -84,7 +94,7 @@ struct MeshBuilder {
         const std::uint32_t now = static_cast<std::uint32_t>(out->indices.size());
         if (part_element != NO_ELEMENT && now > part_begin) {
             out->parts.push_back({part_element, part_begin, now - part_begin, part_mat,
-                                  part_tone, collider_only, glow});
+                                  part_tone, collider_only, glow, pane});
         }
         part_begin = now;
     }

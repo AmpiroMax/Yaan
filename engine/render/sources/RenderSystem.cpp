@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 12:58:00
+Last updated: 28:08:2026 - 11:23:00
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -196,6 +196,9 @@ UPD:
   стояла камера в момент выхода в меню. Слот снимается сразу после отправки
   (живёт один кадр, как временные светы): игровой кадр, который его не
   ставил, не должен унаследовать герб от последнего кадра меню.
+- 28:08:2026 - 11:23:00: dp.aux1 = st.pane_glow — сила свечения оконной вставки
+  уходит программе prop (свет из окна). Ноль у всех прежних потоков, то есть
+  прежний кадр бит-в-бит.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1195,6 +1198,10 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
             // Самосветный поток (пламя, стекло фонаря): без освещения —
             // горит с любого расстояния независимо от бюджета светов.
             dp.emissive = st.emissive;
+            // ОКОННАЯ ВСТАВКА — САМОСВЕТНЫЙ ПОТОК С СИЛОЙ (28.08): день/ночь
+            // у окна разные, и aux1 несёт эту силу программе prop. Ноль —
+            // обычный самосветный поток (пламя), кадр прежний бит-в-бит.
+            dp.aux1 = st.pane_glow;
             renderer.submit(platform::MeshHandle{st.mesh_id},
                             platform::ProgramHandle{prop_program_}, identity,
                             tex_of(st.texture_asset), dp);

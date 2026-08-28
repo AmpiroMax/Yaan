@@ -1,6 +1,6 @@
 /*
 Created: 19:08:2026 - 01:40:00
-Last updated: 27:08:2026 - 21:40:30
+Last updated: 28:08:2026 - 11:40:00
 Module: engine/app
 File: engine/app/sources/AppHouse.cpp
 
@@ -98,8 +98,6 @@ UPD:
   ДВЕ ЛЯМБДЫ ВЫНЕСЕНЫ ИЗ append_graph НАРУЖУ (ключ ячейки stream_cell и доза
   DFN_HOUSE_GLOW): кладущих стало двое, а вторая копия ключа развела бы одну
   партию отрисовки на две в день, когда кто-нибудь поправит 32 метра.
-  mat_of теперь зовёт world::house_part_tile — то же правило, что читает
-  кузница объекта; ни одного числа не изменено.
 - 27:08:2026 - 10:34:00: МЕТКА ЗАПИСИ ВЫШЕ ИСПРАВЛЕНА НА РЕАЛЬНОЕ ВРЕМЯ (правило 16):
   стояло 15:xx при стенных 10:18 — я выбрал метку позже чужой записи 14:30 в
   AppHouse.cpp, лишь бы сошлась сверка хука, вместо того чтобы разобраться с
@@ -115,6 +113,18 @@ UPD:
   интерьерный проход складывает створки локации в свой список — не как второй
   выход наружу (выход по-прежнему один), а как геометрию, по которой изнутри
   целятся в дверь.
+- 28:08:2026 - 11:40:00: СВЕТ ИЗ ОКОН (доза DFN_INTERIOR_WINDOW, 0 — прежний кадр
+  бит-в-бит). Три правки, и каждая своя: (1) оконный лист локации уходит СВОИМ
+  самосветным потоком с силой (HouseStream::pane_glow), тон — вершинным
+  цветом; (2) доза уезжает в печку видимости, которая теперь знает апертуры;
+  (3) ДОЗА ВМЕШАНА В ОТПЕЧАТОК КЭША AO, и это не предосторожность: кэш лежит
+  на диске и ключом ему служила одна геометрия, а свет из окна не двигает ни
+  одной вершины — две руки приёмки считались бы одним ключом, и «после» молча
+  показало бы байты «до». Город пока не светит окнами намеренно: сила берётся
+  на заливке, а город заливается раз на карту — его окна замерли бы на часе
+  входа в город (довод у флага interior_pass).
+  mat_of теперь зовёт world::house_part_tile — то же правило, что читает
+  кузница объекта; ни одного числа не изменено.
 */
 
 #include "engine/app/sources/App.h"
@@ -140,6 +150,7 @@ UPD:
 #include <map>
 #include <unordered_map>
 #include <cstdio>
+#include <cstring>
 #include <glm/geometric.hpp>
 
 namespace dfn::app {
@@ -567,6 +578,24 @@ void App::upload_house_mesh(bool interior_only) {
     // городом по той же XZ, и его пятна выкосили бы траву НАВЕРХУ — под домом,
     // которого там нет.
     bool collect_exclusions = true;
+    // СВЕТЯЩЕЕСЯ ОКНО — ПОКА ТОЛЬКО У ЛОКАЦИИ, И ПРИЧИНА ТЕХНИЧЕСКАЯ, А НЕ
+    // ВКУСОВАЯ. Сила свечения — величина ЧАСА СУТОК, и берётся она на
+    // заливке. Локация заливается на КАЖДЫЙ вход в дом, поэтому её окна
+    // всегда знают свой час; город заливается ОДИН раз на загрузку карты, и
+    // его окна замерли бы на том часе, в который игрок вошёл в город, —
+    // полдень в полночь на всех фасадах сразу. Городу нужен пересчёт силы по
+    // кадру (uniform, а не заливка), и это отдельная работа зоны render.
+    bool interior_pass = false;
+    // СКОЛЬКО ОКОН В ЭТОЙ КОМНАТЕ И ГОРЯТ ЛИ ОНИ — вслух. Строка заведена не
+    // для отладки: «свет из окна не виден» имеет ровно два разных смысла —
+    // «вставок в комнате ноль» (у зала без окон это норма, у таверны брак) и
+    // «вставки есть, но не светятся», — и различить их кадром нельзя.
+    std::size_t panes_seen = 0;
+    std::size_t panes_lit = 0;
+    // ТОН И СИЛА СВЕЧЕНИЯ ВСТАВКИ — ОДИН РАЗ НА ЗАЛИВКУ, у одного хозяина
+    // (AppInterior, блок «СВЕТ ИНТЕРЬЕРА»): общий свет комнаты и окно в ней
+    // обязаны говорить об одном и том же часе.
+    const PaneGlow pane_glow = interior_pane_glow();
     // ЧЬЯ ЭТО ПОСТРОЙКА СЕЙЧАС (И15 волна Б). Строящийся в редакторе дом —
     // ничей (nullptr); дом карты несёт свою запись композиции, и из неё
     // построитель берёт ДВЕ вещи: запечатана ли створка (sealed) и куда она
@@ -611,12 +640,37 @@ void App::upload_house_mesh(bool interior_only) {
     const auto sec = [](auto a, auto b) {
         return std::chrono::duration<double>(b - a).count();
     };
-    const auto ao_of = [&](const world::HouseMesh& built)
+    // СВЕТ ИЗ ОКОН — ДОЗА, ЧИТАЕМАЯ ОДИН РАЗ НА ПРОГОН. Ноль означает не
+    // «слабее», а «печка окон не знает и вставка не светится» — то есть
+    // прежний кадр бит-в-бит (правило 47).
+    const float window_dose = interior_window_dose();
+    const auto ao_of = [&](const world::HouseMesh& built, float win_dose)
         -> const std::vector<std::uint8_t>& {
         std::uint64_t h = 1469598103934665603ull;
         const auto mix = [&h](std::uint64_t v) {
             h = (h ^ v) * 1099511628211ull;
         };
+        // ОТПЕЧАТОК ОБЯЗАН НЕСТИ ДОЗУ, И ЭТО НЕ ПРЕДОСТОРОЖНОСТЬ (28.08).
+        // Кэш видимости лежит НА ДИСКЕ и переживает прогон, а ключом ему до
+        // сегодня служила ОДНА ГЕОМЕТРИЯ. Свет из окна не двигает ни одной
+        // вершины — значит две руки приёмки (доза 0 и доза 1) считались бы
+        // одним и тем же ключом, и вторая молча получила бы байты первой:
+        // «после» показало бы «до», а перепечка выглядела бы как отсутствие
+        // эффекта. Тот же ключ развёл бы и город с локацией на одном чертеже.
+        // Мешается СЫРОЙ бит-образ дозы: 0.5 и 0.50000001 — разные печки, и
+        // разные ключи у них честнее общего.
+        //
+        // МЕШАЕТСЯ ТОЛЬКО ТАМ, ГДЕ ДОЗА ЧТО-ТО МЕНЯЕТ — у постройки С ОКНАМИ
+        // и при ненулевой дозе. Безусловная примесь обесценила бы кэш
+        // ЦЕЛИКОМ: у Корнхолла 462 постройки, печка без диска стоила 86 из
+        // 101 секунды загрузки (замер И10 24.08), а окна есть у трети
+        // чертежей — остальным дозу мешать не за что, их байты те же.
+        static_assert(sizeof(float) == sizeof(std::uint32_t));
+        if (win_dose > 0.0f && !built.windows.empty()) {
+            std::uint32_t dose_bits = 0;
+            std::memcpy(&dose_bits, &win_dose, sizeof(dose_bits));
+            mix(dose_bits);
+        }
         mix(built.vertices.size());
         mix(built.indices.size());
         // ПОЛНЫЙ ОТПЕЧАТОК (И10): обрез на 64 вершинах коллизиеопасен на
@@ -661,7 +715,7 @@ void App::upload_house_mesh(bool interior_only) {
             }
             if (baked.empty()) {
                 const auto t0 = tick();
-                baked = world::bake_house_sky_visibility(built);
+                baked = world::bake_house_sky_visibility(built, win_dose);
                 bclock.ao_s += sec(t0, tick());
                 ++bclock.bakes;
                 if (disk_on) {
@@ -705,7 +759,16 @@ void App::upload_house_mesh(bool interior_only) {
         const world::HouseMesh built = world::build_house_mesh(graph);
         bclock.mesh_s += sec(t_mesh, tick());
         ++bclock.meshes;
-        const std::vector<std::uint8_t>& sky_vis = ao_of(built);
+        // ДОЗА ОКОН ДОХОДИТ ДО ПЕЧКИ ТОЛЬКО НА ИНТЕРЬЕРНОМ ПРОХОДЕ, и это не
+        // осторожность, а тот же довод, что у свечения вставки этажом ниже:
+        // город заливается ОДИН раз на карту, и всё, что взято на заливке,
+        // у него замирает. Плюс две вещи, которые стоят денег: наружные
+        // вершины уже видят небо (остаток 1-vis мал, прибавка почти нулевая),
+        // а платить за неё пришлось бы лучом на каждое окно каждого из 868
+        // домов Вайтрана и перепечкой всего дискового кэша. Город остаётся
+        // бит-в-бит по построению, а не по замеру.
+        const std::vector<std::uint8_t>& sky_vis =
+            ao_of(built, interior_pass ? window_dose : 0.0f);
         const auto t_split = tick();
         const glm::vec3 zero = to_world(glm::vec3{0.0f});
         // ГАБАРИТ ПОСТРОЙКИ В МИРОВЫХ — считается ОДИН раз и служит двум
@@ -861,6 +924,26 @@ void App::upload_house_mesh(bool interior_only) {
             std::uint32_t tone = 0;
             mat_of(*e, surface, tone);
             part_color = paint_of(*e);
+            // ОКОННЫЙ ЛИСТ, КОТОРЫЙ ГОРИТ (28.08). Тон уезжает ВЕРШИННЫМ
+            // ЦВЕТОМ: у вставки он не занят — краску (paint) кладут на
+            // элемент стены, а лист живёт её подчастью и своей краски не
+            // имеет по построению. Сила едет отдельно, величиной эмиссии
+            // (HouseStream::pane_glow), потому что она больше единицы:
+            // пересвет в байт вершины не помещается.
+            const bool lit_pane =
+                part.pane && interior_pass && pane_glow.strength > 0.0f;
+            if (part.pane && interior_pass) {
+                ++panes_seen;
+            }
+            if (lit_pane) {
+                ++panes_lit;
+                const auto ch = [](float v) {
+                    return static_cast<std::uint32_t>(
+                        std::lround(std::clamp(v, 0.0f, 1.0f) * 255.0f));
+                };
+                part_color = 0xFF000000u | (ch(pane_glow.tint.b) << 16)
+                           | (ch(pane_glow.tint.g) << 8) | ch(pane_glow.tint.r);
+            }
             {
                 const std::string w = graph.param(e->id, "wear");
                 part_wear = w.empty() ? 0.0f : std::strtof(w.c_str(), nullptr);
@@ -1053,13 +1136,19 @@ void App::upload_house_mesh(bool interior_only) {
                 // независимо от бюджета точечных светов. Дверь-доза
                 // DFN_HOUSE_GLOW: 0 — флаг игнорируется, части живут в
                 // прежних освещённых потоках бит-в-бит.
-                const bool part_glow = glow_on && part.emissive;
+                // ...И ОКОННЫЙ ЛИСТ — ТОЖЕ САМОСВЕТНЫЙ ПОТОК, НО СВОЙ (28.08).
+                // Своя ячейка ключа (бит 14) нужна не для красоты: сила
+                // свечения — свойство ПОТОКА, и лист, попавший в один поток с
+                // пламенем, получил бы либо силу пламени, либо отдал бы свою.
+                const bool part_glow = (glow_on && part.emissive) || lit_pane;
                 auto& st = (*streams)[(cell_key << 16)
                                    | (static_cast<std::uint64_t>(surface) << 8)
-                                   | (part_glow ? (1ull << 15) : 0ull) | tone];
+                                   | (part_glow ? (1ull << 15) : 0ull)
+                                   | (lit_pane ? (1ull << 14) : 0ull) | tone];
                 st.surface = surface;
                 st.tone = tone;
                 st.emissive = part_glow;
+                st.pane_glow = lit_pane ? pane_glow.strength : 0.0f;
                 into = &st.mesh;
             }
             for (std::uint32_t i = 0; i < part.index_count; ++i) {
@@ -1198,6 +1287,7 @@ void App::upload_house_mesh(bool interior_only) {
     collider_indices = &int_indices;
     positions = &interior_positions_;
     collect_exclusions = false;
+    interior_pass = true;
     // СТВОРКИ ЛОКАЦИИ — В СВОЙ СПИСОК. Чистится он ЗДЕСЬ, а не под
     // `if (!interior_only)`: интерьерный проход идёт при всякой заливке, и
     // список, оставшийся от прошлой комнаты, дал бы прицел «Выйти» по чужому
@@ -1224,6 +1314,16 @@ void App::upload_house_mesh(bool interior_only) {
     // координатами комнаты, — значит карман прибавляем здесь, и ровно один раз.
     append_objects(interior_doc_, interior_pocket_);
 
+    if (panes_seen > 0 || interior_window_dose() > 0.0f) {
+        std::fprintf(stderr,
+                     "[интерьер] оконных вставок: %zu, горящих %zu (сила %.2f, "
+                     "тон %.2f %.2f %.2f)\n",
+                     panes_seen, panes_lit,
+                     static_cast<double>(pane_glow.strength),
+                     static_cast<double>(pane_glow.tint.r),
+                     static_cast<double>(pane_glow.tint.g),
+                     static_cast<double>(pane_glow.tint.b));
+    }
     std::size_t n_streams = 0;
     std::size_t n_doors = 0;
     if (!interior_only) {

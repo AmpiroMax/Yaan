@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 22:12:57
-Last updated: 27:08:2026 - 12:58:00
+Last updated: 28:08:2026 - 11:23:00
 Module: engine/render
 File: engine/render/sources/RenderSystemResources.cpp
 
@@ -100,6 +100,8 @@ UPD:
   холстом) — ровно тот момент, когда копия арифметики становится теневой
   копией правила (правило 39). Поведение не изменилось ни на бит: та же
   формула, вызванная из того же места.
+- 28:08:2026 - 11:23:00: pane_glow переносится туда же — сила свечения оконной
+  вставки живёт у потока, а не у дро (свет из окна, 28.08).
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -455,7 +457,7 @@ void RenderSystem::fill_house_slot(platform::IRenderer& renderer,
             out_streams.push_back(
                 {h.id, house_tile_asset(renderer, st.surface, st.tone),
                  house_tile_asset(renderer, st.surface, st.tone, /*normal=*/true),
-                 box, st.emissive});
+                 box, st.emissive, st.pane_glow});
         }
     }
     // НОМЕР СТВОРКИ СОХРАНЯЕТСЯ. Пропуск пустой двери «сжал» бы список, и

@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 17:21:51
-Last updated: 23:08:2026 - 18:09:35
+Last updated: 28:08:2026 - 11:25:00
 Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
@@ -47,6 +47,15 @@ UPD:
 - 22:08:2026 - 22:46:52: AO крупных горизонтальных панелей усредняется по части: интерполяция от тёмного угла тянула КЛИН через плиту 2х2 м, триангуляция проступала тенью (владелец: «чёрные треугольники на террасе»). Порог 3 м², грани n.y>0.7.
 - 23:08:2026 - 02:01:25: AO-печка: косинусные веса и деление на их сумму — мера перестала штрафовать за наклон (скат терял половину веера по касательной, потолок стены был 0.5).
 - 23:08:2026 - 18:09:35: mb.glow из ElementParams — самосветные элементы (пламя, стекло).
+- 28:08:2026 - 11:25:00: ПЕЧКА УЗНАЛА ОКНА (доза window_light, 0 — прежние байты
+  бит-в-бит). Веер из шестнадцати лучей идёт только вверх и упирается в
+  собственную кровлю, поэтому у запечатанной комнаты видимость сидела РОВНО
+  на полу 0.30 и у подоконника, и в дальнем углу — «свет из окна» не был мал,
+  его не существовало как величины. Апертуры приходят поимённо
+  (HouseMesh.windows от HouseWalls), доля неба считается форм-фактором
+  площадки с проверкой заслонения лучом до самого проёма. blocked получил
+  дальность аргументом: луч на окно обязан остановиться ПЕРЕД листом
+  остекления, который стоит ровно в проёме.
 */
 
 #include "engine/world/sources/HouseMesh.h"
@@ -229,7 +238,8 @@ bool surface_normal(const HouseGraph& g, ElementId id, glm::vec3& out) {
     return true;
 }
 
-std::vector<std::uint8_t> bake_house_sky_visibility(const HouseMesh& mesh) {
+std::vector<std::uint8_t> bake_house_sky_visibility(const HouseMesh& mesh,
+                                                   float window_light) {
     std::vector<std::uint8_t> out(mesh.vertices.size(), 255u);
     if (mesh.vertices.empty() || mesh.indices.empty()) {
         return out;
@@ -312,11 +322,17 @@ std::vector<std::uint8_t> bake_house_sky_visibility(const HouseMesh& mesh) {
     constexpr float REACH_M = 8.0f;   // дальше своя постройка не заслоняет
     constexpr float PUSH_M = 0.03f;   // отжим от собственной грани
     constexpr float FLOOR = 0.30f;    // запечатанный интерьер тёмен, не чёрен
-    const auto blocked = [&](glm::vec3 org, const glm::vec3& dir) {
+    // `reach` — докуда луч ищет заслонитель. У небесных лучей это REACH_M
+    // (дальше своя постройка не заслоняет); у луча НА ОКНО — расстояние до
+    // самого проёма без пары сантиметров, иначе луч упрётся в лист
+    // остекления, который стоит ровно в этом проёме, и всякое окно окажется
+    // заслонено само собой.
+    const auto blocked_within = [&](glm::vec3 org, const glm::vec3& dir,
+                                    float reach) {
         // Шаг по колонкам сетки вдоль XZ-проекции луча; при почти
         // вертикальном луче достаточно своей колонки.
         const float horiz = std::sqrt(dir.x * dir.x + dir.z * dir.z);
-        const float span = horiz * REACH_M;
+        const float span = horiz * reach;
         const int steps = std::max(1, static_cast<int>(span / CELL) + 1);
         math::Ray ray{org, dir};
         std::uint32_t last_cell = 0xFFFFFFFFu;
@@ -334,12 +350,15 @@ std::vector<std::uint8_t> bake_house_sky_visibility(const HouseMesh& mesh) {
                 if (math::ray_vs_triangle(ray, mesh.vertices[tris[t]].pos,
                                           mesh.vertices[tris[t + 1]].pos,
                                           mesh.vertices[tris[t + 2]].pos,
-                                          REACH_M)) {
+                                          reach)) {
                     return true;
                 }
             }
         }
         return false;
+    };
+    const auto blocked = [&](glm::vec3 org, const glm::vec3& dir) {
+        return blocked_within(org, dir, REACH_M);
     };
     // ОБРАЗЕЦ НА ЯЧЕЙКУ, А НЕ НА ВЕРШИНУ. Дом с паркетом и кровлей несёт
     // десятки тысяч вершин, но доски одного настила стоят в сантиметрах друг
@@ -387,8 +406,80 @@ std::vector<std::uint8_t> bake_house_sky_visibility(const HouseMesh& mesh) {
             }
         }
         const float vis = total_w > 0.0f ? open_w / total_w : 1.0f;
+        // НЕБО, ВОШЕДШЕЕ ЧЕРЕЗ ПРОЁМ (28.08, доза window_light).
+        //
+        // ПОЧЕМУ ЭТОГО НЕ БЫЛО. Веер выше идёт ТОЛЬКО ВВЕРХ (25° и 60°) и
+        // упирается в собственную кровлю, поэтому у запечатанной комнаты
+        // видимость сидит РОВНО на полу 0.30 — и у подоконника, и в дальнем
+        // углу. «Свет из окна» в этой мере не был мал: его не существовало
+        // как величины, и никакое число ambient его не заводит, потому что
+        // ambient умножается на ту же одну константу по всей комнате.
+        //
+        // ПОЧЕМУ НЕ ДОБАВЛЕНЫ ГОРИЗОНТАЛЬНЫЕ ЛУЧИ В ОБЩИЙ ВЕЕР. Их пришлось
+        // бы стрелять от КАЖДОЙ вершины дома, включая наружные, ради ответа,
+        // который для них известен заранее; и попасть в окно 1x1 м с шести
+        // метров случайным лучом веера из шестнадцати нельзя — телесный угол
+        // окна там 0.03 стерадиана против 6.28 полусферы. Апертура известна
+        // поимённо (mesh.windows), поэтому считается ПРЯМО НА НЕЁ.
+        //
+        // ФОРМА. Доля неба, вошедшая через проём, — форм-фактор площадки:
+        // растёт с площадью, падает с квадратом расстояния, гаснет косинусами
+        // на обоих концах (грань, отвёрнутая от окна, не освещается; окно,
+        // видимое с ребра, не светит). Записан он в безразмерном виде
+        //     admit = cosS * cosW / (1 + (d / d_half)^2),  d_half = 1.5*sqrt(A)
+        // где d_half — расстояние ПОЛОВИННОГО пропускания, выраженное в
+        // ширинах самого окна. Полторы ширины — это калибровка по референсу
+        // владельца (images_examples/houses_indoors): у него световое пятно
+        // окна на полу читается примерно на полтора-два размера проёма, а
+        // дальше уходит в общий сумрак комнаты. Число артистическое и названо
+        // артистическим: физический форм-фактор дал бы на нашей шкале доли
+        // процента, потому что пол 0.30 сам по себе — не физика, а заливка.
+        //
+        // СЛОЖЕНИЕ ЧЕРЕЗ ОСТАТОК (vis + (1-vis)*admit), а не суммой: у
+        // наружной грани vis уже 0.9, и остаток 0.1 сам гасит прибавку —
+        // ворота получаются из формы, а не из порога, который пришлось бы
+        // подбирать по месту.
+        float lit = vis;
+        if (window_light > 0.0f && !mesh.windows.empty()) {
+            float admit = 0.0f;
+            for (const HouseWindow& w : mesh.windows) {
+                const glm::vec3 to_w = w.centre - v.pos;
+                const float d2 = glm::dot(to_w, to_w);
+                if (d2 < 1e-4f || w.area <= 0.0f) {
+                    continue;
+                }
+                const float d = std::sqrt(d2);
+                const glm::vec3 dir = to_w / d;
+                const float cos_s = glm::dot(v.normal, dir);
+                if (cos_s <= 0.05f) {
+                    continue; // грань отвёрнута от окна
+                }
+                const float cos_w = std::fabs(glm::dot(w.normal, dir));
+                if (cos_w <= 0.05f) {
+                    continue; // окно видно с ребра
+                }
+                const float d_half = 1.5f * std::sqrt(w.area);
+                const float fall = d / d_half;
+                const float part = cos_s * cos_w / (1.0f + fall * fall);
+                if (part < 0.01f) {
+                    continue; // дешевле отбросить, чем стрелять луч
+                }
+                // ЛУЧ ДО ПРОЁМА, А НЕ ДО КОНЦА. Без него окно верхнего яруса
+                // засветило бы нижний сквозь перекрытие, а окно соседней
+                // комнаты — эту, сквозь перегородку. Стоп за 0.15 м до
+                // апертуры: в ней самой стоит лист остекления, и полный луч
+                // всегда упирался бы в него.
+                if (blocked_within(v.pos + v.normal * PUSH_M + dir * PUSH_M, dir,
+                                   std::max(0.0f, d - 0.15f))) {
+                    continue;
+                }
+                admit += part;
+            }
+            admit = std::clamp(admit * window_light, 0.0f, 1.0f);
+            lit = vis + (1.0f - vis) * admit;
+        }
         const auto byte = static_cast<std::uint8_t>(
-            std::lround(255.0f * (FLOOR + (1.0f - FLOOR) * vis)));
+            std::lround(255.0f * (FLOOR + (1.0f - FLOOR) * lit)));
         sample.emplace(key, byte);
         out[vi] = byte;
     }
