@@ -1,6 +1,6 @@
 /*
 Created: 28:08:2026 - 14:20:00
-Last updated: 28:08:2026 - 14:20:00
+Last updated: 28:08:2026 - 16:50:00
 Module: engine/gameplay
 File: engine/gameplay/sources/WorldAmbience.cpp
 
@@ -31,6 +31,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 28:08:2026 - 14:20:00: Создан зоной «звук от источника».
+- 28:08:2026 - 16:50:00: место освобождается, когда у источника нет записи —
+  иначе на нём доигрывал бы голос предыдущей рощи.
 */
 
 #include "engine/gameplay/sources/WorldAmbience.h"
@@ -521,7 +523,14 @@ void WorldAmbience::update(platform::IAudio& audio, const Listener& listener,
                 }
             }
             if (!want_sound.valid()) {
-                continue; // записи нет — излучатель молчит, а не ломается
+                // ЗАПИСИ НЕТ — ИЗЛУЧАТЕЛЬ МОЛЧИТ, А НЕ ЛОМАЕТСЯ. И место при
+                // этом ОСВОБОЖДАЕТСЯ: простой `continue` оставил бы играть
+                // голос ПРЕДЫДУЩЕЙ рощи на её последней громкости — звук,
+                // хозяин которого уже сменился, то есть ровно то, ради чего
+                // эта зона заведена.
+                release(audio, slot);
+                slot.source = -1;
+                continue;
             }
 
             const bool fresh = slot.source != c.source || !slot.voice.valid();
