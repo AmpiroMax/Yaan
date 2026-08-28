@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 01:53:17
+Last updated: 28:08:2026 - 14:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/StepAudio.h
 
@@ -8,15 +8,21 @@ Responsibility:
 - The first audio consumers (в12): footsteps by surface class played ON THE
   TICK their FootfallEvent fires (the research's one non-negotiable — delayed
   footfall feedback destroys the walking illusion), jump/land/water one-shots
-  wired to the movement events, and the wind loop whose volume follows the
-  ONE wind model the renderer computes (Rule 35: read, never re-derive).
+  wired to the movement events. ВЕТРА ЗДЕСЬ БОЛЬШЕ НЕТ (28.08) — см. ниже.
 
 Key items:
 - StepSoundBank: loaded handles per surface class + one-shots (plain data).
 - load_step_sound_bank(): binds the placeholder asset set (documented Rule 5
   exception, moves to the content loader with the JSON reader).
 - wire_step_audio(): subscribes the handlers on the EventBus.
-- WindLoop / start_wind_loop / update_wind_loop: the ambient wind bed.
+- (снято 28.08) WindLoop / start_wind_loop / update_wind_loop — «ветровая
+  подушка», игравшая БЕЗ ИСТОЧНИКА: один непространственный голос, слышный
+  одинаково в чистом поле, в лесу и внутри дома. Заказ владельца 28.08 назвал
+  это дефектом дословно («не должно быть просто так фонового шума — а он даже
+  в домах есть»), и замена — не «ветер потише», а другой предмет:
+  gameplay::WorldAmbience, где ветер слышен ТОЛЬКО из крон и только на
+  расстоянии от них. Строчка оставлена здесь надгробием: следующий, кто пойдёт
+  искать start_wind_loop по гриву, найдёт причину, а не пустоту.
 
 Dependencies:
 - Uses: platform IAudio, core events EventBus, StepEvents.h, core math
@@ -46,6 +52,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:53:17: Created for the landscape stage (в3+в12 audio).
+- 28:08:2026 - 14:30:00: Безысточниковый ветер СНЯТ вместе со своим файлом
+  (wind_loop.wav); шелест переехал в WorldAmbience — к кронам.
 */
 
 #pragma once
@@ -73,13 +81,12 @@ struct StepSoundBank {
     platform::SoundHandle land_soft{};
     platform::SoundHandle land_hard{};
     platform::SoundHandle splash{};
-    platform::SoundHandle wind_loop{};
     platform::BusHandle bus{}; // the sfx bus (invalid = master)
 };
 
 // Loads the placeholder set from `dir` (default asset layout:
 // footstep_{grass|gravel|rock|sand|water}_{1..4}.wav, jump_takeoff.wav,
-// land_soft.wav, land_hard.wav, splash_enter.wav, wind_loop.wav).
+// land_soft.wav, land_hard.wav, splash_enter.wav).
 // Rule 5 exception, same standing as the testbed content block in App.cpp:
 // these paths move to the content loader the day core's JSON reader lands.
 // Missing files yield invalid handles, which the handlers skip — the game
@@ -93,18 +100,5 @@ struct StepSoundBank {
 // both are app-owned singletons). Call once at startup.
 void wire_step_audio(events::EventBus& bus, platform::IAudio& audio,
                      const StepSoundBank& bank);
-
-// The ambient wind bed. Volume follows the renderer's wind model — the app
-// passes RenderEnvironment::wind_strength each frame, so audio and bending
-// foliage breathe from the SAME gust envelope (Rule 35; WindModel.h exposes
-// the scalar for exactly this).
-struct WindLoop {
-    platform::AudioVoiceHandle voice{};
-};
-
-[[nodiscard]] WindLoop start_wind_loop(platform::IAudio& audio,
-                                       const StepSoundBank& bank);
-void update_wind_loop(platform::IAudio& audio, const WindLoop& loop,
-                      float wind_strength);
 
 } // namespace dfn::gameplay

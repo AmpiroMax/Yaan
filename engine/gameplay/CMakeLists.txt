@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 27:08:2026 - 11:33:53
+# Last updated: 28:08:2026 - 14:45:00
 # File: engine/gameplay/CMakeLists.txt
 #
 # Responsibility:
@@ -41,6 +41,9 @@
 #                          not-yet-implemented world::SaveDeltaCodec symbol.
 # - 27:08:2026 - 11:33:53: CameraBoom.cpp — стрела камеры третьего лица
 #                          (коллизия по сферкасту; заказ владельца 27.08).
+# - 28:08:2026 - 14:45:00: WorldAmbience.cpp — фоновый звук от ИСТОЧНИКА
+#                          (кроны и русла; заказ владельца 28.08). Ушла
+#                          безысточниковая «ветровая подушка» из StepAudio.cpp.
 
 add_library(dfn_gameplay STATIC
     sources/CameraBoom.cpp
@@ -61,7 +64,8 @@ add_library(dfn_gameplay STATIC
     sources/PropCollision.cpp
     sources/StepAudio.cpp
     sources/StepFeel.cpp
-    sources/ViewModel.cpp)
+    sources/ViewModel.cpp
+    sources/WorldAmbience.cpp)
 
 # dfn_world: gameplay registers its save sections with world::SaveDeltaCodec
 # (the DAG allows gameplay -> world).

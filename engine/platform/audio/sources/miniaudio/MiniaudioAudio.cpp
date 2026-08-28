@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:53:17
-Last updated: 27:08:2026 - 20:00:24
+Last updated: 28:08:2026 - 14:05:00
 Module: engine/platform/audio
 File: engine/platform/audio/sources/miniaudio/MiniaudioAudio.cpp
 
@@ -13,6 +13,10 @@ Responsibility:
 
 Key items:
 - MiniaudioAudio (file-local) + create_miniaudio_audio() factory.
+- Per-voice low-pass (ma_lpf_node), created LAZILY — the occlusion half that
+  is not volume.
+- Per-bus reverb (ma_delay_node), created LAZILY — set_bus_reverb stopped
+  being a no-op today.
 - Voice sweep in update(): finished one-shots are uninited and their handles
   become safe no-ops (the IAudio recycling contract).
 
@@ -29,9 +33,20 @@ Notes:
 - PITCH JITTER in play_variation uses a backend-local RNG seeded from the
   clock. Audio randomness NEVER feeds back into simulation, so determinism
   (Rule 13.2) is untouched — this is the same ruling recorded in IAudio.h.
-- KNOWN v1 GAP: set_bus_reverb is a documented no-op. miniaudio ships no
-  reverb node; a hand-rolled DSP node arrives with the dungeon-audio stage.
-  The factory header carries the same note so no consumer is surprised.
+- ЗАКРЫТЫЙ ПРОБЕЛ v1: set_bus_reverb БОЛЬШЕ НЕ ПУСТЫШКА. Настоящего
+  ревербератора у miniaudio по-прежнему нет (записка docs/reports/audio-engines:
+  «Реверберация — НЕТ, 0 упоминаний»), но ЛИНИЯ ЗАДЕРЖКИ есть — ma_delay_node,
+  — и одна линия с обратной связью даёт ХВОСТ. Это не сеть Шрёдера и не
+  свёрточный ревер: у одиночной линии слышна периодичность, и на больших
+  комнатах она отдаёт эхом. Названо вслух, потому что «реверб есть» и «комната
+  звучит комнатой» — разные утверждения, и второе эта волна не заявляет.
+  Зачем всё равно сделано: объявленный в контракте метод, который ничего не
+  делает, — это интерфейс, который врёт, и следующий его читатель поверит.
+- УЗЛЫ СОЗДАЮТСЯ ЛЕНИВО, И ЭТО КОНТРОЛЬНАЯ РУКА, А НЕ ЭКОНОМИЯ. Ни один узел
+  (ни фильтр голоса, ни ревер шины) не появляется в графе, пока его не
+  попросили: прогон, где окклюзия и реверб не включались, гонит те же самые
+  сэмплы через тот же самый граф, что и до этой волны. «Стало иначе» и «стало
+  так же» предъявляются одним бинарником (правило 30).
 - Attenuation model: linear between min_distance and max_distance — the
   simple rolloff the interface promises ("curve is a backend detail").
 - unload_sound stops any voices still playing that sound before dropping the
@@ -75,6 +90,14 @@ UPD:
      shipped in the same commit that wrote "false = 2D (UI, music stingers)"
      into the contract. Fixed as a mechanism, not for the menu's case:
      ANY caller of play_music wants a track, not an emitter.
+- 28:08:2026 - 14:05:00: ОККЛЮЗИЯ И РЕВЕР — два узла графа (зона «звук от
+  источника», заказ владельца 28.08).
+  1. set_voice_lowpass(): ma_lpf_node между голосом и его шиной, заводится при
+     первом ненулевом срезе и снимается при нулевом. Нужен потому, что стена,
+     которая только УБАВЛЯЕТ громкость, звучит как расстояние, а не как стена.
+  2. set_bus_reverb(): ma_delay_node между шиной и её родителем — обещание
+     контракта, простоявшее пустым с 10.08, теперь исполняется (оговорка о
+     качестве одиночной линии — в заметках выше).
 */
 
 #include "engine/platform/audio/sources/miniaudio/CreateMiniaudioAudio.h"
@@ -98,7 +121,9 @@ UPD:
 #error "stb_vorbis must be included BEFORE MINIAUDIO_IMPLEMENTATION, or .ogg will not load"
 #endif
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <memory>
 #include <random>
 #include <string>
@@ -112,6 +137,20 @@ namespace {
 // constant in the WindModel tradition: backend presentation detail, migrates
 // to NUMBERS the moment a second zone needs to agree with it (Rule 35).
 constexpr float VARIATION_PITCH_JITTER = 0.05f;
+
+// ПОРЯДОК ФИЛЬТРА ОККЛЮЗИИ. 2 — это 12 дБ на октаву: слышно как «за стеной»,
+// а не как «под одеялом» (order 1 почти не меняет тембр, order 4 съедает и то,
+// по чему ухо узнаёт источник).
+constexpr ma_uint32 LOWPASS_ORDER = 2;
+
+// ЗВУК В ВОЗДУХЕ, м/с — им длина комнаты превращается в задержку эха.
+constexpr double SPEED_OF_SOUND_MPS = 343.0;
+// Границы линии задержки: короче 20 мс отдаёт гребёнкой (звучит как фильтр, а
+// не как комната), длиннее 200 мс распадается на отдельные шлепки эха.
+constexpr double REVERB_DELAY_MIN_S = 0.020;
+constexpr double REVERB_DELAY_MAX_S = 0.200;
+// Предел обратной связи: 0.95 — это уже почти самовозбуждение, выше нельзя.
+constexpr float REVERB_FEEDBACK_MAX = 0.95f;
 
 class MiniaudioAudio final : public IAudio {
 public:
@@ -131,7 +170,7 @@ public:
             return;
         }
         for (auto& [id, voice] : voices_) {
-            ma_sound_uninit(voice->sound.get());
+            destroy_voice(*voice);
         }
         voices_.clear();
         for (auto& [id, m] : music_owned_) {
@@ -144,8 +183,12 @@ public:
             ma_sound_uninit(s->prototype.get());
         }
         sounds_.clear();
-        for (auto& [id, g] : buses_) {
-            ma_sound_group_uninit(g.get());
+        for (auto& [id, b] : buses_) {
+            ma_sound_group_uninit(b->group.get());
+            if (b->reverb) {
+                ma_delay_node_uninit(b->reverb.get(), nullptr);
+                b->reverb.reset();
+            }
         }
         buses_.clear();
         ma_engine_uninit(engine_.get());
@@ -169,7 +212,7 @@ public:
         for (auto it = voices_.begin(); it != voices_.end();) {
             ma_sound* s = it->second->sound.get();
             if (!ma_sound_is_looping(s) && !ma_sound_is_playing(s)) {
-                ma_sound_uninit(s);
+                destroy_voice(*it->second);
                 it = voices_.erase(it);
             } else {
                 ++it;
@@ -217,7 +260,7 @@ public:
         // Voices still playing this sound die with it (header note).
         for (auto vit = voices_.begin(); vit != voices_.end();) {
             if (vit->second->source.id == sound.id) {
-                ma_sound_uninit(vit->second->sound.get());
+                destroy_voice(*vit->second);
                 vit = voices_.erase(vit);
             } else {
                 ++vit;
@@ -268,7 +311,7 @@ public:
         if (it == voices_.end()) {
             return; // stale handle: safe no-op (contract)
         }
-        ma_sound_uninit(it->second->sound.get());
+        destroy_voice(*it->second);
         voices_.erase(it);
     }
 
@@ -282,6 +325,63 @@ public:
     void set_voice_volume(AudioVoiceHandle voice, float volume) override {
         if (auto it = voices_.find(voice.id); it != voices_.end()) {
             ma_sound_set_volume(it->second->sound.get(), volume);
+        }
+    }
+
+    // СРЕЗ ВЕРХА У ОДНОГО ГОЛОСА (окклюзия). Узел заводится ЛЕНИВО и снимается
+    // при cutoff <= 0, поэтому голос, которому никто не резал верх, идёт по
+    // графу, не изменившемуся ни на узел (контрольная рука в заметках файла).
+    void set_voice_lowpass(AudioVoiceHandle voice, float cutoff_hz) override {
+        auto it = voices_.find(voice.id);
+        if (it == voices_.end() || !engine_) {
+            return; // stale handle: safe no-op (contract)
+        }
+        Voice& v = *it->second;
+        const ma_uint32 rate = ma_engine_get_sample_rate(engine_.get());
+        const ma_uint32 channels = ma_engine_get_channels(engine_.get());
+        if (cutoff_hz <= 0.0f) {
+            if (v.lpf) {
+                // Обратно на шину, и только потом уничтожать узел.
+                ma_node_attach_output_bus(reinterpret_cast<ma_node*>(v.sound.get()), 0,
+                                          bus_node_or_endpoint(v.bus), 0);
+                ma_lpf_node_uninit(v.lpf.get(), nullptr);
+                v.lpf.reset();
+            }
+            v.cutoff_hz = 0.0f;
+            return;
+        }
+        // Найквист — не совет: срез выше него молча превращает фильтр в шум.
+        const double cutoff = static_cast<double>(
+            std::clamp(cutoff_hz, 30.0f, 0.45f * static_cast<float>(rate)));
+        if (!v.lpf) {
+            auto node = std::make_unique<ma_lpf_node>();
+            const ma_lpf_node_config cfg =
+                ma_lpf_node_config_init(channels, rate, cutoff, LOWPASS_ORDER);
+            if (ma_lpf_node_init(ma_engine_get_node_graph(engine_.get()), &cfg, nullptr,
+                                 node.get())
+                != MA_SUCCESS) {
+                return; // без узла: остаётся одна громкость, и это честнее тишины
+            }
+            // Порядок втыкания: сначала выход фильтра на шину, потом голос на
+            // фильтр. Наоборот — и один буфер уходит в никуда.
+            ma_node_attach_output_bus(reinterpret_cast<ma_node*>(node.get()), 0,
+                                      bus_node_or_endpoint(v.bus), 0);
+            ma_node_attach_output_bus(reinterpret_cast<ma_node*>(v.sound.get()), 0,
+                                      reinterpret_cast<ma_node*>(node.get()), 0);
+            v.lpf = std::move(node);
+            v.cutoff_hz = static_cast<float>(cutoff);
+            return;
+        }
+        // Пересборка коэффициентов стоит денег, а зовут это каждый кадр:
+        // мимо уха проходит всё, что меняет срез меньше чем на десятую.
+        if (std::fabs(cutoff - static_cast<double>(v.cutoff_hz))
+            <= 0.10 * static_cast<double>(v.cutoff_hz)) {
+            return;
+        }
+        const ma_lpf_config lc =
+            ma_lpf_config_init(ma_format_f32, channels, rate, cutoff, LOWPASS_ORDER);
+        if (ma_lpf_node_reinit(&lc, v.lpf.get()) == MA_SUCCESS) {
+            v.cutoff_hz = static_cast<float>(cutoff);
         }
     }
 
@@ -303,7 +403,10 @@ public:
             return {};
         }
         const BusHandle handle{next_id_++};
-        buses_.emplace(handle.id, std::move(group));
+        auto rec = std::make_unique<Bus>();
+        rec->group = std::move(group);
+        rec->parent = parent;
+        buses_.emplace(handle.id, std::move(rec));
         return handle;
     }
 
@@ -313,13 +416,67 @@ public:
         }
     }
 
+    // РЕВЕР ШИНЫ ОДНОЙ ЛИНИЕЙ ЗАДЕРЖКИ. Узел встаёт МЕЖДУ шиной и её
+    // родителем, поэтому «мокрым» становится всё, что играет на шине, и ничего
+    // сверх неё — ровно то, что обещает контракт («реверб — свойство шины, а
+    // не работа на голос»).
+    //
+    // ДВА ЧИСЛА ИЗ ФИЗИКИ, А НЕ ИЗ ВКУСА: задержка — время, за которое звук
+    // пересекает комнату (room_size / 343 м/с), обратная связь — та, при
+    // которой хвост падает на 60 дБ ровно за decay_seconds, то есть
+    // g = 10^(-3·delay/RT60). Комната 5 м с RT60 = 1.2 с даёт 20 мс и 0.89.
     void set_bus_reverb(BusHandle bus, const ReverbParams& params) override {
-        // v1 no-op, DOCUMENTED in the factory header and the module README:
-        // miniaudio has no reverb node; the room-reverb pass is a hand-rolled
-        // DSP node scheduled with the dungeon-audio stage. Silently pretending
-        // would be worse than admitting it.
-        (void)bus;
-        (void)params;
+        const auto it = buses_.find(bus.id);
+        if (it == buses_.end() || !engine_) {
+            return; // мастер-шина ревера не носит: некуда воткнуть узел
+        }
+        Bus& b = *it->second;
+        if (params.wet <= 0.0f) {
+            if (b.reverb) {
+                ma_node_attach_output_bus(reinterpret_cast<ma_node*>(b.group.get()), 0,
+                                          bus_node_or_endpoint(b.parent), 0);
+                ma_delay_node_uninit(b.reverb.get(), nullptr);
+                b.reverb.reset();
+            }
+            return; // ВЫКЛЮЧЕНО = УЗЛА НЕТ В ГРАФЕ (контрольная рука)
+        }
+        const ma_uint32 rate = ma_engine_get_sample_rate(engine_.get());
+        const ma_uint32 channels = ma_engine_get_channels(engine_.get());
+        const double delay_s =
+            std::clamp(static_cast<double>(std::max(0.0f, params.room_size_meters))
+                           / SPEED_OF_SOUND_MPS,
+                       REVERB_DELAY_MIN_S, REVERB_DELAY_MAX_S);
+        const float feedback =
+            params.decay_seconds > 0.0f
+                ? std::clamp(static_cast<float>(
+                                 std::pow(10.0, -3.0 * delay_s
+                                                    / static_cast<double>(params.decay_seconds))),
+                             0.0f, REVERB_FEEDBACK_MAX)
+                : 0.0f;
+        const ma_uint32 frames =
+            static_cast<ma_uint32>(delay_s * static_cast<double>(rate));
+        if (!b.reverb) {
+            auto node = std::make_unique<ma_delay_node>();
+            const ma_delay_node_config cfg =
+                ma_delay_node_config_init(channels, rate, frames, feedback);
+            if (ma_delay_node_init(ma_engine_get_node_graph(engine_.get()), &cfg, nullptr,
+                                   node.get())
+                != MA_SUCCESS) {
+                return; // без ревера, но и без вранья: сухая шина как прежде
+            }
+            ma_node_attach_output_bus(reinterpret_cast<ma_node*>(node.get()), 0,
+                                      bus_node_or_endpoint(b.parent), 0);
+            ma_node_attach_output_bus(reinterpret_cast<ma_node*>(b.group.get()), 0,
+                                      reinterpret_cast<ma_node*>(node.get()), 0);
+            b.reverb = std::move(node);
+        }
+        // ДЛИНА ЛИНИИ У ma_delay_node НЕИЗМЕНЯЕМА (буфер выделен при init), и
+        // это ограничение названо вслух: смена РАЗМЕРА комнаты на живой шине
+        // меняет только хвост и баланс, а не время пробега. Комната меняется
+        // на переходе, где ревер и так снимается в ноль, поэтому цена нулевая.
+        ma_delay_node_set_decay(b.reverb.get(), feedback);
+        ma_delay_node_set_wet(b.reverb.get(), std::clamp(params.wet, 0.0f, 1.0f));
+        ma_delay_node_set_dry(b.reverb.get(), 1.0f);
     }
 
     // Music layers -------------------------------------------------------------
@@ -399,6 +556,17 @@ private:
     struct Voice {
         std::unique_ptr<ma_sound> sound;
         SoundHandle source; // which Sound this voice was copied from
+        BusHandle bus;      // куда голос воткнут, когда фильтра нет
+        std::unique_ptr<ma_lpf_node> lpf; // null = фильтра нет В ГРАФЕ
+        float cutoff_hz = 0.0f;           // 0 = прозрачно
+    };
+    // ШИНА — ЭТО ГРУППА ПЛЮС (может быть) ЕЁ РЕВЕР. Родитель хранится потому,
+    // что снятие ревера обязано вернуть группу ровно туда, откуда её увели, а
+    // miniaudio обратной ссылки «чей я ребёнок» не держит.
+    struct Bus {
+        std::unique_ptr<ma_sound_group> group;
+        std::unique_ptr<ma_delay_node> reverb; // null = ревера нет В ГРАФЕ
+        BusHandle parent;
     };
     struct Music {
         std::vector<std::unique_ptr<ma_sound>> layers;
@@ -412,7 +580,25 @@ private:
 
     [[nodiscard]] ma_sound_group* find_bus(BusHandle bus) {
         const auto it = buses_.find(bus.id);
-        return it == buses_.end() ? nullptr : it->second.get(); // null = master
+        return it == buses_.end() ? nullptr : it->second->group.get(); // null = master
+    }
+
+    // КУДА ВТЫКАТЬСЯ, если шины нет: конечная точка графа (мастер).
+    [[nodiscard]] ma_node* bus_node_or_endpoint(BusHandle bus) {
+        if (ma_sound_group* g = find_bus(bus)) {
+            return reinterpret_cast<ma_node*>(g);
+        }
+        return ma_node_graph_get_endpoint(ma_engine_get_node_graph(engine_.get()));
+    }
+
+    // СНЯТИЕ ГОЛОСА ЦЕЛИКОМ. Порядок обязателен: сначала звук (он висит на
+    // фильтре), потом фильтр — иначе узел уничтожается под живым входом.
+    void destroy_voice(Voice& v) {
+        ma_sound_uninit(v.sound.get());
+        if (v.lpf) {
+            ma_lpf_node_uninit(v.lpf.get(), nullptr);
+            v.lpf.reset();
+        }
     }
 
     // Creates (but does not start) a voice as a copy of the loaded sound's
@@ -428,6 +614,7 @@ private:
         }
         auto voice = std::make_unique<Voice>();
         voice->source = sound;
+        voice->bus = params.bus; // куда возвращать голос, когда снимут фильтр
         voice->sound = std::make_unique<ma_sound>();
         if (ma_sound_init_copy(engine_.get(), sit->second->prototype.get(),
                                MA_SOUND_FLAG_DECODE, find_bus(params.bus),
@@ -458,7 +645,7 @@ private:
     std::unique_ptr<ma_engine> engine_;
     std::unordered_map<uint32_t, std::unique_ptr<Sound>> sounds_;
     std::unordered_map<uint32_t, std::unique_ptr<Voice>> voices_;
-    std::unordered_map<uint32_t, std::unique_ptr<ma_sound_group>> buses_;
+    std::unordered_map<uint32_t, std::unique_ptr<Bus>> buses_;
     std::unordered_map<uint32_t, std::unique_ptr<Music>> music_owned_;
     std::unordered_map<uint32_t, size_t> last_take_; // take-set id -> last index
     std::mt19937 rng_;

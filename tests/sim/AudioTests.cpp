@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:53:17
-Last updated: 27:08:2026 - 20:16:03
+Last updated: 28:08:2026 - 15:00:00
 Module: tests (sim zone)
 File: tests/sim/AudioTests.cpp
 
@@ -33,6 +33,11 @@ UPD:
   loads the title theme, plays it looped through a music bus and stops it —
   and its control is about the FORMAT, not the path (a missing .ogg must fail
   too, or "it loaded" means only "load_sound returned something").
+- 28:08:2026 - 15:00:00: ВЕТРОВАЯ ПЕТЛЯ УШЛА ИЗ НАБОРА вместе со своим файлом
+  (зона «звук от источника»): случай про start_wind_loop снят, а на его место
+  встали два новых контракта бэкенда — срез верха на голосе и реверб шины.
+  У обоих контроль один и тот же по форме: вызов на ПРОТУХШЕЙ ручке обязан
+  быть тихим no-op, иначе «работает» значит только «не падает».
 */
 
 #include <doctest/doctest.h>
@@ -42,6 +47,7 @@ UPD:
 #include <thread>
 
 #include "engine/gameplay/sources/StepAudio.h"
+#include "engine/gameplay/sources/WorldAmbience.h"
 #include "engine/platform/audio/sources/miniaudio/CreateMiniaudioAudio.h"
 #include "engine/platform/audio/sources/null/CreateNullAudio.h"
 
@@ -142,14 +148,94 @@ TEST_CASE("step sound bank loads the full placeholder set") {
     CHECK(bank.land_soft.valid());
     CHECK(bank.land_hard.valid());
     CHECK(bank.splash.valid());
-    CHECK(bank.wind_loop.valid());
+}
 
-    // The wind loop starts silent and follows the strength it is fed.
-    const gameplay::WindLoop wind = gameplay::start_wind_loop(*audio, bank);
-    CHECK(wind.voice.valid());
-    gameplay::update_wind_loop(*audio, wind, 0.5f);
-    CHECK(audio->is_playing(wind.voice));
-    audio->stop(wind.voice);
+// ЗАПИСИ МИРА — ТЕ САМЫЕ ФАЙЛЫ, ПО КОТОРЫМ НАЗВАНЫ ПУТИ. Случай стоит здесь,
+// а не среди модели, потому что модель к диску не ходит: он ловит ровно одну
+// поломку — переименованный или не доехавший .ogg, после которого шелест
+// молчит и никто не знает почему.
+TEST_CASE("world ambience bank loads the eight world loops") {
+    platform::IAudio* audio = audio_or_skip();
+    if (audio == nullptr) {
+        auto null_audio = platform::create_null_audio();
+        REQUIRE(null_audio->init());
+        const auto bank = gameplay::WorldAmbience::load_bank(*null_audio, ASSETS, {});
+        CHECK(bank.has_leaves()); // null loads always succeed by contract
+        return;
+    }
+    const auto bank = gameplay::WorldAmbience::load_bank(*audio, ASSETS, {});
+    for (int species = 0; species < 2; ++species) {
+        for (int step = 0; step < 3; ++step) {
+            CHECK(bank.leaves[species][step].valid());
+        }
+    }
+    CHECK(bank.stream_small.valid());
+    CHECK(bank.river_wide.valid());
+    // КОНТРОЛЬ (правило 30): снятая ветровая петля обязана НЕ загружаться.
+    // Без него «файлы на месте» значило бы только «load_sound что-то вернул».
+    CHECK(!audio->load_sound(ASSETS + "/wind_loop.wav").valid());
+}
+
+// СРЕЗ ВЕРХА НА ГОЛОСЕ (окклюзия). Слышимость здесь не проверить — проверяется
+// КОНТРАКТ: узел заводится, снимается, переставляется и переживает протухшую
+// ручку. Что он звучит, слышно в прогоне с DFN_AMBIENCE_LOG.
+TEST_CASE("miniaudio: per-voice low-pass is set, changed and removed") {
+    platform::IAudio* audio = audio_or_skip();
+    if (audio == nullptr) {
+        MESSAGE("no audio device: the null backend accepts the call silently");
+        auto null_audio = platform::create_null_audio();
+        REQUIRE(null_audio->init());
+        null_audio->set_voice_lowpass({42}, 800.0f); // протухшая ручка: тихо
+        return;
+    }
+    const platform::SoundHandle sound =
+        audio->load_sound(ASSETS + "/world/leaves_broad_2.ogg");
+    REQUIRE(sound.valid());
+    platform::PlayParams p;
+    p.loop = true;
+    p.volume = 0.0f; // тест не обязан быть слышен на машине человека
+    const platform::AudioVoiceHandle voice = audio->play(sound, p);
+    REQUIRE(voice.valid());
+    audio->set_voice_lowpass(voice, 800.0f);  // узел заводится
+    audio->set_voice_lowpass(voice, 400.0f);  // и перестраивается
+    audio->set_voice_lowpass(voice, 900000.0f); // выше Найквиста — зажимается
+    audio->update({});
+    CHECK(audio->is_playing(voice)); // фильтр не обрывает голос
+    audio->set_voice_lowpass(voice, 0.0f); // узел снимается
+    audio->update({});
+    CHECK(audio->is_playing(voice));
+    audio->stop(voice);
+    // КОНТРОЛЬ: на снятом голосе вызов обязан быть тихим no-op.
+    audio->set_voice_lowpass(voice, 500.0f);
+    CHECK(!audio->is_playing(voice));
+    audio->unload_sound(sound);
+}
+
+// РЕВЕР ШИНЫ. С 10.08 set_bus_reverb был задокументированной пустышкой; теперь
+// это линия задержки, и контроль тот же: wet = 0 обязан вернуть шину в
+// состояние «узла нет», а не «узел на нуле».
+TEST_CASE("miniaudio: bus reverb attaches and detaches") {
+    platform::IAudio* audio = audio_or_skip();
+    if (audio == nullptr) {
+        MESSAGE("no audio device: the null backend accepts the call silently");
+        return;
+    }
+    const platform::BusHandle bus = audio->create_bus({});
+    REQUIRE(bus.valid());
+    platform::ReverbParams r;
+    r.decay_seconds = 1.2f;
+    r.room_size_meters = 5.0f;
+    r.wet = 0.35f;
+    audio->set_bus_reverb(bus, r);   // узел встаёт между шиной и мастером
+    r.room_size_meters = 12.0f;
+    audio->set_bus_reverb(bus, r);   // и переживает смену параметров
+    r.wet = 0.0f;
+    audio->set_bus_reverb(bus, r);   // и снимается
+    audio->set_bus_reverb(bus, r);   // повторное снятие — тихо
+    // КОНТРОЛЬ: несуществующая шина не заводит ревер и не падает.
+    r.wet = 0.5f;
+    audio->set_bus_reverb(platform::BusHandle{999999}, r);
+    audio->update({});
 }
 
 // OGG VORBIS, WHICH THE ENGINE COULD NOT OPEN UNTIL TODAY. The music pipeline

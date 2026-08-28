@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 01:53:17
+Last updated: 28:08:2026 - 14:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/StepAudio.cpp
 
@@ -8,7 +8,7 @@ Responsibility:
 - Implementation of the step/ambient audio consumers (see StepAudio.h).
 
 Key items:
-- load_step_sound_bank / wire_step_audio / start_wind_loop / update_wind_loop.
+- load_step_sound_bank / wire_step_audio.
 - Look-dev volume constants (WindModel tradition; migrate to NUMBERS when a
   second zone must agree — Rule 35).
 
@@ -28,6 +28,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 10:08:2026 - 01:53:17: Created for the landscape stage (в3+в12 audio).
+- 28:08:2026 - 14:30:00: start_wind_loop/update_wind_loop СНЯТЫ (заказ
+  владельца 28.08). Причина — в заголовке; звук ветра теперь только у крон.
 */
 
 #include "engine/gameplay/sources/StepAudio.h"
@@ -50,7 +52,6 @@ constexpr float STEP_VOLUME_MIN = 0.35f; // a creeping step still whispers
 constexpr float LAND_VOLUME = 1.0f;
 constexpr float JUMP_VOLUME = 0.5f;
 constexpr float SPLASH_VOLUME = 1.0f;
-constexpr float WIND_VOLUME_SCALE = 0.6f;
 // Spatial envelope for feet: full volume within arm's reach (the player's own
 // feet are at distance ~0), silent past earshot. Serves NPC feet unchanged.
 constexpr float STEP_MIN_DISTANCE = 2.0f;
@@ -106,7 +107,6 @@ StepSoundBank load_step_sound_bank(platform::IAudio& audio, std::string_view dir
     bank.land_soft = audio.load_sound(base + "/land_soft.wav");
     bank.land_hard = audio.load_sound(base + "/land_hard.wav");
     bank.splash = audio.load_sound(base + "/splash_enter.wav");
-    bank.wind_loop = audio.load_sound(base + "/wind_loop.wav");
     return bank;
 }
 
@@ -156,28 +156,6 @@ void wire_step_audio(events::EventBus& bus, platform::IAudio& audio,
             (void)audio.play(bank.splash, spatial_at(e.position, bank.bus, SPLASH_VOLUME));
         }
     });
-}
-
-WindLoop start_wind_loop(platform::IAudio& audio, const StepSoundBank& bank) {
-    WindLoop loop;
-    if (!bank.wind_loop.valid()) {
-        return loop;
-    }
-    platform::PlayParams params;
-    params.bus = bank.bus;
-    params.volume = 0.0f; // update_wind_loop sets the real volume each frame
-    params.loop = true;
-    params.spatial = false; // the wind is everywhere, not a point
-    loop.voice = audio.play(bank.wind_loop, params);
-    return loop;
-}
-
-void update_wind_loop(platform::IAudio& audio, const WindLoop& loop,
-                      float wind_strength) {
-    if (loop.voice.valid()) {
-        audio.set_voice_volume(loop.voice,
-                               WIND_VOLUME_SCALE * std::clamp(wind_strength, 0.0f, 1.0f));
-    }
 }
 
 } // namespace dfn::gameplay

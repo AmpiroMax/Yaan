@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 12:45:00
+Last updated: 28:08:2026 - 15:45:00
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -761,6 +761,21 @@ UPD:
   AppSeats.cpp; здесь — четыре точки врезки в тик (park_posture до pre_step,
   posture_camera сразу за update_bodies, filter_seat_hover рядом с дверным,
   take_seat после раздачи событий) и подсказка «Встать» в позе.
+- 28:08:2026 - 14:18:16: три врезки зоны ФИЗИКА ПРЕДМЕТОВ (тело — AppProps.cpp):
+  grab_input(dt) ДО park_posture и pre_step — там живёт распознавание
+  короткого/долгого E, и короткое возвращается той же защёлкой
+  interact_pressed, что читают поза и действия ниже по тику (договор с волной
+  «сидеть и лежать»: за защёлкой остаётся смысл «короткое нажатие
+  случилось»); sync_loose_props() сразу за шагом физики — кадр обязан
+  показать ТУ позу, которую только что посчитала физика; подсказка предмета
+  рядом с подсказкой позы, и она перебивает наведение по тому же доводу.
+- 28:08:2026 - 15:45:00: ЗВУК ОТ ИСТОЧНИКА. В init() ушла строка
+  start_wind_loop (безысточниковый ветер: один непространственный голос на весь
+  прогон), пришёл набор записей мира и доза DFN_AMBIENCE_LOG; в кадре на месте
+  update_wind_loop стоит ambience_.update() — со слушателем (в локации слушают
+  ОТ ДВЕРИ, а не из кармана на километр ниже) и с двумя лучами Jolt на каждый
+  излучатель. Модель и голоса — gameplay::WorldAmbience, лучи здесь потому, что
+  физика есть только у app.
 */
 
 #include "engine/app/sources/App.h"
@@ -1252,7 +1267,23 @@ bool App::init(const AppConfig& config) {
     sound_bank_ = gameplay::load_step_sound_bank(
         *audio_, "games/daggerfall_n/assets/audio", world_bus_);
     gameplay::wire_step_audio(bus_, *audio_, sound_bank_);
-    wind_loop_ = gameplay::start_wind_loop(*audio_, sound_bank_);
+    // ЗВУК МИРА ОТ ИСТОЧНИКА. Здесь стояла одна строка start_wind_loop — и
+    // она была ДЕФЕКТОМ, названным владельцем дословно 28.08: «не должно быть
+    // просто так фонового шума — а он даже в домах есть; у звука всегда должен
+    // быть источник». Ветер игрался ОДНИМ непространственным голосом: одинаково
+    // громким в чистом поле, в роще и в запертой комнате, потому что у него не
+    // было места в мире — только громкость.
+    //
+    // Заменяющий предмет ничего не играет сам: он ждёт КРОН И РУСЕЛ карты
+    // (enter_world кладёт их set_sources). Мир без деревьев остаётся ТИХИМ, и
+    // это не побочный эффект, а проверяемое утверждение приёмки.
+    ambience_bank_ = gameplay::WorldAmbience::load_bank(
+        *audio_, "games/daggerfall_n/assets/audio", world_bus_);
+    ambience_.set_bank(ambience_bank_);
+    ambience_log_ = [] {
+        const char* e = door_value("DFN_AMBIENCE_LOG");
+        return e != nullptr && *e != '\0' && *e != '0';
+    }();
     // ЗАГЛАВНАЯ ТЕМА, ОДИН РАЗ ЗА ЗАПУСК. Отказ громкий и НЕ фатальный: игра
     // без музыки — это игра, а игра, не запустившаяся из-за отсутствующего
     // .ogg, — это поломка. Загрузка идёт и на пустом бэкенде: там load_sound
@@ -5174,8 +5205,91 @@ int App::run() {
                 {std::sin(eye.yaw) * cp, std::sin(eye.pitch), -std::cos(eye.yaw) * cp},
                 {0.0f, 1.0f, 0.0f}};
             audio_->update(lp);
-            gameplay::update_wind_loop(*audio_, wind_loop_,
-                                       render_system_.environment().wind_strength);
+
+            // ОТКУДА СЛУШАЮТ МИР. Снаружи — глаз. В ЛОКАЦИИ — точка возврата
+            // у двери, а не глаз: карман интерьера лежит на километр ниже
+            // мира, и слушать город оттуда значило бы получить тишину по
+            // расстоянию — правильный ответ по неправильной причине (а на
+            // карте, где деревья растут в километре по горизонтали, тот же
+            // счёт дал бы уже неправильный ответ).
+            gameplay::WorldAmbience::Listener al;
+            al.position = eye.position;
+            if (world_.has_resource<gameplay::InteriorState>()) {
+                const auto& ist = world_.resource<gameplay::InteriorState>();
+                if (ist.inside() && !ist.stack.empty()) {
+                    al.indoors = true;
+                    al.position = ist.stack.front().position;
+                    // ОТКРЫТОСТЬ ДВЕРИ — расстояние до точки входа локации
+                    // (она стоит вплотную к порогу и смотрит в комнату). У
+                    // порога улица слышна, в дальней комнате — почти нет; сама
+                    // створка, если она открыта, добавляет остаток.
+                    const glm::vec3 door = interior_doc_.has_spawn
+                                               ? interior_doc_.spawn + interior_pocket_
+                                               : interior_pocket_;
+                    const float d = glm::length(eye.position - door);
+                    const float near_door = std::clamp(1.0f - (d - 1.5f) / 4.0f, 0.0f, 1.0f);
+                    al.door_openness = near_door * (ist.door_open ? 1.0f : 0.55f);
+                }
+            }
+            // ЛУЧИ К ИСТОЧНИКУ — ЗДЕСЬ, потому что физика есть только у app:
+            // gameplay получает замыкание и не знает ни про Jolt, ни про слои.
+            // ДВА ЛУЧА, разнесённые в стороны: ствол дерева стоит тем же слоем,
+            // что и стена дома, и одиночный луч щёлкал бы «перекрыто/свободно»
+            // на каждом шаге по роще. Стена ловит оба, ствол — один.
+            const auto probe = [this](const glm::vec3& from,
+                                      const glm::vec3& to) -> float {
+                if (physics_ == nullptr) {
+                    return 0.0f;
+                }
+                const glm::vec3 delta = to - from;
+                const float len = glm::length(delta);
+                if (len < 2.0f) {
+                    return 0.0f; // источник в двух шагах: заслонять нечему
+                }
+                const glm::vec3 dir = delta / len;
+                // Луч НЕ ДОВОДИТСЯ до самой кроны: под ней стоит ствол этого
+                // же дерева, и «дерево заслоняет само себя» — верный ответ на
+                // неверный вопрос.
+                const float reach = len - 2.0f;
+                const glm::vec3 side =
+                    glm::normalize(glm::vec3{-dir.z, 0.0f, dir.x}) * 0.9f;
+                int blocked = 0;
+                for (const glm::vec3& off : {side, -side}) {
+                    if (physics_->raycast(from + off, dir, reach,
+                                          physics::LAYER_STATIC)
+                            .hit) {
+                        ++blocked;
+                    }
+                }
+                return static_cast<float>(blocked) * 0.5f;
+            };
+            ambience_.update(*audio_, al,
+                             render_system_.environment().wind_strength,
+                             static_cast<float>(frame_dt), probe);
+            if (ambience_log_ && game_seconds_ >= ambience_log_at_) {
+                ambience_log_at_ = game_seconds_ + 1.0;
+                std::fprintf(stderr,
+                             "[звук] излучателей %zu, голосов %zu/%zu, ветер "
+                             "%.2f (ступень %d), слушатель %s\n",
+                             ambience_.emitters().size(), ambience_.live_voices(),
+                             gameplay::AMBIENCE_MAX_VOICES,
+                             static_cast<double>(
+                                 render_system_.environment().wind_strength),
+                             ambience_.current_wind_step() + 1,
+                             al.indoors ? "в локации" : "снаружи");
+                for (const auto& e : ambience_.emitters()) {
+                    std::fprintf(stderr,
+                                 "[звук]   %s x%.1f z%.1f d=%.1f м g=%.4f "
+                                 "срез=%.0f Гц перекрытие=%.2f крон=%u\n",
+                                 e.water ? "вода " : (e.conifer ? "хвоя " : "листва"),
+                                 static_cast<double>(e.at.x),
+                                 static_cast<double>(e.at.z),
+                                 static_cast<double>(e.distance_m),
+                                 static_cast<double>(e.gain),
+                                 static_cast<double>(e.cutoff_hz),
+                                 static_cast<double>(e.occlusion), e.crowns);
+                }
+            }
         }
         if (playtest_ && !playtest_->finished) {
             gameplay::playtest_note_frame(*playtest_, static_cast<float>(frame_dt));

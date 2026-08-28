@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
+Last updated: 28:08:2026 - 13:55:00
 Module: engine/platform/audio
 File: engine/platform/audio/interfaces/IAudio.h
 
@@ -10,7 +10,8 @@ Responsibility:
 
 Key items:
 - IAudio: init/shutdown/update(listener), load/play/stop, buses, reverb params,
-  variation playback (footsteps, Q68), layered music.
+  variation playback (footsteps, Q68), layered music, per-voice low-pass
+  (occlusion).
 - PlayParams / Spatial3d / ReverbParams: plain-data descriptors.
 - SoundHandle / AudioVoiceHandle / BusHandle / MusicHandle: opaque POD handles
   (0 = invalid).
@@ -39,6 +40,11 @@ Notes:
   neutral), pitch is a playback-rate multiplier (1 = original).
 - Handles for finished one-shot voices are recycled by the backend; calls on a
   stale AudioVoiceHandle are safe no-ops (is_playing() returns false).
+- ОККЛЮЗИЯ ЖИВЁТ НА ГОЛОСЕ, А НЕ НА ШИНЕ, и это не вкус: за одной стеной
+  оказывается ОДИН источник, а не всё, что играет на шине мира. Гейм-код
+  считает, что перекрыто (луч к источнику), и говорит голосу две вещи —
+  громкость (set_voice_volume) и срез верха (set_voice_lowpass). Ни одного
+  знания о геометрии в звуковом слое при этом не появляется.
 - Null backend (Rule 3 — a runnable mode): everything succeeds silently;
   handles are valid-but-inert; is_playing() returns false. The game is fully
   playable and testable with no audio device.
@@ -46,12 +52,20 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do not add miniaudio types, includes, or assumptions to this header.
-- Contract frozen for stage 1 (Rule 26); changes only via group sync.
+- Contract frozen for stage 1 (Rule 26); changes only via group sync. Стадия 1
+  расширена ОДИН раз, зоной «звук от источника» (28.08): set_voice_lowpass.
+  Оба бэкенда обновлены в той же волне — иначе расширение контракта означало бы
+  бэкенд, который его не исполняет.
 */
 /*
 UPD:
 - 09:08:2026 - 00:18:26: Initial stage-1 contract (playback, 3D, buses+reverb,
                          variation sets, layered music).
+- 28:08:2026 - 13:55:00: set_voice_lowpass() — срез верха на ОДНОМ голосе
+                         (окклюзия стенами, заказ владельца 28.08 «звук должен
+                         распространяться по физике»). И переписан комментарий
+                         set_bus_reverb: он больше не описывает пустышку —
+                         бэкенд miniaudio исполняет его линией задержки.
 */
 
 #pragma once
@@ -106,7 +120,10 @@ struct PlayParams {
 };
 
 // Bus reverb driven by room volume (Q68). Computed by the engine from the
-// current space; applied by the backend. wet == 0 disables.
+// current space; applied by the backend. wet == 0 disables — и «выключено»
+// обязано значить ГРАФ БЕЗ УЗЛА, а не узел с нулевым коэффициентом: только
+// тогда «ревербератора нет» и «ревербератор на нуле» дают один и тот же
+// звуковой буфер, и контрольная рука приёмки существует.
 struct ReverbParams {
     float decay_seconds = 0.0f;   // RT60-style tail length
     float room_size_meters = 0.0f;// characteristic dimension of the space
@@ -141,6 +158,15 @@ public:
     virtual void stop(AudioVoiceHandle voice) = 0;
     virtual void set_voice_position(AudioVoiceHandle voice, const glm::vec3& position) = 0;
     virtual void set_voice_volume(AudioVoiceHandle voice, float volume) = 0;
+    // ОККЛЮЗИЯ, ПОЛОВИНА ВТОРАЯ: срез верха у одного голоса. cutoff_hz <= 0 —
+    // фильтра нет (звук проходит как есть, и это состояние по умолчанию у
+    // каждого нового голоса). Иначе всё выше cutoff_hz заваливается — стена
+    // глушит шелест не только по громкости, но и по тембру, а без второго
+    // «приглушённый» слышится как «далёкий».
+    //
+    // Порядок величин, которым пользуется мир: 20 кГц и выше — прозрачно,
+    // ~800 Гц — за стеной дома, ~400 Гц — из закрытого помещения.
+    virtual void set_voice_lowpass(AudioVoiceHandle voice, float cutoff_hz) = 0;
     [[nodiscard]] virtual bool is_playing(AudioVoiceHandle voice) const = 0;
 
     // Buses --------------------------------------------------------------------

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
+Last updated: 28:08:2026 - 13:56:00
 Module: engine/platform/audio
 File: engine/platform/audio/sources/null/NullAudio.cpp
 
@@ -22,6 +22,8 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 09:08:2026 - 00:45:08: Stage 2 — initial null backend implementation.
+- 28:08:2026 - 13:56:00: set_voice_lowpass — пустой, как и всё здесь (зона
+                         «звук от источника»).
 */
 
 #include "engine/platform/audio/sources/null/CreateNullAudio.h"
@@ -61,6 +63,10 @@ public:
     void set_voice_volume(AudioVoiceHandle voice, float volume) override {
         (void)voice;
         (void)volume;
+    }
+    void set_voice_lowpass(AudioVoiceHandle voice, float cutoff_hz) override {
+        (void)voice;
+        (void)cutoff_hz;
     }
     bool is_playing(AudioVoiceHandle voice) const override {
         (void)voice;

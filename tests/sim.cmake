@@ -1,6 +1,6 @@
 #
 # Created: 09:08:2026 - 00:45:08
-# Last updated: 27:08:2026 - 12:02:42
+# Last updated: 28:08:2026 - 15:15:00
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -65,6 +65,14 @@
 #                          entity-{0,0} targeting case needs the Jolt backend).
 # - 27:08:2026 - 12:02:42: sim_camera_boom — стрела камеры третьего лица
 #                          (чистая арифметика, без физического стенда).
+# - 28:08:2026 - 14:10:00: sim_loose_props — динамические тела предметов:
+#                          сон стопки, повторяемость подъёма комнаты, толчок
+#                          предметом и телом игрока, выпадение из заклиненной
+#                          руки. Зона big-grab.
+# - 28:08:2026 - 15:15:00: sim_world_ambience — приёмка звука ОТ ИСТОЧНИКА:
+#                          кривая шелеста по расстоянию, ноль в чистом поле,
+#                          дом против улицы, окклюзия, бюджет голосов.
+#                          Зона «звук от источника».
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 
@@ -112,6 +120,11 @@ add_dfn_test(sim_audio sim/AudioTests.cpp
     dfn_gameplay dfn_platform_audio dfn_core)
 target_compile_definitions(sim_audio PRIVATE
     DFN_REPO_ROOT="${CMAKE_SOURCE_DIR}")
+
+# ЗВУК ОТ ИСТОЧНИКА: тут меряется МОДЕЛЬ, поэтому устройства не нужно и
+# DFN_REPO_ROOT не нужен — ни одного файла с диска этот набор не читает.
+add_dfn_test(sim_world_ambience sim/WorldAmbienceTests.cpp
+    dfn_gameplay dfn_platform_audio dfn_core)
 
 # The playtest checker's own controls (Rule 30): broken runs MUST fire, the
 # clean patrol must not, and the bot must actually cover ground.

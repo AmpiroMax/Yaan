@@ -1,0 +1,32 @@
+<meta charset="utf-8"><title>Звуки мира: листва и вода</title>
+<style>
+body{background:#faf8f4;color:#26221c;font:16px/1.6 -apple-system,sans-serif;max-width:860px;margin:0 auto;padding:2rem 1.2rem 5rem}
+h1{font-size:1.65rem}h2{color:#7a5c2e;border-bottom:2px solid #e2dccf;padding-bottom:.3rem;margin:2rem 0 .8rem;font-size:1.18rem}
+.sub{color:#6b6357;font-size:.93rem}audio{width:100%;margin:.3rem 0}
+.big{font-size:1.02rem;margin:.2rem 0}
+.m{background:#fff;border:1px solid #e2dccf;border-radius:9px;padding:.7rem 1.1rem;margin:.7rem 0}
+code{background:#f2eee6;padding:.05rem .3rem;border-radius:3px;font-size:.9em}
+.note{background:#fff;border:1px solid #e2dccf;border-radius:9px;padding:.8rem 1.1rem;margin:1.2rem 0;font-size:.94rem}
+table{border-collapse:collapse;width:100%;font-size:.9rem;margin:.6rem 0}
+th,td{border:1px solid #e2dccf;padding:.35rem .6rem;text-align:left}th{background:#f0ece3}
+</style>
+<h1>🍃 Звуки мира: листва и вода</h1>
+<p class="sub">Петлевые ogg 48 кГц, моно, по 12 секунд. Лежат в
+<code>games/daggerfall_n/assets/audio/world/</code>, вешаются на излучатели у крон и у воды.</p>
+<div class="note"><b>Почему моно.</b> Для точечного источника стерео вредно: панораму
+строит сам движок по положению слушателя, а зашитая в файл картина с ней спорит.
+<br><br><b>Почему без loudnorm.</b> Он поджимает динамику, и фоновая петля начинает
+«дышать» на каждом порыве. Здесь только ровное усиление по пику, а числа громкости
+напечатаны — движок выставляет усиление по ним, а не на слух.
+<br><br><b>Про склейку.</b> Хвост подмешан в начало равномощным перекрестием, поэтому
+петля бесшовна по построению. Проверено измерением уже на сжатом ogg: скачок на месте
+склейки составляет от 0.00 до 0.37 от самых больших скачков внутри самого материала —
+то есть тонет в нём и услышать его нельзя.
+<br><br><b>Чем породы отличаются.</b> У лиственных ниже центр спектра и куда больше
+коротких щелчков — лист бьётся о лист. У хвойных звук ровнее, выше и почти без щелчков:
+иглы не хлопают. Разница измерена и составляет около полутора килогерц на каждой ступени.</div>
+<h2>Ступени ветра</h2>
+<p class="sub">Каждая ступень громче предыдущей примерно на 3 дБ и ярче — как в природе.
+Усиление внутри семейства общее: если нормировать файлы порознь, ступени сравняются
+(в первом заходе вторая вышла тише первой — поймано измерением и исправлено).</p>
+<div class="m"><p class="big">Лиственные, ветер 1 — слабый</p><p class="sub">громкость −28.4 дБ · центр спектра 4499 Гц · <code>assets/audio/world/leaves_broad_1.ogg</code></p><audio controls preload="none" src="../../games/daggerfall_n/assets/audio/world/leaves_broad_1.ogg"></audio></div><div class="m"><p class="big">Лиственные, ветер 2 — средний</p><p class="sub">громкость −24.7 дБ · центр спектра 5195 Гц · <code>assets/audio/world/leaves_broad_2.ogg</code></p><audio controls preload="none" src="../../games/daggerfall_n/assets/audio/world/leaves_broad_2.ogg"></audio></div><div class="m"><p class="big">Лиственные, ветер 3 — сильный</p><p class="sub">громкость −22.3 дБ · центр спектра 5952 Гц · <code>assets/audio/world/leaves_broad_3.ogg</code></p><audio controls preload="none" src="../../games/daggerfall_n/assets/audio/world/leaves_broad_3.ogg"></audio></div><div class="m"><p class="big">Хвойные, ветер 1</p><p class="sub">громкость −23.9 дБ · центр спектра 5944 Гц · <code>assets/audio/world/leaves_conifer_1.ogg</code></p><audio controls preload="none" src="../../games/daggerfall_n/assets/audio/world/leaves_conifer_1.ogg"></audio></div><div class="m"><p class="big">Хвойные, ветер 2</p><p class="sub">громкость −20.4 дБ · центр спектра 6707 Гц · <code>assets/audio/world/leaves_conifer_2.ogg</code></p><audio controls preload="none" src="../../games/daggerfall_n/assets/audio/world/leaves_conifer_2.ogg"></audio></div><div class="m"><p class="big">Хвойные, ветер 3</p><p class="sub">громкость −17.8 дБ · центр спектра 7484 Гц · <code>assets/audio/world/leaves_conifer_3.ogg</code></p><audio controls preload="none" src="../../games/daggerfall_n/assets/audio/world/leaves_conifer_3.ogg"></audio></div><div class="m"><p class="big">Ручей</p><p class="sub">громкость −33.3 дБ · центр спектра 2839 Гц · <code>assets/audio/world/stream_small.ogg</code></p><audio controls preload="none" src="../../games/daggerfall_n/assets/audio/world/stream_small.ogg"></audio></div><div class="m"><p class="big">Река</p><p class="sub">громкость −27.2 дБ · центр спектра 2674 Гц · <code>assets/audio/world/river_wide.ogg</code></p><audio controls preload="none" src="../../games/daggerfall_n/assets/audio/world/river_wide.ogg"></audio></div>

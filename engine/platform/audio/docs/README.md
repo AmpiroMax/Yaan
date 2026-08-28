@@ -1,6 +1,6 @@
 <!--
 Created: 09:08:2026 - 00:18:26
-Last updated: 27:08:2026 - 21:09:48
+Last updated: 28:08:2026 - 15:30:00
 -->
 <!--
 UPD:
@@ -10,6 +10,10 @@ UPD:
 - 10:08:2026 - 02:27:07: Audio bring-up (landscape stage, в12): miniaudio
   backend implemented (0.11.22, FetchContent GIT_SHALLOW); placeholder sound
   generator in tools/. set_bus_reverb is a DOCUMENTED v1 no-op.
+- 28:08:2026 - 15:30:00: ХОЗЯИН СТАЛ ТОЧКОЙ (заказ владельца 28.08). Снят
+  безысточниковый ветер; шелест идёт от крон, вода — от русла; заведены
+  окклюзия (ma_lpf_node + луч Jolt) и реверб шины (ma_delay_node), из-за чего
+  set_bus_reverb перестал быть пустышкой.
 - 27:08:2026 - 21:09:48: ПРАВИЛО ПРИВЯЗКИ ЗВУКА К ХОЗЯИНУ (заказ владельца
   28.08: «звук должен быть привязан к чему-то конкретному»). Ветер пережил
   закрытие карты, потому что его хозяином было приложение, а звучал он про мир.
@@ -53,10 +57,13 @@ audio.update(listener_pose);                  // once per frame
 
 - `sources/miniaudio/` — the real backend (miniaudio 0.11.22, FetchContent
   pinned + GIT_SHALLOW; the single header's implementation macro lives in its
-  one TU). Implements the full contract EXCEPT `set_bus_reverb`, which is a
-  documented no-op: miniaudio ships no reverb node, the room-reverb DSP node
-  arrives with the dungeon-audio stage. `init()` returns false with no device;
-  the app then falls back to null (Rule 3).
+  one TU). Implements the **full** contract: since 28.08 `set_bus_reverb` is a
+  feedback delay line (`ma_delay_node`) instead of a no-op, and
+  `set_voice_lowpass` is an `ma_lpf_node` inserted per voice. Both nodes are
+  **lazy** — nothing enters the graph until something asks for it, so a run
+  with no occlusion and no reverb pushes the same samples through the same
+  graph as before the wave (that is the control arm, Rule 30). `init()` returns
+  false with no device; the app then falls back to null (Rule 3).
 - `sources/null/` — runnable mode: silent success, inert handles,
   `is_playing()` false.
 
@@ -115,6 +122,46 @@ master
 шина) и что с ним делает исчезновение хозяина. У звука без хозяина ответа нет —
 и это тот самый звук, который потом играет в главном меню.
 
+## И ХОЗЯИН ОБЯЗАН БЫТЬ ТОЧКОЙ В МИРЕ (28.08)
+
+**Владелец, 28.08:** «не должно быть просто так фонового шума — а он даже в
+домах есть; у звука всегда должен быть источник, и звук должен распространяться
+по физике. Фоновый шум сейчас привязать к деревьям, чтобы затихал с удалением
+от деревьев».
+
+Шина ответила на вопрос «чей звук», но не на вопрос «ОТКУДА он». Ветер имел
+хозяина (мир) и всё равно был неправ: один непространственный голос, одинаково
+громкий в поле, в роще и в запертой комнате. Правило продолжено:
+
+> У излучателя есть не только хозяин, но и МЕСТО. Звук, у которого нельзя
+> назвать точку в мире, не заводится. Громкость — функция расстояния до этой
+> точки, и в мире, где источника нет, звука нет тоже.
+
+Сегодняшние точки — `engine/gameplay/sources/WorldAmbience.h`:
+
+| источник | точка | сила |
+|---|---|---|
+| шелест листвы | КРОНА дерева; рощи собраны по ячейке 24 м, роща звучит своей БЛИЖАЙШЕЙ кроной | размер крон (sqrt Σr², сложение по мощности) × ветер (`RenderEnvironment::wind_strength` — та же модель, что гнёт листву) |
+| вода | БЛИЖАЙШАЯ ТОЧКА РУСЛА (`[river]` сцены) | ширина русла; ветру безразлична |
+
+Бюджет: 6 мест листвы + 2 воды, до 16 живых голосов с перекличками. Затухание
+СЧИТАЕТ ДВИЖОК, а не miniaudio (спатиализация оставлена ради панорамы):
+кривая — 1/r с полкой у кроны и окном до ровного нуля на пределе слышимости,
+и она измеряется тестом `sim_world_ambience`, а не ухом.
+
+## Окклюзия: две половины одного ответа
+
+Луч Jolt от уха к источнику (`IPhysics::raycast`, слой статики) — ДВА луча,
+разнесённые на 0.9 м: стена ловит оба, ствол дерева один, и лес не щёлкает.
+Что делает перекрытие: −10.5 дБ громкости И срез верха на 800 Гц
+(`set_voice_lowpass`). Обе половины нужны: стена, которая только убавляет
+громкость, звучит как расстояние, а не как стена.
+
+В ЛОКАЦИИ луч не пускается вовсе, и это названо вслух: карман интерьера стоит
+на километр ниже мира, между ним и деревьями города нет никакой геометрии, и
+честный луч сделал бы улицу в доме ГРОМЧЕ, чем на улице. Внутри работает
+модель: −22 дБ и срез 420 Гц вглубь дома, −9 дБ и 1.4 кГц у открытой двери.
+
 ## Music is decoded whole, and this is the known ruling
 
 `load_sound()` decodes everything up front (`MA_SOUND_FLAG_DECODE`), music
@@ -141,12 +188,33 @@ Two other notes from the same pass:
   musical length with the reverb tail wrapped onto the head, so the loop point
   IS the end of the file and plain `looping = true` is gapless.
 
+## Реверб шины — линия задержки, и её предел назван
+
+`set_bus_reverb` простоял пустым с 10.08 (интерфейс обещал то, чего бэкенд не
+делал). Теперь это `ma_delay_node` между шиной и её родителем: задержка —
+время пробега комнаты (`room_size / 343 м/с`, зажата в 20…200 мс), обратная
+связь — та, при которой хвост падает на 60 дБ ровно за `decay_seconds`.
+
+**Честный предел:** одна линия обратной связи даёт ХВОСТ, а не комнату; на
+больших помещениях слышна как эхо. Настоящей реверберации у miniaudio нет
+вовсе (`docs/reports/audio-engines/index.html`), и день, когда «звучит как
+подземелье» станет требованием, — день Steam Audio. `wet = 0` УБИРАЕТ УЗЕЛ ИЗ
+ГРАФА, а не ставит его на ноль: только так «ревербератора нет» и «ревербератор
+выключен» дают один и тот же буфер.
+
 ## Placeholder sounds
 
 `tools/gen_placeholder_sounds.py` (stdlib-only, deterministic seed) synthesizes
 the current sound set into `games/daggerfall_n/assets/audio/`: 4 footstep takes
 for each of the 5 surface classes (grass/gravel/rock/sand/water), jump, soft
-and hard landings, the water-entry splash, and a seamless 8 s wind loop.
+and hard landings and the water-entry splash. **Ветровой петли там больше нет**
+(28.08): у неё не было источника, и вместе с кодом ушёл файл.
+
+Звуки МИРА — не заглушки и живут отдельно: `assets/audio/world/*.ogg`
+(48 кГц моно, 12 с, петли проверены измерением), генератор
+`tools/gen_world_ambience.py`, числа уровней и прослушивание —
+`docs/reports/world-ambience.html`. Три ступени ветра на породу растут ~3 дБ
+НАМЕРЕННО, и код их не выравнивает.
 **These are placeholders**: the point is that surfaces DIFFER convincingly and
 the step event has a same-tick voice. Real recorded sounds are a later asset
 pass — replacing the files replaces the sound, no code changes.
@@ -155,5 +223,6 @@ pass — replacing the files replaces the sound, no code changes.
 
 - Uses: stdlib + glm only in the interface (Rule 1); miniaudio inside the
   backend TU only.
-- Used by: `engine/gameplay` (StepAudio: footsteps, jump/land/splash, wind
-  loop; later dialogue voice), `engine/app` (buses, music), tests (sim_audio).
+- Used by: `engine/gameplay` (StepAudio: footsteps, jump/land/splash;
+  WorldAmbience: шелест крон и вода; later dialogue voice), `engine/app`
+  (buses, music, окклюзионные лучи), tests (sim_audio, sim_world_ambience).

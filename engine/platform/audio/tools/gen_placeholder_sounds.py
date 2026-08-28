@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 #
 # Created: 10:08:2026 - 01:53:17
-# Last updated: 10:08:2026 - 01:53:17
+# Last updated: 28:08:2026 - 14:55:00
 # File: engine/platform/audio/tools/gen_placeholder_sounds.py
 #
 # Responsibility:
 # - Synthesizes the PLACEHOLDER sound set (footsteps per surface class, jump/
-#   land/splash one-shots, the wind loop) as .wav files, stdlib only (Rule 24:
+#   land/splash one-shots) as .wav files, stdlib only (Rule 24:
 #   agents install nothing). Deterministic: fixed seed, same bytes every run.
 #
 # Dependencies:
@@ -25,6 +25,8 @@
 # UPD:
 # - 10:08:2026 - 01:53:17: Initial set: 4 takes x 5 surface classes, jump,
 #                          land soft/hard, water entry, seamless 8 s wind loop.
+# - 28:08:2026 - 14:55:00: ветровая петля снята вместе с файлом — у неё не было
+#                          источника в мире (заказ владельца 28.08).
 
 from __future__ import annotations
 
@@ -193,27 +195,15 @@ def splash_enter(rng: random.Random) -> list[float]:
     return normalize(mix(scaled(plop, 0.9), scaled(wash, 0.8)), 0.7)
 
 
-def wind_loop(rng: random.Random, seconds: float = 8.0) -> list[float]:
-    """Seamless: the filter modulation is periodic with the loop length AND the
-    tail is crossfaded into the head, so the seam is inaudible twice over."""
-    n = int(seconds * RATE)
-    raw = noise(rng, n)
-    out = []
-    y = 0.0
-    for i, s in enumerate(raw):
-        t = i / RATE
-        # two LFOs, both integer cycles per loop -> periodic by construction
-        m = 0.5 + 0.3 * math.sin(2 * math.pi * t / seconds * 2.0) \
-                + 0.2 * math.sin(2 * math.pi * t / seconds * 5.0)
-        cutoff = 250.0 + 550.0 * max(0.0, m)
-        a = 1.0 - math.exp(-2.0 * math.pi * cutoff / RATE)
-        y += a * (s - y)
-        out.append(y * (0.6 + 0.4 * m))
-    fade = int(0.5 * RATE)  # crossfade the seam
-    for i in range(fade):
-        k = i / fade
-        out[i] = out[i] * k + out[n - fade + i] * (1.0 - k)
-    return normalize(out[: n - fade], 0.5)
+# ВЕТРОВАЯ ПЕТЛЯ ОТСЮДА СНЯТА (28.08, зона «звук от источника»). Она была
+# ЕДИНСТВЕННЫМ звуком набора, у которого не было места в мире: приложение
+# заводило её один раз при старте и играло одинаково громко в поле, в роще и
+# в запертой комнате. Шелест теперь идёт от крон (gameplay::WorldAmbience), а
+# записи для него — не заглушки: games/daggerfall_n/assets/audio/world/*.ogg,
+# генератор рядом (tools/gen_world_ambience.py, музыкальная сессия).
+#
+# Порядок вызовов RNG у остальных файлов НЕ изменился (петля была последней),
+# поэтому набор шагов перегенерируется байт-в-байт.
 
 
 def main() -> None:
@@ -239,8 +229,7 @@ def main() -> None:
     write_wav(out / "land_soft.wav", land(rng, hard=False))
     write_wav(out / "land_hard.wav", land(rng, hard=True))
     write_wav(out / "splash_enter.wav", splash_enter(rng))
-    write_wav(out / "wind_loop.wav", wind_loop(rng))
-    print(f"wrote {5 * 4 + 5} files to {out}")
+    print(f"wrote {5 * 4 + 4} files to {out}")
 
 
 if __name__ == "__main__":

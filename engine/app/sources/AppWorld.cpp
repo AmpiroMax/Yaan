@@ -1,6 +1,6 @@
 /*
 Created: 18:08:2026 - 18:08:29
-Last updated: 28:08:2026 - 12:45:00
+Last updated: 28:08:2026 - 15:45:00
 Module: engine/app
 File: engine/app/sources/AppWorld.cpp
 
@@ -85,6 +85,13 @@ UPD:
 - 28:08:2026 - 12:45:00: обработчик Used смотрит ВТОРОЙ список — точки позы (сидеть и
   лежать, 28.08); заявка такая же отложенная, что и у перехода. Выгрузка мира
   сносит точки вместе со створками.
+- 28:08:2026 - 14:18:16: clear_loose_props() рядом с clear_furniture_seats() —
+  тела утвари уходят вместе с миром (зона ФИЗИКА ПРЕДМЕТОВ). Оставленное
+  тело пережило бы карту, на которой оно стояло.
+- 28:08:2026 - 15:45:00: ЗВУК ОТ ИСТОЧНИКА: enter_world снимает излучатели
+  прошлой карты первой же строкой и собирает новые из композиции — кроны меряет
+  по отрисованной листве объекта, русла берёт из [river]. Карта без композиции
+  остаётся ТИХОЙ намеренно.
 */
 
 #include "engine/app/sources/App.h"
@@ -312,6 +319,14 @@ bool App::enter_world(uint32_t stand) {
     // разошлись бы в первый же день, и экран показывал бы загрузку, которой
     // прибор не мерил (правило 39).
     const auto load_t0 = std::chrono::steady_clock::now();
+    // ЗВУК ПРОШЛОЙ КАРТЫ ЗАМОЛКАЕТ ЗДЕСЬ, ОДНОЙ СТРОКОЙ И ДО ВСЕГО. Хозяин
+    // рощ и рек — КАРТА; карта закрывается — они замолкают, и место, где это
+    // происходит, одно (правило хозяина, audio/docs/README.md). Композиция
+    // ниже кладёт новые источники; карта без композиции остаётся ТИХОЙ, и это
+    // проверяемое утверждение, а не забытая ветка.
+    if (audio_) {
+        ambience_.set_sources(*audio_, {}, {});
+    }
     static const bool load_log = [] {
         const char* e = door_value("DFN_LOAD_LOG");
         return e != nullptr && *e != '\0' && *e != '0';
@@ -1025,6 +1040,62 @@ bool App::enter_world(uint32_t stand) {
                 }
                 ++placed;
             }
+            // ИЗЛУЧАТЕЛИ ШЕЛЕСТА — ИЗ ТЕХ ЖЕ РАССТАНОВОК, ЧТО И ДЕРЕВЬЯ.
+            // Крона меряется по СВОЕЙ отрисованной листве (потоку карт), а не
+            // по имени породы и не по числу в файле: размер, записанный рядом
+            // с объектом, устаревает молча в день, когда объект перепекли
+            // (тот же довод, что у ObjectExtent). Порода — по имени, потому
+            // что порода это соглашение содержимого, а не геометрия.
+            {
+                std::vector<gameplay::CrownSource> crowns;
+                crowns.reserve(doc.placements.size());
+                for (const world::Placement& p : doc.placements) {
+                    const auto oit = loaded.find(p.object);
+                    if (oit == loaded.end() || oit->second.cards.vertices.empty()) {
+                        continue; // не растение: у него нет листвы вовсе
+                    }
+                    float lo_y = 1e9f;
+                    float hi_y = -1e9f;
+                    float r = 0.0f;
+                    float cy = 0.0f;
+                    for (const platform::Vertex& v : oit->second.cards.vertices) {
+                        lo_y = std::min(lo_y, v.position.y);
+                        hi_y = std::max(hi_y, v.position.y);
+                        r = std::max(r, std::sqrt(v.position.x * v.position.x
+                                                  + v.position.z * v.position.z));
+                    }
+                    cy = 0.5f * (lo_y + hi_y) * p.scale;
+                    gameplay::CrownSource cs;
+                    cs.position = {p.position.x, p.position.y + cy, p.position.z};
+                    cs.radius_m = r * p.scale;
+                    cs.top_m = hi_y * p.scale;
+                    cs.conifer = gameplay::species_is_conifer(p.object);
+                    crowns.push_back(cs);
+                }
+                std::vector<gameplay::WaterCourse> courses;
+                courses.reserve(doc.rivers.size());
+                for (const world::SceneRiver& r : doc.rivers) {
+                    gameplay::WaterCourse wc;
+                    wc.width_m = r.width_m;
+                    wc.points.reserve(r.points.size());
+                    // ЛОВУШКА ФОРМАТА, И ОНА СТОИЛА БЫ РЕКИ, ТЕКУЩЕЙ ПО НЕБУ:
+                    // точка русла в .scene — это «x z уровень_воды», то есть
+                    // вторая координата ГОРИЗОНТАЛЬНАЯ, а третья — высота.
+                    // В мировой вектор это ложится с перестановкой.
+                    for (const glm::vec3& q : r.points) {
+                        wc.points.emplace_back(q.x, q.z, q.y);
+                    }
+                    courses.push_back(std::move(wc));
+                }
+                if (audio_) {
+                    ambience_.set_sources(*audio_, crowns, courses);
+                }
+                std::fprintf(stderr,
+                             "[звук] карта дала %zu крон -> %zu рощ, русел %zu\n",
+                             crowns.size(), ambience_.clusters().size(),
+                             courses.size());
+            }
+
             // THE CHEAPER FORM OF EVERY OBJECT, if the shelf has one. The
             // convention is `<name>-far`, and its ABSENCE IS LEGAL: an object
             // with no far form simply rides its near form at every distance,

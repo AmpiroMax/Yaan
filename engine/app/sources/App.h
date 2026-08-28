@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 12:45:00
+Last updated: 28:08:2026 - 15:45:00
 Module: engine/app
 File: engine/app/sources/App.h
 
@@ -223,6 +223,14 @@ UPD:
   AppSeats.cpp; здесь — четыре точки врезки в тик (park_posture до pre_step,
   posture_camera сразу за update_bodies, filter_seat_hover рядом с дверным,
   take_seat после раздачи событий) и подсказка «Встать» в позе.
+- 28:08:2026 - 14:18:16: ФИЗИКА ПРЕДМЕТОВ (заказ владельца 28.08). Состояние
+  зоны и три точки врезки в тик: grab_input ДО park_posture (там распознаётся
+  короткое и долгое E, и короткое возвращается защёлкой, которую park_posture
+  читает ниже), sync_loose_props сразу за шагом физики, подсказка рядом с
+  дверной. Тело — AppProps.cpp.
+- 28:08:2026 - 15:45:00: ЗВУК ОТ ИСТОЧНИКА (заказ владельца 28.08): поле
+  wind_loop_ заменено на ambience_ + ambience_bank_ + прибор ambience_log_.
+  Разница не в имени: у ветра не было места в мире, у рощ и русел оно есть.
 */
 
 #pragma once
@@ -260,6 +268,7 @@ UPD:
 #include "engine/gameplay/sources/Interior.h"
 #include "engine/gameplay/sources/PlaytestBot.h"
 #include "engine/gameplay/sources/StepAudio.h"
+#include "engine/gameplay/sources/WorldAmbience.h"
 #include "engine/platform/audio/interfaces/IAudio.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
 #include "engine/render/sources/FirstPersonCamera.h"
@@ -1392,7 +1401,17 @@ private:
     /// голос к готовой ручке.
     platform::BusHandle voice_bus_{};
     gameplay::StepSoundBank sound_bank_{};
-    gameplay::WindLoop wind_loop_{};
+    /// ЗВУК МИРА ОТ ИСТОЧНИКА (заказ владельца 28.08). Здесь стоял WindLoop —
+    /// один непространственный голос, который начинался при старте приложения
+    /// и звучал одинаково везде, включая комнаты. Теперь мир звучит только из
+    /// точек: кроны деревьев карты и русла её рек.
+    gameplay::WorldAmbience ambience_;
+    gameplay::WorldAmbience::Bank ambience_bank_{};
+    /// Прибор дозы DFN_AMBIENCE_LOG: печатать таблицу излучателей раз в
+    /// секунду. Живёт полем, а не статиком в кадре, потому что читается один
+    /// раз при старте (доза Once), а печатает каждый кадр.
+    bool ambience_log_ = false;
+    double ambience_log_at_ = 0.0;
     gameplay::StepContext step_ctx_{};
     /// ЗАГЛАВНАЯ ТЕМА. Загружается один раз при старте (полный декод в память,
     /// ~37 МБ на 1:36 — решение записано в docs/DECISIONS.md и в шапке
