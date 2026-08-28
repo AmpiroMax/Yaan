@@ -68,6 +68,9 @@
 #                          движка (И15 волна А; владелец 24.08: не шторка, а экран
 #                          с холстом и статусом загрузки).
 #   ряд = тон/износ): текстуры деталям, работа 3 заказа 17.08.
+# - 28:08:2026 - 11:14:50: sources/MaterialRegistry.cpp — ПОНЯТИЕ «материал»
+#   (дизайн-волна зоны МАТЕРИАЛЫ, заказ владельца 28.08): именованные вещества
+#   вместо безымянной пары (поверхность, тон) и вместо выбора программы.
 # - 28:08:2026 - 16:55:00: sources/TreeBark.cpp (pack_wind/bark_tube, вынесены из
 #   TreeForge.cpp дословно) и sources/TreeForgeV2.cpp — ВТОРАЯ ИТЕРАЦИЯ ДЕРЕВЬЕВ
 #   (заказ владельца 28.08 по разнице с Готикой 3). Кузница v1 не тронута: новый
@@ -89,6 +92,7 @@ add_library(dfn_render STATIC
     sources/LoadingScreen.cpp
     sources/LodTerrain.cpp
     sources/MapScreen.cpp
+    sources/MaterialRegistry.cpp
     sources/ObjectRegistry.cpp
     sources/PartForge.cpp
     sources/PartForgeJoints.cpp

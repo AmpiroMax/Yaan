@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 23:08:2026 - 18:00:21
+Last updated: 28:08:2026 - 11:14:50
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -110,6 +110,7 @@ UPD:
 - 22:08:2026 - 23:48:18: ENV_PARAM_VEC4S 49 -> 50 (слот 49 — маска троп, пара с dfn_env.sh); s_tex_path_mask (стадия 6).
 - 23:08:2026 - 02:47:15: ENV_PARAM_VEC4S 50 -> 51 (слот 50 — россыпь доз волны 23.08, пара с dfn_env.sh).
 - 23:08:2026 - 18:00:21: ENV_PARAM_VEC4S 51 -> 75 — хвост светов 8..15 (pos 51.., col 59.., room 67..; пара с dfn_env.sh).
+- 28:08:2026 - 11:14:50: поле u_mat_params — хендл uniform'а материала (зона МАТЕРИАЛЫ, 28.08).
 */
 
 #pragma once
@@ -516,6 +517,12 @@ struct BgfxRenderer::Impl {
     /// know whether this draw supplied one.
     bgfx::TextureHandle neutral_normal = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_params = BGFX_INVALID_HANDLE;
+    /// ОТРАЖАТЕЛЬНАЯ ПОЛОВИНА МАТЕРИАЛА, ПО ДРО (зона МАТЕРИАЛЫ, 28.08):
+    /// x шероховатость, y металличность, zw свободны под следующие поля
+    /// материала (эмиссия поверхности, повтор плитки). Свой uniform, а не
+    /// пятый смысл у u_params: там все четыре слота заняты, а w уже несёт
+    /// два (aux0 и «лист рельефа привязан»).
+    bgfx::UniformHandle u_mat_params = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_env_params = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_post_params = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_black_floor = BGFX_INVALID_HANDLE;

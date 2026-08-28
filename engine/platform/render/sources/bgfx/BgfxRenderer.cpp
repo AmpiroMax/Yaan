@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 22:08:2026 - 23:48:18
+Last updated: 28:08:2026 - 11:14:50
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -119,6 +119,9 @@ UPD:
 - 23:08:2026 - 00:30:00: s_texPath создаётся/уничтожается с остальными.
 - 23:08:2026 - 06:30:00: u_psNear создаётся/уничтожается с остальным теневым состоянием.
 - 22:08:2026 - 23:48:18: s_texPathMask создаётся/уничтожается с остальными (маска троп, стадия 6).
+- 28:08:2026 - 11:14:50: uniform u_matParams (зона МАТЕРИАЛЫ, 28.08) — отражательная
+  половина материала по дро. Свой vec4, а не пятый смысл у u_params: там все
+  четыре слота заняты, а w уже несёт два (aux0 и «лист рельефа привязан»).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -401,6 +404,8 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
             bgfx::copy(flat, sizeof(flat)));
     }
     im.u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+    im.u_mat_params =
+        bgfx::createUniform("u_matParams", bgfx::UniformType::Vec4);
     im.u_env_params =
         bgfx::createUniform("u_envParams", bgfx::UniformType::Vec4, ENV_PARAM_VEC4S);
     im.u_post_params = bgfx::createUniform("u_postParams", bgfx::UniformType::Vec4);
@@ -590,6 +595,7 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.quad_ib)) bgfx::destroy(im.quad_ib);
     if (bgfx::isValid(im.quad_vb)) bgfx::destroy(im.quad_vb);
     if (bgfx::isValid(im.u_params)) bgfx::destroy(im.u_params);
+    if (bgfx::isValid(im.u_mat_params)) bgfx::destroy(im.u_mat_params);
     if (bgfx::isValid(im.u_env_params)) bgfx::destroy(im.u_env_params);
     if (bgfx::isValid(im.u_post_params)) bgfx::destroy(im.u_post_params);
     if (bgfx::isValid(im.u_black_floor)) bgfx::destroy(im.u_black_floor);

@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:16:00
-Last updated: 28:08:2026 - 11:23:00
+Last updated: 28:08:2026 - 12:49:39
 Module: engine/render
 File: engine/render/sources/RenderSystem.h
 
@@ -208,6 +208,8 @@ UPD:
   небом, и полдень с полночью у него разные. Ноль — обычный поток, кадр
   бит-в-бит; едет в DrawParams::aux1. Только добавление.
   пересевает уже выращенное.
+- 28:08:2026 - 12:49:39: ScreenProp::material — из чего сделан предмет экрана (зона
+  МАТЕРИАЛЫ, 28.08). MATERIAL_NONE — прежний ламберт, кадр бит-в-бит.
 */
 
 #pragma once
@@ -221,6 +223,7 @@ UPD:
 #include "engine/render/sources/GroundTufts.h"
 #include "engine/render/sources/LodTerrain.h"
 #include "engine/render/sources/MapScreen.h"
+#include "engine/render/sources/MaterialRegistry.h" // именованные вещества (28.08)
 #include "engine/render/sources/PartsAtlas.h" // лист набора: тон, ревизия, размер плитки
 #include "engine/render/sources/ScatterBatcher.h" // FloraLod, per-chunk bake level
 
@@ -642,6 +645,11 @@ public:
         uint32_t mesh = 0;    ///< MeshHandle::id
         uint32_t program = 0; ///< ProgramHandle::id
         glm::mat4 in_camera{1.0f};
+        /// ИЗ ЧЕГО ЭТОТ ПРЕДМЕТ СДЕЛАН (зона МАТЕРИАЛЫ, 28.08). MATERIAL_NONE
+        /// — «не сказано», то есть прежний ламберт по цвету вершины, кадр
+        /// бит-в-бит. Первый клиент — золотой герб: у металла блик окрашен
+        /// им самим, и никакой цвет вершины этого не выражает.
+        MaterialId material = MATERIAL_NONE;
         [[nodiscard]] bool valid() const { return mesh != 0 && program != 0; }
     };
     /// Живёт ОДИН кадр и снимается сразу после отправки — как временные

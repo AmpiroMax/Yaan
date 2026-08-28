@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 11:23:00
+Last updated: 28:08:2026 - 12:49:39
 Module: engine/render
 File: engine/render/sources/RenderSystem.cpp
 
@@ -199,6 +199,9 @@ UPD:
 - 28:08:2026 - 11:23:00: dp.aux1 = st.pane_glow — сила свечения оконной вставки
   уходит программе prop (свет из окна). Ноль у всех прежних потоков, то есть
   прежний кадр бит-в-бит.
+- 28:08:2026 - 12:49:39: отправка screen_prop_ несёт шероховатость и металличность из
+  реестра материалов (зона МАТЕРИАЛЫ, 28.08). Реестр — одно место, где живёт
+  «золото бликует золотым»; здесь только перенос его ответа в дро.
 */
 
 #include "engine/render/sources/RenderSystem.h"
@@ -1389,10 +1392,19 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // висит перед глазом, и предмет обязан висеть там же, где бы ни стояла
     // камера в момент выхода в меню.
     if (screen_prop_.valid()) {
+        // МАТЕРИАЛ ПРЕДМЕТА ЭКРАНА (зона МАТЕРИАЛЫ, 28.08). Реестр — ОДНО
+        // место, где живёт «золото бликует золотым»; здесь только перенос его
+        // ответа в дро. При MATERIAL_NONE запись реестра нулевая (шероховатость
+        // 1, металличность 0), то есть DrawParams выходит ровно умолчанием и
+        // кадр не меняется ни на бит — контрольная рука из этого же бинарника.
+        const Material& mat = material(screen_prop_.material);
+        platform::DrawParams dp;
+        dp.roughness = mat.roughness;
+        dp.metalness = mat.metalness;
         renderer.submit(platform::MeshHandle{screen_prop_.mesh},
                         platform::ProgramHandle{screen_prop_.program},
                         glm::inverse(camera.view(alpha)) * screen_prop_.in_camera,
-                        platform::TextureHandle{});
+                        platform::TextureHandle{}, dp);
         screen_prop_ = ScreenProp{};
     }
 

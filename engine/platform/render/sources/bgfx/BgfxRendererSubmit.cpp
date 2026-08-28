@@ -1,6 +1,6 @@
 /*
 Created: 10:08:2026 - 01:47:53
-Last updated: 28:08:2026 - 11:22:00
+Last updated: 28:08:2026 - 12:49:39
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -69,6 +69,9 @@ UPD:
 - 28:08:2026 - 11:22:00: params.z = -(2 + сила) у ОКОННОЙ ВСТАВКИ (сила из
   DrawParams::aux1): второй род эмиссии различается величиной того же z,
   порог -1.5. Ноль в aux1 — прежние -1.0 бит-в-бит.
+- 28:08:2026 - 12:49:39: u_matParams ставится на КАЖДОМ дро (зона МАТЕРИАЛЫ, 28.08).
+  Безусловно, а не «если материал задан»: uniform в bgfx липкий, и дро,
+  промолчавший после золотого герба, унаследовал бы его блик.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"
@@ -395,6 +398,15 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         }
     }
     bgfx::setUniform(im.u_params, params);
+    // ОТРАЖАТЕЛЬНАЯ ПОЛОВИНА МАТЕРИАЛА (зона МАТЕРИАЛЫ, 28.08). Ставится
+    // БЕЗУСЛОВНО, а не «если материал задан»: uniform в bgfx липкий, и дро,
+    // промолчавший после золотого герба, унаследовал бы его блик. Один
+    // setUniform на дро — это цена того, что материал НЕ течёт между дро.
+    const float mat_params[4] = {params_in.roughness, params_in.metalness, 0.0f,
+                                 0.0f};
+    if (bgfx::isValid(im.u_mat_params)) {
+        bgfx::setUniform(im.u_mat_params, mat_params);
+    }
     if (bgfx::isValid(im.shadow_map)) {
         // Compare-sampler flags come from the texture creation; stage 1 is the
         // dfn_shadow.sh contract (unused by shaders that do not sample it).

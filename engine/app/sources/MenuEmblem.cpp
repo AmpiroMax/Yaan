@@ -1,6 +1,6 @@
 /*
 Created: 27:08:2026 - 12:41:00
-Last updated: 27:08:2026 - 13:12:00
+Last updated: 28:08:2026 - 11:14:50
 Module: engine/app
 File: engine/app/sources/MenuEmblem.cpp
 
@@ -22,6 +22,11 @@ UPD:
 - 27:08:2026 - 13:12:00: strtof вместо std::from_chars: плавающая перегрузка
   последней в этой системе появляется только в macOS 26, а сборка обязана
   идти и на прежних (правило 19).
+- 28:08:2026 - 11:14:50: герб спрашивает реестр про материал gold-leaf за дозой DFN_MAT
+  (зона МАТЕРИАЛЫ, 28.08). Полка уже несёт золото ЧИСЛОМ — 72039 вершин поля
+  покрашены rgb(199,153,56), — но число в вершине это АЛЬБЕДО, и на одном
+  альбедо золото неотличимо от горчичной краски. Материал добавляет ровно
+  недостающее: как поверхность отражает. Ни одна вершина полки не тронута.
 */
 
 #include "engine/app/sources/MenuEmblem.h"
@@ -29,6 +34,7 @@ UPD:
 #include "engine/app/sources/AppDoors.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
+#include "engine/render/sources/MaterialRegistry.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -263,6 +269,20 @@ MenuEmblem::screen_prop(const render::FirstPersonCamera& camera,
     prop.program = program_;
     prop.in_camera = emblem_in_camera(camera, local_center_, local_height_,
                                       menu_seconds);
+    // ИЗ ЧЕГО СДЕЛАН ГЕРБ (зона МАТЕРИАЛЫ, 28.08, за дозой DFN_MAT).
+    //
+    // Полка уже несёт золото ЧИСЛОМ: 72039 вершин поля покрашены 0xFF3899C7,
+    // то есть rgb(199,153,56). Но число в вершине — это АЛЬБЕДО, и на одном
+    // альбедо золото неотличимо от горчичной краски: у обоих ламберт, у обоих
+    // нет блика. Материал добавляет ровно недостающее — как поверхность
+    // отражает, — и не трогает ни одной вершины полки.
+    //
+    // ДОЗА 0 (умолчание) — MATERIAL_NONE, то есть кадр меню бит-в-бит прежний.
+    // Обе руки замера выходят из одной сборки (правило 47).
+    const char* dose = door_value("DFN_MAT");
+    if (dose != nullptr && *dose != '\0' && *dose != '0') {
+        prop.material = render::material_by_name("gold-leaf");
+    }
     return prop;
 }
 
