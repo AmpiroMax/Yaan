@@ -9,6 +9,9 @@ Responsibility:
   углы суставов сидящего числами, стопы на полу, руки не в бёдрах, лежащий —
   на спине и в габарите настила, глаз позы совпадает со стоячей камерой на
   стоячей позе, корень позы смешивается коротким путём по кругу.
+- ПЕРЕХОД ЗАМЕРОМ: концы перехода — сами позы бит-в-бит, таз и глаз идут
+  МОНОТОННО и БЕЗ РЫВКА (и обе прежние формы — прямая и скачок — обязаны эту
+  же проверку провалить), суставы по дороге не выходят за пределы.
 
 Dependencies:
 - Uses: doctest, dfn_anim (Posture/Body/Pose/Rig), generated constants.
@@ -23,12 +26,18 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 28:08:2026 - 11:16:40: Создан вместе с engine/anim/sources/Posture.*.
+- 28:08:2026 - 18:10:00: Рукав перехода (второй хвост сдачи зоны): концы,
+  монотонность, рывок с двумя отрицательными плечами, пределы суставов,
+  длительности, вставание ИЗ ТОЙ позы, в которой были.
 */
 
 #include <doctest/doctest.h>
 
 #include <array>
 #include <cmath>
+#include <tuple>
+#include <utility>
+#include <vector>
 
 #include <glm/geometric.hpp>
 #include <glm/gtc/constants.hpp>
@@ -78,7 +87,319 @@ constexpr float BED_DECK_M = 0.50f;
     return glm::degrees(std::acos(std::clamp(-d.y, -1.0f, 1.0f)));
 }
 
+/// ОДИН ЗАМЕР ПЕРЕХОДА: где таз и где глаз в долю времени `t`. Считается ТЕМ
+/// ЖЕ путём, которым тело рисуется, — evaluate_body_pose + body_root_for + FK;
+/// собственной формулы «где таз при переходе» здесь нет и быть не должно,
+/// иначе тест мерил бы свою арифметику, а не движок.
+struct TransitAt {
+    float pelvis_y = 0.0f;
+    float eye_y = 0.0f;
+};
+
+[[nodiscard]] TransitAt transit_at(const Rig& rig, Posture p, float height_m,
+                                   const glm::vec3& standing, float t) {
+    BodyDrive d;
+    d.grounded = true;
+    d.posture = p;
+    d.posture_shown = p;
+    d.posture_height_m = height_m;
+    d.posture_blend = t;
+    d.posture_ground = glm::vec3{0.0f};
+    d.posture_yaw = 0.0f;
+    const LocalPose pose = evaluate_body_pose(rig, d);
+    const BodyRoot root = body_root_for(d, standing);
+    TransitAt out;
+    out.pelvis_y = joint(fk(rig, pose, root), Bone::Pelvis).y;
+    out.eye_y = posture_eye(rig, pose, root).y;
+    return out;
+}
+
+/// ДОЛЯ ВРЕМЕНИ НА ШАГЕ `i` ИЗ `steps` — С ЗАПАСОМ СТОЯНИЯ ДО И ПОСЛЕ. Ряд
+/// нарочно шире перехода: РЫВОК ЖИВЁТ НА СТЫКАХ, и лента, начатая ровно в
+/// начале движения, его не видит вовсе (проверено — прямая на такой ленте
+/// показывает нулевой рывок и проходит проверку, которую обязана провалить).
+[[nodiscard]] float lead_in_t(int i, int steps) {
+    constexpr float LEAD = 0.25f; // доля перехода на стояние до и после
+    const float x = static_cast<float>(i) / static_cast<float>(steps);
+    return std::clamp(x * (1.0f + 2.0f * LEAD) - LEAD, 0.0f, 1.0f);
+}
+
+/// РЯД ЗАМЕРОВ ПО РАВНОМЕРНОЙ СЕТКЕ ВРЕМЕНИ (со стоянием на концах).
+[[nodiscard]] std::vector<TransitAt> transit_series(const Rig& rig, Posture p,
+                                                    float height_m,
+                                                    const glm::vec3& standing,
+                                                    int steps) {
+    std::vector<TransitAt> out;
+    out.reserve(static_cast<std::size_t>(steps) + 1);
+    for (int i = 0; i <= steps; ++i) {
+        out.push_back(transit_at(rig, p, height_m, standing, lead_in_t(i, steps)));
+    }
+    return out;
+}
+
+/// ХУДШИЙ ПОДЪЁМ ряда, доля полного хода. Ноль — ряд не поднимался ни разу.
+[[nodiscard]] float worst_rise(const std::vector<float>& v) {
+    const float span = std::fabs(v.front() - v.back());
+    float worst = 0.0f;
+    for (std::size_t i = 1; i < v.size(); ++i) {
+        worst = std::max(worst, (v[i] - v[i - 1]) / std::max(1.0e-4f, span));
+    }
+    return worst;
+}
+
+/// ХУДШИЙ РЫВОК ряда: наибольшая ВТОРАЯ разность, в долях полного хода.
+/// Именно вторая: первая (скорость) у всякого перехода не ноль, а рывок —
+/// это её скачок. У прямой он живёт на концах (скорость с нуля в полную за
+/// шаг), у подмены кадра — в середине, у сглаженной дуги его нет нигде.
+[[nodiscard]] float worst_jerk(const std::vector<float>& v) {
+    const float span = std::fabs(v.front() - v.back());
+    float worst = 0.0f;
+    for (std::size_t i = 1; i + 1 < v.size(); ++i) {
+        worst = std::max(worst, std::fabs(v[i + 1] - 2.0f * v[i] + v[i - 1])
+                                    / std::max(1.0e-4f, span));
+    }
+    return worst;
+}
+
+[[nodiscard]] std::vector<float> pelvis_track(const std::vector<TransitAt>& s) {
+    std::vector<float> out;
+    for (const TransitAt& a : s) {
+        out.push_back(a.pelvis_y);
+    }
+    return out;
+}
+
+[[nodiscard]] std::vector<float> eye_track(const std::vector<TransitAt>& s) {
+    std::vector<float> out;
+    for (const TransitAt& a : s) {
+        out.push_back(a.eye_y);
+    }
+    return out;
+}
+
+/// РАВНЫ ЛИ ДВЕ ПОЗЫ ПОКОСТНО (кватернион и −кватернион — один поворот).
+[[nodiscard]] float pose_diff(const LocalPose& a, const LocalPose& b) {
+    float worst = std::fabs(a.pelvis_offset.y - b.pelvis_offset.y);
+    for (std::size_t i = 0; i < BONE_COUNT; ++i) {
+        const float d = std::fabs(std::fabs(glm::dot(a.rotation[i], b.rotation[i])) - 1.0f);
+        worst = std::max(worst, d);
+    }
+    return worst;
+}
+
 } // namespace
+
+TEST_CASE("переход: концы — ЭТО САМИ ПОЗЫ, а не «почти позы»") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    // Одна функция на оба конца и всю середину. Если бы посередине жил
+    // отдельный клип перехода, эта проверка была бы единственным местом, где
+    // расхождение видно, — и её бы не было.
+    PostureTransit done;
+    done.recline = 1.0f;
+    CHECK(pose_diff(posture_pose(rig, Posture::Sit, BENCH_SEAT_M, PostureTransit{}),
+                    sit_pose(rig, BENCH_SEAT_M)) < 1.0e-6f);
+    CHECK(pose_diff(posture_pose(rig, Posture::Lie, BED_DECK_M, done),
+                    lie_pose(rig, BED_DECK_M)) < 1.0e-6f);
+
+    // И НАЧАЛО ПЕРЕХОДА — СТОЯЧЕЕ ТЕЛО. Доли в нуле дают позу, у которой таз
+    // на СТОЯЧЕЙ высоте: переход обязан начинаться там, где человек стоит, а
+    // не прыжком в полусогнутое.
+    PostureTransit start;
+    start.take = 0.0f;
+    start.drop = 0.0f;
+    start.plan = 0.0f;
+    start.settle = 0.0f;
+    start.recline = 0.0f;
+    const LocalPose s0 = posture_pose(rig, Posture::Sit, BENCH_SEAT_M, start);
+    INFO("смещение таза в начале ", s0.pelvis_offset.y);
+    CHECK(std::fabs(s0.pelvis_offset.y) < 1.0e-4f);
+}
+
+TEST_CASE("переход: таз и глаз идут МОНОТОННО и БЕЗ РЫВКА") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const glm::vec3 standing{0.0f, 0.0f, 0.75f}; // где человек стоял, нажимая E
+    constexpr int STEPS = 60;
+
+    for (const auto& [posture, height, name] :
+         {std::tuple{Posture::Sit, BENCH_SEAT_M, "сесть"},
+          std::tuple{Posture::Lie, BED_DECK_M, "лечь"}}) {
+        const auto series = transit_series(rig, posture, height, standing, STEPS);
+        const std::vector<float> pelvis = pelvis_track(series);
+        const std::vector<float> eye = eye_track(series);
+        INFO(name, ": таз ", pelvis.front(), " -> ", pelvis.back(), ", глаз ",
+             eye.front(), " -> ", eye.back());
+        // ВНИЗ И ТОЛЬКО ВНИЗ. Допуск в тысячную долю хода — это дыхание
+        // живого слоя, а не «почти монотонно»: подъём в сотую уже виден.
+        CHECK(worst_rise(pelvis) < 0.01f);
+        CHECK(worst_rise(eye) < 0.01f);
+        // И БЕЗ РЫВКА — ГРУБЫМ ПЛЕЧОМ. Этот порог ловит ПОДМЕНУ КАДРА (у неё
+        // 1.0, вдвое больше всего хода на одном шаге) и не ловит прямую: у
+        // прямой вторая разность того же порядка, что у честной дуги, и
+        // делать вид, будто порог их различает, было бы неправдой. Прямую
+        // ловит СЛЕДУЮЩИЙ рукав — по тому, как рывок убывает с сеткой.
+        INFO("рывок таза ", worst_jerk(pelvis), ", рывок глаза ", worst_jerk(eye));
+        CHECK(worst_jerk(pelvis) < 0.05f);
+        CHECK(worst_jerk(eye) < 0.05f);
+    }
+}
+
+TEST_CASE("переход: КОНТРОЛЬ — прямая и скачок обязаны провалить ту же проверку") {
+    // Оба плеча — ПРЕЖНИЕ формы этого же перехода, а не выдуманные: до этой
+    // волны блендер вёл позу ЛИНЕЙНО за 0.18 с, а «подмена кадра» — то, во
+    // что линейный фейд вырождается на медленной машине, где на весь переход
+    // приходится один-два кадра.
+    constexpr int STEPS = 60;
+    std::vector<float> line;
+    std::vector<float> step;
+    for (int i = 0; i <= STEPS; ++i) {
+        const float t = lead_in_t(i, STEPS); // ТА ЖЕ лента, что у живого перехода
+        line.push_back(1.0f - t);
+        step.push_back(t < 0.5f ? 1.0f : 0.0f);
+    }
+    INFO("рывок прямой ", worst_jerk(line), ", рывок скачка ", worst_jerk(step));
+    CHECK(worst_jerk(step) > 0.05f); // тот же грубый порог, что у живого перехода
+    // ...А ПРЯМУЮ ЭТОТ ПОРОГ НЕ ЛОВИТ, и это сказано вслух: её вторая разность
+    // (0.013) того же порядка, что у честной дуги (0.010). Ловит её рукав
+    // ниже — убыванием рывка с сеткой, которое у излома вдвое, а у дуги
+    // вчетверо. Порог, про который говорят, что он ловит больше, чем ловит,
+    // хуже отсутствующего.
+    CHECK(worst_jerk(line) < 0.05f);
+    // ...и монотонны ОБА: критерий монотонности сам по себе прямую не ловит,
+    // и говорить, что он её ловит, было бы неправдой.
+    CHECK(worst_rise(line) < 0.01f);
+    CHECK(worst_rise(step) < 0.01f);
+}
+
+TEST_CASE("переход: рывок УБЫВАЕТ КАК ПОЛОЖЕНО — вчетверо на вдвое мелкой сетке") {
+    // ЭТО И ЕСТЬ ГЛАВНЫЙ КРИТЕРИЙ «БЕЗ РЫВКА» этой волны.
+    // ПОРОГ ЗАВИСИТ ОТ СЕТКИ, А ЭТО — НЕТ, и потому здесь второй критерий, а
+    // не только число выше. У гладкой кривой вторая разность идёт как h²
+    // (вчетверо на вдвое мелкой сетке), у излома — как h (вдвое). Разница
+    // между «плавно» и «линейно» это ровно она, и никакой порог её не
+    // подменяет.
+    const Rig rig = Rig::build(RigProportions::from_config());
+    const glm::vec3 standing{0.0f, 0.0f, 0.75f};
+    const auto ratio_of = [](const std::vector<float>& a, const std::vector<float>& b) {
+        return worst_jerk(a) / std::max(1.0e-9f, worst_jerk(b));
+    };
+
+    const auto s60 = transit_series(rig, Posture::Lie, BED_DECK_M, standing, 60);
+    const auto s120 = transit_series(rig, Posture::Lie, BED_DECK_M, standing, 120);
+    const float smooth = ratio_of(pelvis_track(s60), pelvis_track(s120));
+    INFO("живой переход: рывок падает в ", smooth, " раза");
+    CHECK(smooth > 3.0f);
+
+    // КОНТРОЛЬ — ПРЯМАЯ: у неё излом на стыке, и он падает лишь ВДВОЕ.
+    std::vector<float> l60;
+    std::vector<float> l120;
+    for (int i = 0; i <= 60; ++i) {
+        l60.push_back(1.0f - lead_in_t(i, 60));
+    }
+    for (int i = 0; i <= 120; ++i) {
+        l120.push_back(1.0f - lead_in_t(i, 120));
+    }
+    const float corner = ratio_of(l60, l120);
+    INFO("прямая: рывок падает в ", corner, " раза");
+    CHECK(corner < 2.5f);
+
+    // КОНТРОЛЬ ВТОРОЙ — ПОДМЕНА КАДРА: у неё рывок вообще не убывает.
+    std::vector<float> step60;
+    std::vector<float> step120;
+    for (int i = 0; i <= 60; ++i) {
+        step60.push_back(lead_in_t(i, 60) < 0.5f ? 1.0f : 0.0f);
+    }
+    for (int i = 0; i <= 120; ++i) {
+        step120.push_back(lead_in_t(i, 120) < 0.5f ? 1.0f : 0.0f);
+    }
+    INFO("скачок: рывок падает в ", ratio_of(step60, step120), " раза");
+    CHECK(ratio_of(step60, step120) < 2.5f);
+}
+
+TEST_CASE("переход: ни один сустав не выходит за пределы по дороге") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    constexpr int STEPS = 40;
+    float worst = 0.0f;
+    for (const auto& [posture, height] : {std::pair{Posture::Sit, BENCH_SEAT_M},
+                                          std::pair{Posture::Lie, BED_DECK_M}}) {
+        for (int i = 0; i <= STEPS; ++i) {
+            const float t = static_cast<float>(i) / static_cast<float>(STEPS);
+            const LocalPose raw = posture_pose(rig, posture, height,
+                                               posture_transit(posture, t));
+            LocalPose limited = raw;
+            apply_joint_limits(rig, limited);
+            worst = std::max(worst, pose_diff(raw, limited));
+        }
+    }
+    // ПРЕДЕЛЫ НИЧЕГО НЕ ПОПРАВИЛИ — значит переход их и не нарушал. Проверка
+    // именно такая, а не «после пределов поза законна»: после них она законна
+    // ВСЕГДА, и такой критерий не мерил бы ничего.
+    INFO("худшая правка пределов по всему переходу ", worst);
+    CHECK(worst < 1.0e-5f);
+
+    // КОНТРОЛЬ: колено, согнутое НЕ В ТУ СТОРОНУ, пределами правится — значит
+    // прибор выше действительно умеет говорить «нет».
+    LocalPose bad;
+    bad.rotation[bone_index(Bone::ShinL)] =
+        glm::angleAxis(0.9f, glm::vec3{1.0f, 0.0f, 0.0f});
+    LocalPose fixed = bad;
+    apply_joint_limits(rig, fixed);
+    CHECK(pose_diff(bad, fixed) > 1.0e-3f);
+}
+
+TEST_CASE("переход: доли — дуга, а не отрезок; лечь дольше, чем сесть") {
+    // КОРЕНЬ ОПЕРЕЖАЕТ СПУСК у сиденья: человек сначала оказывается НАД
+    // лавкой и только потом опускается. Одна общая доля дала бы отрезок
+    // наискось, то есть проход тазом сквозь кромку настила.
+    const PostureTransit mid = posture_transit(Posture::Sit, 0.35f);
+    INFO("сидя на 0.35: перенос ", mid.plan, ", спуск ", mid.drop);
+    CHECK(mid.plan > mid.drop + 0.15f);
+
+    // ЛЁЖА ДВА ХОДА ПОДРЯД: сперва вниз, потом на спину. На середине спуска
+    // откидывания ещё почти нет.
+    const PostureTransit lie_mid = posture_transit(Posture::Lie, 0.40f);
+    INFO("лёжа на 0.40: спуск ", lie_mid.drop, ", откидывание ", lie_mid.recline);
+    CHECK(lie_mid.drop > 0.5f);
+    CHECK(lie_mid.recline < 0.05f);
+
+    // Концы точные у всех долей — иначе поза в конце перехода была бы «почти».
+    for (const Posture p : {Posture::Sit, Posture::Lie}) {
+        const PostureTransit end = posture_transit(p, 1.0f);
+        CHECK(end.take == doctest::Approx(1.0f));
+        CHECK(end.drop == doctest::Approx(1.0f));
+        CHECK(end.plan == doctest::Approx(1.0f));
+        CHECK(end.settle == doctest::Approx(1.0f));
+        const PostureTransit zero = posture_transit(p, 0.0f);
+        CHECK(zero.take == doctest::Approx(0.0f));
+        CHECK(zero.drop == doctest::Approx(0.0f));
+        CHECK(zero.settle == doctest::Approx(0.0f));
+    }
+    CHECK(posture_transit(Posture::Lie, 1.0f).recline == doctest::Approx(1.0f));
+    CHECK(posture_transit(Posture::Sit, 0.5f).recline == doctest::Approx(0.0f));
+
+    // ДЛИТЕЛЬНОСТЬ — СВОЙСТВО ПОЗЫ: лечь путь длиннее на целое откидывание.
+    CHECK(posture_transit_s(Posture::Lie) > posture_transit_s(Posture::Sit));
+    CHECK(posture_transit_s(Posture::Sit) == doctest::Approx(SIT_TRANSIT_S));
+}
+
+TEST_CASE("встают ИЗ ТОЙ позы, в которой лежали") {
+    const Rig rig = Rig::build(RigProportions::from_config());
+    BodyDrive d;
+    d.grounded = true;
+    d.posture_height_m = BED_DECK_M;
+    // Заявка снята (человек нажал E), блендер ещё в пути — и рисовать обязаны
+    // ЛЕЖАЩЕГО. До появления posture_shown «не Lie» означало «Sit», и
+    // вставание с кровати шло через сидячую позу одним кадром.
+    d.posture = Posture::None;
+    d.posture_shown = Posture::Lie;
+    d.posture_blend = 1.0f;
+    CHECK(drawn_posture(d) == Posture::Lie);
+    const LocalPose out = evaluate_body_pose(rig, d);
+    const auto m = fk(rig, out);
+    // Лежащий смотрит грудью В НЕБО — сидящий никогда.
+    const glm::vec3 chest_face = -glm::vec3{m[bone_index(Bone::Torso)][2]};
+    INFO("грудь ", chest_face.y);
+    CHECK(chest_face.y > 0.95f);
+}
 
 TEST_CASE("сидя: таз на сиденье, бёдра горизонт, голени вниз") {
     const Rig rig = Rig::build(RigProportions::from_config());
@@ -281,9 +602,18 @@ TEST_CASE("корень позы: концы точные, середина ме
     CHECK(body_root_for(d, standing).ground.x == doctest::Approx(10.0f));
     CHECK(body_root_for(d, standing).yaw == doctest::Approx(1.5f));
 
+    // СЕРЕДИНА — МЕЖДУ, НО НЕ ПОСЕРЕДИНЕ, и это не небрежность: место и рыск
+    // идут долей `plan`, которая у сиденья ОПЕРЕЖАЕТ спуск таза (дуга). Ждать
+    // здесь ровно 5.0 значило бы требовать отрезка наискось — того самого, от
+    // которого переход и уходит.
     d.posture_blend = 0.5f;
-    CHECK(body_root_for(d, standing).ground.x == doctest::Approx(5.0f));
-    CHECK(body_root_for(d, standing).yaw == doctest::Approx(1.0f));
+    const BodyRoot mid_root = body_root_for(d, standing);
+    const float plan = posture_transit(Posture::Sit, 0.5f).plan;
+    INFO("перенос на середине ", mid_root.ground.x, " при доле ", plan);
+    CHECK(mid_root.ground.x == doctest::Approx(10.0f * plan));
+    CHECK(mid_root.ground.x > 5.0f);
+    CHECK(mid_root.ground.x < 10.0f);
+    CHECK(mid_root.yaw == doctest::Approx(0.5f + 1.0f * plan));
 
     // КОРОТКИМ ПУТЁМ: с 3.0 рад на -3.0 рад — это 0.283 рад через ±pi, а не
     // 6.0 рад обратно. Прямая разность развернула бы сидящего кругом.
@@ -291,8 +621,13 @@ TEST_CASE("корень позы: концы точные, середина ме
     d.posture_yaw = -3.0f;
     d.posture_blend = 0.5f;
     const float mid = body_root_for(d, standing).yaw;
-    INFO("середина поворота ", mid);
-    CHECK(std::fabs(mid - 3.1415927f) < 0.05f);
+    INFO("середина поворота ", mid, " при доле ", plan);
+    // Короткий путь идёт ВВЕРХ через ±pi: рыск обязан остаться в узкой полосе
+    // между 3.0 и 3.0 + 0.2832. Длинный путь увёл бы его вниз, к нулю, —
+    // сидящего развернуло бы кругом.
+    CHECK(mid > 3.0f);
+    CHECK(mid < 3.0f + 0.2832f);
+    CHECK(mid == doctest::Approx(3.0f + 0.283185f * plan).epsilon(0.01));
 }
 
 TEST_CASE("поза кладётся ПОВЕРХ живого слоя весом posture_blend") {

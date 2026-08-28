@@ -1,0 +1,137 @@
+[editor-ui] шрифт: /System/Library/Fonts/Supplemental/Arial.ttf (32 px, диапазон 0x0400-0x045F — со строчной «ё»)
+[editor-ui] знаки домешаны из /System/Library/Fonts/Apple Symbols.ttf
+[editor-ui] знаки домешаны из /System/Library/Fonts/Supplemental/Arial Unicode.ttf
+[imgui] атлас шрифта 512x1024, глифов 411
+[editor-ui] знак U+2605 ★ избранное: есть
+[editor-ui] знак U+2606 ☆ не избранное: есть
+[editor-ui] знак U+2713 ✓ отметка: есть
+[editor-ui] знак U+25B6 ▶ свёрнуто: есть
+[editor-ui] знак U+25BC ▼ раскрыто: есть
+[editor-ui] знак U+2192 → ведёт к: есть
+[editor-ui] знак U+00D7 × закрыть: есть
+[editor-ui] знак U+4E2D 中 КОНТРОЛЬ, обязан отсутствовать: НЕТ
+[render] capture from the BACKBUFFER (wireframe): a blank frame here means the display gave no drawable
+[scene] air: fog 110..380 m, cloud 0.25
+[relief] assets/scenes/whiterun.relief: 60282 правленых отсчётов, 54 троп
+[paths] 6 route(s) on this world
+[scene] 1 authored river(s), 24 station(s)
+[paths] 4863 of 77454 drawn vertices carry wear
+[звук] карта дала 284 крон -> 33 рощ, русел 1
+[scene] 17 of 38 object(s) have a -far form
+[scene] 49 lamp(s), 20 asking for a shadow; 16 light the frame, 2 of those cast
+[scene] assets/scenes/whiterun.scene: 467 of 467 placement(s) standing, 55 distinct object(s), 36 tile(s)
+[scene] spawn from the composition: (113.0, 25.2, 248.0) yaw 0.00
+[постройка] готовых домов на карте: 868 из 868
+[интерьер] оконных вставок: 0, горящих 0 (сила 12.00, тон 0.82 0.90 1.00)
+[постройка] коллайдер: сквозь дом упёрся, в стороне прошёл
+[постройка] тело: потоков 219, дверей 32 (готовых домов 868), вершин коллайдера 6583158
+[предметы] реестр физики: 35 строк
+[интерьер] дверей построек: 32 — переходов 23, заперто 9, декоративных 0
+[render] capture from the BACKBUFFER (wireframe): a blank frame here means the display gave no drawable
+[интерьер] DFN_INTERIOR=assets/scenes/int/whiterun/x129z106.scene: своя створка найдена, обратный адрес (124.1 32.8 101.1), рыск -0.79
+[интерьер] оконных вставок: 0, горящих 0 (сила 12.00, тон 0.82 0.90 1.00)
+[интерьер] свет доза 1.00: ambient 0.100 -> 0.270 0.282 0.300 (день 1.00), окно доза 1.00, огней 1
+[интерьер] прицел обратной двери: ПОЛОТНО, полотно (144.00 -998.97 132.00) 1.00x2.05 м, нормаль (1.00 -0.00), радиус 1.20 м
+[интерьер] точка входа: до полотна 0.80 м (радиус 1.20) — дверь берётся рукой
+[интерьер] переходов на локации: 1 (первый в мире 143.7 -998.9 132.0)
+[поза] точек на локации: 8 (сидений 8, лежаков 0); первая furn-bench на (131.50 -999.87 128.68), площадка 0.450 м
+[интерьер] ВХОД assets/scenes/int/whiterun/x129z106.scene за 46.4 ms
+[render] capture from the BACKBUFFER (wireframe): a blank frame here means the display gave no drawable
+[режим] сессия ИГРЫ: инструментов и панелей нет (дверь DFN_OPEN_MAP без DFN_EDITOR)
+[editor] DFN_THIRD_PERSON: третье лицо
+[поза] дверь DFN_SEAT_TAKE: доворот взгляда -18.0° тангаж, 0.0° рыск
+[шрифт] assets/fonts/ui_serif.fnt: 10 ступеней (11..96 px), 175 знаков
+[поза] дверь DFN_SEAT_TAKE=sit:-18: подвёл к furn-bench, до габарита 0.55 м, прицел ГОРИТ; стою 30 кадров и жму E
+[поза] дверь DFN_SEAT_TAKE: жму E
+[поза] СЕЛ на furn-bench: точка (140.50 -999.87 133.57), площадка 0.450 м, рыск 3.142; выход в (140.50 -999.85 132.85)
+[поза-след] t=0.0167 blend=0.0278 take=0.0179 drop=0.0023 plan=0.0074 recline=0.0000 таз=-998.9036 глаз=-998.1585
+[поза-след] t=0.0333 blend=0.0556 take=0.0676 drop=0.0089 plan=0.0285 recline=0.0000 таз=-998.9043 глаз=-998.1591
+[поза-след] t=0.0500 blend=0.0833 take=0.1431 drop=0.0197 plan=0.0619 recline=0.0000 таз=-998.9059 глаз=-998.1607
+[поза-след] t=0.0667 blend=0.1111 take=0.2384 drop=0.0343 plan=0.1059 recline=0.0000 таз=-998.9089 глаз=-998.1637
+[поза-след] t=0.0833 blend=0.1389 take=0.3474 drop=0.0525 plan=0.1591 recline=0.0000 таз=-998.9142 глаз=-998.1689
+[поза-след] t=0.1000 blend=0.1667 take=0.4643 drop=0.0741 plan=0.2198 recline=0.0000 таз=-998.9222 глаз=-998.1768
+[поза-след] t=0.1167 blend=0.1944 take=0.5830 drop=0.0987 plan=0.2866 recline=0.0000 таз=-998.9333 глаз=-998.1877
+[поза-след] t=0.1333 blend=0.2222 take=0.6975 drop=0.1262 plan=0.3578 recline=0.0000 таз=-998.9475 глаз=-998.2018
+[поза-след] t=0.1500 blend=0.2500 take=0.8017 drop=0.1562 plan=0.4320 recline=0.0000 таз=-998.9645 глаз=-998.2188
+[поза-след] t=0.1667 blend=0.2778 take=0.8898 drop=0.1886 plan=0.5076 recline=0.0000 таз=-998.9840 глаз=-998.2383
+[поза-след] t=0.1833 blend=0.3056 take=0.9557 drop=0.2230 plan=0.5830 recline=0.0000 таз=-999.0045 глаз=-998.2589
+[поза-след] t=0.2000 blend=0.3333 take=0.9934 drop=0.2593 plan=0.6567 recline=0.0000 таз=-999.0247 глаз=-998.2792
+[поза-след] t=0.2167 blend=0.3611 take=1.0000 drop=0.2970 plan=0.7272 recline=0.0000 таз=-999.0427 глаз=-998.2974
+[поза-след] t=0.2333 blend=0.3889 take=1.0000 drop=0.3361 plan=0.7928 recline=0.0000 таз=-999.0604 глаз=-998.3154
+[поза-след] t=0.2500 blend=0.4167 take=1.0000 drop=0.3762 plan=0.8522 recline=0.0000 таз=-999.0784 глаз=-998.3337
+[поза-след] t=0.2667 blend=0.4444 take=1.0000 drop=0.4170 plan=0.9036 recline=0.0000 таз=-999.0966 глаз=-998.3522
+[поза-след] t=0.2833 blend=0.4722 take=1.0000 drop=0.4584 plan=0.9457 recline=0.0000 таз=-999.1148 глаз=-998.3708
+[поза-след] t=0.3000 blend=0.5000 take=1.0000 drop=0.5000 plan=0.9767 recline=0.0000 таз=-999.1329 глаз=-998.3893
+[поза-след] t=0.3167 blend=0.5278 take=1.0000 drop=0.5416 plan=0.9952 recline=0.0000 таз=-999.1508 глаз=-998.4077
+[поза-след] t=0.3333 blend=0.5556 take=1.0000 drop=0.5830 plan=1.0000 recline=0.0000 таз=-999.1683 глаз=-998.4257
+[поза-след] t=0.3500 blend=0.5833 take=1.0000 drop=0.6238 plan=1.0000 recline=0.0000 таз=-999.1854 глаз=-998.4434
+[поза-след] t=0.3667 blend=0.6111 take=1.0000 drop=0.6639 plan=1.0000 recline=0.0000 таз=-999.2023 глаз=-998.4609
+[поза-след] t=0.3833 blend=0.6389 take=1.0000 drop=0.7030 plan=1.0000 recline=0.0000 таз=-999.2187 глаз=-998.4780
+[поза-след] t=0.4000 blend=0.6667 take=1.0000 drop=0.7407 plan=1.0000 recline=0.0000 таз=-999.2346 глаз=-998.4944
+[поза-след] t=0.4167 blend=0.6944 take=1.0000 drop=0.7770 plan=1.0000 recline=0.0000 таз=-999.2498 глаз=-998.5104
+[поза-след] t=0.4333 blend=0.7222 take=1.0000 drop=0.8114 plan=1.0000 recline=0.0000 таз=-999.2642 глаз=-998.5255
+[поза-след] t=0.4500 blend=0.7500 take=1.0000 drop=0.8438 plan=1.0000 recline=0.0000 таз=-999.2778 глаз=-998.5398
+[поза-след] t=0.4667 blend=0.7778 take=1.0000 drop=0.8738 plan=1.0000 recline=0.0000 таз=-999.2905 глаз=-998.5531
+[поза-след] t=0.4833 blend=0.8056 take=1.0000 drop=0.9013 plan=1.0000 recline=0.0000 таз=-999.3020 глаз=-998.5652
+[поза-след] t=0.5000 blend=0.8333 take=1.0000 drop=0.9259 plan=1.0000 recline=0.0000 таз=-999.3124 глаз=-998.5762
+[поза-след] t=0.5167 blend=0.8611 take=1.0000 drop=0.9475 plan=1.0000 recline=0.0000 таз=-999.3214 глаз=-998.5858
+[поза-след] t=0.5333 blend=0.8889 take=1.0000 drop=0.9657 plan=1.0000 recline=0.0000 таз=-999.3290 глаз=-998.5939
+[поза-след] t=0.5500 blend=0.9167 take=1.0000 drop=0.9803 plan=1.0000 recline=0.0000 таз=-999.3352 глаз=-998.6005
+[поза-след] t=0.5667 blend=0.9444 take=1.0000 drop=0.9911 plan=1.0000 recline=0.0000 таз=-999.3397 глаз=-998.6052
+[поза-след] t=0.5833 blend=0.9722 take=1.0000 drop=0.9977 plan=1.0000 recline=0.0000 таз=-999.3425 глаз=-998.6082
+[поза-след] t=0.6000 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.6167 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.6333 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.6500 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.6667 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.6833 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.7000 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[capture] /private/tmp/claude-501/-Users-ampiro-programs-Daggerfall-N/4d083365-5ba1-420d-981b-e2e6b2f41448/scratchpad/posecam/s130/capture_000.png + .txt
+# Daggerfall N state capture
+# Restore with: DFN_RESTORE=<this file> DFN_MENU=0 ./dfn_app
+captured_at = 28:08:2026 - 18:10:54
+build_commit = 18fb8b9+dirty
+stand = 3
+seed = 1
+game_seconds = 866.166667
+day_fraction = 0.300752
+lunar_phase = 0.010741
+pos_x = 140.500000
+pos_y = -997.071533
+pos_z = 130.533798
+yaw = 3.141593
+pitch = -0.314159
+look_x = 0.000000
+look_y = -0.309017
+look_z = 0.951057
+speed_mps = 0.000000
+vertical_velocity = 0.000000
+stride_phase = 0.000000
+gait = 0
+locomotion = 0
+grounded = 1
+crouched = 0
+water_depth = 0.000000
+internal_w = 1920
+internal_h = 1080
+fov_y_rad = 1.309000
+head_bob = 1.000000
+palette_post = 0
+wind_strength = 0.077054
+cloud_cover = 0.250000
+ambient_darkness = 0.000000
+fps = 120.053
+frame_ms = 8.330
+frame_ms_worst = 10.699
+chunks_resident = 1
+lod_nodes = 0
+[chat] appended to assets/maps/cities/whiterun.chat.jsonl: {"t":866.166667,"who":"human","capture":"/private/tmp/claude-501/-Users-ampiro-programs-Daggerfall-N/4d083365-5ba1-420d-981b-e2e6b2f41448/scratchpad/posecam/s130/capture_000.png","date":"28:08:2026 - 18:10:54"}
+[поза-след] t=0.7167 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[render] capture from the BACKBUFFER (wireframe): a blank frame here means the display gave no drawable
+[поза-след] t=0.7333 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.7500 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.7667 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.7833 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.8000 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза-след] t=0.8167 blend=1.0000 take=1.0000 drop=1.0000 plan=1.0000 recline=0.0000 таз=-999.3434 глаз=-998.6093
+[поза] ВСТАЛ в (140.50 -999.85 132.85)

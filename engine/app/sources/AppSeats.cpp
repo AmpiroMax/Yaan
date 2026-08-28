@@ -14,6 +14,7 @@ Key items:
 - App::filter_seat_hover: подсказка только когда СМОТРИМ на предмет.
 - App::take_seat / leave_posture: вход в позу и выход из неё.
 - App::park_posture / posture_camera: движение выключено, глаз — из позы.
+- App::posture_trace_step: прибор перехода (DFN_POSTURE_TRACE).
 - App::probe_seats: беспилотный прибор прицела (DFN_SEAT_PROBE).
 
 Dependencies:
@@ -45,6 +46,8 @@ AI Agents Notice (must follow):
 UPD:
 - 28:08:2026 - 12:20:00: Создан. Пункты 1, 3, 4 заказа: мета у существующих
   тел мебели, взаимодействие E, парковка капсулы и камера позы.
+- 28:08:2026 - 17:55:00: posture_perch_ (начало стрелы третьего лица над
+  предметом) и posture_trace_step (прибор перехода) — два хвоста сдачи зоны.
 */
 
 #include "engine/app/sources/AppDoors.h"
@@ -57,6 +60,7 @@ UPD:
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/gameplay/sources/Interaction.h"
 #include "engine/gameplay/sources/InteractableSpawn.h"
+#include "engine/gameplay/sources/CameraBoom.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/physics/sources/CollisionLayers.h"
 #include "engine/render/sources/ObjectRegistry.h"
@@ -75,6 +79,7 @@ UPD:
 
 #include <glm/geometric.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/vec3.hpp>
 
 namespace dfn::app {
 
@@ -87,7 +92,13 @@ constexpr float POSTURE_WALK_OUT = 0.30f;
 
 /// Кадры беспилотной руки (DFN_SEAT_TAKE): подвод и выдержка в позе.
 constexpr std::uint64_t SEAT_TAKE_APPROACH_FRAMES = 15;
-constexpr std::uint64_t SEAT_TAKE_HOLD_FRAMES = 240;
+/// СКОЛЬКО СТОЯТЬ ПЕРЕД НАЖАТИЕМ, кадров. Не ноль и не «на всякий случай»:
+/// подвод ТЕЛЕПОРТИРУЕТ капсулу, а телепорт — это приземление, и живой слой
+/// отвечает на него провалом (land_dip). Нажать E в тот же тик значило бы
+/// начать переход из проваленного таза, и след перехода показал бы подъём на
+/// 2.5 см там, где человек просто стоит. Замерено этим самым следом.
+constexpr std::uint64_t SEAT_TAKE_SETTLE_FRAMES = 30;
+constexpr std::uint64_t SEAT_TAKE_HOLD_FRAMES = 480;
 
 /// Единичный вектор взгляда по позе камеры — та же формула, что у дверей
 /// (door_aim_now) и у InteractionSystem::view_direction. Расхождение здесь
@@ -390,6 +401,25 @@ void App::take_seat() {
         posture_exit_ = tr->position;
         posture_exit_yaw_ = ps->yaw;
         active_seat_ = static_cast<int>(i);
+        // НАЧАЛО СТРЕЛЫ ТРЕТЬЕГО ЛИЦА — НАД ПРЕДМЕТОМ, А НЕ НАД ПЛОЩАДКОЙ.
+        // Берётся ВЕРХ САМОГО ПРЕДМЕТА (тот же габарит, которым целятся), а
+        // не высота настила: у furn-bed матрас на 0.50, а столбики изголовья
+        // — на 1.14, и щуп, поднятый над матрасом, начинал бы внутри столбика.
+        // Плюс радиус щупа с отступом: сфера обязана начинать СВОБОДНОЙ.
+        posture_perch_ = glm::vec3{
+            spot.floor_at.x,
+            spot.aim.centre.y + spot.aim.half.y + cam_boom_desc_.probe_radius
+                + cam_boom_desc_.margin,
+            spot.floor_at.z};
+        posture_perch_valid_ = true;
+        // ПОТОЛОК ТАНГАЖА — ТОЛЬКО ЛЕЖАЩЕМУ, и по названной причине: это его
+        // ПОЗА поворачивает взгляд в потолок, а стрела уходит назад по
+        // взгляду, то есть вниз, в матрас. У сидящего взгляд горизонтален и
+        // стрела ведёт себя как у стоящего — навязывать ему взгляд под ноги
+        // значило бы отнять комнату у всякого, кто присел в трактире.
+        posture_pitch_cap_ = spot.kind == SpotKind::Lie
+                                 ? gameplay::POSTURE_BOOM_PITCH_MAX
+                                 : static_cast<float>(config::CAMERA_PITCH_LIMIT);
 
         drive->posture = spot.kind == SpotKind::Lie ? anim::Posture::Lie
                                                     : anim::Posture::Sit;
@@ -444,8 +474,9 @@ void App::leave_posture() {
     active_seat_ = -1;
     if (auto* drive = world_.get<anim::BodyDrive>(player_)) {
         // ЗАЯВКА СНИМАЕТСЯ, А БЛЕНДЕР ОСТАЁТСЯ: он доедет до нуля сам, за
-        // POSTURE_BLEND_TIME_S, и всё это время земля и рыск позы обязаны
-        // оставаться на месте — иначе тело прыгнет к капсуле одним кадром.
+        // anim::posture_transit_s(позы), и всё это время земля, рыск и ПОЗА
+        // (drive.posture_shown) обязаны оставаться на месте — иначе тело
+        // прыгнет к капсуле одним кадром, а с кровати встанет через сидячую.
         drive->posture = anim::Posture::None;
     }
     if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
@@ -498,6 +529,49 @@ void App::park_posture() {
     if (physics_ != nullptr) {
         physics_->teleport_character(ps->character, posture_exit_);
     }
+}
+
+void App::posture_trace_step(float dt) {
+    static const bool on = [] {
+        const char* v = door_value("DFN_POSTURE_TRACE");
+        return v != nullptr && v[0] != '\0' && v[0] != '0';
+    }();
+    if (!on) {
+        return;
+    }
+    const auto* drive = world_.get<anim::BodyDrive>(player_);
+    if (drive == nullptr) {
+        return;
+    }
+    const bool moving = drive->posture_blend > 0.0f
+                     || drive->posture != anim::Posture::None;
+    if (!moving) {
+        posture_trace_t_ = 0.0;
+        return;
+    }
+    posture_trace_t_ += static_cast<double>(dt);
+    // ВЫСОТА ТАЗА СЧИТАЕТСЯ ТОЙ ЖЕ ПАРОЙ, КОТОРОЙ ТЕЛО НАРИСОВАНО, а не
+    // отдельной формулой: земля корня плюс стоячая высота бедра плюс смещение
+    // таза — ровно то, что forward_kinematics и прибавляет.
+    const auto* tr = world_.get<components::Transform>(player_);
+    const glm::vec3 stand = tr != nullptr ? tr->position : glm::vec3{0.0f};
+    const anim::LocalPose pose = anim::evaluate_body_pose(body_rig_, *drive);
+    const anim::BodyRoot root = anim::body_root_for(*drive, stand);
+    const float pelvis_y = root.ground.y
+                         + body_rig_.proportions.standing_hip_height()
+                         + pose.pelvis_offset.y;
+    const float eye_y = drive->eye_valid
+                            ? drive->eye_point.y
+                            : stand.y + static_cast<float>(config::PLAYER_EYE_HEIGHT);
+    const anim::PostureTransit w =
+        anim::posture_transit(anim::drawn_posture(*drive), drive->posture_blend);
+    std::fprintf(stderr,
+                 "[поза-след] t=%.4f blend=%.4f take=%.4f drop=%.4f plan=%.4f "
+                 "recline=%.4f таз=%.4f глаз=%.4f\n",
+                 posture_trace_t_, static_cast<double>(drive->posture_blend),
+                 static_cast<double>(w.take), static_cast<double>(w.drop),
+                 static_cast<double>(w.plan), static_cast<double>(w.recline),
+                 static_cast<double>(pelvis_y), static_cast<double>(eye_y));
 }
 
 void App::posture_camera() {
@@ -568,7 +642,7 @@ void App::drive_seat_take() {
         const char* e = door_value("DFN_SEAT_TAKE");
         return std::string(e != nullptr ? e : "");
     }();
-    if (want.empty() || seat_take_stage_ >= 2 || mode_ != AppMode::Playing) {
+    if (want.empty() || seat_take_stage_ >= 3 || mode_ != AppMode::Playing) {
         return;
     }
     if (seat_take_frames_ == 0) {
@@ -602,20 +676,32 @@ void App::drive_seat_take() {
     }
     seat_take_seen_ = 0;
     // СИДЕТЬ ДОЛЬШЕ, ЧЕМ ИДЁТ ПЕРЕХОД, И ЗАМЕТНО. Снимок позы обязан застать
-    // блендер ДОЕХАВШИМ (POSTURE_BLEND_TIME_S = 0.18 с), а кадры считаются
-    // штуками, не секундами: при 180 кадрах в секунду 0.18 с — это 32 кадра.
-    // 240 даёт запас и на медленную машину, и на кадр, снятый позже.
+    // блендер ДОЕХАВШИМ (anim::posture_transit_s: 0.60 с сесть, 0.90 с лечь),
+    // а кадры считаются штуками, не секундами: при 230 кадрах в секунду 0.90 с
+    // — это 207 кадров (замер этого прогона). 480 даёт запас и на медленную
+    // машину, и на кадр, снятый позже; серия ФАЗ перехода снимается не здесь,
+    // а меньшими значениями DFN_SHOT_AFTER (приёмка, seat-poses.md).
     seat_take_frames_ = SEAT_TAKE_HOLD_FRAMES;
     auto* ps = world_.get<gameplay::PlayerState>(player_);
     if (ps == nullptr) {
         std::fprintf(stderr, "[поза] дверь DFN_SEAT_TAKE: игрока нет\n");
-        seat_take_stage_ = 2;
+        seat_take_stage_ = 3;
         return;
     }
-    if (seat_take_stage_ == 1) {
+    if (seat_take_stage_ == 2) {
         // ВСТАТЬ — ТОЙ ЖЕ КЛАВИШЕЙ. park_posture() снимет защёлку и поднимет.
         std::fprintf(stderr, "[поза] дверь DFN_SEAT_TAKE: жму E, чтобы встать\n");
         ps->interact_pressed = true;
+        seat_take_stage_ = 3;
+        return;
+    }
+    if (seat_take_stage_ == 1) {
+        // ПОДВОД БЫЛ РАНЬШЕ, ТЕПЕРЬ НАЖАТИЕ. Разделены намеренно, см.
+        // SEAT_TAKE_SETTLE_FRAMES: телепорт подвода — это приземление, и
+        // переход, начатый в тот же тик, стартует из проваленного таза.
+        std::fprintf(stderr, "[поза] дверь DFN_SEAT_TAKE: жму E\n");
+        ps->interact_pressed = true;
+        seat_take_frames_ = SEAT_TAKE_HOLD_FRAMES;
         seat_take_stage_ = 2;
         return;
     }
@@ -672,11 +758,12 @@ void App::drive_seat_take() {
     const SeatAimHit hit = seat_aim(best->spot.aim, eye, glm::normalize(to));
     std::fprintf(stderr,
                  "[поза] дверь DFN_SEAT_TAKE=%s: подвёл к %s, до габарита "
-                 "%.2f м, прицел %s; жму E\n",
+                 "%.2f м, прицел %s; стою %llu кадров и жму E\n",
                  want.c_str(), best->spot.source.c_str(),
                  static_cast<double>(hit.distance_m),
-                 hit.ok ? "ГОРИТ" : "МОЛЧИТ — позы не будет");
-    ps->interact_pressed = true;
+                 hit.ok ? "ГОРИТ" : "МОЛЧИТ — позы не будет",
+                 static_cast<unsigned long long>(SEAT_TAKE_SETTLE_FRAMES));
+    seat_take_frames_ = SEAT_TAKE_SETTLE_FRAMES;
     seat_take_stage_ = 1;
 }
 

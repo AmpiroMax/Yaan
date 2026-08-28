@@ -1,0 +1,396 @@
+[editor-ui] шрифт: /System/Library/Fonts/Supplemental/Arial.ttf (32 px, диапазон 0x0400-0x045F — со строчной «ё»)
+[editor-ui] знаки домешаны из /System/Library/Fonts/Apple Symbols.ttf
+[editor-ui] знаки домешаны из /System/Library/Fonts/Supplemental/Arial Unicode.ttf
+[imgui] атлас шрифта 512x1024, глифов 411
+[editor-ui] знак U+2605 ★ избранное: есть
+[editor-ui] знак U+2606 ☆ не избранное: есть
+[editor-ui] знак U+2713 ✓ отметка: есть
+[editor-ui] знак U+25B6 ▶ свёрнуто: есть
+[editor-ui] знак U+25BC ▼ раскрыто: есть
+[editor-ui] знак U+2192 → ведёт к: есть
+[editor-ui] знак U+00D7 × закрыть: есть
+[editor-ui] знак U+4E2D 中 КОНТРОЛЬ, обязан отсутствовать: НЕТ
+[render] capture from the BACKBUFFER (wireframe): a blank frame here means the display gave no drawable
+[scene] air: fog 110..380 m, cloud 0.25
+[relief] assets/scenes/whiterun.relief: 60282 правленых отсчётов, 54 троп
+[paths] 6 route(s) on this world
+[scene] 1 authored river(s), 24 station(s)
+[paths] 4863 of 77454 drawn vertices carry wear
+[звук] карта дала 284 крон -> 33 рощ, русел 1
+[scene] 17 of 38 object(s) have a -far form
+[scene] 49 lamp(s), 20 asking for a shadow; 16 light the frame, 2 of those cast
+[scene] assets/scenes/whiterun.scene: 467 of 467 placement(s) standing, 55 distinct object(s), 36 tile(s)
+[scene] spawn from the composition: (113.0, 25.2, 248.0) yaw 0.00
+[постройка] готовых домов на карте: 868 из 868
+[интерьер] оконных вставок: 0, горящих 0 (сила 12.00, тон 0.82 0.90 1.00)
+[постройка] коллайдер: сквозь дом упёрся, в стороне прошёл
+[постройка] тело: потоков 219, дверей 32 (готовых домов 868), вершин коллайдера 6583158
+[предметы] реестр физики: 35 строк
+[интерьер] дверей построек: 32 — переходов 23, заперто 9, декоративных 0
+[render] capture from the BACKBUFFER (wireframe): a blank frame here means the display gave no drawable
+[интерьер] DFN_INTERIOR=assets/scenes/int/whiterun/x90z90.scene: своя створка найдена, обратный адрес (90.9 35.6 89.7), рыск 1.25
+[интерьер] оконных вставок: 9, горящих 9 (сила 12.00, тон 0.82 0.90 1.00)
+[интерьер] свет доза 1.00: ambient 0.100 -> 0.270 0.282 0.300 (день 1.00), окно доза 1.00, огней 1
+[интерьер] прицел обратной двери: ПОЛОТНО, полотно (133.00 -998.45 136.00) 1.00x2.05 м, нормаль (-0.00 1.00), радиус 1.20 м
+[интерьер] точка входа: до полотна 0.80 м (радиус 1.20) — дверь берётся рукой
+[интерьер] переходов на локации: 1 (первый в мире 133.0 -998.4 135.7)
+[поза] точек на локации: 4 (сидений 2, лежаков 2); первая furn-bench на (132.50 -999.35 130.68), площадка 0.450 м
+[интерьер] ВХОД assets/scenes/int/whiterun/x90z90.scene за 72.6 ms
+[render] capture from the BACKBUFFER (wireframe): a blank frame here means the display gave no drawable
+[режим] сессия ИГРЫ: инструментов и панелей нет (дверь DFN_OPEN_MAP без DFN_EDITOR)
+[editor] DFN_THIRD_PERSON: третье лицо
+[поза] дверь DFN_SEAT_TAKE: доворот взгляда -18.0° тангаж, 0.0° рыск
+[cam] f=1 head 113.000 26.894 248.000  cam 113.000 27.444 251.200  want 3.247 got 3.247  outside 0  depth 0.000
+[шрифт] assets/fonts/ui_serif.fnt: 10 ступеней (11..96 px), 175 знаков
+[cam] f=2 head 113.000 26.894 248.000  cam 113.000 27.444 251.200  want 3.247 got 3.247  outside 0  depth 0.000
+[cam] f=3 head 113.000 26.894 248.000  cam 113.000 27.444 251.200  want 3.247 got 3.247  outside 0  depth 0.000
+[cam] f=4 head 133.000 -997.558 135.100  cam 133.000 -997.483 135.533  want 3.247 got 0.439  outside 0  depth 0.000
+[cam] f=5 head 133.000 -997.558 135.100  cam 133.000 -997.483 135.533  want 3.247 got 0.439  outside 0  depth 0.000
+[cam] f=6 head 133.000 -997.563 135.100  cam 133.000 -997.489 135.533  want 3.247 got 0.439  outside 0  depth 0.000
+[cam] f=7 head 133.000 -997.563 135.100  cam 133.000 -997.489 135.533  want 3.247 got 0.440  outside 0  depth 0.000
+[cam] f=8 head 133.000 -997.571 135.100  cam 133.000 -997.497 135.533  want 3.247 got 0.440  outside 0  depth 0.000
+[cam] f=9 head 133.000 -997.571 135.100  cam 133.000 -997.497 135.534  want 3.247 got 0.440  outside 0  depth 0.000
+[cam] f=10 head 133.000 -997.582 135.100  cam 133.000 -997.508 135.534  want 3.247 got 0.441  outside 0  depth 0.000
+[cam] f=11 head 133.000 -997.582 135.100  cam 133.000 -997.508 135.535  want 3.247 got 0.441  outside 0  depth 0.000
+[cam] f=12 head 133.000 -997.596 135.100  cam 133.000 -997.521 135.535  want 3.247 got 0.442  outside 0  depth 0.000
+[cam] f=13 head 133.000 -997.596 135.100  cam 133.000 -997.521 135.536  want 3.247 got 0.443  outside 0  depth 0.000
+[cam] f=14 head 133.000 -997.612 135.100  cam 133.000 -997.537 135.537  want 3.247 got 0.444  outside 0  depth 0.000
+[поза] дверь DFN_SEAT_TAKE=sit:-18: подвёл к furn-bench, до габарита 0.55 м, прицел ГОРИТ; стою 30 кадров и жму E
+[cam] f=15 head 133.000 -997.612 135.100  cam 133.000 -997.537 135.539  want 3.247 got 0.445  outside 0  depth 0.000
+[cam] f=16 head 132.500 -997.636 133.000  cam 132.500 -997.201 133.179  want 3.702 got 0.470  outside 0  depth 0.000
+[cam] f=17 head 132.500 -997.636 133.000  cam 132.500 -997.179 133.188  want 3.702 got 0.494  outside 0  depth 0.000
+[cam] f=18 head 132.500 -997.638 133.000  cam 132.500 -997.162 133.196  want 3.702 got 0.515  outside 0  depth 0.000
+[cam] f=19 head 132.500 -997.638 133.000  cam 132.500 -997.143 133.204  want 3.702 got 0.535  outside 0  depth 0.000
+[cam] f=20 head 132.500 -997.643 133.000  cam 132.500 -997.131 133.211  want 3.702 got 0.553  outside 0  depth 0.000
+[cam] f=21 head 132.500 -997.643 133.000  cam 132.500 -997.114 133.218  want 3.702 got 0.571  outside 0  depth 0.000
+[cam] f=22 head 132.500 -997.648 133.000  cam 132.500 -997.105 133.224  want 3.702 got 0.588  outside 0  depth 0.000
+[cam] f=23 head 132.500 -997.648 133.000  cam 132.500 -997.092 133.230  want 3.702 got 0.602  outside 0  depth 0.000
+[cam] f=24 head 132.500 -997.653 133.000  cam 132.500 -997.083 133.235  want 3.702 got 0.616  outside 0  depth 0.000
+[cam] f=25 head 132.500 -997.653 133.000  cam 132.500 -997.071 133.240  want 3.702 got 0.630  outside 0  depth 0.000
+[cam] f=26 head 132.500 -997.655 133.000  cam 132.500 -997.062 133.245  want 3.702 got 0.642  outside 0  depth 0.000
+[cam] f=27 head 132.500 -997.655 133.000  cam 132.500 -997.051 133.249  want 3.702 got 0.654  outside 0  depth 0.000
+[cam] f=28 head 132.500 -997.655 133.000  cam 132.500 -997.041 133.253  want 3.702 got 0.664  outside 0  depth 0.000
+[cam] f=29 head 132.500 -997.655 133.000  cam 132.500 -997.032 133.257  want 3.702 got 0.673  outside 0  depth 0.000
+[cam] f=30 head 132.500 -997.654 133.000  cam 132.500 -997.023 133.260  want 3.702 got 0.682  outside 0  depth 0.000
+[cam] f=31 head 132.500 -997.654 133.000  cam 132.500 -997.016 133.263  want 3.702 got 0.690  outside 0  depth 0.000
+[cam] f=32 head 132.500 -997.651 133.000  cam 132.500 -997.007 133.266  want 3.702 got 0.697  outside 0  depth 0.000
+[cam] f=33 head 132.500 -997.651 133.000  cam 132.500 -997.001 133.268  want 3.702 got 0.703  outside 0  depth 0.000
+[cam] f=34 head 132.500 -997.649 133.000  cam 132.500 -996.993 133.270  want 3.702 got 0.709  outside 0  depth 0.000
+[cam] f=35 head 132.500 -997.649 133.000  cam 132.500 -996.988 133.272  want 3.702 got 0.715  outside 0  depth 0.000
+[cam] f=36 head 132.500 -997.646 133.000  cam 132.500 -996.981 133.274  want 3.702 got 0.719  outside 0  depth 0.000
+[cam] f=37 head 132.500 -997.646 133.000  cam 132.500 -996.977 133.276  want 3.702 got 0.724  outside 0  depth 0.000
+[cam] f=38 head 132.500 -997.643 133.000  cam 132.500 -996.970 133.277  want 3.702 got 0.727  outside 0  depth 0.000
+[cam] f=39 head 132.500 -997.643 133.000  cam 132.500 -996.967 133.279  want 3.702 got 0.731  outside 0  depth 0.000
+[cam] f=40 head 132.500 -997.640 133.000  cam 132.500 -996.962 133.280  want 3.702 got 0.734  outside 0  depth 0.000
+[cam] f=41 head 132.500 -997.640 133.000  cam 132.500 -996.959 133.281  want 3.702 got 0.736  outside 0  depth 0.000
+[cam] f=42 head 132.500 -997.638 133.000  cam 132.500 -996.955 133.282  want 3.702 got 0.738  outside 0  depth 0.000
+[cam] f=43 head 132.500 -997.638 133.000  cam 132.500 -996.953 133.282  want 3.702 got 0.740  outside 0  depth 0.000
+[cam] f=44 head 132.500 -997.636 133.000  cam 132.500 -996.950 133.283  want 3.702 got 0.742  outside 0  depth 0.000
+[поза] дверь DFN_SEAT_TAKE: жму E
+[cam] f=45 head 132.500 -997.636 133.000  cam 132.500 -996.949 133.284  want 3.702 got 0.744  outside 0  depth 0.000
+[поза] СЕЛ на furn-bench: точка (132.50 -999.35 132.38), площадка 0.450 м, рыск -0.000; выход в (132.50 -999.34 133.10)
+[cam] f=46 head 132.500 -997.636 133.000  cam 132.500 -996.947 133.284  want 3.702 got 0.745  outside 0  depth 0.000
+[cam] f=47 head 132.500 -997.636 133.000  cam 132.500 -996.945 133.285  want 3.702 got 0.747  outside 0  depth 0.000
+[cam] f=48 head 132.500 -997.644 132.971  cam 132.500 -997.292 133.668  want 3.410 got 0.780  outside 0  depth 0.000
+[cam] f=49 head 132.500 -997.644 132.971  cam 132.500 -997.278 133.696  want 3.410 got 0.812  outside 0  depth 0.000
+[cam] f=50 head 132.500 -997.645 132.940  cam 132.500 -997.264 133.692  want 3.410 got 0.843  outside 0  depth 0.000
+[cam] f=51 head 132.500 -997.645 132.940  cam 132.500 -997.251 133.717  want 3.410 got 0.871  outside 0  depth 0.000
+[cam] f=52 head 132.500 -997.646 132.901  cam 132.500 -997.240 133.704  want 3.410 got 0.900  outside 0  depth 0.000
+[cam] f=53 head 132.500 -997.646 132.901  cam 132.500 -997.228 133.728  want 3.410 got 0.926  outside 0  depth 0.000
+[cam] f=54 head 132.500 -997.649 132.858  cam 132.500 -997.219 133.709  want 3.410 got 0.954  outside 0  depth 0.000
+[cam] f=55 head 132.500 -997.649 132.858  cam 132.500 -997.208 133.731  want 3.410 got 0.978  outside 0  depth 0.000
+[cam] f=56 head 132.500 -997.654 132.810  cam 132.500 -997.202 133.705  want 3.410 got 1.003  outside 0  depth 0.000
+[cam] f=57 head 132.500 -997.654 132.810  cam 132.500 -997.191 133.726  want 3.410 got 1.027  outside 0  depth 0.000
+[cam] f=58 head 132.500 -997.662 132.760  cam 132.500 -997.187 133.699  want 3.410 got 1.053  outside 0  depth 0.000
+[cam] f=59 head 132.500 -997.662 132.760  cam 132.500 -997.177 133.720  want 3.410 got 1.076  outside 0  depth 0.000
+[cam] f=60 head 132.500 -997.673 132.709  cam 132.500 -997.176 133.692  want 3.410 got 1.103  outside 0  depth 0.000
+[cam] f=61 head 132.500 -997.673 132.709  cam 132.500 -997.165 133.713  want 3.410 got 1.126  outside 0  depth 0.000
+[cam] f=62 head 132.500 -997.687 132.657  cam 132.500 -997.168 133.684  want 3.410 got 1.151  outside 0  depth 0.000
+[cam] f=63 head 132.500 -997.687 132.657  cam 132.500 -997.158 133.705  want 3.410 got 1.174  outside 0  depth 0.000
+[cam] f=64 head 132.500 -997.704 132.607  cam 132.500 -997.163 133.678  want 3.410 got 1.200  outside 0  depth 0.000
+[cam] f=65 head 132.500 -997.704 132.607  cam 132.500 -997.152 133.700  want 3.410 got 1.224  outside 0  depth 0.000
+[cam] f=66 head 132.500 -997.724 132.558  cam 132.500 -997.160 133.673  want 3.410 got 1.249  outside 0  depth 0.000
+[cam] f=67 head 132.500 -997.724 132.558  cam 132.500 -997.149 133.695  want 3.410 got 1.274  outside 0  depth 0.000
+[cam] f=68 head 132.500 -997.744 132.512  cam 132.500 -997.158 133.672  want 3.410 got 1.299  outside 0  depth 0.000
+[cam] f=69 head 132.500 -997.744 132.512  cam 132.500 -997.147 133.693  want 3.410 got 1.323  outside 0  depth 0.000
+[cam] f=70 head 132.500 -997.764 132.470  cam 132.500 -997.155 133.674  want 3.410 got 1.350  outside 0  depth 0.000
+[cam] f=71 head 132.500 -997.764 132.470  cam 132.500 -997.145 133.695  want 3.410 got 1.373  outside 0  depth 0.000
+[cam] f=72 head 132.500 -997.783 132.431  cam 132.500 -997.151 133.680  want 3.410 got 1.399  outside 0  depth 0.000
+[cam] f=73 head 132.500 -997.783 132.431  cam 132.500 -997.141 133.699  want 3.410 got 1.421  outside 0  depth 0.000
+[cam] f=74 head 132.500 -997.800 132.398  cam 132.500 -997.148 133.688  want 3.410 got 1.446  outside 0  depth 0.000
+[cam] f=75 head 132.500 -997.800 132.398  cam 132.500 -997.138 133.708  want 3.410 got 1.468  outside 0  depth 0.000
+[cam] f=76 head 132.500 -997.819 132.369  cam 132.500 -997.146 133.700  want 3.410 got 1.492  outside 0  depth 0.000
+[cam] f=77 head 132.500 -997.819 132.369  cam 132.500 -997.136 133.719  want 3.410 got 1.513  outside 0  depth 0.000
+[cam] f=78 head 132.500 -997.837 132.347  cam 132.500 -997.144 133.717  want 3.410 got 1.536  outside 0  depth 0.000
+[cam] f=79 head 132.500 -997.837 132.347  cam 132.500 -997.135 133.735  want 3.410 got 1.555  outside 0  depth 0.000
+[cam] f=80 head 132.500 -997.856 132.330  cam 132.500 -997.145 133.736  want 3.410 got 1.576  outside 0  depth 0.000
+[cam] f=81 head 132.500 -997.856 132.330  cam 132.500 -997.136 133.753  want 3.410 got 1.595  outside 0  depth 0.000
+[cam] f=82 head 132.500 -997.874 132.319  cam 132.500 -997.146 133.759  want 3.410 got 1.614  outside 0  depth 0.000
+[cam] f=83 head 132.500 -997.874 132.319  cam 132.500 -997.138 133.775  want 3.410 got 1.632  outside 0  depth 0.000
+[cam] f=84 head 132.500 -997.893 132.313  cam 132.500 -997.148 133.785  want 3.410 got 1.649  outside 0  depth 0.000
+[cam] f=85 head 132.500 -997.893 132.313  cam 132.500 -997.141 133.799  want 3.410 got 1.665  outside 0  depth 0.000
+[cam] f=86 head 132.500 -997.911 132.313  cam 132.500 -997.152 133.813  want 3.410 got 1.681  outside 0  depth 0.000
+[cam] f=87 head 132.500 -997.911 132.313  cam 132.500 -997.146 133.826  want 3.410 got 1.695  outside 0  depth 0.000
+[cam] f=88 head 132.500 -997.928 132.315  cam 132.500 -997.157 133.841  want 3.410 got 1.710  outside 0  depth 0.000
+[cam] f=89 head 132.500 -997.928 132.315  cam 132.500 -997.151 133.853  want 3.410 got 1.723  outside 0  depth 0.000
+[cam] f=90 head 132.500 -997.946 132.317  cam 132.500 -997.163 133.866  want 3.410 got 1.736  outside 0  depth 0.000
+[cam] f=91 head 132.500 -997.946 132.317  cam 132.500 -997.157 133.877  want 3.410 got 1.748  outside 0  depth 0.000
+[cam] f=92 head 132.500 -997.963 132.320  cam 132.500 -997.169 133.890  want 3.410 got 1.760  outside 0  depth 0.000
+[cam] f=93 head 132.500 -997.963 132.320  cam 132.500 -997.164 133.900  want 3.410 got 1.771  outside 0  depth 0.000
+[cam] f=94 head 132.500 -997.979 132.322  cam 132.500 -997.175 133.913  want 3.410 got 1.783  outside 0  depth 0.000
+[cam] f=95 head 132.500 -997.979 132.322  cam 132.500 -997.171 133.922  want 3.410 got 1.792  outside 0  depth 0.000
+[cam] f=96 head 132.500 -997.995 132.325  cam 132.500 -997.182 133.934  want 3.410 got 1.803  outside 0  depth 0.000
+[cam] f=97 head 132.500 -997.995 132.325  cam 132.500 -997.177 133.943  want 3.410 got 1.813  outside 0  depth 0.000
+[cam] f=98 head 132.500 -998.010 132.329  cam 132.500 -997.188 133.956  want 3.410 got 1.823  outside 0  depth 0.000
+[cam] f=99 head 132.500 -998.010 132.329  cam 132.500 -997.183 133.964  want 3.410 got 1.833  outside 0  depth 0.000
+[cam] f=100 head 132.500 -998.025 132.332  cam 132.500 -997.193 133.976  want 3.410 got 1.843  outside 0  depth 0.000
+[cam] f=101 head 132.500 -998.025 132.332  cam 132.500 -997.189 133.985  want 3.410 got 1.852  outside 0  depth 0.000
+[cam] f=102 head 132.500 -998.038 132.336  cam 132.500 -997.198 133.997  want 3.410 got 1.861  outside 0  depth 0.000
+[cam] f=103 head 132.500 -998.038 132.336  cam 132.500 -997.194 134.005  want 3.410 got 1.870  outside 0  depth 0.000
+[cam] f=104 head 132.500 -998.050 132.340  cam 132.500 -997.202 134.018  want 3.410 got 1.880  outside 0  depth 0.000
+[cam] f=105 head 132.500 -998.050 132.340  cam 132.500 -997.198 134.025  want 3.410 got 1.889  outside 0  depth 0.000
+[cam] f=106 head 132.500 -998.061 132.345  cam 132.500 -997.205 134.038  want 3.410 got 1.898  outside 0  depth 0.000
+[cam] f=107 head 132.500 -998.061 132.345  cam 132.500 -997.201 134.046  want 3.410 got 1.907  outside 0  depth 0.000
+[cam] f=108 head 132.500 -998.071 132.349  cam 132.500 -997.206 134.059  want 3.410 got 1.916  outside 0  depth 0.000
+[cam] f=109 head 132.500 -998.071 132.349  cam 132.500 -997.202 134.067  want 3.410 got 1.925  outside 0  depth 0.000
+[cam] f=110 head 132.500 -998.079 132.354  cam 132.500 -997.206 134.080  want 3.410 got 1.934  outside 0  depth 0.000
+[cam] f=111 head 132.500 -998.079 132.354  cam 132.500 -997.202 134.088  want 3.410 got 1.943  outside 0  depth 0.000
+[cam] f=112 head 132.500 -998.085 132.359  cam 132.500 -997.205 134.101  want 3.410 got 1.952  outside 0  depth 0.000
+[cam] f=113 head 132.500 -998.085 132.359  cam 132.500 -997.201 134.108  want 3.410 got 1.960  outside 0  depth 0.000
+[cam] f=114 head 132.500 -998.090 132.364  cam 132.500 -997.202 134.121  want 3.410 got 1.969  outside 0  depth 0.000
+[cam] f=115 head 132.500 -998.090 132.364  cam 132.500 -997.198 134.128  want 3.410 got 1.977  outside 0  depth 0.000
+[cam] f=116 head 132.500 -998.093 132.370  cam 132.500 -997.198 134.140  want 3.410 got 1.984  outside 0  depth 0.000
+[cam] f=117 head 132.500 -998.093 132.370  cam 132.500 -997.195 134.147  want 3.410 got 1.992  outside 0  depth 0.000
+[cam] f=118 head 132.500 -998.094 132.375  cam 132.500 -997.193 134.158  want 3.410 got 1.998  outside 0  depth 0.000
+[cam] f=119 head 132.500 -998.094 132.375  cam 132.500 -997.190 134.164  want 3.410 got 2.004  outside 0  depth 0.000
+[cam] f=120 head 132.500 -998.094 132.375  cam 132.500 -997.187 134.169  want 3.410 got 2.010  outside 0  depth 0.000
+[cam] f=121 head 132.500 -998.094 132.375  cam 132.500 -997.185 134.173  want 3.410 got 2.015  outside 0  depth 0.000
+[cam] f=122 head 132.500 -998.094 132.375  cam 132.500 -997.183 134.178  want 3.410 got 2.020  outside 0  depth 0.000
+[cam] f=123 head 132.500 -998.094 132.375  cam 132.500 -997.181 134.182  want 3.410 got 2.025  outside 0  depth 0.000
+[cam] f=124 head 132.500 -998.094 132.375  cam 132.500 -997.179 134.185  want 3.410 got 2.029  outside 0  depth 0.000
+[cam] f=125 head 132.500 -998.094 132.375  cam 132.500 -997.177 134.189  want 3.410 got 2.033  outside 0  depth 0.000
+[cam] f=126 head 132.500 -998.094 132.375  cam 132.500 -997.176 134.192  want 3.410 got 2.036  outside 0  depth 0.000
+[cam] f=127 head 132.500 -998.094 132.375  cam 132.500 -997.174 134.195  want 3.410 got 2.039  outside 0  depth 0.000
+[cam] f=128 head 132.500 -998.094 132.375  cam 132.500 -997.173 134.197  want 3.410 got 2.042  outside 0  depth 0.000
+[cam] f=129 head 132.500 -998.094 132.375  cam 132.500 -997.172 134.200  want 3.410 got 2.045  outside 0  depth 0.000
+[cam] f=130 head 132.500 -998.094 132.375  cam 132.500 -997.170 134.202  want 3.410 got 2.047  outside 0  depth 0.000
+[cam] f=131 head 132.500 -998.094 132.375  cam 132.500 -997.169 134.204  want 3.410 got 2.050  outside 0  depth 0.000
+[cam] f=132 head 132.500 -998.094 132.375  cam 132.500 -997.168 134.206  want 3.410 got 2.052  outside 0  depth 0.000
+[cam] f=133 head 132.500 -998.094 132.375  cam 132.500 -997.168 134.208  want 3.410 got 2.054  outside 0  depth 0.000
+[cam] f=134 head 132.500 -998.094 132.375  cam 132.500 -997.167 134.209  want 3.410 got 2.055  outside 0  depth 0.000
+[cam] f=135 head 132.500 -998.094 132.375  cam 132.500 -997.166 134.211  want 3.410 got 2.057  outside 0  depth 0.000
+[cam] f=136 head 132.500 -998.094 132.375  cam 132.500 -997.165 134.212  want 3.410 got 2.058  outside 0  depth 0.000
+[cam] f=137 head 132.500 -998.094 132.375  cam 132.500 -997.165 134.213  want 3.410 got 2.060  outside 0  depth 0.000
+[cam] f=138 head 132.500 -998.094 132.375  cam 132.500 -997.164 134.214  want 3.410 got 2.061  outside 0  depth 0.000
+[cam] f=139 head 132.500 -998.094 132.375  cam 132.500 -997.164 134.215  want 3.410 got 2.062  outside 0  depth 0.000
+[cam] f=140 head 132.500 -998.094 132.375  cam 132.500 -997.163 134.216  want 3.410 got 2.063  outside 0  depth 0.000
+[cam] f=141 head 132.500 -998.094 132.375  cam 132.500 -997.163 134.217  want 3.410 got 2.064  outside 0  depth 0.000
+[cam] f=142 head 132.500 -998.094 132.375  cam 132.500 -997.162 134.218  want 3.410 got 2.065  outside 0  depth 0.000
+[cam] f=143 head 132.500 -998.094 132.375  cam 132.500 -997.162 134.219  want 3.410 got 2.066  outside 0  depth 0.000
+[cam] f=144 head 132.500 -998.094 132.375  cam 132.500 -997.162 134.219  want 3.410 got 2.067  outside 0  depth 0.000
+[cam] f=145 head 132.500 -998.094 132.375  cam 132.500 -997.161 134.220  want 3.410 got 2.068  outside 0  depth 0.000
+[cam] f=146 head 132.500 -998.094 132.375  cam 132.500 -997.161 134.221  want 3.410 got 2.068  outside 0  depth 0.000
+[cam] f=147 head 132.500 -998.094 132.375  cam 132.500 -997.161 134.221  want 3.410 got 2.069  outside 0  depth 0.000
+[cam] f=148 head 132.500 -998.094 132.375  cam 132.500 -997.160 134.222  want 3.410 got 2.069  outside 0  depth 0.000
+[cam] f=149 head 132.500 -998.094 132.375  cam 132.500 -997.160 134.222  want 3.410 got 2.070  outside 0  depth 0.000
+[cam] f=150 head 132.500 -998.094 132.375  cam 132.500 -997.160 134.223  want 3.410 got 2.070  outside 0  depth 0.000
+[cam] f=151 head 132.500 -998.094 132.375  cam 132.500 -997.160 134.223  want 3.410 got 2.071  outside 0  depth 0.000
+[cam] f=152 head 132.500 -998.094 132.375  cam 132.500 -997.160 134.223  want 3.410 got 2.071  outside 0  depth 0.000
+[cam] f=153 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.224  want 3.410 got 2.072  outside 0  depth 0.000
+[cam] f=154 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.224  want 3.410 got 2.072  outside 0  depth 0.000
+[cam] f=155 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.224  want 3.410 got 2.072  outside 0  depth 0.000
+[cam] f=156 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.225  want 3.410 got 2.073  outside 0  depth 0.000
+[cam] f=157 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.225  want 3.410 got 2.073  outside 0  depth 0.000
+[cam] f=158 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.225  want 3.410 got 2.073  outside 0  depth 0.000
+[cam] f=159 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.225  want 3.410 got 2.073  outside 0  depth 0.000
+[cam] f=160 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.225  want 3.410 got 2.073  outside 0  depth 0.000
+[cam] f=161 head 132.500 -998.094 132.375  cam 132.500 -997.159 134.226  want 3.410 got 2.074  outside 0  depth 0.000
+[cam] f=162 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.226  want 3.410 got 2.074  outside 0  depth 0.000
+[cam] f=163 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.226  want 3.410 got 2.074  outside 0  depth 0.000
+[cam] f=164 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.226  want 3.410 got 2.074  outside 0  depth 0.000
+[cam] f=165 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.226  want 3.410 got 2.074  outside 0  depth 0.000
+[cam] f=166 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.226  want 3.410 got 2.074  outside 0  depth 0.000
+[cam] f=167 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.226  want 3.410 got 2.074  outside 0  depth 0.000
+[cam] f=168 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.226  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=169 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.226  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=170 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=171 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=172 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=173 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=174 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=175 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=176 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=177 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=178 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=179 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=180 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=181 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=182 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=183 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=184 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=185 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.075  outside 0  depth 0.000
+[cam] f=186 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=187 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=188 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=189 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=190 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=191 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=192 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=193 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=194 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=195 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=196 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=197 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=198 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=199 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=200 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=201 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=202 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=203 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=204 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=205 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=206 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=207 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=208 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=209 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=210 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=211 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=212 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=213 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=214 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=215 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=216 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=217 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=218 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=219 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=220 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=221 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=222 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=223 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=224 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=225 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=226 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=227 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=228 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=229 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=230 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=231 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=232 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=233 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=234 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=235 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=236 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=237 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=238 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=239 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=240 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=241 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=242 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=243 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=244 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=245 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=246 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=247 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=248 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=249 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=250 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=251 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=252 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=253 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=254 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=255 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=256 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=257 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=258 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=259 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=260 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=261 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=262 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=263 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=264 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=265 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=266 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=267 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=268 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=269 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=270 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=271 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=272 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=273 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=274 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=275 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=276 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=277 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=278 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=279 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=280 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=281 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=282 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=283 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=284 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=285 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=286 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=287 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=288 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=289 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=290 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=291 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=292 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=293 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=294 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=295 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=296 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=297 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=298 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=299 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=300 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[capture] /private/tmp/claude-501/-Users-ampiro-programs-Daggerfall-N/4d083365-5ba1-420d-981b-e2e6b2f41448/scratchpad/posecam/sit-third-after/capture_000.png + .txt
+# Daggerfall N state capture
+# Restore with: DFN_RESTORE=<this file> DFN_MENU=0 ./dfn_app
+captured_at = 28:08:2026 - 18:04:27
+build_commit = 18fb8b9+dirty
+stand = 3
+seed = 1
+game_seconds = 869.000000
+day_fraction = 0.301736
+lunar_phase = 0.010776
+pos_x = 132.500000
+pos_y = -997.157593
+pos_z = 134.227432
+yaw = 0.000000
+pitch = -0.314159
+look_x = 0.000000
+look_y = -0.309017
+look_z = -0.951057
+speed_mps = 0.000000
+vertical_velocity = 0.000000
+stride_phase = 0.000000
+gait = 0
+locomotion = 0
+grounded = 1
+crouched = 0
+water_depth = 0.000000
+internal_w = 1920
+internal_h = 1080
+fov_y_rad = 1.309000
+head_bob = 1.000000
+palette_post = 0
+wind_strength = 0.419539
+cloud_cover = 0.250000
+ambient_darkness = 0.000000
+fps = 120.052
+frame_ms = 8.330
+frame_ms_worst = 8.754
+chunks_resident = 1
+lod_nodes = 0
+[chat] appended to assets/maps/cities/whiterun.chat.jsonl: {"t":869.000000,"who":"human","capture":"/private/tmp/claude-501/-Users-ampiro-programs-Daggerfall-N/4d083365-5ba1-420d-981b-e2e6b2f41448/scratchpad/posecam/sit-third-after/capture_000.png","date":"28:08:2026 - 18:04:27"}
+[cam] f=301 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[render] capture from the BACKBUFFER (wireframe): a blank frame here means the display gave no drawable
+[cam] f=302 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=303 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=304 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=305 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=306 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] f=307 head 132.500 -998.094 132.375  cam 132.500 -997.158 134.227  want 3.410 got 2.076  outside 0  depth 0.000
+[cam] ИТОГ: кадров 307, камера за оболочкой на 0, худший заход 0.000 м, щуп ВКЛ
+[поза] ВСТАЛ в (132.50 -999.34 133.10)

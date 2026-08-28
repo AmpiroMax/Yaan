@@ -20,12 +20,15 @@ AI Agents Notice (must follow):
 /*
 UPD:
 - 27:08:2026 - 11:33:08: Заведён вместе с заголовком.
+- 28:08:2026 - 17:50:00: camera_boom_perch — начало стрелы над телом, лежащим
+  на мебели (первый хвост сдачи зоны «сидеть и лежать»).
 */
 
 #include "engine/gameplay/sources/CameraBoom.h"
 
 #include <algorithm>
 #include <cmath>
+#include <glm/common.hpp>
 
 namespace dfn::gameplay {
 namespace {
@@ -70,6 +73,23 @@ platform::RayHit camera_boom_sweep(const platform::IPhysics& physics, const glm:
                                    const CameraBoomAim& aim, const CameraBoomDesc& d,
                                    platform::CollisionMask mask) {
     return physics.sphere_cast(head, aim.direction, d.probe_radius, aim.reach, mask);
+}
+
+CameraBoomPerch camera_boom_perch(const glm::vec3& eye, float pitch,
+                                  const glm::vec3& perch, float pitch_cap,
+                                  float weight) {
+    CameraBoomPerch out{eye, pitch};
+    const float w = std::clamp(weight, 0.0f, 1.0f);
+    if (w <= 0.0f) {
+        // НУЛЕВАЯ ДОЛЯ — ЭТО БИТ-В-БИТ ПРЕЖНЯЯ КАМЕРА, и проверяется это
+        // тестом: стоящий игрок обязан получить ровно свой глаз и ровно свой
+        // тангаж, иначе правка позы тихо переехала бы всему третьему лицу.
+        return out;
+    }
+    const glm::vec3 above{perch.x, std::max(perch.y, eye.y), perch.z};
+    out.origin = glm::mix(eye, above, w);
+    out.pitch = glm::mix(pitch, std::min(pitch, pitch_cap), w);
+    return out;
 }
 
 float camera_boom_step(CameraBoomState& state, float free_length, float dt,

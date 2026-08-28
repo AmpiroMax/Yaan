@@ -27,11 +27,15 @@ UPD:
 
 #include <cmath>
 
+#include <glm/vec3.hpp>
+
 using dfn::gameplay::CameraBoomDesc;
 using dfn::gameplay::CameraBoomState;
 using dfn::gameplay::camera_boom_aim;
 using dfn::gameplay::camera_boom_free_length;
+using dfn::gameplay::camera_boom_perch;
 using dfn::gameplay::camera_boom_step;
+using dfn::gameplay::POSTURE_BOOM_PITCH_MAX;
 using dfn::platform::RayHit;
 
 TEST_CASE("стрела смотрит НАЗАД и ВВЕРХ, и её длина зависит от тангажа") {
@@ -136,4 +140,62 @@ TEST_CASE("сглаживание НЕСИММЕТРИЧНО: укорочени
         vb = camera_boom_step(b, reach, 1.0f / 60.0f, d);
     }
     CHECK(va == doctest::Approx(vb).epsilon(1e-3));
+}
+
+TEST_CASE("в позе стрела начинается НАД ТЕЛОМ, а не в глазу у матраса") {
+    // ЧИСЛА ЛОКАЦИИ ПРИЁМКИ (x90z90, кровать реестра furn-bed): пол комнаты на
+    // 0, матрас на 0.50, ВЕРХ ПРЕДМЕТА — столбики изголовья — на 1.14 (замер
+    // из assets/houses/INDEX.txt), глаз лежащего на 0.751. Насест считает app
+    // по габариту предмета: 1.14 + радиус щупа 0.25 + отступ 0.05 = 1.44.
+    const glm::vec3 eye_lie{2.0f, 0.751f, 5.0f};
+    const glm::vec3 perch{2.0f, 1.44f, 5.30f}; // над серединой кровати
+    const float looking_up = 1.0f;             // лежащий смотрит в потолок
+
+    // НУЛЕВАЯ ДОЛЯ — ПРЕЖНЯЯ КАМЕРА БИТ-В-БИТ. Без этого плеча правка поз
+    // тихо переехала бы всему третьему лицу (Rule 48).
+    const auto none = camera_boom_perch(eye_lie, looking_up, perch, POSTURE_BOOM_PITCH_MAX, 0.0f);
+    CHECK(none.origin.x == doctest::Approx(eye_lie.x));
+    CHECK(none.origin.y == doctest::Approx(eye_lie.y));
+    CHECK(none.origin.z == doctest::Approx(eye_lie.z));
+    CHECK(none.pitch == doctest::Approx(looking_up));
+
+    // И ВОТ ТА САМАЯ НАХОДКА, ИЗ-ЗА КОТОРОЙ ЭТА ФУНКЦИЯ ЕСТЬ: щуп от глаза
+    // лежащего идёт ВНИЗ (потому что «назад по взгляду», а взгляд в потолок),
+    // то есть в матрас. Отрицательное плечо предъявляется здесь числом.
+    const CameraBoomDesc d;
+    CHECK(camera_boom_aim(0.0f, none.pitch, d).direction.y < 0.0f);
+
+    // ПОЛНАЯ ДОЛЯ: начало над предметом, и стрела идёт ВВЕРХ-НАЗАД.
+    const auto full = camera_boom_perch(eye_lie, looking_up, perch, POSTURE_BOOM_PITCH_MAX, 1.0f);
+    CHECK(full.origin.y == doctest::Approx(1.44f));
+    CHECK(full.origin.z == doctest::Approx(5.30f));
+    CHECK(full.pitch == doctest::Approx(POSTURE_BOOM_PITCH_MAX));
+    CHECK(camera_boom_aim(0.0f, full.pitch, d).direction.y > 0.0f);
+    // Начало поднялось ВЫШЕ СТОЛБИКОВ на радиус щупа с отступом — сфера щупа
+    // начинает свободной от самой кровати, а это и было причиной схлопывания.
+    CHECK(full.origin.y - 1.14f >= d.probe_radius + d.margin);
+
+    // ...И У СИДЯЩЕГО НИЧЕГО НЕ ПОДНИМАЕТСЯ. Его глаз (1.26 над полом) и так
+    // выше верха лавки (0.45 + 0.30 = 0.75), а поднимать камеру там незачем:
+    // кадр сидящего снят до этой волны и обязан остаться прежним по высоте.
+    const glm::vec3 eye_sit{2.0f, 1.261f, 5.0f};
+    const glm::vec3 bench{2.0f, 0.75f, 5.10f};
+    // ...И ТАНГАЖ СИДЯЩЕМУ НЕ ТРОГАЮТ: app выдаёт ему потолком предел камеры,
+    // то есть ничего. Проверяется тем же вызовом с тем же смыслом — «потолок,
+    // который не связывает».
+    const auto sit = camera_boom_perch(eye_sit, -0.3f, bench, 1.5f, 1.0f);
+    CHECK(sit.origin.y == doctest::Approx(eye_sit.y));
+    CHECK(sit.pitch == doctest::Approx(-0.3f));
+
+    // ПОТОЛОК — ИМЕННО ПОТОЛОК: смотреть НИЖЕ (то есть подниматься выше над
+    // телом) он не мешает. Иначе это был бы фиксированный ракурс, а не обвод.
+    CHECK(camera_boom_perch(eye_lie, -0.9f, perch, POSTURE_BOOM_PITCH_MAX, 1.0f).pitch
+          == doctest::Approx(-0.9f));
+
+    // Середина — между концами: вход в позу не дёргает камеру.
+    const auto half = camera_boom_perch(eye_lie, looking_up, perch, POSTURE_BOOM_PITCH_MAX, 0.5f);
+    CHECK(half.origin.y > eye_lie.y);
+    CHECK(half.origin.y < full.origin.y);
+    CHECK(half.pitch < looking_up);
+    CHECK(half.pitch > full.pitch);
 }

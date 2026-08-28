@@ -3544,6 +3544,18 @@ void App::become_player_from_editor() {
 // критерий, проходящий при нулевой дозе, меряет другую систему). Читается один
 // раз и защёлкивается: доза, меняющаяся посреди прогона, делает две половины
 // ленты несравнимыми.
+// ДОЗА НАСЕСТА. DFN_POSTURE_CAM=0 возвращает стрелу в глаз позы и снимает
+// потолок тангажа — то есть даёт РОВНО ту камеру, на которой волна поз нашла
+// схлопывание. Читается один раз и защёлкивается: доза, меняющаяся посреди
+// прогона, делает две половины ленты несравнимыми.
+bool App::posture_cam_enabled() {
+    static const bool on = [] {
+        const char* v = door_value("DFN_POSTURE_CAM");
+        return !(v != nullptr && v[0] == '0');
+    }();
+    return on;
+}
+
 bool App::cam_collide_enabled() const {
     static const bool on = [] {
         const char* v = door_value("DFN_CAM_COLLIDE");
@@ -5039,6 +5051,7 @@ int App::run() {
                 // значило бы читать позу прошлого тика. Стоит ДО update_hover,
                 // потому что луч перекрестья обязан идти из того же глаза.
                 posture_camera();
+                posture_trace_step(static_cast<float>(timestep_.step_dt()));
 
                 // Invariant checks AFTER post_step; an incident screenshots.
                 if (playtest_ && !playtest_->finished) {
@@ -5144,8 +5157,30 @@ int App::run() {
                 // ТЕКУЩЕЙ головы, и полученная длина применяется и к prev, и к
                 // curr: два конца, посчитанные независимо, дали бы отрезок, чья
                 // середина при alpha=0.5 лежит там, где не мерил никто.
-                const auto aim1 = gameplay::camera_boom_aim(y1, p1, cam_boom_desc_);
-                const auto aim0 = gameplay::camera_boom_aim(y0, p0, cam_boom_desc_);
+                // НАЧАЛО СТРЕЛЫ У ТЕЛА НА МЕБЕЛИ — НЕ ГЛАЗ ПОЗЫ. Глаз
+                // лежащего стоит в 0.25 м над матрасом, и сфера щупа радиусом
+                // 0.25 начинала ВНУТРИ кровати: коллизия честно прижимала
+                // стрелу к нулю, и третье лицо схлопывалось в первое (находка
+                // волны поз). Точка над предметом считается при посадке
+                // (posture_perch_), смешивается долей позы и здесь только
+                // читается; заодно она же — центр обвода, оттого лежащего
+                // камера обходит сверху-сбоку, а не ныряет к нему в матрас.
+                gameplay::CameraBoomPerch perch1{pose->position, p1};
+                gameplay::CameraBoomPerch perch0{prev_pose->position, p0};
+                if (posture_perch_valid_ && posture_cam_enabled()) {
+                    const auto* drv = world_.get<anim::BodyDrive>(player_);
+                    const float pw = drv != nullptr ? drv->posture_blend : 0.0f;
+                    perch1 = gameplay::camera_boom_perch(pose->position, p1,
+                                                         posture_perch_,
+                                                         posture_pitch_cap_, pw);
+                    perch0 = gameplay::camera_boom_perch(prev_pose->position, p0,
+                                                         posture_perch_,
+                                                         posture_pitch_cap_, pw);
+                }
+                const auto aim1 = gameplay::camera_boom_aim(y1, perch1.pitch,
+                                                            cam_boom_desc_);
+                const auto aim0 = gameplay::camera_boom_aim(y0, perch0.pitch,
+                                                            cam_boom_desc_);
                 float length = aim1.reach;
                 if (physics_ != nullptr && cam_collide_enabled()) {
                     // ТОЛЬКО СТАТИКА. Оболочка дома и земля — LAYER_STATIC (у
@@ -5153,7 +5188,7 @@ int App::run() {
                     // и створки лежат на LAYER_INTERACTABLE, и брать их в щуп
                     // значит дёргать камеру о каждый оброненный факел.
                     const platform::RayHit sweep = gameplay::camera_boom_sweep(
-                        *physics_, pose->position, aim1, cam_boom_desc_,
+                        *physics_, perch1.origin, aim1, cam_boom_desc_,
                         physics::LAYER_STATIC);
                     length = gameplay::camera_boom_free_length(sweep, aim1.reach,
                                                                cam_boom_desc_);
@@ -5161,10 +5196,13 @@ int App::run() {
                 length = gameplay::camera_boom_step(cam_boom_, length,
                                                     static_cast<float>(frame_dt),
                                                     cam_boom_desc_);
-                const glm::vec3 cam1 = pose->position + aim1.direction * length;
-                const glm::vec3 cam0 = prev_pose->position + aim0.direction * length;
-                camera_.set_poses({cam0, y0, p0}, {cam1, y1, p1});
-                cam_probe_step(pose->position, cam1, length, aim1);
+                const glm::vec3 cam1 = perch1.origin + aim1.direction * length;
+                const glm::vec3 cam0 = perch0.origin + aim0.direction * length;
+                // И КАДР СНИМАЕТСЯ ТЕМ ЖЕ ТАНГАЖОМ, КОТОРЫМ СЧИТАНА СТРЕЛА.
+                // Иначе камера, поднятая над лежащим, смотрела бы туда же,
+                // куда он, — в потолок, мимо собственного тела.
+                camera_.set_poses({cam0, y0, perch0.pitch}, {cam1, y1, perch1.pitch});
+                cam_probe_step(perch1.origin, cam1, length, aim1);
             } else {
                 cam_boom_.length = -1.0f; // вид выключен: стрела заводится заново
                 camera_.set_poses({prev_pose->position, prev_pose->yaw, prev_pose->pitch},

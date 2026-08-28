@@ -218,11 +218,14 @@ LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
     // приземления при этом уже наложены — они и должны гаснуть вместе со
     // стоячей рукой, а не сохраняться под сидящим.
     if (drive.posture_blend > 0.0f) {
-        const LocalPose target =
-            drive.posture == Posture::Lie
-                ? lie_pose(rig, drive.posture_height_m)
-                : sit_pose(rig, drive.posture_height_m);
-        pose = blend(pose, target, drive.posture_blend);
+        // ПЕРЕХОД — ДВИЖЕНИЕ, А НЕ КРОССФЕЙД. Поза спрашивается на ПОЛПУТИ
+        // (posture_pose с долями перехода): таз едет по дуге, двузвенник
+        // решается заново на каждой его высоте. Смешивание с живым слоем
+        // кончается рано, долей `take`, — дальше тело ведёт траектория.
+        const Posture shown = drawn_posture(drive);
+        const PostureTransit w = posture_transit(shown, drive.posture_blend);
+        const LocalPose target = posture_pose(rig, shown, drive.posture_height_m, w);
+        pose = blend(pose, target, w.take);
     }
     // LAST, after every layer: crouch and the landing dip both drive the knees,
     // and a blend of two legal poses is not automatically legal.
@@ -232,8 +235,13 @@ LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
 
 BodyRoot body_root_for(const BodyDrive& drive, const glm::vec3& standing_ground) {
     BodyRoot root{standing_ground, drive.facing_yaw};
-    const float w = std::clamp(drive.posture_blend, 0.0f, 1.0f);
-    if (w <= 0.0f) {
+    // МЕСТО И РЫСК ИДУТ СВОЕЙ ДОЛЕЙ, А НЕ ВРЕМЕНЕМ. У сиденья `plan`
+    // ОПЕРЕЖАЕТ спуск таза: человек сначала оказывается над лавкой и уже
+    // потом опускается — та самая дуга, которой заказ просит вместо прямой.
+    const float w = std::clamp(posture_transit(drawn_posture(drive),
+                                               drive.posture_blend).plan,
+                               0.0f, 1.0f);
+    if (drive.posture_blend <= 0.0f || w <= 0.0f) {
         return root;
     }
     root.ground = glm::mix(standing_ground, drive.posture_ground, w);
@@ -343,11 +351,23 @@ void update_bodies(ecs::World& world, const Rig& rig) {
         // истинным навсегда после первого вставания, и камера продолжала бы
         // читать глаз позы, из которой человек вышел.
         {
+            // ЧТО РИСУЕМ — РЕШАЕТСЯ ДО ШАГА. Заявка гаснет раньше картинки, и
+            // поза, из которой человек встаёт, обязана дожить до нуля
+            // блендера: иначе вставание с кровати шло бы через сидячую позу.
+            if (drive.posture != Posture::None) {
+                drive.posture_shown = drive.posture;
+            }
             const float want = drive.posture == Posture::None ? 0.0f : 1.0f;
-            const float step = dt / POSTURE_BLEND_TIME_S;
+            // ДЛИТЕЛЬНОСТЬ — СВОЙСТВО ПОЗЫ (сесть 0.60 с, лечь 0.90 с), и
+            // спрашивается она у НАРИСОВАННОЙ: на выходе заявки уже нет, а
+            // встают с кровати дольше, чем с лавки.
+            const float step = dt / posture_transit_s(drawn_posture(drive));
             drive.posture_blend = drive.posture_blend < want
                                       ? std::min(want, drive.posture_blend + step)
                                       : std::max(want, drive.posture_blend - step);
+            if (drive.posture_blend <= 0.0f && drive.posture == Posture::None) {
+                drive.posture_shown = Posture::None;
+            }
         }
         if (drive.showcase_clip != SHOWCASE_NONE) {
             drive.showcase_time_s += dt;
