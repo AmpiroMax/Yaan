@@ -17,7 +17,7 @@ Key items:
 - ToolPreview: what the tool wants drawn in the world while it is in hand.
 - ToolStatus: what the badge under the crosshair says right now.
 
-WHY THIS EXISTS (docs/AUDIT_EDITOR_TOOLS.md, user 18.08.2026): «у меня
+WHY THIS EXISTS (docs/audits/AUDIT_EDITOR_TOOLS.md, user 18.08.2026): «у меня
 серьезная настроенность в том, что текущий код инструментов стал спагетти
 кодом. У тебя нет отдельного класса под инструменты, нет четких интерфейсов
 взаимодействия и прочее. Если бы они были, нельзя бы было поймать ошибки, что я

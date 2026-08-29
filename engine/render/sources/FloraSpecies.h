@@ -388,7 +388,7 @@ inline constexpr glm::vec3 GRASS_BAND_REFERENCE{0.30f, 0.42f, 0.18f};
 /// (LEAF_CLUSTERS_PER_CROWN of LEAF_CLUSTER_RADIUS_FRAC crown radii) instead
 /// of the 36-40 confetti clusters of 0.22-0.25 that were the mechanism of the
 /// user's «листва как наждачка». `DFN_FLORA_PACKS=0` is the zero-dose arm.
-/// Derivation of both numbers: docs/TREE_MODELS_RESEARCH.md §1.1/§1.2/§1.7
+/// Derivation of both numbers: docs/research/TREE_MODELS_RESEARCH.md §1.1/§1.2/§1.7
 /// and the two NUMBERS rows. Same Rule 48 shape as every other door here.
 [[nodiscard]] bool flora_pack_arm();
 

@@ -19,7 +19,7 @@ Key items:
 
 Dependencies:
 - Uses: tools/archive_frame.read_png (stdlib zlib/struct) only.
-- Used by: docs/reports/interior-light-28-08.html.
+- Used by: artifacts/reports/interior-light-28-08.html.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -52,11 +52,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from archive_frame import read_png  # noqa: E402
 
 # Порог читаемости: шаг 64-цветной палитры равен 255/12.75 ~= 20 люма
-# (docs/FINDING_DUNGEON_DARK.md меряет ровно им). Пиксель ниже одного шага от
+# (docs/findings/FINDING_DUNGEON_DARK.md меряет ровно им). Пиксель ниже одного шага от
 # нуля неотличим от чёрного на глаз и на любом мониторе игрока.
 READABLE = 20.0
 
-# ЗАМЕРЕННАЯ ПОЛОСА SKYRIM (docs/reports/interior-light-28-08.html §1): медиана
+# ЗАМЕРЕННАЯ ПОЛОСА SKYRIM (artifacts/reports/interior-light-28-08.html §1): медиана
 # ЯРКОСТИ КАДРА по десяти интерьерам Вайтрана после sRGB-декода — 0.024..0.100
 # линейных, и НИ ОДИН из десяти не садится в настоящий чёрный (первая
 # процентиль 0.001..0.007). Контраст p95/p05 в комнатах, где хозяин кадра

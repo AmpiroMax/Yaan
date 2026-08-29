@@ -157,7 +157,7 @@ struct GroundRelief {
 /// property of the same disc, and one the §10.1 octaves barely move.
 ///
 /// Even that is used only ONCE, to choose the pinned standpoints recorded in
-/// `docs/acceptance/`; both arms of a before/after then read those same
+/// `artifacts/acceptance/`; both arms of a before/after then read those same
 /// coordinates. Returned in ascending trend slope, ties broken by scan order.
 [[nodiscard]] std::vector<glm::vec2> flattest_legal_standpoints(const WorldGenContext& ctx,
                                                                 std::size_t count,

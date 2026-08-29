@@ -4,7 +4,7 @@ File: tools/quality/measure_surface.py
 
 Responsibility:
 - ПРИБОР ПРИЁМКИ ПОВЕРХНОСТИ, критерии К1-К6 ТЗ материалов
-  (docs/reports/materials-spec/index.html §2). Мерит УЧАСТОК ОДНОГО ВЕЩЕСТВА
+  (artifacts/reports/materials-spec/index.html §2). Мерит УЧАСТОК ОДНОГО ВЕЩЕСТВА
   на кадре, а не кадр целиком: иначе яркий очаг вытянет среднее и спрячет
   плоскую стену рядом.
     К1 СТРУКТУРА    ДЕТАЛЬ >= 4.0 (матовое вещество) | поведение блика (гладкое)
@@ -23,7 +23,7 @@ Responsibility:
 Волна фаски перевела черновик в штатный прибор: разбор ключей, рукав в ctest,
 контрольные руки, ветвь гладких веществ и К4 из геометрии.
 
-РАСХОЖДЕНИЕ Р1 (docs/reports/materials-divergence, принято координатором
+РАСХОЖДЕНИЕ Р1 (artifacts/reports/materials-divergence, принято координатором
 28.08) — ПОЧЕМУ У К1 ДВЕ ВЕТВИ. Порог ДЕТАЛЬ >= 4.0 выведен на МАТОВЫХ
 участках и честен только там. У гладкого вещества — полированного золота,
 стекла, льда, стоячей воды, свежей побелки — локальной детальности почти нет
@@ -52,7 +52,7 @@ Dependencies:
 - Uses: tools/quality/png_read.py (декодер PNG на zlib), numpy СИСТЕМНОГО
   питона (окружение music не требуется: прибор зовётся из тестов).
 - Used by: рукав ctest quality_surface_selftest, приёмка волн материалов,
-  отчёты docs/reports/*.
+  отчёты artifacts/reports/*.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.

@@ -16,7 +16,7 @@
 #       city-manor, храм city-temple, ратуша city-keep-s), у стены и в
 #       предместьях солома (city-house-s/-old, city-barn-old). У Вайтрана
 #       солома — основная кровля города, и это видно с воздуха.
-#   (2) ПОСАДКА — чертёж docs/CORNHALL_PLAN.json: правильное кольцо-овал,
+#   (2) ПОСАДКА — чертёж docs/cities/CORNHALL_PLAN.json: правильное кольцо-овал,
 #       рыночная УЛИЦА вместо площади, щель фасадного ряда GAP_M 0.2 против
 #       0.35, поворот ±4 гр., бургажная полоса 12-20 м.
 #   (3) ОГОНЬ — палитра LIGHT по типам та же, но раскладка ГНЁЗДАМИ (правила
@@ -154,7 +154,7 @@
 # ПАСПОРТ: КАРТА, ЧЕРТЁЖ, ВЫХОД
 # =============================================================================
 NAME = "cornhall"
-PLAN_PATH = "docs/CORNHALL_PLAN.json"
+PLAN_PATH = "docs/cities/CORNHALL_PLAN.json"
 
 # КАРТА СВОЕГО РАЗМЕРА (решение владельца №1 эпохи). Пятно города 340x300 —
 # втрое больше вайтрановского, и на 256 м оно не помещается вместе с
@@ -196,7 +196,7 @@ RELIEF_HEADER = ("# Daggerfall N relief — Корнхолл: равнина, р
 MAP_TITLE = "Житнов: город на хлебной равнине"
 MAP_ZONE = "cities"  # 25.08: города переехали в категорию cities (заказ владельца), демки houses/ сняты
 MAP_NOTE = ("# Житнов (в конвейере cornhall) — пилот эпохи «12 городов» "
-            "(docs/CORNHALL_PLAN.html).")
+            "(docs/cities/CORNHALL_PLAN.html).")
 MAP_SOURCE = "stand:Gallery"
 MAP_OBJECTS = ("assets/objects/parts;assets/objects/signs;"
                "assets/objects/trees;assets/objects/glade;"

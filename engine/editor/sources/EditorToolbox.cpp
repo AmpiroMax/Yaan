@@ -14,7 +14,7 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - select() is the only writer of active_. Keep it that way: the moment there
   are two, on_deselected has two callers and one of them will be forgotten —
-  which is the whole finding of docs/AUDIT_EDITOR_TOOLS.md.
+  which is the whole finding of docs/audits/AUDIT_EDITOR_TOOLS.md.
 */
 
 #include "engine/editor/sources/EditorToolbox.h"

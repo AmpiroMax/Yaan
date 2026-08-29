@@ -5,7 +5,7 @@ File: engine/world/sources/HouseGraph.h
 Responsibility:
 - ПОСТРОЙКА КАК ГИПЕРГРАФ. Вершины (якоря) и элементы (гиперрёбра), которые
   ссылаются на УПОРЯДОЧЕННЫЙ список вершин. Устройство целиком описано в
-  docs/DESIGN_HOUSE_GRAPH.md; здесь — только то, что уже написано кодом.
+  docs/audits/DESIGN_HOUSE_GRAPH.md; здесь — только то, что уже написано кодом.
 
 Key items:
 - Vertex / Element / HouseGraph: данные и операции над ними.

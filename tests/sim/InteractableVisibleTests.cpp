@@ -538,7 +538,7 @@ TEST_CASE("a lever throws its handle when used") {
 
 TEST_CASE("a settled door is STILL, not sweeping between its last two frames") {
     // The run-smear defect, one component over
-    // (docs/FINDING_RUN_SMEAR.md). Render interpolates PreviousTransform ->
+    // (docs/findings/FINDING_RUN_SMEAR.md). Render interpolates PreviousTransform ->
     // Transform with alpha sweeping 0..1 inside every tick, so a pair left
     // DISAGREEING is not a still object: it is an object that sweeps between
     // two poses for ever, at whatever the frame rate is. The swing's final tick

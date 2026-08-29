@@ -3,7 +3,7 @@ Module: engine/world
 File: engine/world/sources/WorldgenGreatOak.h
 
 Responsibility:
-- THE GREAT OAK'S PLACEMENT (docs/GIANT_OAKS.md §2, core's half): where the
+- THE GREAT OAK'S PLACEMENT (docs/research/GIANT_OAKS.md §2, core's half): where the
   landmark trees stand, how far apart they must be, and the clearing each one
   needs. Every quantity here is DERIVED from an approved constant — none of
   them is a density or a coordinate anybody chose.

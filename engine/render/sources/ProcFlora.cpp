@@ -1400,7 +1400,7 @@ glm::vec3 build_trunk(MeshData& m, Tree& t, glm::vec3 base, float height,
     // and they are STRAIGHT AND TIPPED, not curved — while Weber & Penn give
     // every species trunk Curve = 0 with only a SIGN-ALTERNATING wander
     // (0CurveV) that partially cancels itself, and every studied open model
-    // holds its bole near its own chord (docs/TREE_MODELS_RESEARCH.md
+    // holds its bole near its own chord (docs/research/TREE_MODELS_RESEARCH.md
     // §1.7/§1.8). So, for the LIVE CANOPY species only:
     //   - the wind LEAN becomes a RIGID-BODY TILT of the whole bole (the
     //     band TREE_LEAN_WIND is untouched and now arrives at the top as
@@ -1937,8 +1937,8 @@ void build_cone_shell(MeshData& m, Tree& t) {
 /// DEFERRED, NOT MINE TO FIX TODAY, AND TWO OF THE THREE SUSPECTS ARE ALREADY
 /// ELIMINATED HERE (lead, 12.08.2026, off the acceptance frames):
 /// **the distant canopy reads WHITE while the near canopy reads dark green.**
-/// Visible on docs/acceptance/flora-great-oak-far-*.png and on
-/// docs/acceptance/core-A1-lowland-900m-AFTER-*.png, where the treeline is a
+/// Visible on artifacts/acceptance/flora-great-oak-far-*.png and on
+/// artifacts/acceptance/core-A1-lowland-900m-AFTER-*.png, where the treeline is a
 /// row of pale sticks. Too large a gap to be aerial perspective: haze pulls
 /// toward the SKY colour, not toward white.
 /// Lead's three candidates, with what this zone's files say about each:

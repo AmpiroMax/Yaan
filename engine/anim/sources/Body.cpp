@@ -60,7 +60,7 @@ constexpr float JUMP_LAND_S = 0.45f;
 // and update_bodies multiplies the published `run_weight` by it so the EYE
 // cannot lean by a number the trunk is not leaning by. Two copies of this
 // expression is what let a standing player's camera lunge forward on a key
-// press while his body stood upright (docs/FINDING_CROUCH_AND_ALT_LEAN.md) —
+// press while his body stood upright (docs/findings/FINDING_CROUCH_AND_ALT_LEAN.md) —
 // except there the second copy was not a copy at all, it was a MISSING factor,
 // which is the same defect with nothing to grep for.
 [[nodiscard]] float gait_fade(float speed_mps) {
@@ -315,7 +315,7 @@ void update_bodies(ecs::World& world, const Rig& rig) {
         // while standing still moved the camera 66.4 mm forward and 7.2 mm down
         // against a body that did not move at all — measured against a
         // zero-dose arm that reads 0.01 mm (Rule 48), and the user reported it
-        // as «словно я шеей вперед двигаю». docs/FINDING_CROUCH_AND_ALT_LEAN.md
+        // as «словно я шеей вперед двигаю». docs/findings/FINDING_CROUCH_AND_ALT_LEAN.md
         drive.run_weight = gait_fade(drive.speed_mps) * drive.gear_weight;
         // ПЕРЕХОД В ПОЗУ И ОБРАТНО — линейное доведение до заявки. Линейное
         // ради того, чтобы он ДОХОДИЛ: экспонента оставила бы eye_valid
@@ -369,7 +369,7 @@ void update_bodies(ecs::World& world, const Rig& rig) {
         // ALL THREE, not just the position (Rule 32 sweep after the run smear:
         // a hand-written shadow copy that omits a field freezes that field at
         // its default and the renderer then interpolates from the frozen value
-        // every single tick -- docs/FINDING_RUN_SMEAR.md). Today the puppet's
+        // every single tick -- docs/findings/FINDING_RUN_SMEAR.md). Today the puppet's
         // rotation and scale are never written, so copying them is a no-op and
         // NOT a bug fix; it is the line that stops being a no-op silently on
         // the day someone gives the puppet a rotation, which is precisely how

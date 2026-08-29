@@ -160,7 +160,7 @@ int main(int argc, char** argv) {
              "# итерации этой кузницей не пишется — см. шапку forge_trees_v2.cpp.\n#\n";
     index += "# Габитус: luga — одиночное дерево (крона низко, чистой болы четверть\n"
              "# роста); forest — лесной рецепт ТОГО ЖЕ вида (крона высоко, бола\n"
-             "# длинная и чистая). Это разница №2 записки docs/reports/trees-g3.\n#\n";
+             "# длинная и чистая). Это разница №2 записки artifacts/reports/trees-g3.\n#\n";
     index += "# W/H и глубина кроны — ИЗМЕРЕННЫЕ (measure_object), не рецептурные.\n#\n";
     index += "# name | file | habit | leaf_rows | content_hash | wood_tris | leaf_tris"
              " | H | W/H | crown_depth_h | clean_bole_h\n";

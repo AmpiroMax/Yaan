@@ -698,7 +698,7 @@ void App::probe_grab() {
             return;
         }
         std::filesystem::create_directories("docs/acceptance");
-        (void)renderer_->save_screenshot(std::string("docs/acceptance/") + name + ".png");
+        (void)renderer_->save_screenshot(std::string("artifacts/acceptance/") + name + ".png");
     };
     // КОГО БЕРЁМ. Имя приходит дозой (DFN_GRAB_PROBE=furn-jug): «ближайший»
     // на накрытом столе — это то, что стоит с краю, и прогон от прогона он

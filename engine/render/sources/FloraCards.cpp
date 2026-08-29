@@ -175,7 +175,7 @@ glm::vec3 tone_summer(LeafTone t) {
     // here never survives.
     case LeafTone::SeamGuard:
     // Calibrated against the fir photoscan AND the Picea abies herbarium
-    // scan (docs/reference/spruce): live needles are a warm MID-GREEN
+    // scan (artifacts/reference/spruce): live needles are a warm MID-GREEN
     // (the old {0.12 0.22 0.19} was murk, the olive first fit still a shade
     // too brown). Value order vs oak (§5.11): L=0.31 vs oak 0.36 — holds.
     case LeafTone::ConiferDark: default: return {0.28f, 0.35f, 0.19f};
@@ -429,7 +429,7 @@ float bark_height(float tx, float ty, const BarkStyle& st, uint32_t seed) {
 /// the grove still differed by 0.020 % of pixels, all of it on BOLES — the
 /// only place the normal sheet is not neutral.
 // --- THE V2 PACK (rows 14-15) --------------------------------------------
-// The second iteration's answer to §3.4 of docs/reports/trees-g3: «одна
+// The second iteration's answer to §3.4 of artifacts/reports/trees-g3: «одна
 // карточка несёт ВЕТВЬ С ДЕСЯТКАМИ ЛИСТЬЕВ и внутренней структурой: тёмная
 // сердцевина, светлый рваный край, просветы ВНУТРИ карточки; на просвет
 // листва полупрозрачная».
@@ -1128,7 +1128,7 @@ LeafAtlas generate_leaf_atlas(uint32_t tile_px, FloraSeason season) {
                                           * (0.72f + 0.5f * hash01(gx, gy, 0x55u));
                             // LEAF-LOCAL frame: u along the leaf axis (tip at
                             // +u), v across. The reference scans, not taste,
-                            // set every silhouette below (docs/reference/,
+                            // set every silhouette below (artifacts/reference/,
                             // сверка по правилу LEAF_REFERENCES).
                             const float cr = std::cos(rot);
                             const float sr = std::sin(rot);

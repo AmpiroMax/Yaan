@@ -23,7 +23,7 @@ Usage:
 
 Dependencies:
 - Uses: engine/world (HouseFile, HouseMesh, house_edge_census, Scene).
-- Used by: рукав ctest bevel_k4_stand, отчёт docs/reports/bevel.html, человек.
+- Used by: рукав ctest bevel_k4_stand, отчёт artifacts/reports/bevel.html, человек.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.

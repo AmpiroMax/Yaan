@@ -148,7 +148,7 @@ of itself today.
 **It does not scale, and the number where it stops is known**: four four-minute
 adaptive LAYERS would be ~370 MB. Streaming (`MA_SOUND_FLAG_STREAM |
 NO_SPATIALIZATION | NO_PITCH`) is defect #1 of
-`docs/reports/music-research.html` §8; it needs a separate load path, which is
+`artifacts/reports/music-research.html` §8; it needs a separate load path, which is
 an `IAudio` change, which is a group sync (Rule 26). It waits for the stage
 that actually needs layers.
 
@@ -171,7 +171,7 @@ Two other notes from the same pass:
 
 **Честный предел:** одна линия обратной связи даёт ХВОСТ, а не комнату; на
 больших помещениях слышна как эхо. Настоящей реверберации у miniaudio нет
-вовсе (`docs/reports/audio-engines/index.html`), и день, когда «звучит как
+вовсе (`artifacts/reports/audio-engines/index.html`), и день, когда «звучит как
 подземелье» станет требованием, — день Steam Audio. `wet = 0` УБИРАЕТ УЗЕЛ ИЗ
 ГРАФА, а не ставит его на ноль: только так «ревербератора нет» и «ревербератор
 выключен» дают один и тот же буфер.
@@ -187,7 +187,7 @@ and hard landings and the water-entry splash. **Ветровой петли та
 Звуки МИРА — не заглушки и живут отдельно: `assets/audio/world/*.ogg`
 (48 кГц моно, 12 с, петли проверены измерением), генератор
 `tools/gen_world_ambience.py`, числа уровней и прослушивание —
-`docs/reports/world-ambience.html`. Три ступени ветра на породу растут ~3 дБ
+`artifacts/reports/world-ambience.html`. Три ступени ветра на породу растут ~3 дБ
 НАМЕРЕННО, и код их не выравнивает.
 **These are placeholders**: the point is that surfaces DIFFER convincingly and
 the step event has a same-tick voice. Real recorded sounds are a later asset

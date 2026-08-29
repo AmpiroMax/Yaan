@@ -299,6 +299,22 @@ def head_blob(root: Path, rel: str) -> str | None:
         return None
     return out.stdout.decode("utf-8", errors="replace")
 
+BINARY_IN_DOCS = {".png", ".jpg", ".jpeg", ".gif", ".mp3", ".ogg", ".wav", ".pdf", ".log", ".mp4", ".mov"}
+
+
+def docs_layout_errors(rel: Path) -> list[str]:
+    """Rule 18a: docs/ is text only, nothing new in its root; binaries go to artifacts/."""
+    parts = rel.parts
+    if not parts or parts[0] != "docs":
+        return []
+    errs = []
+    if rel.suffix.lower() in BINARY_IN_DOCS:
+        errs.append("binary file under docs/ (Rule 18a) -- put it in artifacts/")
+    if len(parts) == 2 and rel.name != "README.md" and rel.suffix.lower() != ".md":
+        errs.append("new file in docs/ root (Rule 18a) -- use a subfolder from docs/README.md")
+    return errs
+
+
 def check_files(root: Path, rel_paths: list[str]) -> list[tuple[Path, list[str]]]:
     """Checks only the named files (repo-relative). Skip rules still apply, so a
     staged file the scanner would ignore is ignored here too.

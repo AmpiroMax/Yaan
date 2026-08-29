@@ -4,7 +4,7 @@
 #
 # Responsibility:
 # - ЧЕРТЁЖ КОРНХОЛЛА (город №4 эпохи «12 городов», ПИЛОТ, этап 1). Рисует
-#   схему в docs/CORNHALL_PLAN.html и ЭКСПОРТИРУЕТ её в docs/CORNHALL_PLAN.json
+#   схему в docs/cities/CORNHALL_PLAN.html и ЭКСПОРТИРУЕТ её в docs/cities/CORNHALL_PLAN.json
 #   — единственный источник композиции для tools/gen_city.py (паспорт города
 #   лежит в tools/cities/cornhall.py и композиции не знает).
 #
@@ -31,7 +31,7 @@
 # первой строке main(). Волна Г сделала воду НЕОБЯЗАТЕЛЬНОЙ (bridge_setup
 # отдаёт None, стадии моста молчат), и обход снят: Корнхолл стоит на хлебной
 # равнине без единого русла, как и записано в его паспорте.
-"""Чертёж Корнхолла: docs/CORNHALL_PLAN.json + .html."""
+"""Чертёж Корнхолла: docs/cities/CORNHALL_PLAN.json + .html."""
 import json
 import math
 import os
@@ -666,7 +666,7 @@ svg.append('</svg>')
 html = """<!doctype html>
 <!--
 Module: docs
-File: docs/CORNHALL_PLAN.html
+File: docs/cities/CORNHALL_PLAN.html
 Responsibility: чертёж Корнхолла (генерируется tools/gen_cornhall_plan.py;
 правки вносить в генератор чертежа, не сюда).
 -->
@@ -694,7 +694,7 @@ sans-serif;color:#222;background:#faf8f4;padding:0 1em">
 </ul>
 </body>"""
 
-open(os.path.join(ROOT, "docs/CORNHALL_PLAN.json"), "w",
+open(os.path.join(ROOT, "docs/cities/CORNHALL_PLAN.json"), "w",
      encoding="utf-8").write(json.dumps({
          "rivers": [],
          "wall": WALL, "towers": TOWERS, "gates": GATES,
@@ -704,6 +704,6 @@ open(os.path.join(ROOT, "docs/CORNHALL_PLAN.json"), "w",
          "oak_glade": OAK_GLADE, "gardens": GARDENS, "trees": TREES,
          "zones": ZONES, "micro": MICRO,
      }, ensure_ascii=False, indent=1))
-open(os.path.join(ROOT, "docs/CORNHALL_PLAN.html"), "w",
+open(os.path.join(ROOT, "docs/cities/CORNHALL_PLAN.html"), "w",
      encoding="utf-8").write(html)
-print("чертёж записан: docs/CORNHALL_PLAN.json + .html")
+print("чертёж записан: docs/cities/CORNHALL_PLAN.json + .html")

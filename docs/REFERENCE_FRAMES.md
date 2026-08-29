@@ -145,4 +145,4 @@ pebbles, scrub, and three rock outcrops in one view.
 
 Acceptance for every item here is Rule 27: a frame from OUR build, at the
 same kind of viewpoint as the reference frame it answers, archived in
-`docs/acceptance/` with its recipe. Not a measurement in a thread.
+`artifacts/acceptance/` with its recipe. Not a measurement in a thread.

@@ -206,7 +206,7 @@ void update_interactable_motion(ecs::World& world, platform::IPhysics& physics) 
                        0.0f, 1.0f);
         if (blend == motion.blend) {
             // AT REST, AND THE PAIR MUST AGREE. Leaving prev != curr here is the
-            // run-smear defect exactly (docs/FINDING_RUN_SMEAR.md): render
+            // run-smear defect exactly (docs/findings/FINDING_RUN_SMEAR.md): render
             // interpolates prev -> curr with alpha sweeping 0..1 INSIDE EVERY
             // TICK, so two poses that never change again are not a still door —
             // they are a door that sweeps between its last two frames for ever.

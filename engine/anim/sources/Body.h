@@ -109,7 +109,7 @@ struct BodyDrive {
     // body — gait_fade is 0, so gait_pose is not blended in at all — while the
     // camera rode the full gear weight and lunged 66.4 mm forward and 7.2 mm
     // down with no locomotion whatsoever («словно я шеей вперед двигаю»).
-    // docs/FINDING_CROUCH_AND_ALT_LEAN.md.
+    // docs/findings/FINDING_CROUCH_AND_ALT_LEAN.md.
     float run_weight = 0.0f;        // PUBLISHED: gait_fade(speed) * gear_weight
     // The eased gear itself (this zone's integrator). Kept separate from the
     // published value above because an ease must integrate its own state: fold

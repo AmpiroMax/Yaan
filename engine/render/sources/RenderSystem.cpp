@@ -471,7 +471,7 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     // it records the values this frame was actually drawn with rather than the
     // values some system computed. No readback, no settle, no freeze; it cannot
     // quiet what it is pointed at. Same instrument class as the lead's
-    // DFN_FRAME_LOG (docs/FINDING_RUN_SMEAR.md) and for the same reason: the
+    // DFN_FRAME_LOG (docs/findings/FINDING_RUN_SMEAR.md) and for the same reason: the
     // defect this was opened for ("темнеет, потом мигает" underground) lives in
     // the DIFFERENCE between consecutive frames, and every capture door we own
     // either freezes the tick or waits for a flush.

@@ -446,11 +446,11 @@ add_test(NAME stairs_replica_still_rejected
 # и есть код возврата.
 add_test(NAME paving_whiterun
          COMMAND python3 tools/check_paving.py
-                 assets/scenes/whiterun.relief docs/WHITERUN_PLAN.json
+                 assets/scenes/whiterun.relief docs/cities/WHITERUN_PLAN.json
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_test(NAME paving_cornhall
          COMMAND python3 tools/check_paving.py
-                 assets/scenes/cornhall.relief docs/CORNHALL_PLAN.json
+                 assets/scenes/cornhall.relief docs/cities/CORNHALL_PLAN.json
          WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 add_test(NAME paving_fixture_ok
          COMMAND python3 tools/check_paving.py

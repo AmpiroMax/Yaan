@@ -85,7 +85,7 @@ that constant ever moves, these move with it rather than being re-argued.
 ### 10.8 ACCEPTANCE — the frame pairs (Rule 27)
 
 Each row is **one frame from our build beside the reference frame it answers**,
-at the same *kind* of viewpoint, archived in `docs/acceptance/` with its recipe,
+at the same *kind* of viewpoint, archived in `artifacts/acceptance/` with its recipe,
 shot at or downsampled to `INTERNAL_RES` (F6). Each carries the sentence that
 must be capable of being true, or it is a diagnostic and not a verdict (F7).
 

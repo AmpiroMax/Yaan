@@ -71,8 +71,8 @@ def measure(path):
         best = max(best, cur)
     return best, width_cols, w
 
-for label, p in (("apron OFF (control)", "docs/acceptance/core-apron-west300-BEFORE-687f152.png"),
-                 ("apron ON  (shipped)", "docs/acceptance/core-apron-west300-AFTER-687f152.png")):
+for label, p in (("apron OFF (control)", "artifacts/acceptance/core-apron-west300-BEFORE-687f152.png"),
+                 ("apron ON  (shipped)", "artifacts/acceptance/core-apron-west300-AFTER-687f152.png")):
     run, extent, w = measure(p)
     print(f"{label}: longest massif-meets-GROUND run = {run:3d} px   "
           f"(massif angular extent {extent:3d} px of {w}, run/extent {run/max(extent,1):.2f})")

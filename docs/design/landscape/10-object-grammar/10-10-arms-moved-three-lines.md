@@ -252,7 +252,7 @@ all between the near grass and the lone conical mountain.**
 > **Those two frames ARE §10.8 A1's before-state.** They are a counterfactual arm
 > that already exists, taken by another zone for another question, which makes
 > them better evidence than a before-frame shot on purpose — nobody composed them
-> to make the after look good. **Archive them into `docs/acceptance/` labelled as
+> to make the after look good. **Archive them into `artifacts/acceptance/` labelled as
 > A1's before-state**, and A1's pairing under Rule 27 is satisfied without
 > re-shooting anything.
 

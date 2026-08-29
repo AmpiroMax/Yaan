@@ -51,3 +51,44 @@ third_party/_deps/
 # _deps, он однажды сотрёт. Отсюда его берут через
 # FETCHCONTENT_SOURCE_DIR_BGFX_CMAKE, и сеть не нужна вовсе.
 third_party/bgfx.cmake/
+
+# Музыка: скачанное извне, не наш исходник.
+# ref_midi — референсные MIDI (public domain / CC) для сравнительного анализа
+# партитур; sf — саундфонт MuseScore_General (39 МБ, качается по ссылке из
+# docs/reports/music-research.html). Партитуры-исходники живут в
+# tools/music/compose_demo.py, звук пересобирается из них одной командой.
+tools/music/ref_midi/
+tools/music/sf/
+
+# Скачанные извне аудио/MIDI-примеры (чужие файлы, не наш исходник).
+audio_examples/
+
+# Отрендеренные превью чужих MIDI — материал для прослушивания и разбора, не наш выпуск.
+docs/reports/music/ref/
+
+# Книги по оркестровке (274 МБ сканов) — справочный материал, не исходники игры.
+docs/reference/books/
+
+# Референсные кадры Готики 3 (скриншоты страницы Steam, чужой материал) —
+# скачаны для СНЯТИЯ ПРОПОРЦИЙ ко второй итерации деревьев, в игру не идут.
+docs/reports/trees-g3/ref/
+docs/reports/trees-tiers/ref/g3_*.jpg
+docs/reports/trees-tiers/ref/u_*.jpg
+docs/reports/materials-spec/ref/skyrim-*.jpg
+
+# Звук, отрендеренный для прослушивания: пробы ритмов, мотивов, тембров, фактур,
+# варианты сведения и все версии разбора чужого трека. 397 МБ и растёт с каждой
+# пробой. Это материал для уха, а не выпуск: всё пересобирается скриптами из
+# tools/music одной командой, а то, что звучит в игре, лежит в assets/audio.
+docs/reports/music/
+
+# Побочные файлы музыкальных скриптов: импульсные отклики залов (синтезируются
+# make_ir.py), скачанные референсные MIDI, промежуточные партитуры и кэш питона.
+tools/music/ref_midi_games/
+tools/music/ref_midi_rpg/
+tools/music/ir/
+tools/music/__pycache__/
+tools/music/*.mid
+
+# Кадры, приёмки, отчёты, референсы — вне git (решение владельца 30.08)
+artifacts/

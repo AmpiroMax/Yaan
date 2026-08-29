@@ -121,7 +121,7 @@ struct WeberParams {
     /// and it is where an oak's several main limbs come from instead of one
     /// bole with branches on it. The two-lobed veteran silhouette the user
     /// described («как сиськи») is this parameter, not an envelope: the shape
-    /// comes from STRUCTURE, which is what docs/GIANT_OAKS.md §4 argued from
+    /// comes from STRUCTURE, which is what docs/research/GIANT_OAKS.md §4 argued from
     /// first principles and this published table settles.
     uint32_t base_splits = 0;
     WeberLevel level[4];

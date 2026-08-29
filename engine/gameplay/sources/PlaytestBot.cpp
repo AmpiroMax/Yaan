@@ -143,7 +143,7 @@ bool record(PlaytestState& pt, const char* invariant, const glm::vec3& position,
 // TRANSITION — «присел, стало хуже, ещё ниже камера опустилась словно» and
 // «при нажатии кнопки option, словно я шеей вперед двигаю». A transition is a
 // DIFFERENCE BETWEEN FRAMES, and this project has already paid two days for
-// pointing a settled instrument at one (docs/FINDING_RUN_SMEAR.md). The bot
+// pointing a settled instrument at one (docs/findings/FINDING_RUN_SMEAR.md). The bot
 // could hold a GEAR but could never PRESS A KEY at a known moment, so every
 // crouch measurement so far was of the settled pose — the one shape of the
 // posture the complaint is not about.

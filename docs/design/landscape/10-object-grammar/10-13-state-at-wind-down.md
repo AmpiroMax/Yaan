@@ -78,7 +78,7 @@ Nothing here is a decision. These are things that are TRUE and UNFINISHED:
    waiting on a frame from step 1 — the lead's НЕ ПОСТРОЕНО reasoning, which I
    agree with and which is my own argument applied to me.
 7. **A1's before-state exists** (`render-haze-lowland-900m-A`/`-C`) and should be
-   archived into `docs/acceptance/` labelled as such. Not yet done.
+   archived into `artifacts/acceptance/` labelled as such. Not yet done.
 
 #### 10.13.5 Not mine, recorded so it is not lost
 

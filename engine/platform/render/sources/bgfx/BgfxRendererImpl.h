@@ -221,7 +221,7 @@ inline constexpr float SHADOW_DIR_SNAP_RAD = 0.00182f;
 //
 // AND IT IS OFF BY DEFAULT, BECAUSE THE MEASUREMENT SAID SO. All of the above
 // is correct and none of it pays yet. Three arms out of one binary at the near
-// canopy (docs/acceptance/render-R6b-near-cascade.md), n=3 each, the cascade's
+// canopy (artifacts/acceptance/render-R6b-near-cascade.md), n=3 each, the cascade's
 // OWN contribution to local contrast over the far map alone:
 //   8 px +0.010 | 16 px +0.000 | 24 px +0.010 | 40 px +0.046   (run spread
 //   0.003-0.016, so the two middle numbers are not distinguishable from zero)

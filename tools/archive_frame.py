@@ -4,12 +4,12 @@ Module: tools
 File: tools/archive_frame.py
 
 Responsibility:
-- Copy a tour screenshot into docs/acceptance/ at the NATIVE internal
+- Copy a tour screenshot into artifacts/acceptance/ at the NATIVE internal
   resolution, by an EXACT integer box average of the upscaled framebuffer.
 
 Key items:
 - box_downscale(): NxN mean per output pixel, integer arithmetic.
-- main(): src -> docs/acceptance/<name>, factor inferred from the size.
+- main(): src -> artifacts/acceptance/<name>, factor inferred from the size.
 
 Dependencies:
 - Uses: python3 stdlib only (zlib, struct). No Pillow, no sips.

@@ -57,7 +57,7 @@ add_dfn_test(render_sign_forge render/SignForgeTests.cpp dfn_render dfn_core)
 add_dfn_test(render_flame_phase render/FlamePhaseTests.cpp
     dfn_render dfn_platform_render dfn_core)
 
-# ВТОРАЯ ИТЕРАЦИЯ ДЕРЕВЬЕВ (28.08): пять разниц записки docs/reports/trees-g3,
+# ВТОРАЯ ИТЕРАЦИЯ ДЕРЕВЬЕВ (28.08): пять разниц записки artifacts/reports/trees-g3,
 # каждая мерится по ПОСТРОЕННОЙ геометрии, а не по полю рецепта, плюс две руки
 # неприкосновенности первой итерации (её листва обязана оставаться в зелёной
 # полосе атласа; ряды v2 обязаны быть непустыми).

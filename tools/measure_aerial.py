@@ -27,7 +27,7 @@ Key items:
 Dependencies:
 - Uses: python3 stdlib only (zlib, struct) + tools/archive_frame.read_png.
   No Pillow, no numpy (Rule 24).
-- Used by: render's R1 acceptance (docs/acceptance/), before and after.
+- Used by: render's R1 acceptance (artifacts/acceptance/), before and after.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.

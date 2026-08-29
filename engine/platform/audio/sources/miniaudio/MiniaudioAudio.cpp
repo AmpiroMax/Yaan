@@ -32,7 +32,7 @@ Notes:
   clock. Audio randomness NEVER feeds back into simulation, so determinism
   (Rule 13.2) is untouched — this is the same ruling recorded in IAudio.h.
 - ЗАКРЫТЫЙ ПРОБЕЛ v1: set_bus_reverb БОЛЬШЕ НЕ ПУСТЫШКА. Настоящего
-  ревербератора у miniaudio по-прежнему нет (записка docs/reports/audio-engines:
+  ревербератора у miniaudio по-прежнему нет (записка artifacts/reports/audio-engines:
   «Реверберация — НЕТ, 0 упоминаний»), но ЛИНИЯ ЗАДЕРЖКИ есть — ma_delay_node,
   — и одна линия с обратной связью даёт ХВОСТ. Это не сеть Шрёдера и не
   свёрточный ревер: у одиночной линии слышна периодичность, и на больших
@@ -58,7 +58,7 @@ Notes:
   its licence and provenance are written there.
 - MUSIC IS DECODED WHOLE, ON PURPOSE AND FOR NOW (owner's order, relayed
   through the music session; the
-  streaming path is defect #1 of docs/reports/music-research.html §8 and is a
+  streaming path is defect #1 of artifacts/reports/music-research.html §8 and is a
   contract change, so it waits for a group sync). The main theme is 1:36, which
   is ~37 MB of f32 stereo at the device rate — the price of a single decoded
   track, paid once, against a music path that would have to exist in two

@@ -878,7 +878,7 @@ std::array<SpeciesParams, FLORA_SPECIES_COUNT> build_table() {
     // --- LEAF PACKS (13.08.2026, the user's «пачки текстур»). ---------------
     // The broadleaf card species carried 36-40 clusters of 0.22-0.25 crown
     // radii — confetti, the mechanism of his «листва как наждачка». Every
-    // studied model does the opposite (docs/TREE_MODELS_RESEARCH.md §1.7:
+    // studied model does the opposite (docs/research/TREE_MODELS_RESEARCH.md §1.7:
     // 5-15 elements of 0.4-0.9 crown radii; SpeedTree §1.1: the SMALLER the
     // budget the BIGGER the cluster). The two registry rows carry the
     // derivation; the species keep their own card shapes, tones and aspect.
@@ -1018,7 +1018,7 @@ bool flora_trunk_arc_arm() {
 
 // --- WEBER & PENN ROWS ------------------------------------------------------
 // THE MODEL IS THE PAPER'S AND SO ARE THESE NUMBERS. They are transcribed from
-// docs/WEBER_PENN_PARAMS.md, which the lead extracted from the paper itself
+// docs/research/WEBER_PENN_PARAMS.md, which the lead extracted from the paper itself
 // (SIGGRAPH 1995, Appendix, p.126) after this zone refused to reproduce them
 // from memory. That refusal was the right call and it is worth keeping the
 // reason visible: a number with the wrong provenance is worse than a missing
@@ -1036,7 +1036,7 @@ bool flora_trunk_arc_arm() {
 //  1. `CA Black Oak` has `0BaseSplits` 2 and `0SegSplits` 0.4 — the bole splits
 //     at the ground AND keeps splitting. That is where an oak's several main
 //     limbs come from, and it means the two-lobed veteran silhouette is a
-//     property of STRUCTURE, not of an envelope. docs/GIANT_OAKS.md §4 argued
+//     property of STRUCTURE, not of an envelope. docs/research/GIANT_OAKS.md §4 argued
 //     exactly that from first principles; this is the published confirmation.
 //  2. `PruneRatio` is 1 for the WILLOW ALONE. Envelope pruning is an OPTIONAL
 //     part of the model that three of four species do not use — and our old
@@ -1145,7 +1145,7 @@ WeberParams species_weber(FloraSpecies species, float height) {
         // pattern rather than a branching law, and whorl_skeleton already
         // models that. The published set has no conifer either.
         //
-        // BLACK TUPELO is transcribed in docs/WEBER_PENN_PARAMS.md and unused:
+        // BLACK TUPELO is transcribed in docs/research/WEBER_PENN_PARAMS.md and unused:
         // Levels 4, Shape 4, a tall straight forest broadleaf. It is the row to
         // reach for when the catalog gains the dense-stand species the user
         // asked for, and it is recorded here so the next agent does not go

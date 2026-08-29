@@ -277,7 +277,7 @@ struct ScatterCtx {
     }
 
     /// THE GREAT OAK'S CLEARING (GIANT_OAKS §2, measured by flora in
-    /// docs/acceptance/flora-great-oak-clearing-ARM-669f1a7b.png). Asked of
+    /// artifacts/acceptance/flora-great-oak-clearing-ARM-669f1a7b.png). Asked of
     /// every class that carries a SILHOUETTE at the giant's read distance, and
     /// of nothing else: the arm that answered "rarity" removed the ordinary
     /// OAKS, and a 0.6 m tuft expires as an object at 18 m (Rule 33), so

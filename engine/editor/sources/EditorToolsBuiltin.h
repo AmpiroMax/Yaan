@@ -14,7 +14,7 @@ Key items:
 - SelectTool / PlaceTool: the crosshair's two object hands.
 - PlantTool: PLANTING NOW HAS AN OWNER.
 
-WHY PLANTING IS A TOOL (docs/AUDIT_EDITOR_TOOLS.md, and the user found it by
+WHY PLANTING IS A TOOL (docs/audits/AUDIT_EDITOR_TOOLS.md, and the user found it by
 using the editor): «что за порода выбирается, когда я открываю меню кисти? она
 ни на что не влияет». It did not: the species list lived in the BRUSH panel
 while the only call to plant a dab sat inside the BUILD tool's click handler,

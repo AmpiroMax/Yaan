@@ -996,7 +996,7 @@ TEST_CASE("atlas: mostly opaque body, ragged eroded edge, a few real gaps") {
         // Mostly opaque: a handful of gaps, never lace — for LEAF MASSES,
         // whose measured porosity lives at the rim (§3.10). The CONIFER FROND
         // is a different object with a different truth: the Picea abies scan
-        // (docs/reference/spruce) runs ~30 % sky BETWEEN its needles, and a
+        // (artifacts/reference/spruce) runs ~30 % sky BETWEEN its needles, and a
         // dense comb necessarily encloses that sky. Its cap is set from the
         // scan, not inherited from broadleaf; the merged-wedge failure mode
         // is still caught below — a solid wedge scores ragged ~1.6 and fails.
@@ -1598,7 +1598,7 @@ TEST_CASE("REJECTION 3: no canopy tree is a bare pole with a tuft on top") {
     //
     // Left at 0.28: it still rejects the synthetic rosette (0.06) and the class
     // of shapes near it, which is worth having, and the acceptance authority
-    // for the new crown is the FRAME (Rule 27, docs/acceptance/flora-canopy-
+    // for the new crown is the FRAME (Rule 27, artifacts/acceptance/flora-canopy-
     // spread-*). HANDED TO LEAD as an open item.
     constexpr float LIMB_SPREAD_MIN = 0.15f;
     constexpr float FOLIAGE_SPAN_MIN = 0.28f;
@@ -3945,7 +3945,7 @@ TEST_CASE("REPORTED, NOT A GATE: CROWN_POLE_RATIO separates since 2600 (§10.15.
 // ---------------------------------------------------------------------------
 // СВЕТЛЯЧКИ (FloraFireflies): поле обязано быть детерминированным, жить во
 // всей карте, спать днём и медленно сходиться по фазе — по дизайну §4
-// docs/SKYRIM_FAUNA_RESEARCH.md и заказу пользователя от 17.08.
+// docs/research/SKYRIM_FAUNA_RESEARCH.md и заказу пользователя от 17.08.
 #include "engine/render/sources/FloraFireflies.h"
 
 namespace {

@@ -5,7 +5,7 @@
 three independent things forced it, and **all three were found by other zones
 auditing me rather than by me auditing the corpus** — §1.7's terrain-only
 control, withdrawn after core found it contradicted a figure in its own report;
-§5.12's fraction, which was the wrong quantity outright; and `docs/CODE_AUDIT.md`
+§5.12's fraction, which was the wrong quantity outright; and `docs/audits/CODE_AUDIT.md`
 finding the same disease in the test suites, in three shapes: *a share of X among
 Y where Y is pre-selected by X*, *a ratio whose ideal value is achieved by a
 fully flat world*, and *a headline whose two halves come from two different

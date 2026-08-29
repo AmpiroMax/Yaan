@@ -775,7 +775,7 @@ than an intention.
 
 ### 5.5 The frames (Rule 27)
 
-Two, both archived at native resolution into `docs/acceptance/` with their
+Two, both archived at native resolution into `artifacts/acceptance/` with their
 recipes, per Rule 27's archiving clause.
 
 1. **The overhead pair** — the sketch and a top-down render of the generated world

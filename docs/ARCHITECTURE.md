@@ -238,6 +238,12 @@ pre-commit hook) rejects any file that reintroduces one. Only the agent rules,
 Responsibility and Dependencies remain. A change note that matters belongs in
 the commit message, or in Responsibility/Notes if it describes the current state.
 
+### Rule 18a — docs is text, artifacts is everything else (owner's order 30.08.2026)
+`docs/` holds text only, in the folders listed in `docs/README.md`; nothing new in
+its root. Wave reports with frames, acceptance frames, reference photos and logs
+live in `artifacts/` (git-ignored). The task board is `docs/plans/BACKLOG.html`:
+work is taken from it and returned to it; a report earns two lines there.
+
 ### Rule 18 — Per-module docs reflect current code
 Each module keeps `docs/README.md` describing its **current** state. Read it before
 modifying the module; update it in the same changeset. See `rules/documentation.md`.
@@ -282,7 +288,7 @@ One clear responsibility. Aim for ~300 lines; **hard limit 2500 LOC**.
 имеет права жить в файле, владеющем окном. Это не про длину. Файл на 2400
 строк с одной ответственностью — норма; файл на 700 строк, внутри которого
 спрятан выбор, до которого не дотягивается ни один рукав, — дефект, и потолок
-его не ловит. Смотри docs/AUDIT_EDITOR_TOOLS.md: каждый отказ, который в тот
+его не ловит. Смотри docs/audits/AUDIT_EDITOR_TOOLS.md: каждый отказ, который в тот
 день ловил человек, а не проверка, жил внутри кадрового цикла.
 
 ### Rule 22 — No logic in entrypoints
@@ -316,7 +322,7 @@ Each layer has its own `CMakeLists.txt` owned by its zone owner (Q34).
 
 ### Rule 26 — Contract freeze (Q38)
 Public interfaces (everything another zone includes) are frozen for the duration of a
-stage. Changing one requires a group sync, recorded in `docs/devlog/`.
+stage. Changing one requires a group sync, recorded in `artifacts/devlog/`.
 
 ### Rule 27 — Visual verification mandatory (Q24, Q26-Q24)
 Any change that can affect the rendered image must be verified by running the
@@ -345,7 +351,7 @@ frame cannot show a motion artifact at all — do not claim one from it.
 provenance, seed, probe env, eye, time) is the CONTROL — it reproduces bit-identically
 under Rule 13 and is mandatory wherever a frame is cited. But `screenshots/` is
 gitignored and binaries die, so any frame a ruling or an acceptance CITES is also
-copied into `docs/acceptance/` (tracked), at native internal resolution (640x360 — the
+copied into `artifacts/acceptance/` (tracked), at native internal resolution (640x360 — the
 4x tour upscale adds pixels, not information), filename carrying the commit and the
 subject. Recipes prove the present; pixels preserve the past — every provenance-dead
 measurement hunt this project has run would have been cheaper with the original
@@ -1054,7 +1060,7 @@ be about the right thing). Those say what a measurement must have. This one says
 
 **Дополнение 28.08 — СРАВНЕНИЕ КАДРОВ «ДО/ПОСЛЕ»: не «одна сборка», а ОДНА
 СБОРКА, ОДНА КАМЕРА И ОДНА ДОЗА.** Два независимых свидетельства с разных
-предметов в один день: волна фаски (docs/reports/bevel.html §8 — кадры
+предметов в один день: волна фаски (artifacts/reports/bevel.html §8 — кадры
 стенда: DFN_EDITOR_CAM одна строка на оба прогона, DFN_CAPTURE_AFTER_FRAMES
 одинаков, карта та же, единственное различие — DFN_HOUSE_BEVEL; второе
 различие названо вслух: полка испечена `--bevel 0` под кадр «до») и волна
@@ -1063,7 +1069,7 @@ be about the right thing). Those say what a measurement must have. This one says
 — прибор не сломается и не скажет «не могу», он честно померит свет и ракурс,
 и число будет выглядеть результатом. Отсюда же третий довод за К4 как заставу:
 у геометрического критерия нет ни камеры, ни часов. ЧЕТВЁРТЫЙ ЧЛЕН (волна
-тура 7627041, docs/reports/tour-determinism.html): **и ОДИН МОМЕНТ МИРА** —
+тура 7627041, artifacts/reports/tour-determinism.html): **и ОДИН МОМЕНТ МИРА** —
 одна сборка и одна камера ещё не дают одного кадра, пока номер кадра съёмки
 зависит от того, сколько машина успела: число шагов симуляции за кадр было
 функцией стенной дельты (стриминг под `steps > 0`, осадка капсулы, остаток

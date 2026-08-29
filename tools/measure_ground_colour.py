@@ -21,7 +21,7 @@ Key items:
 Dependencies:
 - Uses: python3 stdlib only + tools/archive_frame.read_png (Rule 24: no Pillow,
   no numpy).
-- Used by: render's R5 acceptance (docs/acceptance/), before and after, and by
+- Used by: render's R5 acceptance (artifacts/acceptance/), before and after, and by
   the reference frames that set the target.
 
 AI Agents Notice (must follow):

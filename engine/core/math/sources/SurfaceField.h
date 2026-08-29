@@ -122,7 +122,7 @@ enum class ScatterSpecies : uint8_t {
     PebbleCluster = 16,
     /// §5.12 talus apron: the wind-formed dwarf conifer of the scree band.
     StuntedPine = 17,
-    /// --- THE GREAT OAK (docs/GIANT_OAKS.md). NOT a maturity tier of OakTree:
+    /// --- THE GREAT OAK (docs/research/GIANT_OAKS.md). NOT a maturity tier of OakTree:
     /// --- a giant is 40+ m with a crown as wide as it is tall, grown by
     /// --- recursive ramification, and it reads as an OBJECT past 3 km. It is a
     /// --- SEPARATE ORDINAL because the world must be able to say "this one is

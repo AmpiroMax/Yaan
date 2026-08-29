@@ -4,8 +4,8 @@
 #
 # Responsibility:
 # - СХЕМА ВАЙТРАНА v4.6 (заказ 21.08: «начни не с игры, а со схемы карты»).
-#   Рисует чертёж города в docs/WHITERUN_PLAN.html и ЭКСПОРТИРУЕТ план в
-#   docs/WHITERUN_PLAN.json — единственный источник для генератора игры
+#   Рисует чертёж города в docs/cities/WHITERUN_PLAN.html и ЭКСПОРТИРУЕТ план в
+#   docs/cities/WHITERUN_PLAN.json — единственный источник для генератора игры
 #   (tools/gen_whiterun.py читает JSON; правки города вносить СЮДА).
 # - Автопроверки: постройки не в реке и не пересекаются.
 import math
@@ -378,7 +378,7 @@ svg_body = "\n".join(['<svg viewBox="0 0 768 768" xmlns="http://www.w3.org/2000/
 html = """<!doctype html>
 <!--
 Module: docs
-File: docs/WHITERUN_PLAN.html
+File: docs/cities/WHITERUN_PLAN.html
 Responsibility: чертёж Вайтрана (генерируется tools/gen_whiterun_plan.py;
 правки вносить в генератор чертежа, не сюда).
 -->
@@ -409,7 +409,7 @@ Responsibility: чертёж Вайтрана (генерируется tools/ge
 import json
 def hexport():
     return HOUSES_FULL
-open("docs/WHITERUN_PLAN.json", "w", encoding="utf-8").write(json.dumps({
+open("docs/cities/WHITERUN_PLAN.json", "w", encoding="utf-8").write(json.dumps({
     "river": RIVER, "river_half_w": RIVER_HALF,
     "wall": wall, "towers": TOWERS,
     "gates": [{"pos": [119,175.6], "name": "south"}, {"pos": [147.6,130], "name": "east"}],
@@ -423,5 +423,5 @@ open("docs/WHITERUN_PLAN.json", "w", encoding="utf-8").write(json.dumps({
     "zones": ZONES_X, "micro": MICRO_X,
     "spring": [224,40],
 }, ensure_ascii=False, indent=1))
-open("docs/WHITERUN_PLAN.html", "w", encoding="utf-8").write(html)
+open("docs/cities/WHITERUN_PLAN.html", "w", encoding="utf-8").write(html)
 print("v4.6 written")

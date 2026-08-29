@@ -11,7 +11,7 @@ Key items:
 
 ЧЕГО ЗДЕСЬ БОЛЬШЕ НЕТ, И ПОЧЕМУ. Тут жила ПАНЕЛЬ КИСТИ целиком —
 make_brush_panel / draw_brush_panel / BrushHooks. После переписи инструментов на
-IEditorTool (docs/AUDIT_EDITOR_TOOLS.md) настройки рисует сам инструмент
+IEditorTool (docs/audits/AUDIT_EDITOR_TOOLS.md) настройки рисует сам инструмент
 (HeightBrushTool::draw_settings, SurfacePaintTool::draw_settings, PlantTool::
 draw_settings), и эту панель не звал НИКТО: ноль ссылок во всём дереве, считая
 проверки и двери сдачи. Мёртвый код, который выглядит живым, — это приглашение

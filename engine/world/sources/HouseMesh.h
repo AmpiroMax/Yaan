@@ -4,7 +4,7 @@ File: engine/world/sources/HouseMesh.h
 
 Responsibility:
 - ГЕОМЕТРИЯ ПОСТРОЙКИ ИЗ ГРАФА. Берёт HouseGraph и выдаёт треугольники (меш) и
-  выпуклые куски (коллайдер). Устройство модели — docs/DESIGN_HOUSE_GRAPH.md;
+  выпуклые куски (коллайдер). Устройство модели — docs/audits/DESIGN_HOUSE_GRAPH.md;
   здесь считается §5.4 (триангуляция и мера неплоскости) и тела элементов.
 
 Key items:

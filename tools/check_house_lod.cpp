@@ -23,7 +23,7 @@ Usage:
 Dependencies:
 - Uses: engine/world (HouseFile, HouseMesh, HouseLod, Scene).
 - Used by: рукава ctest house_lod_full_unchanged (+ контрольное плечо),
-  отчёт docs/reports/house-lod.html, человек.
+  отчёт artifacts/reports/house-lod.html, человек.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.

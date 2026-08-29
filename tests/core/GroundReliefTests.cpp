@@ -8,7 +8,7 @@ Responsibility:
   approved floor and ceiling.
 
 Key items:
-- The PINNED standpoint: the eye of `docs/acceptance/render-haze-lowland-900m-*`
+- The PINNED standpoint: the eye of `artifacts/acceptance/render-haze-lowland-900m-*`
   (51, 650). Both arms of any before/after read this same ground.
 - The blind search: `flattest_legal_standpoints` ranks by TREND, never by the
   σ it is about to report.
@@ -70,7 +70,7 @@ const world::WorldGenContext& shipped_world() {
 }
 
 /// THE PINNED STANDPOINT — the eye of the archived lowland frames
-/// (`DFN_MASSIF_EYE=51,650`, docs/acceptance/README.md). σ here and the frame
+/// (`DFN_MASSIF_EYE=51,650`, artifacts/acceptance/README.md). σ here and the frame
 /// there are the same ground, so the number and the picture cannot disagree
 /// about which world they describe.
 constexpr glm::vec2 A1_STANDPOINT{51.0f, 650.0f};
@@ -594,7 +594,7 @@ TEST_CASE("GROUND_OCCLUSION_COUNT_MIN: how often ground hides ground (§10.1.3 F
     // CONTRACT ASKS FOR DOES NOT MOVE AT ALL: ground-hiding wanders 63-77 %
     // with no trend, never above the 76.6 % the approved band already gives,
     // and A1's p5 stays 0 at every wavelength. The frames say the same thing —
-    // docs/acceptance/core-A1-meso-lambda-{60,25}-DIAG-*.png are the same
+    // artifacts/acceptance/core-A1-meso-lambda-{60,25}-DIAG-*.png are the same
     // picture, ground unbroken from the feet to the tree line in both.
     //
     // WHY, AND IT IS §8.1's FINDING ONE STEP FURTHER OUT: the derivation went

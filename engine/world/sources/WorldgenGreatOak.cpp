@@ -63,7 +63,7 @@ constexpr int CANDIDATES_PER_CELL = 1024;
 /// saving — running the crown-ring gates only on the current best candidate
 /// instead of on every legal one — would change which site wins ties, and that
 /// silently moves a landmark the acceptance frames are already shot against.
-/// Whoever spends it must re-shoot docs/acceptance/core-great-oak-*.
+/// Whoever spends it must re-shoot artifacts/acceptance/core-great-oak-*.
 
 } // namespace
 

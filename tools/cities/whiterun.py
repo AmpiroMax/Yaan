@@ -26,7 +26,7 @@ NAME = "whiterun"
 # ЕДИНСТВЕННЫЙ ИСТОЧНИК КОМПОЗИЦИИ — чертёж. Его экспортирует
 # tools/gen_whiterun_plan.py; править композицию надо там, а не здесь и не в
 # генераторе.
-PLAN_PATH = "docs/WHITERUN_PLAN.json"
+PLAN_PATH = "docs/cities/WHITERUN_PLAN.json"
 
 # РАЗМЕР КАРТЫ — ПАРАМЕТР ГОРОДА (решение владельца №1 эпохи: «12 отдельных
 # карт, каждая своего размера и рельефа под город»). До волны И1 число 256
@@ -50,7 +50,7 @@ SPAWN_YAW = 0
 AIR = (("fog_start", "110"), ("fog_end", "380"), ("cloud", "0.25"))
 
 SCENE_HEADER = (
-    "# Daggerfall N scene — ВАЙТРАН v5 ПО ПЛАНУ (docs/WHITERUN_PLAN.json).",
+    "# Daggerfall N scene — ВАЙТРАН v5 ПО ПЛАНУ (docs/cities/WHITERUN_PLAN.json).",
     "# СГЕНЕРИРОВАНО tools/gen_whiterun.py; композицию править в чертеже",
     "# tools/gen_whiterun_plan.py и перегонять оба генератора.",
 )
@@ -58,7 +58,7 @@ RELIEF_HEADER = "# Daggerfall N relief — Вайтран v5: высоты че�
 
 MAP_TITLE = "Вайтран: город на холме"
 MAP_ZONE = "cities"  # 25.08: города переехали в категорию cities (заказ владельца), демки houses/ сняты
-MAP_NOTE = "# Вайтран v5 — построен по чертежу docs/WHITERUN_PLAN.html (см. JSON)."
+MAP_NOTE = "# Вайтран v5 — построен по чертежу docs/cities/WHITERUN_PLAN.html (см. JSON)."
 MAP_SOURCE = "stand:Gallery"
 # ПОЛКА glade — озеленение и фонари города (кусты, цветы, фонарь-столб).
 # Ассеты СУЩЕСТВУЮЩИЕ: табу владельца на правку деревьев/кустов/листвы снимает

@@ -40,7 +40,7 @@ constexpr std::array<ActionRoute, static_cast<size_t>(Action::Count)> ROUTES{{
     {Action::BuildRotate, Gate::TypingEats, "on_build_rotate"},
     // ПЯТЬ КЛАВИШ — ОДИН МЕТОД И ПЯТЬ НОМЕРОВ. Имени инструмента здесь нет:
     // клавиша называет НОМЕР фишки на полосе, а какой это инструмент, знает
-    // ящик (docs/AUDIT_EDITOR_TOOLS.md). Поэтому однозначность судится по ПАРЕ
+    // ящик (docs/audits/AUDIT_EDITOR_TOOLS.md). Поэтому однозначность судится по ПАРЕ
     // «метод + номер», а не по имени метода.
     {Action::ToolHeight, Gate::TypingEats, "on_tool_pick", 0},
     {Action::ToolPaint, Gate::TypingEats, "on_tool_pick", 1},

@@ -4,7 +4,7 @@ File: engine/render/sources/TreeForge.h
 
 Responsibility:
 - THE FORGE: builds one tree the way the studied industry models are built
-  (docs/TREE_MODELS_RESEARCH.md), for the OBJECT REGISTRY — not for the live
+  (docs/research/TREE_MODELS_RESEARCH.md), for the OBJECT REGISTRY — not for the live
   frame. A forged tree is written to a .dfo once, offline, and the game only
   places it (в1). This is deliberately a NEW pipeline beside ProcFlora, not a
   patch on it: the user's ruling after the one-tree stand's first inspection

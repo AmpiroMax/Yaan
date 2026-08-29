@@ -13,7 +13,7 @@
 #
 # Usage:
 #     python3 tools/check_paving.py [<relief>] [<plan.json>]
-#     (умолчания: assets/scenes/whiterun.relief, docs/WHITERUN_PLAN.json)
+#     (умолчания: assets/scenes/whiterun.relief, docs/cities/WHITERUN_PLAN.json)
 #     Ненулевой выход, если приёмка не пройдена.
 #
 # Dependencies:
@@ -179,4 +179,4 @@ if __name__ == "__main__":
     sys.exit(check(sys.argv[1] if len(sys.argv) > 1
                    else "assets/scenes/whiterun.relief",
                    sys.argv[2] if len(sys.argv) > 2
-                   else "docs/WHITERUN_PLAN.json"))
+                   else "docs/cities/WHITERUN_PLAN.json"))

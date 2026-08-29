@@ -188,7 +188,7 @@ bool bake_tool_icon(ToolIcon icon, int size_px, std::vector<std::uint8_t>& rgba)
         return true;
     case ToolIcon::Plant:
         // ДЕРЕВО: посадка. Своя иконка, потому что теперь это СВОЙ инструмент,
-        // а не Shift у чужого (docs/AUDIT_EDITOR_TOOLS.md).
+        // а не Shift у чужого (docs/audits/AUDIT_EDITOR_TOOLS.md).
         c.ground(EARTH);
         c.rect(0.46f, 0.52f, 0.54f, 0.80f, EARTH);
         c.disc(0.50f, 0.36f, 0.24f, ACCENT);

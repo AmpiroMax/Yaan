@@ -1176,7 +1176,7 @@ sits at 0.37-0.32. At 600 m Ravenscar would read hazy at its own verdict
 vantage, which §7.1b calls a bug in as many words. So the conflict is real,
 it is between design's approved contract and the user's reference frames
 delivered today, and it is handed over as a PAIR OF FRAMES rather than as an
-argument (`docs/acceptance/render-aerial-STRONG600-900m-*.png`).
+argument (`artifacts/acceptance/render-aerial-STRONG600-900m-*.png`).
 
 **The next lever, and it may dissolve the conflict entirely.**
 `HAZE_HEIGHT_SCALE` is 250 m, and the crag's crown sits at 115-155 m where the
@@ -1524,7 +1524,7 @@ base buried in the layer and its crown standing dark against the sky.
 
 ### Acceptance
 
-`docs/acceptance/render-aerial-{BEFORE,AFTER}-{250,500,900}m-*.png`, and the
+`artifacts/acceptance/render-aerial-{BEFORE,AFTER}-{250,500,900}m-*.png`, and the
 recipe is in the acceptance README. The three ranges ARE the control (Rule 30):
 a change that makes the picture prettier without making 900 m differ from 250 m
 has not done R1, and this instrument reports that as a flat column.
@@ -1956,7 +1956,7 @@ what it cost, and that the cost was invisible to the acceptance that shipped it.
 but this whiteness — variety is being fixed by flora, and the whiteness would
 have remained.
 
-Frames: `docs/acceptance/render-treeline-*-cf6f4ae.png` (shipped, the two
+Frames: `artifacts/acceptance/render-treeline-*-cf6f4ae.png` (shipped, the two
 controls, and the 8x pair), recipe in the acceptance README.
 
 ## TWO MOONS (W9) — THE ORBITAL HALF IS SHIPPED, THE SECOND MOON CANNOT BE DRAWN YET
@@ -2051,7 +2051,7 @@ them rather than forget them. None of these was touched.
 
 ## R6a — WARM KEY / COOL SHADE: MEASURED ON HIS FRAMES, AND REFUSED
 
-Full recipe, boxes and table: `docs/acceptance/render-R6-warm-cool-split.md`.
+Full recipe, boxes and table: `artifacts/acceptance/render-R6-warm-cool-split.md`.
 Instrument: `tools/measure_light_split.py`. **No code was changed.**
 
 ### The finding, in one line
@@ -2218,7 +2218,7 @@ DFN_SUN_SHADOW=1|0  build_render/engine/app/dfn_app
 then tools/archive_frame.py <shot> <out> 640   (4x4 box average, README rule)
 ```
 
-Frames: `docs/acceptance/render-R6b-dapple-SHADOW-{ON,OFF}-b7bc7fe+ss.png`.
+Frames: `artifacts/acceptance/render-R6b-dapple-SHADOW-{ON,OFF}-b7bc7fe+ss.png`.
 Ground box `0,140,640,355`.
 
 | block px | shadow ON | shadow OFF | **what the shadow ADDS** |
@@ -2247,8 +2247,8 @@ floor is the ground MATERIAL, not the shadow at all.**
 ## R6b, SECOND PASS — THE NEAR CASCADE IS BUILT, AND THE GATE HAS MOVED
 
 Full recipe, the three arms, both tables and the cost:
-`docs/acceptance/render-R6b-near-cascade.md`. Frames
-`docs/acceptance/render-R6b-cascade-{NULL,FAR,NEAR}-d9aeb0e+nc.png`.
+`artifacts/acceptance/render-R6b-near-cascade.md`. Frames
+`artifacts/acceptance/render-R6b-cascade-{NULL,FAR,NEAR}-d9aeb0e+nc.png`.
 
 **Suspect 1 was right about the arithmetic and it is now fixed.** The sharp form
 of the finding is not "we sit on the 0.31 m floor" but: **the shadow map

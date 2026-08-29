@@ -3,7 +3,7 @@ Module: engine/world
 File: engine/world/sources/HouseGraph.cpp
 
 Responsibility:
-- Реализация гиперграфа постройки. Устройство — в docs/DESIGN_HOUSE_GRAPH.md.
+- Реализация гиперграфа постройки. Устройство — в docs/audits/DESIGN_HOUSE_GRAPH.md.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.

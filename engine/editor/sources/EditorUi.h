@@ -105,7 +105,7 @@ using EditorTexture = std::uint64_t;
 /// EditorTool здесь больше нет намеренно: пока оно было, «какой сейчас
 /// инструмент» спрашивали семь мест и решали каждое по-своему, а два хозяина
 /// одной кнопки были не ошибкой одного из них, а формой всей конструкции
-/// (docs/AUDIT_EDITOR_TOOLS.md).
+/// (docs/audits/AUDIT_EDITOR_TOOLS.md).
 
 /// HOW MUCH OF THE WINDOW THE INTERFACE HAS TAKEN, per edge, in ImGui's logical
 /// units. Zero on every edge when nothing is docked or the interface is hidden.

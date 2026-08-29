@@ -6,7 +6,7 @@ Responsibility:
 - THE SECOND ITERATION OF THE TREE, as a builder BESIDE the first one. Owner's
   order of 28.08.2026: «снять разницу с Готикой 3 и сделать вторую итерацию, НЕ
   ПОРТЯ текущих деревьев». The six differences are written down in
-  docs/reports/trees-g3/index.html; five of them are geometry and atlas work and
+  artifacts/reports/trees-g3/index.html; five of them are geometry and atlas work and
   live here (the sixth, undergrowth tiers, is placement and belongs to Flora-2).
 
 Key items:

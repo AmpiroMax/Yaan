@@ -3,7 +3,7 @@ Module: engine/world
 File: engine/world/sources/HouseMesh.cpp
 
 Responsibility:
-- Реализация геометрии постройки. Устройство — docs/DESIGN_HOUSE_GRAPH.md §5.4.
+- Реализация геометрии постройки. Устройство — docs/audits/DESIGN_HOUSE_GRAPH.md §5.4.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.

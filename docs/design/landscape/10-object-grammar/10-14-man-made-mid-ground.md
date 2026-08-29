@@ -1,7 +1,7 @@
 
 ### 10.14 THE MAN-MADE MID-GROUND — B3–B9 released, and three of my own briefs corrected on the way
 
-Step 1 landed (`docs/acceptance/core-object-grammar-step1.md`): outcrops,
+Step 1 landed (`artifacts/acceptance/core-object-grammar-step1.md`): outcrops,
 boulders, skirts, and a mid-ground count of 8 unoccluded against a floor of 5.
 §10.13.4 item 6 held B3–B9's constants pending that frame. **The frame exists,
 so the hold is discharged and this section releases them.**

@@ -66,7 +66,7 @@ inline constexpr const char* HERALDRY_OAK_DFO =
 // заказ не просил.
 inline constexpr float OAK_CENTER_X_FRAC = 0.34f;
 /// НИЖЕ СЕРЕДИНЫ НАРОЧНО: у силуэта обрезан низ ствола (свойство исходника,
-/// см. docs/reports/heraldry-3d.html §7), и заказ просит снимать так, чтобы
+/// см. artifacts/reports/heraldry-3d.html §7), и заказ просит снимать так, чтобы
 /// срез не лез в глаза. При этой паре чисел подошва ствола уходит ЗА НИЖНИЙ
 /// КРАЙ КАДРА и среза не видно вовсе — это кадрирование, а не починка меша.
 inline constexpr float OAK_CENTER_Y_FRAC = 0.600f;

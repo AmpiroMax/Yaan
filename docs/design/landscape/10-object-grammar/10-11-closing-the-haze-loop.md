@@ -4,7 +4,7 @@
 #### 10.11.1 The Rule 34 flag is closed, and H1 is RATIFIED
 
 The p05 figures were shot at **360 m**, not 900 m — recipe verified by the lead
-in `docs/acceptance/README.md`: frames `render-haze-H1-360m-{Z,A,B,C}`, eye at
+in `artifacts/acceptance/README.md`: frames `render-haze-H1-360m-{Z,A,B,C}`, eye at
 `DFN_MASSIF_EYE` = (518,380), measured over box (245,100)–(350,215). The 900 m
 lowland frames are a separate set carrying a separate quantity (`lowland ΔL`) and
 contribute no columns to H1.

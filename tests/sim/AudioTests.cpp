@@ -222,7 +222,7 @@ TEST_CASE("miniaudio: bus reverb attaches and detaches") {
 }
 
 // OGG VORBIS, WHICH THE ENGINE COULD NOT OPEN UNTIL TODAY. The music pipeline
-// produces exactly one format (docs/reports/music-research.html §7: Vorbis q5,
+// produces exactly one format (artifacts/reports/music-research.html §7: Vorbis q5,
 // because MP3's encoder padding puts a gap in every loop), and miniaudio's
 // built-in decoders are WAV/MP3/FLAC — so this case is the whole of "the
 // decoder is wired". It fails loudly if anyone reorders the two includes at the

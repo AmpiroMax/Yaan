@@ -645,7 +645,7 @@ TEST_CASE("§6.3 darkness is a FUNCTION OF THE PLACE, not of the last bit of a "
     // reconstruction error. So `darkness_at(feet)` was a coin flip decided by
     // rounding: measured live, `ambient_darkness` stepped 0.000 <-> 1.000 in a
     // SINGLE frame 13 times in one walk through this tunnel, under as much as
-    // 18 m of rock. See docs/FINDING_DUNGEON_DARK.md.
+    // 18 m of rock. See docs/findings/FINDING_DUNGEON_DARK.md.
     //
     // Every check below is stated on the shipping query point (the floor), and
     // every one of them fails on the pre-fix function.

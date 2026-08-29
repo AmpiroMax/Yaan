@@ -39,7 +39,7 @@ constexpr render::Color INK{232, 228, 214};
 // cannot be the answer here: an opaque rectangle in the exact middle of the
 // screen would cover the thing being aimed at, which is the one place on
 // screen that must stay visible. The measurement is in
-// docs/acceptance/README.md (ui-crosshair-*): ink-vs-covered fails the
+// artifacts/acceptance/README.md (ui-crosshair-*): ink-vs-covered fails the
 // two-step rule over bright ground, ink-vs-what-it-abuts passes everywhere,
 // because what it abuts is its own outline.
 constexpr render::Color OUTLINE{0, 0, 0};
@@ -288,7 +288,7 @@ bool draw_compass_ribbon(render::PixelCanvas& canvas, const HudFacts& facts) {
     // The ground under the marks, on the same rule as every other text in this
     // interface: the ribbon lies across the SKY, which is the brightest thing
     // on screen, and pale letters on bright cloud is the defect this project
-    // already measured once (docs/acceptance/README.md, the readout's plate).
+    // already measured once (artifacts/acceptance/README.md, the readout's plate).
     draw_text_plate(canvas, x_left, y_top, ribbon_w, tick_y - y_top + 3, /*pad=*/2);
 
     // Maps a world bearing to a column, and the mapping is the whole design:

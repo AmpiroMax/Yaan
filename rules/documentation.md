@@ -32,11 +32,11 @@ Step-by-step plan / How it is verified / What this zone does NOT do.**
 The spec is written before implementation and updated when the group sync changes a
 contract. Write it so that a newcomer could continue the code from it alone.
 
-## Devlog (`docs/devlog/`)
+## Devlog (`artifacts/devlog/`)
 
-Every group sync produces `docs/devlog/YYYY-MM-DD-NN-<slug>.md`: what was decided,
+Every group sync produces `artifacts/devlog/YYYY-MM-DD-NN-<slug>.md`: what was decided,
 which options were rejected and why, what changed in contracts, screenshots of the
-current build where relevant. `docs/devlog/INDEX.md` keeps a one-line summary per
+current build where relevant. `artifacts/devlog/INDEX.md` keeps a one-line summary per
 entry. Devlog entries are written in Russian (they are the user-facing history);
 everything else in the repo is English.
 

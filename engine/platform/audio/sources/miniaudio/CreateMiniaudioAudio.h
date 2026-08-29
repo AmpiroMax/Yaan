@@ -34,7 +34,7 @@ namespace dfn::platform {
 // задержки (ma_delay_node), set_voice_lowpass — фильтром (ma_lpf_node), оба
 // узла заводятся лениво. ЧЕСТНЫЙ ПРЕДЕЛ РЕВЕРА: одна линия обратной связи даёт
 // ХВОСТ, а не комнату — на больших помещениях слышна как эхо. Настоящей
-// реверберации у miniaudio нет вовсе (docs/reports/audio-engines), и день,
+// реверберации у miniaudio нет вовсе (artifacts/reports/audio-engines), и день,
 // когда «звучит как подземелье» станет требованием, — день Steam Audio.
 // init() failure (no device) returns false; the app falls back to the null
 // backend (Rule 3).

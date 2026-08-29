@@ -328,7 +328,7 @@ TEST_CASE("the arm breaks the silhouette instead of hiding inside the trunk") {
     // acromion PLANE, where the trapezius wedge's full-width base and the arm's
     // top cap coincide and the answer is about a height at which nothing hangs.
     // This is the same instrument the archived before/after frames were measured
-    // with (docs/acceptance/character-mirror-arms-restore.txt).
+    // with (artifacts/acceptance/character-mirror-arms-restore.txt).
     const auto span_at = [&p](const Rig& r, std::initializer_list<Bone> bones, float y) {
         std::array<glm::mat4, BONE_COUNT> m{};
         forward_kinematics(r, LocalPose{}, BodyRoot{}, m);

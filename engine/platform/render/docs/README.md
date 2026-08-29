@@ -149,7 +149,7 @@ Stage-3 additions in the bgfx backend:
     prints the latched stats + pick every 30 frames; `DFN_WIREFRAME=1` forces
     wireframe on. Recipe: `DFN_WIREFRAME=1 DFN_FRAME_STATS=1
     DFN_CAPTURE_AFTER_FRAMES=200 DFN_CAPTURE_DIR=<dir> ./dfn_app`. Cited frame:
-    `docs/acceptance/render-B28-wireframe.png`.
+    `artifacts/acceptance/render-B28-wireframe.png`.
 
 ### Logical program name -> render state (backend convention)
 

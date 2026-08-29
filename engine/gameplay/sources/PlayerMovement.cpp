@@ -307,7 +307,7 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
                   "MIRROR and must copy every field. A field left uncopied freezes "
                   "at its default and the renderer interpolates from that frozen "
                   "value every tick -- this is the run-smear defect, "
-                  "docs/FINDING_RUN_SMEAR.md. Add the field, then update the size.");
+                  "docs/findings/FINDING_RUN_SMEAR.md. Add the field, then update the size.");
     static_assert(sizeof(components::PreviousCameraPose) == 24,
                   "PreviousCameraPose changed shape: see the note above. Adding the "
                   "field to BOTH structs is exactly the case that hid the last one.");
@@ -601,7 +601,7 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
     // literally inside the chest: the torso box is centred on the same capsule
     // axis the eye sat on, so looking down filled the whole frame with torso
     // and the player could never see their own feet (character's measured
-    // frame, docs/acceptance/character-lookdown-66deg-*). Not a tuning value —
+    // frame, artifacts/acceptance/character-lookdown-66deg-*). Not a tuning value —
     // it is the missing anatomy between two zones, hence a NUMBERS row both
     // read (Rule 35: the rig had no eye and the camera had no body).
     //

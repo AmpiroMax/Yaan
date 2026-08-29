@@ -29,7 +29,7 @@
  *   LANDMARK_SEPARATION_STEPS_MIN = 2 rulers of VALUE. So:
  *     hue may move freely; VALUE must stay far below the separation floor.
  *   Measured on the reference frames themselves (tools/measure_ground_colour.py,
- *   boxes in docs/acceptance/README.md), coarse-scale value spread in frames
+ *   boxes in artifacts/acceptance/README.md), coarse-scale value spread in frames
  *   01/02/15 is 0.13-0.25 rulers — an order below the floor. The references are
  *   MULTI-HUE AND SINGLE-VALUE at the large scale, and that is the recipe.
  * - It also may not become a MATERIAL CLASS by the back door: no hard edges, no

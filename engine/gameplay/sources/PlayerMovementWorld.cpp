@@ -73,7 +73,7 @@ ecs::EntityId spawn_player(ecs::World& world, platform::IPhysics& physics,
     // `fov_scale` was omitted here and in the per-tick snapshot, and while the
     // omission is harmless at spawn (the camera also starts at 1.0), the two
     // omissions had the same cause: a designated-initialiser list that reads as
-    // complete. The per-tick one was the run smear (docs/FINDING_RUN_SMEAR.md).
+    // complete. The per-tick one was the run smear (docs/findings/FINDING_RUN_SMEAR.md).
     world.add(id, components::PreviousCameraPose{
                       .position = eye, .yaw = 0.0f, .pitch = 0.0f, .fov_scale = 1.0f});
     return id;

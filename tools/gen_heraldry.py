@@ -52,7 +52,7 @@
 # Dependencies:
 # - Uses: numpy; tools/heraldry/{png_io,geometry,dfo,preview}.py.
 # - Used by: пока никем в рантайме — движок не умеет крутить меш в меню
-#   (см. docs/reports/heraldry-3d.html, раздел «что нужно движку»).
+#   (см. artifacts/reports/heraldry-3d.html, раздел «что нужно движку»).
 #
 # AI Agents Notice (must follow):
 # - Follow docs/ARCHITECTURE.md strictly.
@@ -79,7 +79,7 @@ from heraldry import dfo, geometry, png_io, preview  # noqa: E402
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_SOURCE = "assets/branding/oak_seal/oak_silhouette_black.png"
 DEFAULT_OBJECT = "assets/objects/heraldry/oak-seal-relief.dfo"
-DEFAULT_PREVIEW = "docs/reports/heraldry"
+DEFAULT_PREVIEW = "artifacts/reports/heraldry"
 
 # ЗОЛОТО ГЕРБА в линейном 0..1. Взято из BRANDING (золото на червлёном) и
 # приглушено: чистый #ffd700 в линейном свете с бликом уходит в белое пятно.

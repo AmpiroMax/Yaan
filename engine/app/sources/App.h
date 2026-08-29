@@ -288,7 +288,7 @@ private:
     [[nodiscard]] bool action_pressed(Action action) const;
 
     // ЕДИНСТВЕННОЕ МЕСТО, ГДЕ КЛАВИША ВООБЩЕ ДОХОДИТ ДО ПРИЛОЖЕНИЯ (слой 1
-    // разбора App.cpp, docs/PLAN_APP_DECOMPOSITION.md). Обходит таблицу
+    // разбора App.cpp, docs/audits/PLAN_APP_DECOMPOSITION.md). Обходит таблицу
     // AppActions.h и зовёт метод, названный в её строке. Возвращает false,
     // когда кадр надо бросить (ESC увёл в меню паузы) — раньше на этом месте
     // стоял `continue` посреди тысячи строк.
