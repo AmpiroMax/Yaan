@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:06:00
-# Last updated: 09:08:2026 - 00:06:00
 # File: .clang-format
 #
 # Responsibility:
@@ -8,9 +6,6 @@
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
-#
-# UPD:
-# - 09:08:2026 - 00:06:00: Ported from Quicky Engine; ColumnLimit raised to 100.
 
 BasedOnStyle: LLVM
 UseTab: Never

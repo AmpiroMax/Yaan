@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
 Module: engine/platform/input
 File: engine/platform/input/sources/null/NullInput.cpp
 
@@ -16,10 +14,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial factory.
 */
 
 #include "engine/platform/input/sources/null/NullInput.h"

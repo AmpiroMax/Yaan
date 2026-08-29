@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:44:12
-Last updated: 13:08:2026 - 20:55:00
 Module: engine/render
 File: engine/render/sources/FloraNeighbours.cpp
 
@@ -24,67 +22,6 @@ AI Agents Notice (must follow):
   analysis is cheap enough to exist.
 - Split out of ProcFlora.cpp on 09:08:2026 for Rule 21 (800-line limit) when the
   space-colonization rewrite landed. It was always a separate responsibility.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:44:12: Split out of ProcFlora.cpp unchanged (Rule 21).
-- 12:08:2026 - 00:0x: THE MATURITY TIERS AND THE WIND LEAN ARE BUILT.
-  (a) maturity for canopy trees now comes from math::flora_maturity_for(), the
-      25/60/12/3 tier draw that had been sitting in core/math with no consumer
-      but the test suite — every tree in the world was standing at core's flat
-      0.8-1.2 scatter scale;
-  (b) tree lean gained a WIND AZIMUTH (LANDSCAPE §10.3.1: every tilt has an
-      azimuth source; only boulders may use a free one), so a stand leans
-      TOGETHER, and the magnitude band opened to what reference frame 16 shows.
-- 12:08:2026 - 00:24:00: (see the entry above — the maturity tiers and the wind
-  lean; this line exists because the previous one carried a placeholder time.)
-- 12:08:2026 - 00:38:00: The lean band reads TREE_LEAN_WIND_MIN/MAX from the
-  generated constants; the local copies are gone (Rule 14).
-- 12:08:2026 - 23:20:00: The great oak is exempt from the maturity tier draw
-  (lead's carve, core's hand): that species IS the giant, so the 0.4-1.5
-  multiplier would be the same multiplier twice — and on the low tiers it would
-  shrink a landmark the world's occlusion envelope has already promised at 48 m.
-- 13:08:2026 - 19:45:00: The crowding neighbours are kept INDIVIDUALLY (up to
-  eight) instead of being collapsed into one worst bearing, and each carries the
-  radius at which this tree's wood must stop: the two crowns split the gap in
-  proportion to their radii and both back off by half a channel. The channel
-  width is derived from the read rule (a gap under distance/30 is one grey
-  pixel, Rule 33) at the 30 m the near-canopy vantage looks from.
-- 13:08:2026 - 21:40:00: FloraShape::crowding, and crown shyness now opens
-  its channel only where the canopy is actually closing. Both are the same
-  closeness curve on purpose: two numbers for "how closed is it here" that could
-  disagree are two numbers that eventually will.
-- 13:08:2026 - 20:17:00: DFN_FLORA_CROWNBASE -- a verification hook for the
-  EDGE-EFFECT hypothesis, and the hypothesis is REFUTED, which is why the hook
-  is worth keeping. Real forests read as canopy from outside because their edge
-  trees carry foliage nearly to the ground; ours are built the same at the edge
-  as in the middle, so the guess was that a lower crown would close the view.
-  Measured on the frame, per material (composite against wood-only and
-  cards-only), share of the treeline band each material stands IN FRONT of:
-        crown base            sky     WOOD    CARD
-        today (0.45-0.53)    23.7 %  58.6 %   4.8 %
-        forced 0.30          26.1 %  57.1 %   3.4 %
-        forced 0.18          28.7 %  55.5 %   2.7 %
-  It goes the WRONG WAY. The foliage budget is a fixed cluster count, so
-  lowering the base only spreads the same leaf over a taller crown and thins
-  it -- more sky, not less. Eighth hypothesis about this crown, eighth
-  measurement, and the first seven are in the files above.
-  WHAT THE MEASUREMENT FOUND INSTEAD IS ARITHMETIC AND NEEDS NO HYPOTHESIS.
-  Trunk coverage of a view through a stand of depth D at spacing s with boles d
-  across is 1-(1-d/s)^(D/s):
-        15 m spacing, 250 m of forest -> 49 %      8 m -> 91 %
-        10 m                          -> 79 %      6 m -> 99 %
-  At 6 m the boles ALONE tile the view within about forty rows, whatever the
-  crowns do, and the per-row profile agrees: wood outweighs foliage at every
-  height of the frame, 35 % against 15 % even in the middle of the canopy mass.
-  So the colonnade is not a defect in the tree and cannot be fixed by moving a
-  budget inside it.
-- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
-  this session's own UPD entries above were written AHEAD of the wall clock (one
-  said 22:00 for work committed at 20:24) and are corrected against the commit
-  times. Recorded rather than done silently -- a record whose stamps are
-  invented cannot be put in order afterwards, and the entries it would mislead
-  are this zone's own.
 */
 
 #include "engine/render/sources/ProcFlora.h"

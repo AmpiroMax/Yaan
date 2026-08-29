@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:59:13
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.cpp
 
@@ -19,28 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - user_data MUST be the entity's packed id: update_hover() reverses it.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial implementation.
-- 13:08:2026 - 17:20:00: The prop is drawn: RenderMesh (the verb's placeholder
-  unless content named one), PreviousTransform (without which render's view
-  does not select the entity at all), LocalBounds, and Transform.scale =
-  half_extents so the drawn cube IS the ray box.
-- 13:08:2026 - 18:15:00: The ray box's handle is KEPT and reaped when its
-  entity dies. It was discarded at creation, so no box could ever be destroyed.
-- 13:08:2026 - 18:25:00: update_interactable_motion — the door swings on its
-  hinge and the lever throws its handle, and the ray box moves with them.
-- 13:08:2026 - 18:55:00: The scale is half_extents / mesh_model_half_extents,
-  and a foreign mesh that left the latter at the unit cube is reported LOUDLY —
-  a guess about a mesh's size draws the prop nowhere near its own ray box.
-- 13:08:2026 - 18:40:00: A SETTLED LEAF SNAPS ITS TRANSFORM PAIR TOGETHER.
-  Caught reading my own diff, not by a test: the swing's last tick left
-  prev != curr and then the at-rest branch returned early, so render would have
-  interpolated between two poses that never change again — a door sweeping
-  between its final two frames for ever. That is the run smear, one component
-  over.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/gameplay/sources/InteractableSpawn.h"

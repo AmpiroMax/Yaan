@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:59:28
-Last updated: 14:08:2026 - 23:36:19
 Module: engine/world
 File: engine/world/sources/WorldgenForest.h
 
@@ -33,25 +31,6 @@ AI Agents Notice (must follow):
   everything stateful (erosion grid, path network) lives in WorldGenContext.
 - LF2_* literals below are REQUESTED NUMBERS rows (flagged to the lead with
   derivations, Rule 14/35); replace with dfn::config names when they land.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:59:28: Created — stand selector mechanism + LF-1/LF-2
-  ground per §8.1 (grive field: anisotropic, direction-coherent, 2-5 m over
-  ~100 m, swale floors flattened for fog/BR-5; glade = authored calm plain
-  per в9; §2.7 micro applied generally — the stand has no water, so the
-  shore taper clause is vacuous here).
-- 10:08:2026 - 10:29:50: THE EQUALIZER'S SECOND HALF (recovered work): LF2_SWALE_FLOOR_FRAC
-  0.55 — the swale-floor lip is a PERCOLATION threshold, derived and measured,
-  not taste. Below it the floors are disconnected potholes at every noise
-  tuning.
-- 11:08:2026 - 15:15:55: glade_factor published with the measurement that forced it (glade relief 3.43 m against the stand's own 3.0 m budget).
-- 14:08:2026 - 22:27:28: one_tree_stand_layout() — смотровой стенд одного дерева. Слой объявляет
-  ЗЕМЛЮ (поляна кроет весь пролёт, эрозия выключена, дубовой массы нет);
-  само дерево ставит скаттер-проход, потому что раскладка говорит про землю,
-  а что на ней стоит — не её слово.
-- 14:08:2026 - 23:36:19: gallery_stand_layout() — земля OneTree, id Gallery; что стоит на земле,
-  решает не генератор, а реестр объектов через приложение.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 11:19:15
-Last updated: 10:08:2026 - 11:19:15
 Module: engine/world
 File: engine/world/sources/WorldgenVantages.cpp
 
@@ -15,10 +13,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Rule 13.1: fixed lattice, fixed order, first-hit tie-breaks.
-*/
-/*
-UPD:
-- 10:08:2026 - 11:19:15: Created.
 */
 
 #include "engine/world/sources/WorldgenVantages.h"

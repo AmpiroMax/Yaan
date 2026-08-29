@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:05:00
-Last updated: 18:08:2026 - 13:08:07
 Module: engine/editor
 File: engine/editor/sources/EditorBrush.cpp
 
@@ -21,24 +19,6 @@ AI Agents Notice (must follow):
   heights. Storing "the ground here is 31.4 m" would freeze the edit against
   the world as it was on the day it was painted, and every later change to the
   generator would leave the composer's hills floating over new terrain.
-*/
-/*
-UPD:
-- 17:08:2026 - 19:05:00: Создан вместе с EditorBrush.h.
-- 17:08:2026 - 20:06:53: Переезд в engine/editor вместе с заголовком; судейская половина
-  (plant_dab, edit_placement и разбор вердикта по разности) уехала в
-  engine/app/sources/EditorPlant.cpp — ей нужен BuildTool, а он выше по слоям.
-- 17:08:2026 - 20:09:15: stroke_step — решение на нажатии, а не покадрово (см. заголовок).
-- 18:08:2026 - 01:05:34: brush_outline и его радиусы. Обе границы — обод и плоская
-  вершина — ДОСТАЮТСЯ ИЗ brush_weight бисекцией, поэтому зажим малого радиуса и
-  форма спада наследуются, а не переписываются. Цвет: зелёный вверх, красный
-  вниз, синий когда направления НЕТ (сглаживание тянет одни образцы вверх, а
-  другие вниз), масть поверхности — для кисти покраски.
-- 18:08:2026 - 13:08:07: StrokeRefresh — показ земли ПОКА КНОПКА ЗАЖАТА, с паузой, выведенной
-  из измеренной цены перестройки (196 мс/чанк). Реализация в двадцать строк, и
-  вся её ценность в том, что она ВЫРАЗИМА В ПРОВЕРКЕ: App держит окно и не
-  заводится, а «за штрих земля изменилась больше одного раза» иначе никак не
-  спросить — кадр показывает одно состояние.
 */
 
 #include "engine/editor/sources/EditorBrush.h"

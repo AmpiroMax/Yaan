@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 09:08:2026 - 11:05:22
 Module: engine/world
 File: engine/world/sources/WorldgenNoise.h
 
@@ -22,11 +20,6 @@ AI Agents Notice (must follow):
 - DETERMINISM IS NON-NEGOTIABLE (Rule 13.1): position-based, seeded, no state.
   Changing any formula here changes every world hash — bump worldgen_version.
 - Internal to engine/world; never include from another zone.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — extracted stage-2 noise (unchanged values)
-  + ridged noise for the L0 crag stamp.
 */
 
 #pragma once

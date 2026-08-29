@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 28:08:2026 - 18:50:00
 Module: engine/anim
 File: engine/anim/sources/Body.cpp
 
@@ -17,37 +15,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Segment writes keep the snapshot discipline (prev = curr BEFORE new curr) —
   render interpolates the pair; breaking it reads as body stutter.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial implementation.
-- 10:08:2026 - 12:10:00: evaluate_body_pose applies the joint limits at every exit.
-- 10:08:2026 - 20:00:23: Clip selection reads BodyDrive::gait; speed now only answers 'are the feet moving at all'.
-- 10:08:2026 - 20:25:17: the showcase reel reads gait_run_weight instead of literal 0.0/1.0 run weights.
-- 10:08:2026 - 20:41:06: the gear weight is eased over GAIT_BLEND_TIME_S in update_bodies; evaluate_body_pose reads the eased value.
-- 11:08:2026 - 13:51:09: Rule 32 sweep after the run smear: the mirror-puppet snapshot
-  copied only `position`, leaving rotation and scale to freeze at their
-  defaults. A no-op today (the puppet's rotation is never written) and NOT a
-  bug fix -- it is the line that stops being a no-op silently on the day it
-  is, which is exactly how PreviousCameraPose::fov_scale arrived.
-- 11:08:2026 - 15:18:52: THE ALT LEAN (the user's «словно я шеей вперед двигаю»,
-  three days old). BodyDrive::run_weight now PUBLISHES gait_fade(speed) *
-  gear_weight -- the lean the trunk is actually drawn with -- instead of the
-  eased gear alone. The trunk's lean was already gated by the idle->gait fade
-  through the blend; the eye's, ferried to sim's camera, was not, so holding
-  LEFT_ALT while STANDING STILL moved the camera 66.376 mm forward and
-  7.166 mm down against a body that did not move at all. After: 0.007 mm,
-  which is the zero-dose arm's own number to the last digit.
-  docs/FINDING_CROUCH_AND_ALT_LEAN.md.
-- 28:08:2026 - 11:16:40: ПОЗЫ МЕБЕЛИ. evaluate_body_pose кладёт позу сидя/лёжа
-  ПОВЕРХ живого слоя весом posture_blend (интегратор ведётся здесь, линейно —
-  экспонента не доходит до нуля и eye_valid остался бы вечным); body_root_for
-  смешивает корень стоящего с корнем мебели тем же весом; глаз позы
-  публикуется из ТОЙ ЖЕ позы и того же корня, которыми поставлены сегменты.
-- 28:08:2026 - 18:50:00: переход ведёт ТРАЕКТОРИЯ (коммит ed8bf25): evaluate_body_pose спрашивает
-  posture_pose с долями перехода, а не смешивает с конечной позой; корень
-  идёт долей plan (она опережает спуск таза — дуга); интегратор считает шаг
-  по длительности НАРИСОВАННОЙ позы и гасит posture_shown в нуле.
 */
 
 #include "engine/anim/sources/Body.h"

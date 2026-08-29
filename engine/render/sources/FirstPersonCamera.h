@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:22:00
 Module: engine/render
 File: engine/render/sources/FirstPersonCamera.h
 
@@ -35,13 +33,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Public contract, frozen for the stage (Rule 26): changes only via group sync.
 - Keep this class free of input handling; mouse-look lives in the controller.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
-- 09:08:2026 - 00:22:00: Local CameraPose removed in favour of the lead-authored
-  shared component (engine/core/components); provisional NUMBERS.md projection
-  constants referenced.
 */
 
 #pragma once

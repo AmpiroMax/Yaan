@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
 Module: tests
 File: tests/core/MathTests.cpp
 
@@ -14,10 +12,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — initial suite.
 */
 
 #include "engine/core/math/sources/Aabb.h"

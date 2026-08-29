@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 27:08:2026 - 12:34:00
-# Last updated: 27:08:2026 - 12:34:00
 # Module: tools
 # File: tools/heraldry/preview.py
 #
@@ -30,21 +28,15 @@
 # - Follow docs/ARCHITECTURE.md strictly.
 # - Освещение здесь — НЕ контракт с движком, а витрина. Не переносите эти
 #   числа в шейдер как «утверждённые»: свет меню назначает зона app.
-#
-# UPD:
-# - 27:08:2026 - 12:34:00: Создан — кадры превью 3D-герба (заказ владельца 27.08).
-#
 """Tiny software rasteriser: z-buffer, Lambert + Blinn-Phong, for preview PNGs."""
 
 import numpy as np
 
 from . import png_io
 
-
 def _normalize(vec):
     vec = np.asarray(vec, dtype=np.float64)
     return vec / max(1e-12, float(np.linalg.norm(vec)))
-
 
 def render(positions, normals, colors, indices, size=768, yaw=0.0, pitch=0.0,
            background=None, supersample=2,
@@ -166,7 +158,6 @@ def render(positions, normals, colors, indices, size=768, yaw=0.0, pitch=0.0,
     out[..., :3] = np.round(image * 255.0)
     out[..., 3] = np.round(np.clip(alpha, 0, 1) * 255.0)
     return out
-
 
 def save(path: str, image: np.ndarray) -> None:
     png_io.write_png(path, image)

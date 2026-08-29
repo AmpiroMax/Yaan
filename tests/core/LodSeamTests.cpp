@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:49:27
-Last updated: 11:08:2026 - 15:15:55
 Module: tests
 File: tests/core/LodSeamTests.cpp
 
@@ -22,18 +20,6 @@ AI Agents Notice (must follow):
 - Rule 30: the disagreement measure ships with three controls — a flat field
   and a linear ramp, which MUST measure zero, and a step field, which MUST
   measure the step. A measure that cannot fail is not a measurement.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:49:27: Created with the LOD streaming half.
-- 10:08:2026 - 19:55:51: The seam contract now covers the HEIGHT as well as the
-  quantization, on both stands, with the pre-fix open-coded chain as its
-  control. The control is EQUAL to the right answer on the testbed and wrong on
-  16158 of 16641 forest-stand samples — that asymmetry is the finding, not a
-  weak control: no amount of testing the stand everyone was looking at could
-  have caught a copy that only diverges where a stand declares passes the copy
-  never learned.
-- 11:08:2026 - 15:15:55: the open-coded control chain now fails on BOTH stands: §2.7's relief is a pass it never learned, so the shelter that hid the original drift on the testbed is gone.
 */
 
 #include "engine/world/sources/Chunk.h"

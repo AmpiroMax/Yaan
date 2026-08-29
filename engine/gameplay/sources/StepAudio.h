@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 28:08:2026 - 14:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/StepAudio.h
 
@@ -48,12 +46,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do not play footsteps from anywhere else: one publisher (the stride clock),
   one consumer (this file) — a second play site desyncs sound from step.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Created for the landscape stage (в3+в12 audio).
-- 28:08:2026 - 14:30:00: Безысточниковый ветер СНЯТ вместе со своим файлом
-  (wind_loop.wav); шелест переехал в WorldAmbience — к кронам.
 */
 
 #pragma once

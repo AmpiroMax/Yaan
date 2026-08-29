@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 19:38:00
-Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/VoxelMesher.h
 
@@ -38,15 +36,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure: no GPU, no ECS. Keep the weight/UV conventions in step with
   TerrainMesher — they share a shader.
-*/
-/*
-UPD:
-- 09:08:2026 - 19:38:00: Created — render finally draws the voxel surface, so
-  carved interiors exist on screen (lead-confirmed user bug: walkable but
-  invisible barrow).
-- 17:08:2026 - 11:53:47: build_voxel_terrain_mesh принимает поле поверхности (необязательное).
-- 17:08:2026 - 11:54:29: build_voxel_terrain_mesh принимает поле поверхности (необязательное).
-- 23:08:2026 - 00:30:00: параметр path_classes — та же упаковка, что у TerrainMesher.
 */
 
 #pragma once

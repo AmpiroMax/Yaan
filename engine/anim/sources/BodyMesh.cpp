@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 21:21:19
 Module: engine/anim
 File: engine/anim/sources/BodyMesh.cpp
 
@@ -15,12 +13,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep pure/deterministic; sizes only from RigProportions (which come from
   NUMBERS rows) — no literal meters here except authored color/inset ratios.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial implementation.
-- 10:08:2026 - 12:10:00: Bevelled tapered prisms replace the boxes (user: more rounded); the torso stops at the shoulder line with a neck stub (user: too much chest); calf tapers to a real ankle so the closed stance cannot merge the legs.
-- 10:08:2026 - 21:21:19: The trunk box stops at the ARM'S INNER EDGE, not at the acromion — the shoulder row is a joint span and a chest is not as wide as one, so the box was burying half the arm (Rule 43 at the shoulder). Silhouette unchanged at every height; the arm goes from 4.88 cm inside the trunk to 3.4 cm clear of it.
 */
 
 #include "engine/anim/sources/BodyMesh.h"

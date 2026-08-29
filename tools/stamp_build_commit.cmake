@@ -1,6 +1,4 @@
 #
-# Created: 10:08:2026 - 19:56:11
-# Last updated: 10:08:2026 - 19:56:11
 # File: tools/stamp_build_commit.cmake
 #
 # Responsibility:
@@ -28,9 +26,6 @@
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. LEAD-owned (Rule 25).
-#
-# UPD:
-# - 10:08:2026 - 19:56:11: Created (sim's finding: configure-time stamp named a stale build).
 
 execute_process(
     COMMAND git rev-parse --short HEAD

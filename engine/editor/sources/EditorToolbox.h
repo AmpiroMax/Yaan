@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 11:58:40
-Last updated: 18:08:2026 - 11:58:40
 Module: engine/editor
 File: engine/editor/sources/EditorToolbox.h
 
@@ -48,12 +46,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - DO NOT add a second way to change the active tool. If a caller needs one, it
   needs click_icon(), which is the user's own gesture.
-*/
-/*
-UPD:
-- 18:08:2026 - 11:58:40: Создан — единственный владелец «что в руке» (заказ 18.08,
-  docs/AUDIT_EDITOR_TOOLS.md). Ровно один активный указатель, ровно одно место
-  вызова on_deselected, общий потолок дальности и режим указателя на R.
 */
 
 #pragma once

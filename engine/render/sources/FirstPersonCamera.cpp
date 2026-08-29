@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
 Module: engine/render
 File: engine/render/sources/FirstPersonCamera.cpp
 
@@ -23,10 +21,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Angle conventions are frozen (yaw 0 = -Z, +yaw = turn right, +pitch = up).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
 */
 
 #include "engine/render/sources/FirstPersonCamera.h"

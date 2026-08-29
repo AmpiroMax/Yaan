@@ -1,6 +1,4 @@
 #
-# Created: 10:08:2026 - 01:56:45
-# Last updated: 28:08:2026 - 11:16:40
 # File: engine/anim/CMakeLists.txt
 #
 # Responsibility:
@@ -15,11 +13,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. anim sits below gameplay in the DAG:
 #   linking dfn_gameplay or dfn_render here is a layering violation.
-#
-# UPD:
-# - 10:08:2026 - 01:56:45: Initial library (rig, pose, clips, body mesh, body).
-# - 28:08:2026 - 11:16:40: sources/Posture.cpp — позы сидя и лёжа (обязательство
-#   эпохи «сидеть и лежать», заказ владельца 28.08).
 
 add_library(dfn_anim STATIC
     sources/Rig.cpp

@@ -1,12 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
--->
-<!--
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
-- 09:08:2026 - 00:42:03: Stage 2 — ContentHash implemented (needed by the Rule 13.1 determinism test); BinaryWriter/Reader IO stays headers-only per the lead's stage-2 scope.
--->
 
 # engine/core/serialization
 

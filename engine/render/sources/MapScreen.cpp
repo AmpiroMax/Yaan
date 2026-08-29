@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 17:24:30
-Last updated: 18:08:2026 - 12:06:07
 Module: engine/render
 File: engine/render/sources/MapScreen.cpp
 
@@ -32,18 +30,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure CPU: no GPU handles, no ECS, no world includes.
-*/
-/*
-UPD:
-- 09:08:2026 - 17:24:30: Created with the map screen.
-- 09:08:2026 - 22:29:52: mesh id 12 (CastleTower) joins the castle marker.
-- 18:08:2026 - 12:06:07: Prose only, the baking is unchanged: the sampling
-  note and the `cells` comment carried the OLD chunk lattice (129 samples,
-  128 cells) after HEIGHTMAP_RESOLUTION moved to 257 in NUMBERS. It matters
-  here more than in most places because this file's whole correctness
-  argument is a ratio — samples per map pixel, now 3.2 instead of 1.6 against
-  MAP_TILE_PX — and a stale ratio is what makes someone "simplify" the exact
-  block bounds in pass 1 into a fixed stride that silently drops samples.
 */
 
 #include "engine/render/sources/MapScreen.h"

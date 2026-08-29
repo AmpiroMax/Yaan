@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/events
 File: engine/core/events/sources/EventBus.cpp
 
@@ -18,10 +16,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - pump() must deliver events posted BY handlers in the same pump (index loop
   over a growing queue) — documented header contract.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — implementation.
 */
 
 #include "engine/core/events/sources/EventBus.h"

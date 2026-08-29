@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 28:08:2026 - 15:00:00
 Module: tests (sim zone)
 File: tests/sim/AudioTests.cpp
 
@@ -23,21 +21,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Created with the audio bring-up.
-- 27:08:2026 - 20:16:03: OGG VORBIS. Until today the only format the music
-  pipeline produces was the only format the engine could not open, and nothing
-  in this file would have noticed: every case here loads a .wav. The new case
-  loads the title theme, plays it looped through a music bus and stops it —
-  and its control is about the FORMAT, not the path (a missing .ogg must fail
-  too, or "it loaded" means only "load_sound returned something").
-- 28:08:2026 - 15:00:00: ВЕТРОВАЯ ПЕТЛЯ УШЛА ИЗ НАБОРА вместе со своим файлом
-  (зона «звук от источника»): случай про start_wind_loop снят, а на его место
-  встали два новых контракта бэкенда — срез верха на голосе и реверб шины.
-  У обоих контроль один и тот же по форме: вызов на ПРОТУХШЕЙ ручке обязан
-  быть тихим no-op, иначе «работает» значит только «не падает».
 */
 
 #include <doctest/doctest.h>

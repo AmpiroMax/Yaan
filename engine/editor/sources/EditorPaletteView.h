@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:22:11
-Last updated: 18:08:2026 - 01:10:51
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteView.h
 
@@ -37,24 +35,6 @@ AI Agents Notice (must follow):
   passing through, not interface text written in C++.
 - ASK FOR A THUMBNAIL ONLY FOR VISIBLE ROWS. 2411 offscreen renders is a hitch
   nobody asked for, and the list is clipped precisely so it never happens.
-*/
-/*
-UPD:
-- 17:08:2026 - 19:22:11: Создан — панель меню объектов на контракте EditorUi.
-- 17:08:2026 - 19:22:54: Переезд в engine/editor. ARCHITECTURE.md разрешает Dear ImGui
-  ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
-  (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
-  по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
-- 17:08:2026 - 21:04:27: у крючка миниатюры появился size_px — ПОЖЕЛАНИЕ, не требование, и кэш по
-  ИМЕНИ: иначе одна деталь легла бы в атлас трижды (44 в полосе, 96 в плитке,
-  192 в предпросмотре).
-- 18:08:2026 - 01:10:51: begin_frame — часы бюджета миниатюр. Крючок thumbnail
-  существовал с 17.08 и НЕ БЫЛ ПОДКЛЮЧЁН НИКЕМ: панель честно спрашивала
-  картинку каждый кадр и каждый кадр получала 0, то есть у пользователя было
-  меню из 2412 подписей (его слова 18.08: «нет всё ещё предпросмотра что это за
-  объекты, только название»). Отвечает на него теперь ThumbCache
-  (EditorPaletteThumb.h), а «раз в кадр» значит ровно те кадры, в которых эта
-  панель рисуется, — потому часы здесь, а не в цикле приложения.
 */
 
 #pragma once

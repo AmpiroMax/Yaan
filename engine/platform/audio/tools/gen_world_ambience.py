@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 28:08:2026 - 13:53:00
-# Last updated: 28:08:2026 - 13:53:00
 # File: engine/platform/audio/tools/gen_world_ambience.py
 #
 # Responsibility:
@@ -27,12 +25,6 @@
 #   seam is VERIFIED by measurement at the end of the run, not by listening.
 # - Regenerate with:
 #     python3 engine/platform/audio/tools/gen_world_ambience.py
-#
-# UPD:
-# - 28:08:2026 - 13:53:00: Initial set: leaves_broad_1..3, leaves_conifer_1..3,
-#               stream_small, river_wide. Replaces the source-less wind_loop.
-#               (Штампы дополнены до часов зоной «звук от источника» — она же
-#               кладёт файл в историю; содержимое генератора не тронуто.)
 
 from __future__ import annotations
 
@@ -54,12 +46,10 @@ PEAK = 0.5                   # -6 dBFS: background beds leave headroom for event
 # So the three steps of a family share ONE gain, and carry these ratios.
 STEP_GAIN = (0.55, 0.78, 1.00)
 
-
 # --- helpers ----------------------------------------------------------------
 
 def noise(rng: random.Random, n: int) -> list[float]:
     return [rng.uniform(-1.0, 1.0) for _ in range(n)]
-
 
 def lowpass(xs: list[float], cutoff_hz: float) -> list[float]:
     """One-pole low pass. Two of them in series give a gentler, more natural
@@ -71,14 +61,11 @@ def lowpass(xs: list[float], cutoff_hz: float) -> list[float]:
         out.append(y)
     return out
 
-
 def highpass(xs: list[float], cutoff_hz: float) -> list[float]:
     return [x - y for x, y in zip(xs, lowpass(xs, cutoff_hz))]
 
-
 def band(xs: list[float], lo_hz: float, hi_hz: float) -> list[float]:
     return highpass(lowpass(lowpass(xs, hi_hz), hi_hz), lo_hz)
-
 
 def resonator(xs: list[float], freq_hz: float, q: float) -> list[float]:
     """Narrow resonance — a water droplet is a short ring at one pitch."""
@@ -92,7 +79,6 @@ def resonator(xs: list[float], freq_hz: float, q: float) -> list[float]:
         y2, y1 = y1, y
         out.append(y)
     return out
-
 
 def gusts(rng: random.Random, n: int, depth: float, rate_hz: float) -> list[float]:
     """Wind is not steady: it breathes. Sum of a few slow random waves, so the
@@ -110,7 +96,6 @@ def gusts(rng: random.Random, n: int, depth: float, rate_hz: float) -> list[floa
         out.append(1.0 - depth + depth * (0.5 + 0.5 * v))
     return out
 
-
 def sprinkle(rng: random.Random, n: int, count: int, make) -> list[float]:
     """Scatter short events over the buffer, wrapping past the end so the
     density stays even across the loop seam."""
@@ -122,12 +107,10 @@ def sprinkle(rng: random.Random, n: int, count: int, make) -> list[float]:
             out[(at + j) % n] += v
     return out
 
-
 def normalize(xs: list[float], peak: float) -> list[float]:
     m = max(abs(x) for x in xs) or 1.0
     k = peak / m
     return [x * k for x in xs]
-
 
 def close_loop(xs: list[float], fade_n: int) -> list[float]:
     """Wrap the tail onto the head with an equal-power cross-fade. After this
@@ -139,7 +122,6 @@ def close_loop(xs: list[float], fade_n: int) -> list[float]:
         b = math.sin(0.5 * math.pi * i / fade_n)      # head fading in
         body[i] = body[i] * b + tail[i] * a
     return body
-
 
 # --- voices -----------------------------------------------------------------
 
@@ -153,7 +135,6 @@ def leaf_clatter(bright: float):
         return [v * e * rng.uniform(0.5, 1.0) for v, e in zip(raw, env)]
     return make
 
-
 def droplet(lo: float, hi: float):
     """A water droplet: a short ring whose pitch rises as the bubble collapses."""
     def make(rng: random.Random) -> list[float]:
@@ -164,7 +145,6 @@ def droplet(lo: float, hi: float):
         ring = resonator(exc, f, q=rng.uniform(8.0, 26.0))
         return [v * 0.06 for v in ring]
     return make
-
 
 def leaves(rng: random.Random, n: int, conifer: bool, step: int) -> list[float]:
     """step 1..3 — wind strength. Stronger wind means louder, brighter, gustier
@@ -190,7 +170,6 @@ def leaves(rng: random.Random, n: int, conifer: bool, step: int) -> list[float]:
         env = gusts(rng, n, depth, rate_hz=0.12)
     return [(b + c) * e for b, c, e in zip(bed, clatter, env)]
 
-
 def water(rng: random.Random, n: int, wide: bool) -> list[float]:
     """A stream chatters with single droplets; a river is mass — the droplets
     merge into one broad rush and only the low end tells them apart."""
@@ -206,7 +185,6 @@ def water(rng: random.Random, n: int, wide: bool) -> list[float]:
         env = gusts(rng, n, 0.28, rate_hz=0.19)
     return [(b + d) * e for b, d, e in zip(bed, drops, env)]
 
-
 # --- output -----------------------------------------------------------------
 
 def write_wav(path: Path, xs: list[float]) -> None:
@@ -218,7 +196,6 @@ def write_wav(path: Path, xs: list[float]) -> None:
         w.writeframes(b"".join(
             struct.pack("<h", max(-32768, min(32767, int(x * 32767.0)))) for x in xs))
 
-
 def seam_error(xs: list[float]) -> float:
     """How loud the loop point is compared with the material around it.
     We measure the sample-to-sample jump at the wrap and compare it with the
@@ -229,10 +206,8 @@ def seam_error(xs: list[float]) -> float:
     wrap = abs(xs[0] - xs[-1])
     return wrap / (typical or 1e-9)
 
-
 def db(x: float) -> float:
     return 20.0 * math.log10(x) if x > 0 else -120.0
-
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -278,7 +253,6 @@ def main() -> None:
     print("\nстык: отношение скачка на месте склейки к самым большим скачкам внутри "
           "материала. Единица и ниже — склейку не слышно.")
     print(f"каталог: {out}")
-
 
 if __name__ == "__main__":
     main()

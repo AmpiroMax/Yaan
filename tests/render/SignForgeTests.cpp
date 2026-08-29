@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 14:46:25
 Module: tests
 File: tests/render/SignForgeTests.cpp
 
@@ -22,10 +20,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - No user-facing string here either; the strings below are TEST FIXTURES and
   say so — they are never drawn in the game.
-*/
-/*
-UPD:
-- 17:08:2026 - 14:46:25: Создан вместе с SignForge — работа 4 заказа 17.08.
 */
 
 #include "engine/render/sources/BitmapFont.h"

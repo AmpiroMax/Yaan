@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/world
 File: engine/world/sources/SaveDelta.h
 
@@ -27,11 +25,6 @@ AI Agents Notice (must follow):
   build must not lose a newer build's data).
 - Never serialize runtime ecs::EntityId — only WorldEntityId (generated) or
   per-save DynamicEntityId (spawned) are stable.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — delta model + codec with gameplay
-  section hooks (Q56); hook shape agreed with sim (Rule 26).
 */
 
 #pragma once

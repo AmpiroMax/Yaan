@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.cpp
 
@@ -20,71 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - DETERMINISM (Rule 13.1): per-cell rng seeded by mix64(seed, stream, cell) —
   never by chunk. Fixed pass order = fixed instance order inside a chunk.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — P5 implementation.
-- 09:08:2026 - 13:12:19: Stage 3b amendments: pine ring -> radial ridge strips (§5.2/§1.3); L0 sight wedges reject over-angling trees near POI sightlines (LANDMARK_CLEARANCE_FACTOR); crag treeless band via treeline; canopy_height_at.
-- 09:08:2026 - 14:03:23: Micro-relief batch: curb stones along corridor margins (PATH_CURB_SPACING/DENSITY, margin band between groove edge and corridor edge, 0.25-0.55 m Stones, deterministic per corridor step).
-- 09:08:2026 - 14:49:01: Scatter-in-water fix (part 2): ScatterCtx::dry_enough(p, margin) is now THE water gate for every pass — trees/bushes/stones/curbs and the forced watchpoint cluster (which sits on a ford by design and previously bypassed all gates: a pine and boulders stood in the channel). Margins TREE/BUSH/STONE_WATER_MARGIN keep trunks clear of the drawn plane edge.
-- 09:08:2026 - 17:45:08: §6.2: standing stones flanking each entrance approach (paired avenue, placed by rule — they must read as INTENTIONAL, which scatter cannot do) + the exclusion ring keeping trees, bushes and loose stones off the mound and forecourt so the silhouette survives.
-- 09:08:2026 - 18:58:01: Live-play fix: scatter resolves against the FINAL ground (macro + carve + entrance works + pads). Sampling the pre-stamp field buried props by exactly the mound's local rise — measured up to 2.4 m at the river barrow.
-- 09:08:2026 - 22:54:32: Tree occlusion heights sourced from OAK/PINE/BIRCH_HEIGHT_MAX instead of a local table that read 12/18/10 against a world built at 32/38/22 (pine 2.1x under). The sight-wedge filter and the C1 canopy field were both lied to; the wedges never failed.
-- 10:08:2026 - 01:58:00: Birch lattice derives from BIRCH_BANKLINE_SPACING_MIN/MAX (design ruling on core's Rule 32 question: bank-line accent spacing = crown width x 1.1-1.5, NOT TREE_SPACING_FOREST; the hard-coded 8.0 sat inside the band by luck). Mid-of-band derivation, same shape as oak/pine.
-- 10:08:2026 - 11:51:23: scatter_forest_floor(): snags (grey in the wood, pale
-  in the open — two materials on one asset, and a 6x density split is why they
-  are two lattices), big bushes, fallen logs laid ACROSS the slope by derived
-  yaw, deadfall. Lattice cell derived from the declared per-hectare band rather
-  than tabled, so the NUMBERS row stays the single source. THE CANOPY OCCLUSION
-  ENVELOPE is now SPECIES_HEIGHT_MAX x TREE_MATURITY_GIANT_MULT_MAX: a 1.5x
-  giant oak is 48 m where the raycast modelled 32 — the same "half the world's
-  height" defect the species-height constants were introduced to stop, one
-  factor further out. The corridor clause on floor_ok was missing in the first
-  cut and WorldgenV2Tests caught it: §2.4 is asserted over every non-Stone
-  instance, not over trees, and a blanket rule a new species may opt out of is
-  not a rule.
-- 10:08:2026 - 11:59:55: §5.11 scatter_path_edges(): flora's seven edge species
-  on the margins, on THEIR datum (the worn edge, outward — never the
-  centreline), with the edge ramp applied EXACTLY ONCE from PathSample::edge
-  and per_100m normalised by the ramp's own integral. The field term is
-  max(clump, edge x richness), a FLOOR and not a product: written as a product
-  the swept classes' margins go to exactly zero, which the suite now fails on.
-- 10:08:2026 - 12:11:07: scatter_forest_ground() — BR-3's DENOMINATOR. The first
-  cut sampled positions and asked "is there a trunk within reach", which is the
-  anchor question read backwards and is off by the odds of asking it: at 44
-  stems/ha a random point has a trunk within 3 m ~13% of the time, so an
-  authored 40/ha placed 0.82/ha. No reach tuning fixes that — the STRUCTURE was
-  wrong. Flora derived the density FROM the stem count, so the loop is over
-  stems, with for_cells_margin so a trunk over the border still dresses into
-  this chunk.
-- 10:08:2026 - 12:15:37: MOSS SHIPS 6.6x LOW, recorded rather than fixed. Flora
-  ruled the asymmetry I asked about: mushroom 20/ha is a BASE (they wrote
-  "before clumping" — the field IS the intended look), moss 40/ha is a REALISED
-  count ("44 stems x ~2/3 carrying a basal patch" counts patches on the ground).
-  The fix is the ROW (per_m2 ~= 0.0263), not this code, and it must not be
-  closed by widening the clump field.
-- 10:08:2026 - 20:20:20: §5.12 THE APRON WIRED into tree_ok. on_crag_treeless is
-  an ELEVATION gate high on the mountain (d < radius AND h >= treeline); the
-  hem where the flank is still climbing had NO RULE AT ALL, which is how the
-  pine annulus came to start at 140 m inside a 120-162 m foot. 88 of 2282 trees
-  (3.9%) leave the massif's hem; the annulus keeps its forest.
-- 11:08:2026 - 15:15:55: §10.5 B1 boulders replace the sourceless 120 m outcrop-cluster lattice: buried, sourced, size-spread by construction, with B6 skirts. AND ScatterCtx::ground() was a FIFTH copy of the pass stack -- the ground everything STANDS on -- which never learned about the relief pass: instances floated or sank by up to 0.59 m.
-- 12:08:2026 - 22:55:00: THE GREAT OAK'S CLEARING (GIANT_OAKS §2, measured by
-  flora: same giants, same size, same haze, only the ordinary oaks removed, and
-  they read at once). tree_ok and both snag lattices refuse the clearing; the
-  ground cover does not, because a 0.6 m tuft expires as an object at 18 m and
-  was never in the picture that experiment took. The giants themselves are
-  emitted here from the world-level site list. SightWedges and the two exclusion
-  rings moved to WorldgenPlacement.h the moment a second pass needed them.
-- 14:08:2026 - 22:27:28: Ветка OneTree в build_scatter: РОВНО один номинальный дуб (yaw 0, масштаб 1,
-  ONE_TREE_STAND_X/Z) и ничего больше — ни кустов, ни камней, ни подлеска.
-  Жалоба, названная на ОДНОМ дереве, действенна; лишний куст у корня читался бы
-  частью силуэта самого дерева.
-- 14:08:2026 - 23:36:19: Ветка Gallery: скаттер не даёт НИЧЕГО — экспонаты приходят из реестра,
-  и куст между ними судился бы как изделие кузницы.
-- 18:08:2026 - 12:06:09: ScatterCtx::slope — через central_difference_slope. Плечо было голым
-  `d = 2.0f` и совпадало с классификатором только потому, что HEIGHTMAP_STEP
-  равнялся 2.0: рассев и раскраска камня разъехались бы молча (правило 32).
 */
 
 #include "engine/world/sources/WorldgenScatter.h"
@@ -410,7 +343,6 @@ struct ScatterCtx {
     }
 };
 
-
 // ---------------------------------------------------------------------------
 // §5.10 THE FOREST FLOOR
 //
@@ -563,7 +495,6 @@ void scatter_forest_floor(ScatterCtx& ctx) {
                  0.7f, 1.15f);
 }
 
-
 // ---------------------------------------------------------------------------
 // §5.11 THE RICH EDGE (в8/в19в, BR-3)
 //
@@ -695,7 +626,6 @@ void scatter_path_edges(ScatterCtx& ctx) {
         }
     }
 }
-
 
 // ---------------------------------------------------------------------------
 // §5.11 THE FOREST FLOOR'S GROUND COVER — BR-3's DENOMINATOR
@@ -1210,7 +1140,6 @@ float canopy_height_at(const WorldGenContext& gen, glm::vec2 world, float terrai
     }
     return (pine ? PINE_MAX_H : OAK_MAX_H) * GIANT_MULT;
 }
-
 
 std::vector<math::ScatterInstance> build_scatter(const WorldGenContext& gen,
                                                  glm::vec2 chunk_min, glm::vec2 chunk_max) {

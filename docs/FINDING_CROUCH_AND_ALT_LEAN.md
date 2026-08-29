@@ -1,19 +1,3 @@
-<!--
-Created: 11:08:2026 - 15:20:11
-Last updated: 11:08:2026 - 15:20:11
--->
-<!--
-UPD:
-- 11:08:2026 - 15:20:11: Written by sim/character while the session was winding
-  down, so the findings live in a FILE and not in a thread (two zones lost a
-  day's work yesterday one sentence before writing theirs down). Two
-  user-named complaints, both three days old. THE ALT LEAN IS SOLVED, FIXED AND
-  MEASURED BOTH WAYS. THE CROUCH IS NOT: the lead's leading hypothesis (we
-  measured the settled pose, he is complaining about the transition) is
-  REFUTED for the standing arm by a per-frame measurement, and the negative
-  result is recorded here in full because it costs the next pass a day
-  otherwise.
--->
 
 # FINDING — the ALT lean (SOLVED) and the crouch (NOT SOLVED, hypothesis refuted)
 

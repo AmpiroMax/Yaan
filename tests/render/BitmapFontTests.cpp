@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:32:07
-Last updated: 09:08:2026 - 23:32:07
 Module: tests
 File: tests/render/BitmapFontTests.cpp
 
@@ -22,10 +20,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:32:07: Created with the font.
 */
 
 #include "engine/render/sources/BitmapFont.h"

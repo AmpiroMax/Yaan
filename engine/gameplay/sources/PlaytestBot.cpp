@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:23:05
-Last updated: 22:08:2026 - 14:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.cpp
 
@@ -25,83 +23,6 @@ AI Agents Notice (must follow):
 - The bot must only ever write PlayerState INPUT INTENTS — never positions,
   never velocities. Writing state would turn the playtest into the special
   mode the spec forbids.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:23:05: v1 per PLAYTEST.md.
-- 10:08:2026 - 12:08:26: FOOT SLIP invariant (the instrument the movement
-                         ruling asked for): a planted foot must not travel.
-                         Slip is a MOTION artifact, so no still frame can show
-                         it. Feet arrive through a callback seam (unbound =
-                         skipped, never silently passing); bound by character.
-                         Bot also picks its gear through the same modifiers a
-                         player's keys set.
-- 10:08:2026 - 19:48:10: Foot-slip bound is now ABSOLUTE (30 mm), not 5% of
-                         step length: the fraction grew to 122 mm at RUN_SPEED,
-                         where no value of it separated an accepted run from a
-                         rejected one (Rule 30 -- the quantity was wrong, not
-                         the threshold). Ground-contact counters added, which
-                         REFUTED the landing-dip-retrigger hypothesis for the
-                         running judder by measurement.
-- 10:08:2026 - 20:14:16: Frame trace at a 20 ms threshold, below the 50 ms
-                         incident gate on purpose: an event's shape lives in
-                         its shoulders and a threshold at the gate records only
-                         the peak. It answered render's sizing question -- the
-                         chunk-boundary stall is TWO consecutive ~390 ms frames
-                         (3/3 runs), not one, so a per-frame budget would not
-                         decompose it.
-- 10:08:2026 - 20:32:57: CORRECTION (Rule 16/17). The stamp on the entry
-                         above was written 22 minutes AHEAD of the clock I had
-                         just read; it now reads the true 20:26:56. Recorded as
-                         an appended entry rather than a silent edit, because
-                         UPD blocks are this project's only cross-zone ordering
-                         record, so a forward stamp REORDERS history rather
-                         than merely misdating a file (character2's catch,
-                         independent of my own).
-- 11:08:2026 - 15:00:03: SCRIPTED KEYS (DFN_PLAYTEST_CROUCH / DFN_PLAYTEST_JOG
-                         / DFN_PLAYTEST_STILL). The bot could hold a GEAR but
-                         never PRESS A KEY at a known moment, so both of the
-                         user's open complaints — the crouch that "goes even
-                         lower" and the ALT that "moves my neck forward" — could
-                         only ever be measured in their SETTLED pose, which is
-                         the one shape a transition complaint is not about. See
-                         key_script() for the argument and
-                         docs/FINDING_RUN_SMEAR.md for what a settled instrument
-                         cost this project. Intents only, same path as a key.
-- 13:08:2026 - 18:00:00: THE BOT PRESSES THE VERB (user: «ни с чем
-                         взаимодействовать не могу, хотя текст появляется»).
-                         No automated run had ever pressed one, so the report
-                         could not be reproduced without a human at the
-                         keyboard. It writes `interact_pressed`, the same latch
-                         a human's E sets, and the world is CENSUSED every tick
-                         -- interactables alive, doors open, levers used, items
-                         carried -- printed first -> last beside the press
-                         count. The suspicion worth testing was never "the
-                         press is lost"; it was "the press arrives, the verb
-                         fires, and nothing is different for it", and only a
-                         count can say that.
-- 13:08:2026 - 18:10:00: THE CENSUS COUNTS TRANSITIONS, not endpoints, and the
-                         first version cost a wrong diagnosis to find out. A
-                         door TOGGLES: sixteen opens and sixteen shuts leave
-                         "doors_open 0 -> 0", which reads as "the verb never
-                         fires" -- the opposite of the truth, and it was one
-                         cross-check away from being reported as the answer.
-                         Endpoints cannot see a toggle. Both are printed now,
-                         and the transition counts are the ones that answer the
-                         question.
-- 13:08:2026 - 18:35:00: The bot GLANCES DOWN when nothing is in the crosshair.
-                         With its pitch nailed to zero it could only ever find
-                         props at chest height: a 0.5 m prop standing at 1.3 m
-                         sits 11.3 deg below the eye at conversational range,
-                         and the first run with the verb wired hovered ONE of
-                         three props in ninety seconds for that reason alone. A
-                         harness that can only exercise one of three verbs
-                         reports on one of three verbs.
-- 20:08:2026 - 17:30:00: Радиус прибытия берётся из конфига, когда задан.
-- 22:08:2026 - 14:30:00: Амплитуда обзорной развёртки умножается на
-  config.glance_scale (0 = ровный взгляд, сервоввод сам выводит pitch к
-  горизонту). Заведено после того, как качание бота в операторской ленте
-  приняли за качание камеры игрока (претензия [9] приёмки 22.08).
 */
 
 #include "engine/gameplay/sources/PlaytestBot.h"

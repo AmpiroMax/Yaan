@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:32:10
-Last updated: 28:08:2026 - 19:30:00
 Module: engine/app
 File: engine/app/sources/AppDoors.h
 
@@ -45,17 +43,6 @@ AI Agents Notice (must follow):
 - ADDING A DOOR? Add its row here first. A getenv() elsewhere in engine/app is
   caught by tests/app/DoorsTests.cpp, and door_value() of an unlisted name
   refuses at runtime.
-*/
-/*
-UPD:
-- 18:08:2026 - 17:32:10: Создан. Слой 2 разбора App.cpp (docs/PLAN_APP_DECOMPOSITION.md):
-  58 дверей, читавшихся россыпью по шести файлам, собраны в одну таблицу с
-  описанием и признаком «за этим прогоном никто не сидит». Последний перестал
-  быть выражением из тринадцати слагаемых — а его уже дважды ломали правкой,
-  которая выглядела безобидной (см. предупреждение у unattended_run()).
-- 28:08:2026 - 19:30:00: counted_run() — вопрос «кадр этого прогона является
-  доказательством». Дверь контроля к нему (DFN_UNPIN) читается в App.cpp: файл
-  таблицы исключён из переписи читателей рукавом app_doors.
 */
 
 #pragma once
@@ -117,6 +104,5 @@ struct Door {
 // у двух вопросов разные потребители («не забирай мышь» и «считай кадрами»), и
 // день, когда они разойдутся, не должен начинаться с поиска всех мест.
 [[nodiscard]] bool counted_run();
-
 
 } // namespace dfn::app

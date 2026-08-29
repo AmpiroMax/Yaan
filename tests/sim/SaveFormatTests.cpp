@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:10:26
-Last updated: 10:08:2026 - 21:18:21
 Module: tests
 File: tests/sim/SaveFormatTests.cpp
 
@@ -30,12 +28,6 @@ AI Agents Notice (must follow):
   container grammar changed, and that is the finding — a save file written by
   an older build no longer loads. Regenerating it deletes exactly the evidence
   the case exists to produce.
-*/
-/*
-UPD:
-- 10:08:2026 - 21:10:26: Created with the Binary IO implementation.
-- 10:08:2026 - 21:18:21: The misuse cases now assert BinaryWriter::ok()
-  directly (the lead approved adding it), not only that save_to_file refuses.
 */
 
 #include <doctest/doctest.h>

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:20:31
-Last updated: 10:08:2026 - 21:20:31
 Module: engine/world
 File: engine/world/sources/SaveDelta.cpp
 
@@ -28,14 +26,6 @@ AI Agents Notice (must follow):
   progress in whatever system owns them. Skip-unknown in the reader keeps the
   load working; copying the bytes back out on the next write is what keeps the
   data alive. Deleting that loop is a data-loss bug, not a cleanup.
-*/
-/*
-UPD:
-- 10:08:2026 - 21:20:31: Stage-2 implementation, written by sim under an
-  explicit lead carve of core's zone (Rule 25): this file plus its line in
-  engine/world/CMakeLists.txt, nothing else in engine/world. It was the last
-  declaration-only piece between the engine and a save file the user can
-  actually write, after BinaryWriter/BinaryReader landed an hour earlier.
 */
 
 #include "engine/world/sources/SaveDelta.h"

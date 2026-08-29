@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/render/TerrainMesherTests.cpp
 
@@ -17,32 +15,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial tests.
-- 09:08:2026 - 11:08:00: Stage 3 — vertex alpha now carries the grass/dirt
-  dryness (world-continuous), no longer forced opaque; test updated to check
-  determinism + cross-chunk alpha continuity instead.
-- 09:08:2026 - 11:57:20: Stage 3b — surface-field splat weight channels
-  (R sand / G rock / B bed) + mismatched-grid fallback.
-- 09:08:2026 - 14:11:37: Dryness channel removed (design ruling): alpha is
-  reserved-opaque, checked in the determinism case.
-- 10:08:2026 - 01:47:53: Clip rectangle cases (straddle-ring fix): cell removal
-  with the unclipped mesh as the Rule 30 control, cut-line skirts, and the
-  no-op guarantee for a rectangle that misses the field.
-- 10:08:2026 - 21:13:39: Cross-mesher agreement case. The two meshers must give
-  the same ground the same splat bytes, walked over every SurfaceClass and
-  every VoxelMaterial enumerator. Control (Rule 30 in the shape Rule 39 names
-  for a shadow-copy fix): the PRE-FIX voxel table written out verbatim, which
-  agrees on the four classes everyone tested and disagrees on exactly the
-  fifth -- asserted as `control_disagreements == 1`, so a fix that changed
-  nothing and a fix that broke the other four both go red.
-- 18:08:2026 - 12:06:09: «border step is measured on the border» строил пандус как `x * 300`,
-  что влезает в uint16 только до 218-го отсчёта: на решётке 257 пандус
-  ПЕРЕПОЛНЯЛСЯ, и случай мерил 652 м «шага границы» на поле, у которого его нет.
-  Подъём выводится из HEIGHTMAP_RESOLUTION. Оснастка, тихо перестающая быть той
-  формой, которой себя объявляет, хуже отсутствующей.
 */
 
 #include "engine/render/sources/TerrainMesher.h"

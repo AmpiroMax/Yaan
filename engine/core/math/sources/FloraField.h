@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 11:52:00
-Last updated: 10:08:2026 - 11:52:00
 Module: engine/core/math
 File: engine/core/math/sources/FloraField.h
 
@@ -43,18 +41,6 @@ AI Agents Notice (must follow):
   its peak moved inward. It is deleted; the caller passes plain clump_field().
 - The per-class values are REGISTRY ROWS: CLUMP_WAVELENGTH_<CLASS> /
   CLUMP_COVERAGE_<CLASS> / CLUMP_CONTRAST_<CLASS>. Cite names, never values.
-*/
-/*
-UPD:
-- 10:08:2026 - 11:52:00: TRANSPLANTED from engine/render/sources/FloraField.h
-  (flora's authorship, unchanged machinery) into core's zone, because
-  WorldgenScatter is now the consumer and world may not include render.
-  flora_maturity_for() came in the same move: it is keyed the same way and its
-  multiplier bands are what core's canopy occlusion envelope is defined from
-  (SPECIES_HEIGHT_MAX x TREE_MATURITY_GIANT_MULT_MAX), so one home, Rule 35.
-  The equalizer and the Rule 31 control came with it and are now core's to
-  keep. Namespace dfn::render -> dfn::math; the old path is a forwarding
-  header so flora's suite keeps running against the one definition.
 */
 
 #pragma once

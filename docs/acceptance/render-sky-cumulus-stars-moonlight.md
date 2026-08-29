@@ -1,6 +1,4 @@
 <!--
-Created: 13:08:2026 - 19:52:00
-Last updated: 13:08:2026 - 20:49:05
 File: docs/acceptance/render-sky-cumulus-stars-moonlight.md
 
 Responsibility:
@@ -17,14 +15,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Rule 27: every claim here is about MOTION and none of it can be read off a
   single frame. The arms are pairs.
--->
-<!--
-UPD:
-- 13:08:2026 - 19:52:00: Created with the three changes.
-- 13:08:2026 - 20:43:42: Deck thickness (both lower decks), the end-to-end sweep, and the
-  reproducibility finding that came out of it.
-- 13:08:2026 - 20:49:05: the cure verified end to end after the app wired it, and the
-  residual named.
 -->
 
 # The sky, three reports closed

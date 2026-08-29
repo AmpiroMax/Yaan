@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:16:00
-Last updated: 10:08:2026 - 11:52:00
 Module: engine/render
 File: engine/render/sources/FloraField.h
 
@@ -26,29 +24,6 @@ AI Agents Notice (must follow):
   and core's instances on different ground. Edit the core header.
 - This file is a TRANSITION: it may be deleted the moment flora's includes
   point at engine/core/math/sources/FloraField.h directly.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:16:00: Created — field machinery per design's blessed spec:
-  per-class seeded low-frequency field with WAVELENGTH / COVERAGE / CONTRAST
-  as the authorship, rank-equalized raw noise (Rule 31), the edge-floor
-  composition (design amendment 2), and the mushroom ring second stage
-  (parent-child under the field, not more noise).
-- 10:08:2026 - 02:34:52: The authored values became registry rows (lead landed
-  CLUMP_* with design's signature); literals replaced by Constants.h names
-  (Rule 14). Ring/cluster parity moved onto the PARENT SEED itself so the
-  contract "even parents ring" is legible to core's find promotion.
-- 10:08:2026 - 11:07:33: clump_field_edged() takes path_richness: the BR-3
-  floor is the very machinery that would garden a cobbled gutter, so it is
-  scoped by the maintenance column and stops applying on swept classes.
-- 10:08:2026 - 11:24:00: clump_field_edged() DELETED — core wired the
-  consumer and applies the BR-3 gradient once from PathSample::edge; two ramps
-  square the band. A tombstone records where its two invariants went.
-- 10:08:2026 - 11:52:00: CONTENTS MOVED to engine/core/math/sources/FloraField.h
-  (flora's authorship unchanged; namespace dfn::render -> dfn::math). This file
-  is now a forwarding header. flora_maturity_for() travelled with it — it is
-  keyed the same way and core's canopy occlusion envelope is defined from its
-  multiplier bands, so it needed the same one home.
 */
 
 #pragma once

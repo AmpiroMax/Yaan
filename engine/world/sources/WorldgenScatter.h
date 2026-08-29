@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 12:08:2026 - 22:55:00
 Module: engine/world
 File: engine/world/sources/WorldgenScatter.h
 
@@ -27,24 +25,6 @@ AI Agents Notice (must follow):
   half-open bounds; neighbors agree without communication.
 - Scatter is DATA, not entities: instances never enter the ECS or the entity
   records (Rule 11 friendliness; render consumes via ChunkManager).
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — P5 scatter.
-- 09:08:2026 - 13:12:19: Stage 3b amendments: canopy_height_at exposed for the canopy-aware C1 raycast (§1.1).
-- 10:08:2026 - 11:51:23: §5.10 THE FOREST FLOOR gets a consumer. build_scatter
-  takes the stand's erosion grid and path network — not optional and not
-  branched on, since an empty grid samples 0 and an empty network flattens by
-  0, so the testbed runs the identical path (Rule 32). Without them every
-  instance on the forest stand stood at its PRE-EROSION height. Also exports
-  in_forest_interior / in_open_ground: a per-hectare density is per hectare of
-  ITS OWN ground, and the acceptance must divide by the area the placement
-  multiplied by.
-- 11:08:2026 - 15:15:55: build_scatter takes the whole WorldGenContext instead of six pieces. A signature that cannot express 'some of the passes' cannot drift from the ground that ships.
-- 12:08:2026 - 22:55:00: canopy_height_at takes the CONTEXT. The tallest and by
-  far the widest occluder in the world (a great oak, 48 m tall and 96 m across)
-  stands in a CLEARING — exactly where the forest mask reports open sky — so the
-  old (seed, layout) signature could not have heard about it.
 */
 
 #pragma once

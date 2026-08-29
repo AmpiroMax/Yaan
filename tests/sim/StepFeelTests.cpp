@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 20:32:57
 Module: tests (sim zone)
 File: tests/sim/StepFeelTests.cpp
 
@@ -25,17 +23,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Controls are part of the suite (Rule 30): a case that nothing can fail is
   a description, not a test.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Created for the landscape stage (шаг как событие).
-- 10:08:2026 - 20:26:56: Eye-lean application, with two controls: zero in ->
-  zero out (rejects sim deriving a lean of its own), and bob_scale 0 must NOT
-  disable it. Plus the discriminating case -- applied along FACING, which a
-  fixed-world-axis implementation fails.
-- 10:08:2026 - 20:32:57: CORRECTION (Rule 16/17): the stamp above was
-  written ahead of the clock and now reads the true reading. Appended, not
-  edited silently -- UPD is the cross-zone ordering record.
 */
 
 #include <doctest/doctest.h>

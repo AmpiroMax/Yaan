@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 12:51:47
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.h
 
@@ -26,22 +24,6 @@ Notes:
 - save_screenshot schedules the capture into the NEXT end_frame (bgfx captures
   during frame processing); the PNG lands on disk during that frame. The Tour
   renders flush frames after scheduling, so callers need no extra handling.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 09:08:2026 - 10:58:00: Stage 3 — set_environment (contract sync 10:48), sky
-  pass, palette post (Q9b), water transparency, point-sampled textures.
-- 09:08:2026 - 14:11:37: Dynamic sun shadows (в1): shadow view 0, view layout
-  renumbered.
-- 09:08:2026 - 21:02:17: DrawParams sync: submit takes per-draw params (fade
-  drives the screen-door dither, highlight reserved for sim's hover).
-- 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe / frame_stats /
-  center_pick overrides for the new IRenderer contract (definitions in
-  BgfxRendererFrame.cpp; accumulation in BgfxRendererSubmit.cpp).
-- 17:08:2026 - 18:29:30: set_debug_lines.
-- 17:08:2026 - 19:17:13: native_texture_handle — объявление переопределения нового добавленного метода IRenderer.
-- 18:08:2026 - 12:51:47: set_present_rect_norm — объявление нового пункта контракта IRenderer.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
 Module: tests
 File: tests/sim/DiceTests.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The golden sequence test freezes the algorithm; update it ONLY at a group
   sync that consciously breaks save compatibility.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial dice test suite.
 */
 
 #include <doctest/doctest.h>

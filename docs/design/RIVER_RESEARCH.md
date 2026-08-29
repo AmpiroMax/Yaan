@@ -1,11 +1,3 @@
-<!--
-Created: 09:08:2026 - 19:27:37
-Last updated: 09:08:2026 - 19:27:37
--->
-<!--
-UPD:
-- 09:08:2026 - 19:27:37: Research deliverable — survey of production and research river-generation techniques (Houdini erosion solvers, droplet/grid hydraulic erosion, D8/D-infinity flow accumulation, curvature-driven meander migration, braided channels, river-first terrain inversion), each costed against our streamed deterministic voxel pipeline; ranked staged recommendation (asymmetric curvature carve -> meander relaxation -> flow-accumulation tributaries -> floodplain belt -> optional amplification); implementer constraint checklist; explicit rejection list. No engine code touched.
--->
 
 # RIVER_RESEARCH.md — how rivers are actually generated, and what we should take
 

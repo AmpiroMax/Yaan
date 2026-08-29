@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 28:08:2026 - 19:30:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.cpp
 
@@ -25,42 +23,6 @@ AI Agents Notice (must follow):
 - A delivered coarse node is freed ONLY by release_coarse_node(). Adding an
   eviction policy here (age, count, distance) breaks the agreement with render,
   which drops its GPU mesh first and then calls release.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — in-memory generator streaming (open_generated),
-  hysteresis load/unload ring, batch spawn/destroy, event protocol.
-- 09:08:2026 - 11:05:22: Stage 3b — WorldGenContext built once at
-  open_generated; surfacefield/scatter/water_bodies queries; site entities get
-  Transform/PreviousTransform/RenderMesh/LocalBounds/SiteMarker prototypes via
-  add_batch (Rule 11 — one pool visit per component type).
-- 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes now carries the lake plus one plane per surviving pond (additive, lead-blessed; render iterates the same span).
-- 09:08:2026 - 16:30:44: Representation swap: voxel_mesh accessor.
-- 09:08:2026 - 17:36:42: §6.2: honour ground_y when spawning site entities.
-- 09:08:2026 - 18:19:09: Streaming LOAD BUDGET: at most CHUNK_LOAD_BUDGET chunks admitted per update, nearest-to-focus first with a deterministic tie-break, remainder deferred to following updates. Unbounded admission was the multi-second freeze (a cold ring is ~2 s of synchronous work at ~83 ms/chunk including sim's collision build). Nearest-first is what makes deferral safe: the ground under the player is distance 0, so it is always next and the queue cannot reorder into a hole beneath them.
-- 09:08:2026 - 21:37:57: NEW darkness_at(world) — the §6.3 authored-darkness query wrapped at the ChunkManager level (lead's call) so the app holds only its one world handle and never the layout, the worldgen context or a GroundSampler; HOW darkness is computed stays in this zone and the sampler is guaranteed to be the one the carve mouths were derived with.
-- 09:08:2026 - 22:10:12: water_surface_at(vec2) implemented over the analytic water_at, for sim's swim test.
-- 09:08:2026 - 23:49:27: LOD STREAMING HALF. Coarse node residency (requested -> the one active build -> held until release_coarse_node), nearest-to-focus first, advanced only in updates that admitted NO chunk so two budgets never land in one frame. world_bounds_xz reports the extent the generator was OPENED with. Nothing leaves the held set on its own -- an eviction render did not ask for pulls the ground out from under a mesh it is still drawing.
-- 10:08:2026 - 02:05:00: surface_class_at(vec2) — sampled-field point query (sim request; the world->sample decoder stays in this zone, Rule 35).
-- 10:08:2026 - 11:37:17: path_surface() / stand_vantages() storage, flattened once per open.
-- 13:08:2026 - 16:45:00: DFN_DARK_TRACE=<путь> — по строке на КАЖДЫЙ вызов darkness_at (приложение зовёт его раз в кадр) с разложением на ветви через enclosure_trace. Открывается ГРОМКО; выключен, пока переменная не названа. Этим прибором найдено, что ambient_darkness переключается 0↔1 за один кадр 13 раз за проход по тоннелю, каждый раз на пересечении carve_distance нуля в пределах 2 см.
-- 13:08:2026 - 18:40:00: DFN_DARK_TRACE пишет roof_y и open_to_sky вместо above_ground — вслед за воротами, которые теперь судят крышу.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
-- 13:08:2026 - 20:58:50: DFN_TORCH_FLAME_UP — дверь дозы на высоту пламени настенного факела над его же сущностью; умолчание теперь строка TORCH_FLAME_ABOVE_GRIP, а не литерал 0.45 (правило 14/35: то же число строит палку в render). Заведена под доказанный замер: пол в 2.79 м от горящего подсвечника читает РОВНО 0 из 255, а с DFN_NO_POINT_SHADOW=1 — 5.71 из того же бинарника и той же точки, то есть свет обнуляет СОБСТВЕННАЯ теневая карта пламени. Единственное, что стоит в точке пламени, — меш самого подсвечника: у заглушки 52 границы -0.2..+0.9 по y, значит пламя на 0.45 сидит ВНУТРИ своей модели. Это правило 35 наоборот: у факела появился МЕШ, и смещение, верное пока он был только светом, стало светом, закопанным в геометрию.
-- 13:08:2026 - 21:02:08: ГИПОТЕЗА ОПРОВЕРГНУТА СОБСТВЕННОЙ ДВЕРЬЮ, и опровержение записано у кода. Подъём пламени на 1.2 м — выше всей заглушки — оставляет пол под ногами РОВНО 0.00, побитово. Значит подсвечник не заслоняет сам себя, и настоящий заслоняющий пока не назван. Замер «тень обнуляет свет» (0.00 против 5.71 при DFN_NO_POINT_SHADOW=1) остаётся в силе со своим нулевым и положительным контролем; объяснение — нет. Правило 34: предпосылку проверяют ДО того, как она войдёт в файл, а если уже вошла — правят там же, где стоит.
-- 14:08:2026 - 21:03:06: Transform.scale И PreviousTransform.scale ставятся site-плейсхолдерам (резка ведущего на этот файл, только это). Первая половина — site_placeholder_scale(), см. SiteComponents.h. Вторая найдена ЗАМЕРОМ первой и стоит отдельного упоминания: render рисует mix(prev.scale, curr.scale, alpha), а PreviousTransform::scale по умолчанию 1 — поэтому 0.2 факела приезжали как 0.6 при alpha 0.5 и, хуже, ДЫШАЛИ вместе с коэффициентом интерполяции каждый кадр. Правило 39 в точной форме: теневая копия структуры верна ровно до того дня, когда у оригинала появляется поле. Поймано тем, что кадр «до/после» дал усадку 0.6× там, где арифметика обещала 0.2×.
-- 14:08:2026 - 21:22:22: Чтение испечённого мира. Ветка выбора одна: есть открытый .dfw — чанк ЧИТАЕТСЯ (2.3 мс), нет или в файле его нет — генерируется (84.0 мс), замер на боевом стенде в одном процессе. Открытие файла, который не открылся, ОТВЕРГАЕТСЯ, а не откатывается на генерацию: молчаливый откат дал бы менеджер, работающий ровно с той скоростью, ради ухода от которой файл и заведён, и отчитывающийся об успехе.
-- 17:08:2026 - 19:05:00: Локальная перестройка земли под кисть рельефа: набор ГРЯЗНЫХ чанков в
-  Impl, три вызова наружу, и ВЫНОС spawn_chunk_entities() из тела update()
-  без единого изменения — чтобы поток стриминга и поток перестройки делили
-  сотню строк, а не держали две копии, которые обязаны согласиться о том, что
-  такое сущность сайта. Вторая копия разошлась бы в день, когда записи дадут
-  новый компонент, и разошлась бы ТОЛЬКО на пути перестройки: предметы теряют
-  поле ровно тогда, когда композитор правит землю под ними, — дефект, который
-  никто не прочтёт как дублирование.
-- 28:08:2026 - 19:30:00: pending_chunk_count — та же перепись клеток, что у пропуска
-  загрузки, без бюджета: спрашивают «сколько осталось», а не «сколько влезет
-  в кадр». Волна детерминизма тура.
 */
 
 #include "engine/world/sources/ChunkManager.h"

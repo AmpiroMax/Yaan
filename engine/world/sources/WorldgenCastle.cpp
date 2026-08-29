@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 15:20:00
-Last updated: 09:08:2026 - 19:41:55
 Module: engine/world
 File: engine/world/sources/WorldgenCastle.cpp
 
@@ -28,13 +26,6 @@ AI Agents Notice (must follow):
   steep mid-section.
 - Deterministic: pure function of (seed, layout, hydrology). No rng — the
   castle is a designed monument, not scatter.
-*/
-/*
-UPD:
-- 09:08:2026 - 15:20:00: Created — castle solve/stamp/occlusion for the
-  hall-castle revision (hall + solar + wall + gatehouse, access ramp).
-- 09:08:2026 - 19:33:58: Fortress revision (§6.1, 120 m fortress): terraced wards replace the single pad — cut 9.92 m -> 1.64 m against a 6 m budget, and the terrace no longer swallows the Backbarrow carve 54 m away. Mass distributed: hall+solar on the oldest uphill ward, curtain and REINSTATED corner towers on the bailey, gatehouse on the outer works. Four defects found and fixed while landing it: wards sized by CHEBYSHEV separation (axis-aligned squares stepping on a diagonal axis overlapped, so a step fell inside a level terrace); overlaps resolved by nearest centre rather than array order; a ward may never terrace below the waterline (one ward cut its floor under a pond and drowned a corridor ford); the approach ramp is checked on its own length rather than inside the much shorter skirt band, which had left the outer half of the ramp falling through to natural terrain.
-- 09:08:2026 - 19:41:55: Ward chain: the waterline floor now WINS over the monotonic step-down (the step-down was silently pushing a ward back under the pond the floor had just lifted it out of, drowning the corridor ford crossing that ward), and the chain TRUNCATES where the spur runs into water rather than building a terrace in a pond.
 */
 
 #include "engine/world/sources/WorldgenCastle.h"
@@ -260,7 +251,6 @@ CastleBuild solve_castle(uint64_t seed, const TestbedLayout& layout,
             + (static_cast<float>(config::CASTLE_TOWER_HEIGHT_MAX
                                   - config::CASTLE_TOWER_HEIGHT_MIN)) * t,
         solar - 1.0f);
-
 
     // --- Access ramp (binding invariant): grade from the pad edge out to
     // natural ground on the gate side. Length is derived from the actual drop

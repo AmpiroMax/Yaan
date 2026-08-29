@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 14:20:00
-Last updated: 28:08:2026 - 16:50:00
 Module: engine/gameplay
 File: engine/gameplay/sources/WorldAmbience.cpp
 
@@ -27,12 +25,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Заводить голос можно только через слот: второе место, где играет мир, —
   это второе место, которое забудут выключить (правило 32).
-*/
-/*
-UPD:
-- 28:08:2026 - 14:20:00: Создан зоной «звук от источника».
-- 28:08:2026 - 16:50:00: место освобождается, когда у источника нет записи —
-  иначе на нём доигрывал бы голос предыдущей рощи.
 */
 
 #include "engine/gameplay/sources/WorldAmbience.h"

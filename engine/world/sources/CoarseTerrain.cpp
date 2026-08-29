@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:49:27
-Last updated: 18:08:2026 - 11:43:09
 Module: engine/world
 File: engine/world/sources/CoarseTerrain.cpp
 
@@ -22,30 +20,6 @@ AI Agents Notice (must follow):
   classify_surface() with the POSITION-PURE slope. Both are the reason a coarse
   sample equals a chunk sample exactly where the lattices meet; a local
   shortcut here is a seam at 64 m scale.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:49:27: Created with the LOD streaming half.
-- 09:08:2026 - 23:49:27: Dropped the per-node max-adjacent-step measurement — render already
-  measures it from the view it is handed, and a second copy nobody reads is
-  the defect Rule 35 names, not a service.
-- 10:08:2026 - 19:55:51: THE THIRD COPY OF THE PASS STACK, found by sweeping
-  every height producer rather than waiting for a report (Rule 32). This
-  builder open-coded "water -> entrance works -> pads -> clamp" and asserted in
-  a comment that terrain_height() was the same chain; the forest stand's branch
-  landed in terrain_height and this copy was never told, so the coarse nodes
-  were building a DIFFERENT TERRAIN from the chunks they must meet and the
-  exact-seam contract was quietly false on that stand. Measured on the L0 node
-  (0,1,2): 16158 of 16641 samples disagreed, spanning -1.5015..+1.2634 m; after
-  calling compose_passes(), 0 mismatches on BOTH stands. The old chain equals
-  the right answer on the testbed exactly, which is why nothing was ever red.
-- 11:08:2026 - 15:15:55: compose_passes takes the WaterSample (§2.7's shore taper needs the distance, not just the carved height).
-- 18:08:2026 - 11:43:09: classify_surface получает composed_relief — дальний рельеф красится с
-  учётом правок рукой, иначе издали холм, поднятый кистью, оставался бы
-  травой по старому уклону. ЗАПИСЬ ФИЛИРУЮ Я, ЛИД, а не автор правки: работа
-  зоны world от 17.08 висела в дереве незакоммиченной, её сессия давно не
-  запущена, и без записи коммит невозможен ни для кого. Текст написан по
-  прочитанному диффу, а не по памяти о чужом замысле.
 */
 
 #include "engine/world/sources/CoarseTerrain.h"

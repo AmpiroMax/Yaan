@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 10:48:00
-Last updated: 28:08:2026 - 19:20:00
 Module: engine/render
 File: engine/render/sources/ProcTexture.h
 
@@ -47,21 +45,6 @@ AI Agents Notice (must follow):
   can catch a reorder, exactly as it cannot for flora's PathClassRichness.
   A reorder there repaves a hint-path in cobble here. Render is on core's pin;
   if a class is ever added it goes on the END and this atlas grows with it.
-*/
-/*
-UPD:
-- 09:08:2026 - 10:48:00: Stage 3 — initial procedural texture module.
-- 10:08:2026 - 11:34:12: §8.1 path surfaces: a periodic cellular primitive
-  (`tileable_cells`) and four kinds over it — COBBLE, PACKED_EARTH, SCUFFED,
-  CUT_SLAB — plus generate_path_atlas(), whose cell index is core's PathClass
-  ordinal. The stone kinds are CELLULAR, not fBm: a path made of stones reads
-  by its JOINTS, and fBm has none.
-- 22:08:2026 - 15:40:00: generate_terrain_normal_atlas() — лист нормалей земли, тот же 2x2
-  слой и те же поля (контракт PartsAtlas: одна борозда — две проекции).
-- 28:08:2026 - 19:20:00: lattice_hash01() — решётка БЕЗ интерполяции, для волны
-  «структура в лист». Единственный примитив файла, несущий энергию на Найквисте
-  плитки: всё остальное здесь интерполирует, а интерполяция и есть то, что
-  СНИМАЕТ структуру на масштабе текселя (замер MATERIALS.md §0.1).
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 01:00:57
-Last updated: 18:08:2026 - 01:00:57
 Module: tests/app
 File: tests/app/EditorPaletteThumbTests.cpp
 
@@ -32,10 +30,6 @@ AI Agents Notice (must follow):
   measuring nothing.
 - AN ARM THAT SKIPS ON AN UNBAKED SHELF PROVES NOTHING. The one arm that reads
   a real .dfo has a hand-made box beside it holding the same property.
-*/
-/*
-UPD:
-- 18:08:2026 - 01:00:57: Создан — предпросмотр деталей и поверхностей (заказ 18.08).
 */
 
 #include "engine/editor/sources/EditorPaletteThumb.h"

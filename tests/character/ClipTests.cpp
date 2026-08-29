@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 22:39:13
 Module: tests
 File: tests/character/ClipTests.cpp
 
@@ -20,15 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Plant expectations come from the generated FOOTFALL_PHASE_* names — never
   a literal 0.25/0.75 (that would be the two-copies defect the row closed).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial gait-contract suite.
-- 10:08:2026 - 12:10:00: Contact is measured at the SOLE against the ground, not at the ankle against its own minimum; double support replaces the single-support release assertion.
-- 10:08:2026 - 20:00:23: The wave waves (hand sweep, with the elbow-roll version as the control) + no clip loses motion to the hinge reduction; four doctest::Approx epsilons replaced by explicit metres (lead's broadcast: the admitted band was e*(1+|x|), up to +/-0.27 m on a foot).
-- 10:08:2026 - 20:22:44: eye_lean_offset asserted against the rig's own FK, plus the property the seam exists for — leaning harder never brings the chest closer to the eye, with today's non-riding eye as the control.
-- 10:08:2026 - 21:34:24: The slip check the swing-cap row asks for, phrased as the outcome — and it surfaced that the row's 0.798 % is IDEALISED: the drawn ankle travels 0.6944 m against the stick model's 0.9722, so real slip at a walk is 29.1 %, not 0.8 %. Plus explicit bounds on the chest-to-eye clearance the repo audit named (the old +/-20.5 mm band also hid a wrong nominal).
-- 10:08:2026 - 22:39:13: THE CROUCHED EYE. crouch_eye_offset() checked against the rig's own FK skull at four blends, the property stated as the outcome (the eye is above the neck at every depth of squat), and the retired CROUCH_EYE_HEIGHT 0.85 as the control — a REAL rejected instance, 0.3711 m below the drawn eye and 0.2478 m below the neck. Plus the crouched gaze (-5.73 deg, was -14.3), with the un-stabilized head as its control.
 */
 
 #include <doctest/doctest.h>

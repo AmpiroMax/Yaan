@@ -1,7 +1,5 @@
 # Житнов: посад и развороты — приёмка глазами с воздуха
 
-Created: 27:08:2026 - 10:23:10
-Last updated: 27:08:2026 - 10:23:10
 Module: docs
 File: docs/acceptance/zhitnov-posad.md
 

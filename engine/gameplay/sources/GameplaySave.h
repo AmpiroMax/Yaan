@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
 Module: engine/gameplay
 File: engine/gameplay/sources/GameplaySave.h
 
@@ -39,10 +37,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Never memcpy structs (Rule 7): fields are written explicitly, little-endian
   by BinaryWriter.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial gameplay save sections (inventory, props).
 */
 
 #pragma once

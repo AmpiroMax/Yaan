@@ -1,27 +1,3 @@
-<!--
-Created: 10:08:2026 - 01:56:45
-Last updated: 28:08:2026 - 18:20:00
--->
-<!--
-UPD:
-- 10:08:2026 - 01:56:45: Initial module doc: rig, pose math, procedural clips,
-  rigid-segmented body + mirror puppet.
-- 10:08:2026 - 20:06:45: `anim::Gait` + `gait_run_weight()` (the gear is
-  ferried, never re-derived from speed); `BodyDrive::gait`; the wave's wag
-  moved off the elbow onto humeral rotation, and the standing rule that
-  came out of it.
-- 28:08:2026 - 12:45:00: `Posture.h` — позы сидя и лёжа (обязательство эпохи
-  «сидеть и лежать», заказ владельца 28.08); `BodyDrive` получил заявку позы и
-  свой интегратор перехода; `body_root_for()`; глаз позы публикуется телом.
-  `HEAD_STABILIZE` поднят в `Clips.h` — у него появился пятый читатель в
-  другом файле.
-- 28:08:2026 - 18:20:00: ПЕРЕХОД СТАЛ ДВИЖЕНИЕМ (второй хвост сдачи зоны):
-  `PostureTransit`/`posture_transit`/`posture_pose` — траектория таза с
-  ведомым двузвенником вместо фейда 0.18 с; длительность стала свойством позы
-  (0.60/0.90 с); `BodyDrive::posture_shown` — вставание идёт из той позы, в
-  которой были. Колено зажимается СВОИМ пределом уже в позе (у почти прямой
-  ноги наклон голени уходил в разгиб на 1.7° сверх `BODY_KNEE_HYPEREXT_MAX`).
--->
 
 # engine/anim — humanoid rig, procedural animation, rigid-segmented body
 

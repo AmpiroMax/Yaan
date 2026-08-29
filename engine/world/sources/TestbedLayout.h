@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 14:08:2026 - 23:36:19
 Module: engine/world
 File: engine/world/sources/TestbedLayout.h
 
@@ -30,34 +28,6 @@ AI Agents Notice (must follow):
   layout). Tuning requests go to design, not silently edited here.
 - Everything influencing generation lives in WorldGenParams (Worldgen.h rule);
   this struct is part of it — never read layout from anywhere else.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — testbed layout table per LANDSCAPE.md §7.1
-  (lead-approved location as an additive WorldGenParams field).
-- 09:08:2026 - 13:12:19: Stage 3b amendments (design 12:44:58): fords removed from RiverLayout (derived in P2 per §7.1a); pine annulus -> radial ridge strips with count/duty knobs (§1.3 C1, tuned seed 1); crag treeline knob; corridor_distance moved here (shared layout geometry).
-- 09:08:2026 - 15:18:34: Castle (§6.1): CastleLayout — Harrowward's stamp target on the crag SW foot, §6.1.3 footprints, approach-corridor index (gate is valley-facing, pad never rotated).
-- 09:08:2026 - 16:47:51: P7 carves: CarveCorridor/CarveChamber/CarveLayout — the crag switchback tunnel (8 waypoints, 4 legs, 3 landings, starts and ends in open air so the portals form where the path meets rock) and the Backbarrow passage + chamber.
-- 09:08:2026 - 17:36:42: §6.2: dungeon->carve site mapping for derived entrance markers; lakeshore held at the design position with the measured reason (bluff base sits below the lake plane).
-- 09:08:2026 - 19:13:01: CragStamp::ridge_amp_meters — flank sub-relief as an ABSOLUTE amplitude, defaulted to reproduce today's 52 m crag. The legacy ridge_amp_frac coupled flank relief to peak height, so raising the summit inflated its own occluders; harmless at 52 m, wrong at the approved 110-120 m (flora's catch, kept although it was not the C1 bug).
-- 09:08:2026 - 19:41:55: L0_RELIEF 115 landed: crag peak reads the constant, rockline/treeline scale with the summit (absolute values tuned for 52 m left a 115 m crag bald from a third of the way up), and the switchback ascent is lifted with the summit and pushed out 1.30x so its mouth clears the taller cone. Scaling the footprint by the summit's own factor was tried first and was wrong — it put the route on the thin rim and turned the tunnel into a 349 m trench.
-- 09:08:2026 - 21:37:57: CragStamp::arete_count (L0_ARETE_COUNT_MIN..MAX) drives the §2.8 per-bearing lobe count.
-- 09:08:2026 - 21:37:57: arete_count 3 -> 4 with the reasoning recorded: pinning it at L0_ARETE_COUNT_MIN left I7 zero margin, and 12-seed measurement puts 4 strictly ahead of both 3 and 5.
-- 09:08:2026 - 21:37:57: L0_BASE_RADIUS 120 replaces the bare 180 literal (footprint is invariant-governed now that I10 exists); arete_count 4 per design's ruling retiring the 3-5 range.
-- 09:08:2026 - 22:04:20: arete_count re-derived on the fixed bearing field: 4 -> 3. The sweep that chose 4 ran on the broken field and is void.
-- 09:08:2026 - 22:07:05: arete_count 4 -> 3, re-derived on the FIXED bearing field (the sweep that chose 4 ran on the broken one and is void). Measured 12 seeds: n=3 gives I11@600 3/1/1/0 vs 1/1/0/0, I4 fails 4/12 vs 8/12, I8 level 4/12 vs 7/12.
-- 10:08:2026 - 02:29:54: CarveCorridor::daylight_portals (authored intent flag): the crag tunnel's endpoints are now DERIVED to open air by open_daylight_portals — the §2.8 massif re-buried the surveyed exit (terrain 67.9-74.3 m over a 61.9 m floor at the old wp[7]; the tunnel dead-ended, sim_tunnel_walk stalled at 7/8 ungrounded). The barrow passage keeps the flag false: it ends in its chamber on purpose.
-- 10:08:2026 - 02:59:28: STAND SELECTOR (LANDSCAPE §8, в1): StandId + TestbedLayout::stand. A stand is a separate map declared as a composition of §2.10 landforms; Testbed is the default and its generation path is untouched (byte-identity guarded by the pinned-heightmap test). Forest stand layout factory lives in WorldgenForest.h.
-- 10:08:2026 - 10:40:28: TestbedLayout::erosion — LF-8 is DECLARED by the stand (§2.10
-  rule 4), default false; setting it false on a stand that declares it is that
-  landform's named control, which is why the switch lives in the layout.
-- 14:08:2026 - 22:27:28: StandId::OneTree + stand_is_floral(). Смотровой стенд одного дерева
-  (пользователь: «стенд с деревом, ровно одним») и предикат семейства флоры
-  вместо рассыпанных сравнений == Forest — пропущенное сравнение дало бы новому
-  стенду массив тестбеда на карте, которая его не объявляла (правило 32).
-- 14:08:2026 - 23:36:19: StandId::Gallery + stand_is_inspection(). Галерея реестра: земля стенда
-  одного дерева, экспонаты — из .dfo. Предикат «смотровой стенд» вместо перечня,
-  чтобы «дверь-пропс здесь не спавнится» держалось для всего семейства (правило 32).
 */
 
 #pragma once

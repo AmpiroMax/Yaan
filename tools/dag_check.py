@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 10:08:2026 - 21:05:04
-# Last updated: 17:08:2026 - 19:24:13
 # File: tools/dag_check.py
 #
 # Responsibility:
@@ -36,19 +34,6 @@
 # - Follow docs/ARCHITECTURE.md strictly. LEAD-owned (Rule 25). The LAYERS table
 #   below is the executable copy of the DAG in ARCHITECTURE.md -- if you change
 #   one, change the other in the same commit (Rule 39).
-#
-# UPD:
-# - 10:08:2026 - 21:05:04: Created after the code audit found ARCHITECTURE.md's
-#                          CMake-enforcement claim was false.
-# - 17:08:2026 - 19:24:13: Названное исключение — Dear ImGui под engine/editor/.
-#   Проверка ЗАПРЕЩАЛА то, что ARCHITECTURE.md разрешает открытым текстом дважды
-#   (раздел layout: «editor/ ... Dear ImGui — allowed here only»; раздел DAG:
-#   «editor may use Dear ImGui directly (documented exception; nothing else
-#   may)»), то есть недореализовывала собственный контракт — ровно тот класс
-#   расхождения правила с его исполняемой копией, ради которого этот скрипт и
-#   написан (правило 39). Исключение узкое с двух сторон: только engine/editor/
-#   и только imgui; Jolt, bgfx, GLFW и ozz там по-прежнему запрещены, чтобы это
-#   не стало дверью для всех будущих библиотек.
 
 from __future__ import annotations
 
@@ -105,7 +90,6 @@ SKIP_DIR_PREFIXES = ("build", ".build")
 SKIP_DIRS = {".git", "third_party", "_deps", "__pycache__", ".venv", "node_modules"}
 SOURCE_SUFFIXES = {".h", ".hpp", ".cpp", ".cc", ".inl"}
 
-
 def layer_of(rel: str) -> str | None:
     """Longest matching layer prefix for a repo-relative posix path."""
     best = None
@@ -113,7 +97,6 @@ def layer_of(rel: str) -> str | None:
         if rel.startswith(name + "/") and (best is None or len(name) > len(best)):
             best = name
     return best
-
 
 def scan(root: Path) -> tuple[list[str], int, int]:
     errors: list[str] = []
@@ -207,7 +190,6 @@ def scan(root: Path) -> tuple[list[str], int, int]:
                     f"{src_layer} -> {', '.join(LAYERS[src_layer]) or '(nothing)'}.")
     return errors, engine_includes, files
 
-
 def main() -> int:
     ap = argparse.ArgumentParser(description="Enforce the dependency DAG.")
     ap.add_argument("--root", default=str(Path(__file__).resolve().parent.parent))
@@ -224,7 +206,6 @@ def main() -> int:
         print(f"OK: DAG holds. {edges} engine includes across {files} files, "
               f"0 violations.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

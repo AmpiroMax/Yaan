@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:15:09
-Last updated: 10:08:2026 - 21:15:09
 Module: tests
 File: tests/core/LayoutLoadTests.cpp
 
@@ -22,10 +20,6 @@ AI Agents Notice (must follow):
   deleted this case loses its reference and must be replaced by a pinned
   digest of the generated world, NOT quietly weakened to compare the asset
   against itself — which would pass forever and prove nothing.
-*/
-/*
-UPD:
-- 10:08:2026 - 21:15:09: Created — the map moves to data (CODE_AUDIT §3.4).
 */
 
 #include "engine/core/serialization/sources/Json.h"

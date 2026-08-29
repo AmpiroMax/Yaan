@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/Chunk.h
 
@@ -26,25 +24,6 @@ AI Agents Notice (must follow):
   IO lives in WorldFormat.h.
 - Heightmap layout/formula is the frozen cross-zone contract in
   engine/core/math/sources/HeightField.h; this file must stay consistent with it.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — chunk types per NUMBERS.md (Q48),
-  group packing for batch ECS streaming (Q22, Rule 11), stable entity ids (Q56).
-- 09:08:2026 - 00:42:03: Stage 2 — explicit size_t casts in height_at (generated
-  constants are int64); no interface change.
-- 09:08:2026 - 11:05:22: Stage 3b — SurfaceData (per-sample splat/water inputs,
-  view() -> math::SurfaceFieldView per the render agreement) and scatter
-  instances added to Chunk. Additive; heightmap contract unchanged.
-- 09:08:2026 - 16:30:44: Representation swap: Chunk carries the extracted VoxelSurface (the volume is transient — the world is not destructible, so only geometry stays resident).
-- 09:08:2026 - 17:36:42: §6.2: GeneratedEntityRecord::ground_y — a carved entrance stands on a floor cut below the surface, which the heightfield cannot report.
-- 09:08:2026 - 23:49:27: LOD streaming: quantize_height/dequantize_height + HEIGHT_QUANT_SCALE/OFFSET extracted here as the SINGLE quantization every height-sample producer calls (chunk builder and coarse-node builder). The seam between a chunk and a coarse node is exact by construction rather than by two files agreeing (Rule 32).
-- 17:08:2026 - 11:53:47: SurfaceData::path_wear.
-- 17:08:2026 - 11:54:29: SurfaceData::path_wear.
-- 18:08:2026 - 12:06:09: Решётка высот 2.0 м / 129 -> 1.0 м / 257 (заказ 18.08). Здесь не
-  изменилась ни одна строка кода: и height_at, и view() уже читали шаг и
-  разрешение из NUMBERS.md. Изменился РАЗМЕР — 33 КБ на чанк стали 132 КБ, и
-  это записано в шапке Heightmap, потому что «~33 КБ» стояло там числом.
 */
 
 #pragma once

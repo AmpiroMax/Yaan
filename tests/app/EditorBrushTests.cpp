@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:05:00
-Last updated: 17:08:2026 - 20:09:15
 Module: tests/app
 File: tests/app/EditorBrushTests.cpp
 
@@ -20,15 +18,6 @@ AI Agents Notice (must follow):
   counterfactual: the no-op proof is worthless without a case that DOES move
   the ground, because a test that only ever sees zero cannot tell "nothing
   changed" from "nothing is wired up".
-*/
-/*
-UPD:
-- 17:08:2026 - 19:05:00: Создан — кисть рельефа и посадка растительности (заказ 17.08).
-- 17:08:2026 - 20:09:15: Мазок НЕ СРАБАТЫВАЕТ, пока мышь на панели (требование лида руками):
-  решение принимается ОДИН раз, на нажатии, поэтому протяжка ползунка размера,
-  ушедшая за край панели с зажатой кнопкой, не копает — и обратная рука, без
-  которой первая ничего не значит: мазок, начатый по земле, рисует и не
-  прерывается, когда указатель наезжает на панель.
 */
 
 #include <doctest/doctest.h>

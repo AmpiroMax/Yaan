@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 21:37:57
 Module: engine/core/ecs
 File: engine/core/ecs/sources/ComponentPool.h
 
@@ -21,14 +19,6 @@ AI Agents Notice (must follow):
 - Components are plain movable structs (Rule 8): no virtuals, no backend types,
   no pointers to other components.
 - Header-only (templates). Public surface frozen per stage-1 contract.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — sparse-set pool interface with batch
-  removal hook (Rule 11), based on Quicky ECS.
-- 09:08:2026 - 00:42:03: Stage 2 — template bodies implemented in-header;
-  public surface unchanged.
-- 09:08:2026 - 21:37:57: add() gains a const-lvalue overload (sim's report): T&& here is a TRUE rvalue ref, so adding a NAMED LOCAL failed to compile and blamed this header rather than the call site. Both value categories now work; move path unchanged, copy path explicit.
 */
 
 #pragma once

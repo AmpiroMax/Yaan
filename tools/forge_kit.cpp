@@ -1,6 +1,4 @@
 /*
-Created: 16:08:2026 - 20:55:43
-Last updated: 17:08:2026 - 14:29:43
 Module: tools
 File: tools/forge_kit.cpp
 
@@ -23,16 +21,6 @@ AI Agents Notice (must follow):
   compared before this tool reports success. A kit whose files do not open is
   a catalogue of nothing, and the failure would only surface later, inside a
   half-built house.
-*/
-/*
-UPD:
-- 16:08:2026 - 20:55:43: Создан — набор строительных деталей (запрос
-  пользователя: «набор из 500-та различных строй материалов и их конфигураций,
-  чтобы агент строил разные дома»).
-- 17:08:2026 - 14:29:43: отказ «нет геометрии» и счёт треугольников смотрят в ОБА потока
-  (wood и bark): у текстурной детали геометрия в bark, и счёт по одному
-  потоку отчитался бы набором из нуля треугольников в тот самый день, когда
-  набор получил текстуру.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"

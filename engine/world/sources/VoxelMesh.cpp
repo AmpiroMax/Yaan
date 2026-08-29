@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:00:00
-Last updated: 10:08:2026 - 21:36:41
 Module: engine/world
 File: engine/world/sources/VoxelMesh.cpp
 
@@ -23,27 +21,6 @@ AI Agents Notice (must follow):
   Getting this wrong makes caves invisible from inside — check it there, not
   on open terrain where both windings look plausible.
 - Deterministic traversal (see the header notice).
-*/
-/*
-UPD:
-- 09:08:2026 - 16:00:00: Created — surface nets extraction.
-- 09:08:2026 - 16:30:44: Representation swap: surface nets with gradient normals and per-vertex material; scans only the active band; volume fields hoisted out of the inner loops.
-- 09:08:2026 - 19:55:17: STRIPES FIX (user-visible): a surface vertex's material now comes from its own depth below the interpolated local surface, not from the nearest solid corner. That corner's material was computed against ITS column's surface, so on any slope an uphill corner carried deep-soil Dirt even where the isosurface grazes the top — drawing dirt in contour-following bands across open meadow. Dry open ground away from water now carries 19 Dirt vertices out of 1.08M upward-facing (0.002%), all of them river-bed-class columns.
-- 10:08:2026 - 21:27:14: Recorded the unmeasured premise under render's
-  0.375%% visible-share figure for the Rule 39 blend fix: it assumes these
-  gradient normals match worldgen's analytic slope, and nobody has checked.
-- 10:08:2026 - 21:32:35: Closed the normals premise. The extracted normals
-  are NOT systematically flatter than the analytic slope (51.8%% flatter, mean
-  slightly steeper); they are noisier. 46.1%% of blend vertices change under the
-  Rule 39 fix, so render's 0.375%% ground-pixel figure is a floor — but vertices
-  are not pixels, and the converting measurement is render's instrument.
-- 10:08:2026 - 21:36:41: CORRECTION (render's catch): my "0.375%% is a floor
-  by ~2.7x" was false. 0.375%% was derived as 2.21%% x MEAN DELTA 0.170, not from
-  a share-of-vertices; my measured 0.1652 agrees to 97.2%%. I read a weight as a
-  share. The distribution still broke the model behind that figure (12.8%% of
-  blend vertices fall below the ramp, 14.9%% above; the errors cancel in the
-  mean), and that 12.8%% is why BLEND_CLASS_ROCK_W is load-bearing, not
-  redundant — there the slope ramp contributes nothing.
 */
 
 #include "engine/world/sources/VoxelMesh.h"

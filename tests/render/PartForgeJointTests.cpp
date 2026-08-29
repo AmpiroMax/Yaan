@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 12:39:52
-Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/PartForgeJointTests.cpp
 
@@ -24,17 +22,6 @@ AI Agents Notice (must follow):
   open tube for closedness, the inverted prism for winding.
 - Explicit bounds, never Approx().epsilon() — most quantities here are
   differences whose correct value is zero (Rule 40).
-*/
-/*
-UPD:
-- 17:08:2026 - 12:39:52: Создан вместе с семьёй соединителей.
-- 17:08:2026 - 13:23:29: измерители вынесены в MeshMeters.h (второй потребитель —
-  тесты крыш; копия на файл — правило 39 в миниатюре).
-- 17:08:2026 - 13:54:03: счёт каталога под ряд высот стен (HOUSES.md §6): стойки 384 -> 960
-  (h11/12/13/14/16), перевязки 8 -> 20 (h6/11/12/13/14).
-- 17:08:2026 - 14:29:43: измерители смотрят в meshtest::solid_of(obj), а не в obj.wood — деталь
-  стала текстурной и её геометрия переехала в поток bark. Числа и пороги не
-  тронуты: та же геометрия, тот же вердикт.
 */
 
 #include "engine/render/sources/PartForge.h"

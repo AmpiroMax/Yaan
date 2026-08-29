@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 23:52:10
 Module: engine/app
 File: engine/app/sources/AppActions.cpp
 
@@ -10,15 +8,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
-*/
-/*
-UPD:
-- 18:08:2026 - 16:59:18: Создан вместе с заголовком — двадцать одна строка «действие →
-  метод App», собранная из восемнадцати обработчиков, лежавших в run().
-- 18:08:2026 - 18:58:40: Маршрут AxisLock -> on_axis_lock.
-- 18:08:2026 - 20:26:30: Маршрут DeleteSelected -> on_delete_selected.
-- 18:08:2026 - 23:20:00: Маршруты инструментов 6..9.
-- 18:08:2026 - 23:52:10: Маршрут GridToggle.
 */
 
 #include "engine/app/sources/AppActions.h"

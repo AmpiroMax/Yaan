@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 #
-# Created: 09:08:2026 - 00:52:00
-# Last updated: 18:08:2026 - 12:21:14
 # File: tools/run_tour.sh
 #
 # Responsibility:
@@ -20,19 +18,6 @@
 # - Follow docs/ARCHITECTURE.md strictly.
 # - Do NOT re-add the 4-way default: near-identical frames are wasted work
 #   (user instruction, 09.08.2026). One variant per verification run.
-#
-# UPD:
-# - 09:08:2026 - 00:52:00: Created for the stage-2 acceptance shoot.
-# - 09:08:2026 - 10:48:00: Stage 3 — 4-way matrix: both resolutions x palette on/off.
-# - 09:08:2026 - 14:32:00: Single-variant default (user: stop shooting near-identical
-#                          frames); the 4-way sweep moved behind the "matrix" argument.
-# - 18:08:2026 - 12:21:14: ТУР ИДЁТ ПО КАРТЕ ДОМИКОВ, а не по сгенерированному миру.
-#   Заказ пользователя дословно: «кто-то запускает демку игры на старой большой
-#   карте с большим числом ресурсов, там старая карта со старыми ассетами, её
-#   вообще запускать не надо». Разбор: карта здесь НЕ НАЗЫВАЛАСЬ ВОВСЕ, поэтому
-#   каждый снимок поднимал умолчание — самый большой и самый старый мир из всех,
-#   что у нас есть, со всей его выпечкой. Умолчание теперь houses/demo;
-#   DFN_TOUR_MAP переопределяет, когда кадру действительно нужна другая карта.
 
 set -euo pipefail
 

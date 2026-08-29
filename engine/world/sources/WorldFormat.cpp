@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 18:38:33
-Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/WorldFormat.cpp
 
@@ -31,26 +29,6 @@ AI Agents Notice (must follow):
 - A truncated or corrupt file must fail SOFT (nullopt / false), never crash and
   never half-load: a chunk that loads with its voxel mesh missing is a hole in
   the ground the player falls through, which is worse than a refusal.
-*/
-/*
-UPD:
-- 14:08:2026 - 18:38:33: Stage 3, written by the lead: the bodies for a contract
-  that had sat declaration-only since 09.08. The payload carries what a Chunk
-  ACTUALLY holds today — heightmap, P3 surface data, the extracted voxel
-  surface, scatter and the generated-entity records — not just the heightmap the
-  stage-1 header imagined, because a chunk without its voxel surface cannot be
-  drawn or collided and would have to be re-generated on load, which is the
-  whole cost the baker exists to remove. WORLD_FORMAT_VERSION stays 1: no .dfw
-  has ever been written by any build, so there is nothing in the wild to migrate
-  FROM (the day one exists, this is where the migration goes).
-- 18:08:2026 - 12:06:09: ЧИТАТЕЛЬ ОТКАЗЫВАЕТ МИРУ, ИСПЕЧЁННОМУ НА ДРУГОЙ РЕШЁТКЕ ВЫСОТ. Файл
-  хранит число отсчётов, но НЕ хранит решётку, а всё, что читает высоты, ходит
-  шагом config::HEIGHTMAP_RESOLUTION — поэтому .dfw с чужой решёткой грузился
-  молча, возвращал с виду исправный Chunk и читал за концом вектора, отдавая
-  это render и физике как землю. Сверка с HEIGHTMAP_RESOLUTION² и отказ. Нашлось
-  при переводе шага 2.0 -> 1.0 м, то есть ровно той правкой, которая делает
-  такие файлы возможными; .relief сверял свою решётку с рождения, а мир — файл
-  на четыре порядка больше — не сверял.
 */
 
 #include "engine/world/sources/WorldFormat.h"

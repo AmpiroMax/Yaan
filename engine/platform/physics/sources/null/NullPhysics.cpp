@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 28:08:2026 - 13:04:20
 Module: engine/platform/physics
 File: engine/platform/physics/sources/null/NullPhysics.cpp
 
@@ -21,32 +19,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Semantics here are contract (IPhysics.h notes): horizontal displacement
   applied fully, vertical ignored, grounded always true, raycasts miss.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial null backend implementation.
-- 09:08:2026 - 15:08:24: Reject layer == 0 (and character collides_with == 0)
-                         with an invalid handle, matching the Jolt backend —
-                         null must catch the same authoring mistakes.
-- 09:08:2026 - 16:51:22: create_terrain_mesh (voxel terrain): same zero-mask
-                         and empty-mesh rules as the Jolt backend.
-- 09:08:2026 - 22:18:17: set_character_height/character_height: the null
-                         backend has no geometry, so a resize is never
-                         obstructed — it records the height so crouch
-                         logic is testable headless (Rule 3).
-- 13:08:2026 - 18:20:00: set_body_transform: a no-op here, like every other
-                         body call — there is no geometry to move.
-- 27:08:2026 - 12:02:02: sphere_cast: промах, как и луч. Бэкенд, у которого сфера
-  «попадает во что-нибудь», молча прижал бы камеру третьего лица к голове во
-  всех прогонах на null.
-- 28:08:2026 - 13:04:20: ДИНАМИЧЕСКОЕ ТЕЛО в null: валидное, но ИНЕРТНОЕ — оно
-  остаётся ровно там, где создано (шаг ничего не двигает), и всегда спит. Это
-  та же контрактная линия, что у остальных тел, и она даёт беспилотным
-  прогонам на null комнату, где предметы стоят по местам, вместо комнаты, где
-  всё лежит в начале координат. Заодно поза ЛЮБОГО тела теперь помнится, и
-  set_body_transform её пишет: раньше «переставил створку» нечем было
-  прочитать, а с body_pose() это стало наблюдаемым — молчаливое расхождение
-  двух бэкендов, которое поймали бы не скоро.
 */
 
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"

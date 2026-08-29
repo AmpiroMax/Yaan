@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/ImGuiBackend.h
 
@@ -39,10 +37,6 @@ AI Agents Notice (must follow):
 - The functions read the ImGui context that engine/app created. There is one
   context because there is one linked copy of the library; do not create a
   second one here.
-*/
-/*
-UPD:
-- 17:08:2026 - 19:17:13: Создан — бэкенд ImGui к bgfx (у самой bgfx его нет).
 */
 
 #pragma once

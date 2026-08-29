@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 19:26:55
-Last updated: 14:08:2026 - 23:12:28
 Module: engine/render
 File: engine/render/sources/ProcFlora.h
 
@@ -28,63 +26,6 @@ AI Agents Notice (must follow):
 - Does NOT decide placement (core), the catalog (design), LOD SELECTION,
   instancing or materials (render), or collision (sim).
 - A tree comes out as TWO meshes and they must never be merged: see FloraMesh.
-*/
-/*
-UPD:
-- 09:08:2026 - 19:26:55: Created — stage-4 parametric branching system.
-- 09:08:2026 - 20:21:13: Alpha-cutout leaf cards: build_flora_mesh now returns
-  FloraMesh (the wood stream and the card stream, which carry different
-  vertex-colour meanings and so must be different draws); append_flora() for
-  the batcher; FloraShape::wind_phase; season argument.
-- 10:08:2026 - 01:59:06: flora_maturity_for() — the §5.10 maturity-tier draw
-  gets its one home, for core to call when filling ScatterInstance.scale.
-- 10:08:2026 - 11:51:23: flora_maturity_for() moved to core/math and is
-  imported here — core's canopy occlusion envelope is defined from its
-  multiplier bands, so the draw gained a second zone (Rule 35).
-- 10:08:2026 - 11:59:40: flora_owns() — the ROUTING PREDICATE, so render asks
-  flora which ordinals take the flora path instead of keeping a list that can
-  drift. Added after render found that core's 5->18 enum growth left every new
-  ordinal drawing NOTHING, silently, with both suites green.
-- 12:08:2026 - 00:20:00: FloraShape::crown_width_mult (width varies on its own
-  axis, or trees of equal height are still copies), FloraShape::chained (the
-  named лукоморье oak), and the lean's docstring restated as a WIND response
-  with an azimuth source rather than a per-tree jitter.
-- 13:08:2026 - 18:30:00: FloraStructure / build_flora_structure() -- the wood as
-  STRUCTURE for sim and collide (requested by collide the same day). Until now
-  this zone published three scalars and a triangle soup, so a body could only
-  collide with a plumb capsule at the stump; the lean band has since opened to
-  15-25 deg and a bole is a SWEPT axis, so at crown height the wood is metres
-  from where a plumb capsule puts it. Measured on the built tree: an oak's bole
-  walks 4.2 m sideways, a great oak's 10.4 m. Foliage is deliberately absent
-  and must stay absent -- cards have no volume.
-- 13:08:2026 - 19:45:00: FloraShape::crowd -- CROWN SHYNESS as a list of
-  BOUNDARIES, one per crowding neighbour (user, 13.08.2026, with two photographs
-  of canopy from below: «деревья не должны налезать кронами друг на друга»). The
-  phenomenon has a name and this is it. The existing `shyness` scalar cannot
-  express it: one direction, and it SHRINKS the crown, which is a smaller tree
-  rather than a shy one.
-- 13:08:2026 - 21:40:00: FloraShape::crowding -- how crowded this tree grew
-  up, 0 open-grown .. 1 closed-forest.
-- 13:08:2026 - 19:20:00: FloraShape::crown_base_override -- THE CONTROL DOOR FOR A
-  REJECTED ARTEFACT. design §10.15.1 makes rebuilding the rejected birch a
-  PRECONDITION of the palm gate, and no door existed to rebuild it with. This
-  one replaces the crown base AFTER the per-instance spread is drawn, so the
-  control tree and the accepted tree differ in THE BOLE AND NOTHING ELSE. A
-  struct field and not an env var on purpose: the env arms are read once per
-  process, and a separating threshold is a claim about two populations measured
-  in ONE run.
-- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
-  this session's own UPD entries above were written AHEAD of the wall clock (one
-  said 22:00 for work committed at 20:24) and are corrected against the commit
-  times. Recorded rather than done silently -- a record whose stamps are
-  invented cannot be put in order afterwards, and the entries it would mislead
-  are this zone's own.
-- 14:08:2026 - 23:12:28: FloraMesh::ground — прижатая к земле древесина (корневые лапы). Рисуется
-  той же программой, что wood (батчер сливает), но ОТДЕЛЬНЫМ потоком, потому что
-  коллизия вырезает твёрдую болу из wood по высоте, и щиколоточный корневой конус
-  внутри твёрдого тела (а) рвал бюджет «бола, не крона» и (б) превращал землю
-  вокруг каждого дерева в поле спотыканий. Ходок ПЕРЕШАГИВАЕТ корни; разница
-  нарисовано/твёрдо заявлена структурно.
 */
 
 #pragma once

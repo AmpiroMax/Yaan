@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 11:57:20
 Module: engine/render
 File: engine/render/sources/WaterMesher.h
 
@@ -30,10 +28,6 @@ AI Agents Notice (must follow):
 - Pure functions: no GPU calls, no ECS access; deterministic, unit-tested.
 - River stations arrive ordered source -> mouth with monotonically
   non-increasing surface heights (core invariant) — never re-sort them.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:57:20: Stage 3b — initial per-body water meshing.
 */
 
 #pragma once

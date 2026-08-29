@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/ecs
 File: engine/core/ecs/sources/View.h
 
@@ -22,14 +20,6 @@ AI Agents Notice (must follow):
 - Structural changes during iteration are forbidden except destroy_deferred()
   (Rule 9); adding/removing the viewed component types invalidates the view.
 - Header-only (templates). Public surface frozen per stage-1 contract.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — smallest-pool-driven view, based on
-  Quicky ECS.
-- 09:08:2026 - 00:42:03: Stage 2 — bodies implemented; driving pool selected by
-  index (allocation-free, replaces Quicky's std::function). Public surface
-  unchanged.
 */
 
 #pragma once

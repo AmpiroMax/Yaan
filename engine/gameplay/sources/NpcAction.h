@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
 Module: engine/gameplay
 File: engine/gameplay/sources/NpcAction.h
 
@@ -54,11 +52,6 @@ AI Agents Notice (must follow):
   variant alternatives, added only via group sync (Rule 26).
 - Keep every payload a plain serializable value; no pointers, no handles to
   platform objects.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 contract (Q70 action set, queue
-                         component, executor + journal + events).
 */
 
 #pragma once

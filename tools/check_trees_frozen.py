@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 28:08:2026 - 17:25:00
-# Last updated: 28:08:2026 - 17:25:00
 # File: tools/check_trees_frozen.py
 #
 # Responsibility:
@@ -33,9 +31,6 @@
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
-#
-# UPD:
-# - 28:08:2026 - 17:25:00: Создан — сторож реестра волны деревьев-v2.
 
 import os
 import re
@@ -45,7 +40,6 @@ import tempfile
 
 ROW = re.compile(r"^([\w.-]+) \| ([\w.-]+\.dfo) \| ([\w-]+) \| ([0-9a-f]{16}) \|")
 
-
 def read_index(path):
     out = {}
     with open(path, encoding="utf-8") as f:
@@ -54,7 +48,6 @@ def read_index(path):
             if m:
                 out[m.group(1)] = (m.group(3), m.group(4))
     return out
-
 
 def main():
     if len(sys.argv) < 2:
@@ -94,7 +87,6 @@ def main():
         return 1
     print(f"[frozen] {len(shipped)} рецептов первой итерации: content_hash не сдвинулся")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 28:08:2026 - 13:22:10
 Module: engine/physics
 File: engine/physics/sources/CollisionLayers.h
 
@@ -24,17 +22,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Values are serialized nowhere yet; if they ever are, they freeze (Rule 7).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial layer set (static, character).
-- 09:08:2026 - 18:56:32: Added LAYER_INTERACTABLE for crosshair targeting.
-- 28:08:2026 - 13:22:10: LAYER_LOOSE — подвижные предметы (зона ФИЗИКА
-  ПРЕДМЕТОВ). Свой бит, а не LAYER_INTERACTABLE, по той же причине, по какой
-  interactable в своё время отделили от static: прицел ХВАТА обязан находить
-  только то, что можно поднять, и не спотыкаться ни о дверь, ни о точку
-  посадки, стоящие в том же метре. Заметьте предупреждение в шапке: биты
-  нигде не сериализуются — как только начнут, они заморожены (правило 7).
 */
 
 #pragma once

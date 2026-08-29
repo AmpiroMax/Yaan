@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:36:58
-Last updated: 28:08:2026 - 19:30:00
 Module: engine/app
 File: engine/app/sources/AppAfterFrame.h
 
@@ -34,14 +32,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
-*/
-/*
-UPD:
-- 18:08:2026 - 17:36:58: Создан. Слой 4 разбора App.cpp (docs/PLAN_APP_DECOMPOSITION.md):
-  решения хвоста кадра вынуты в чистые функции, которые можно прогнать без окна.
-- 28:08:2026 - 19:30:00: PLAYER_SETTLE_EPS_M — порог сходимости осадки капсулы (дверная волна
-  намерила 1.3 мм расхождения между прогонами). Порог, а не равенство: точного нуля
-  контроллер не даёт, и затвор упирался бы в потолок каждый раз.
 */
 
 #pragma once

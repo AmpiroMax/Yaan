@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/serialization
 File: engine/core/serialization/sources/ContentHash.h
 
@@ -24,11 +22,6 @@ AI Agents Notice (must follow):
   this.
 - Multi-field hashes MUST use update_length_prefixed per field (documented fixed
   field order) so field boundaries can't alias ("ab"+"c" vs "a"+"bc").
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — FNV-1a 64 one-shot + streaming
-  accumulator; contract agreed with sim for the voice pipeline (Q79).
 */
 
 #pragma once

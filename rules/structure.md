@@ -1,11 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 00:06:00
--->
-<!--
-UPD:
-- 09:08:2026 - 00:06:00: Created target structure rules (adapted from Quicky Engine to the Daggerfall N layer set).
--->
 
 # Project Structure — Target Layout
 

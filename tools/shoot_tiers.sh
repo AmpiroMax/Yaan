@@ -1,7 +1,5 @@
 #!/bin/zsh
 #
-# Created: 29:08:2026 - 00:40:00
-# Last updated: 29:08:2026 - 00:40:00
 # File: tools/shoot_tiers.sh
 #
 # Responsibility:
@@ -26,9 +24,6 @@
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
-#
-# UPD:
-# - 29:08:2026 - 00:40:00: Создан — волна ярусов флоры.
 set -e
 ROOT=${0:a:h:h}
 cd $ROOT

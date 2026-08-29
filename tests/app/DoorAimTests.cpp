@@ -1,6 +1,4 @@
 /*
-Created: 27:08:2026 - 21:08:32
-Last updated: 27:08:2026 - 21:08:32
 Module: tests/app
 File: tests/app/DoorAimTests.cpp
 
@@ -24,10 +22,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Каждое утверждение здесь ходит парой с образцом, который обязан его
   провалить: утверждение, которое ничто не проваливает, — это описание.
-*/
-/*
-UPD:
-- 27:08:2026 - 21:08:32: Создан вместе с DoorAim.h.
 */
 
 #include <doctest/doctest.h>

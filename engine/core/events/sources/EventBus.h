@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/events
 File: engine/core/events/sources/EventBus.h
 
@@ -25,14 +23,6 @@ AI Agents Notice (must follow):
   simulation thread.
 - Public surface frozen per stage-1 contract; template bodies in-header,
   non-template bodies in EventBus.cpp.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — typed bus with immediate and queued
-  dispatch.
-- 09:08:2026 - 00:42:03: Stage 2 — implemented. Private section: stage-1 pimpl
-  replaced by concrete members (template methods need member access in-header);
-  public surface unchanged.
 */
 
 #pragma once

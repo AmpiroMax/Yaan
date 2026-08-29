@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 10:08:2026 - 01:53:17
-# Last updated: 28:08:2026 - 14:55:00
 # File: engine/platform/audio/tools/gen_placeholder_sounds.py
 #
 # Responsibility:
@@ -21,12 +19,6 @@
 #   surfaces DIFFER convincingly and the step event has a same-tick voice —
 #   not that any single file sounds shippable.
 # - Regenerate with:  python3 engine/platform/audio/tools/gen_placeholder_sounds.py
-#
-# UPD:
-# - 10:08:2026 - 01:53:17: Initial set: 4 takes x 5 surface classes, jump,
-#                          land soft/hard, water entry, seamless 8 s wind loop.
-# - 28:08:2026 - 14:55:00: ветровая петля снята вместе с файлом — у неё не было
-#                          источника в мире (заказ владельца 28.08).
 
 from __future__ import annotations
 
@@ -39,7 +31,6 @@ from pathlib import Path
 
 RATE = 22050
 SEED = 20260810
-
 
 def write_wav(path: Path, samples: list[float]) -> None:
     """16-bit mono PCM. Samples are clamped floats in [-1, 1]."""
@@ -54,14 +45,12 @@ def write_wav(path: Path, samples: list[float]) -> None:
             frames += struct.pack("<h", int(s * 32767))
         w.writeframes(bytes(frames))
 
-
 def normalize(samples: list[float], peak: float) -> list[float]:
     m = max((abs(s) for s in samples), default=1.0)
     if m == 0.0:
         return samples
     k = peak / m
     return [s * k for s in samples]
-
 
 def lowpass(samples: list[float], cutoff_hz: float) -> list[float]:
     """One-pole lowpass. Cheap and stable; placeholder-grade on purpose."""
@@ -74,11 +63,9 @@ def lowpass(samples: list[float], cutoff_hz: float) -> list[float]:
         out.append(y)
     return out
 
-
 def highpass(samples: list[float], cutoff_hz: float) -> list[float]:
     low = lowpass(samples, cutoff_hz)
     return [s - l for s, l in zip(samples, low)]
-
 
 def env_decay(n: int, attack_s: float, tau_s: float) -> list[float]:
     """Linear attack, exponential decay envelope of length n."""
@@ -90,10 +77,8 @@ def env_decay(n: int, attack_s: float, tau_s: float) -> list[float]:
         out.append(a * d)
     return out
 
-
 def noise(rng: random.Random, n: int) -> list[float]:
     return [rng.uniform(-1.0, 1.0) for _ in range(n)]
-
 
 def thump(freq_hz: float, n: int, sweep: float = 0.6) -> list[float]:
     """Decaying sine with a downward pitch sweep — the body of an impact."""
@@ -104,7 +89,6 @@ def thump(freq_hz: float, n: int, sweep: float = 0.6) -> list[float]:
         out.append(math.sin(phase) * math.exp(-i / (0.05 * RATE)))
     return out
 
-
 def mix(*tracks: list[float]) -> list[float]:
     n = max(len(t) for t in tracks)
     out = [0.0] * n
@@ -113,10 +97,8 @@ def mix(*tracks: list[float]) -> list[float]:
             out[i] += s
     return out
 
-
 def scaled(track: list[float], k: float) -> list[float]:
     return [s * k for s in track]
-
 
 # --- Footstep recipes: what makes each surface READ as itself -----------------
 # grass: soft rustle over a small thud (blades brush before weight lands)
@@ -125,13 +107,11 @@ def scaled(track: list[float], k: float) -> list[float]:
 # blend (grass/rock): gravel — a burst of discrete micro-impacts
 # waterbed: a plop (pitch-swept bubble) plus a splash tail
 
-
 def step_grass(rng: random.Random) -> list[float]:
     n = int(0.16 * RATE)
     rustle = [s * e for s, e in zip(lowpass(noise(rng, n), 900), env_decay(n, 0.004, 0.045))]
     body = lowpass(thump(110, n), 300)
     return normalize(mix(scaled(rustle, 0.8), scaled(body, 0.5)), 0.55)
-
 
 def step_rock(rng: random.Random) -> list[float]:
     n = int(0.11 * RATE)
@@ -140,14 +120,12 @@ def step_rock(rng: random.Random) -> list[float]:
     body = thump(150, n)
     return normalize(mix(scaled(click, 0.9), scaled(ring, 0.4), scaled(body, 0.5)), 0.6)
 
-
 def step_sand(rng: random.Random) -> list[float]:
     n = int(0.22 * RATE)
     hiss = [s * e for s, e in zip(lowpass(noise(rng, n), 1400), env_decay(n, 0.02, 0.09))]
     # grain shift: slow amplitude wobble so the tail is not a clean fade
     wob = [1.0 + 0.35 * math.sin(2 * math.pi * 13.0 * i / RATE + rng.random()) for i in range(n)]
     return normalize([h * w for h, w in zip(hiss, wob)], 0.5)
-
 
 def step_gravel(rng: random.Random) -> list[float]:
     n = int(0.15 * RATE)
@@ -163,20 +141,17 @@ def step_gravel(rng: random.Random) -> list[float]:
     body = lowpass(thump(130, n), 350)
     return normalize(mix(out, scaled(body, 0.4)), 0.58)
 
-
 def step_water(rng: random.Random) -> list[float]:
     n = int(0.26 * RATE)
     plop = thump(240, int(0.08 * RATE), sweep=0.35)
     splash = [s * e for s, e in zip(highpass(noise(rng, n), 600), env_decay(n, 0.006, 0.07))]
     return normalize(mix(scaled(plop, 0.8), scaled(splash, 0.6)), 0.6)
 
-
 def jump_whoosh(rng: random.Random) -> list[float]:
     n = int(0.18 * RATE)
     body = lowpass(highpass(noise(rng, n), 250), 1100)
     envl = [math.sin(math.pi * i / n) ** 2 for i in range(n)]  # swell and fade
     return normalize([s * e for s, e in zip(body, envl)], 0.4)
-
 
 def land(rng: random.Random, hard: bool) -> list[float]:
     dur = 0.28 if hard else 0.16
@@ -187,13 +162,11 @@ def land(rng: random.Random, hard: bool) -> list[float]:
     return normalize(mix(scaled(body, 1.0), scaled(burst, 0.7 if hard else 0.45)),
                      0.75 if hard else 0.55)
 
-
 def splash_enter(rng: random.Random) -> list[float]:
     n = int(0.45 * RATE)
     plop = thump(180, int(0.12 * RATE), sweep=0.3)
     wash = [s * e for s, e in zip(highpass(noise(rng, n), 400), env_decay(n, 0.01, 0.13))]
     return normalize(mix(scaled(plop, 0.9), scaled(wash, 0.8)), 0.7)
-
 
 # ВЕТРОВАЯ ПЕТЛЯ ОТСЮДА СНЯТА (28.08, зона «звук от источника»). Она была
 # ЕДИНСТВЕННЫМ звуком набора, у которого не было места в мире: приложение
@@ -204,7 +177,6 @@ def splash_enter(rng: random.Random) -> list[float]:
 #
 # Порядок вызовов RNG у остальных файлов НЕ изменился (петля была последней),
 # поэтому набор шагов перегенерируется байт-в-байт.
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate placeholder sounds")
@@ -230,7 +202,6 @@ def main() -> None:
     write_wav(out / "land_hard.wav", land(rng, hard=True))
     write_wav(out / "splash_enter.wav", splash_enter(rng))
     print(f"wrote {5 * 4 + 4} files to {out}")
-
 
 if __name__ == "__main__":
     main()

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 20:28:29
-Last updated: 23:08:2026 - 06:30:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_pointshadow.sh
 
@@ -29,21 +27,6 @@ AI Agents Notice (must follow):
 - The atlas stores LINEAR DISTANCE / radius, not projected depth: the compare
   is then a world-space metre comparison that needs no depth linearization and
   no per-face far-plane bookkeeping in the shader.
-*/
-/*
-UPD:
-- 09:08:2026 - 20:28:29: Created for interior lighting: cube shadows for the
-  carried torch (up to MAX_SHADOW_POINT_LIGHTS lights).
-- 13:08:2026 - 21:31:37: Diagnostic doses on u_pointShadowParams.w (DFN_PS_DEBUG): 1 = sampled
-  atlas value, 2 = compare value dist/radius, 3 = uv-in-own-tile check. Ships
-  as 0.0 -- every branch dead, zero-dose arm is the shipping shader bit for
-  bit. Opened to split the "factor 0 with clear air" dungeon defect into
-  writer / sampler / compare without a GPU debugger.
-- 23:08:2026 - 06:30:00: u_psNear.x — глубина ближе него читается как СОБСТВЕННАЯ ОСНАСТКА
-  источника и не заслоняет (круг 4 [N4]: очаг душил себя кубовой тенью
-  своего лотка, арма casts_shadow=0 давала +34%; та же семья, что «пол под
-  ногами чёрный» у факела). Свой юниформ, не компонента u_envParams: массив
-  окружения объявляется ПОЗЖЕ этого включения (поймано выпечкой шейдеров).
 */
 
 #ifndef DFN_POINTSHADOW_SH

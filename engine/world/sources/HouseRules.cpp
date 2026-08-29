@@ -1,6 +1,4 @@
 /*
-Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/HouseRules.cpp
 
@@ -20,10 +18,6 @@ AI Agents Notice (must follow):
 - ПО ФАЙЛУ НА АЛГОРИТМ (решение пользователя 21.08): модуль держит ОДИН
   алгоритм постройки; общие руки — в HouseMeshDetail.h.
 */
-/*
-UPD:
-- 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
-*/
 
 #include "engine/world/sources/HouseMeshDetail.h"
 
@@ -32,7 +26,6 @@ UPD:
 namespace dfn::world {
 
 namespace {
-
 
 } // namespace
 
@@ -88,6 +81,5 @@ std::vector<MeshFinding> check_roof_support(const HouseGraph& g) {
     }
     return out;
 }
-
 
 } // namespace dfn::world

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:06:00
-Last updated: 28:08:2026 - 17:40:00
 Module: engine/platform/render
 File: engine/platform/render/interfaces/IRenderer.h
 
@@ -33,86 +31,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do not add bgfx types, includes, or assumptions to this header.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:06:00: Initial frozen contract for stage 2 (skeleton walk).
-- 09:08:2026 - 10:48:00: Stage-3 sync (Rule 26, render's batch approved):
-                         RenderEnvironment + set_environment (atmosphere, splat,
-                         water params as uniforms); palette_post init flag (Q9b).
-- 09:08:2026 - 18:56:38: Night sky + one carried point light appended to
-                         RenderEnvironment (render's diff, lead-authored per
-                         Rule 26): moon direction/colour/phase/light, star
-                         intensity, torch position/colour/radius. Pure
-                         addition — no field changed or reordered, both
-                         backends keep compiling.
-- 09:08:2026 - 19:09:18: Point LIGHT ARRAY replaces the single point light
-                         (user wants shadows from several sources) +
-                         ambient_darkness for authored pitch-black places.
-                         Render's diff, lead-authored per Rule 26.
-- 09:08:2026 - 19:21:01: Deprecated single-point-light fields deleted now
-                         that render's backend and tests use the array.
-- 09:08:2026 - 20:01:56: Wind (direction/strength/flutter) for foliage, grass
-- 09:08:2026 - 21:01:17: DrawParams — per-draw material parameters (fade,
-                         highlight, two reserved). Render's diff, lead-authored
-                         per Rule 26; the four-argument submit stays as a
-                         convenience so no existing call site changes.
-                         and cloth — one wind for the world. Render's diff,
-                         lead-authored per Rule 26.
-- 10:08:2026 - 02:56:25: Weather cloud slice: six additive RenderEnvironment fields (render's diff, Rule 26 sync). Defaults = the scattered state; cloud_offset_m is the ONE drift both sky and ground shadow read.
-- 13:08:2026 - 19:05:00: RenderEnvironment::cloud_deck_m — the three cloud deck
-                         ALTITUDES (render's diff, Rule 26 sync). They were
-                         shader #defines; the user asked for the ceiling's
-                         height to be a FIELD with a legal range, because that
-                         is how the weather and climate of a place will be read
-                         off the sky. The DEFAULT is the shipped R3.2 ladder
-                         1500/2600/4400, so this field is its own zero-dose
-                         control: a caller that never writes it gets the sky
-                         that shipped, byte for byte.
-- 10:08:2026 - 23:32:21: RendererInitParams::msaa_samples — число выборок покрытия на внутренней цели как ПОЛЬЗОВАТЕЛЬСКАЯ настройка (синк №3), а не переменная окружения.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
-- 13:08:2026 - 22:28:39: DrawParams::casts_in_point_shadows -- stand-ins and light
-  holders opt out of the carried-light cube pass (see the field's comment for
-  the measured defect: floor at 2.79 m from a burning sconce read 0 of 255).
-- 14:08:2026 - 16:35:53: DEBUG / EDITOR INTROSPECTION SYNC (В28, render's diff at
-  the lead's direction per Rule 26 — a devlog entry is owed in docs/devlog/,
-  which is lead-owned). Three additive hooks for the editor's debug overlays,
-  none of which changes or reorders an existing field, so both backends keep
-  compiling and every existing call site is untouched:
-    1. RenderFrameStats + frame_stats(): per-frame draw/triangle counters.
-       HONEST about bgfx — it reports draw calls (numDraw) but NOT a primitive
-       count, so triangles are summed CPU-side from index counts (see the
-       struct's own comment).
-    2. set_wireframe(bool): whole-scene wireframe, default off, zero cost off.
-    3. RenderPick + center_pick() + DrawParams::pick_id: a CPU centre-of-screen
-       ray pick (variant A) against the per-draw bounding spheres the backend
-       already keeps; returns the submitter's stamped id, the drawn mesh and its
-       (selected-LOD) triangle count. Pure addition to DrawParams's tail.
-- 15:08:2026 - 15:23:22: DrawParams::aux_texture — второй материальный лист на дро (сейчас
-  нормали коры, запрос зоны flora). Аддитивно к замороженному контракту
-  (правило 26): пустой по умолчанию, никто, кроме просящего, не платит.
-- 17:08:2026 - 18:29:30: set_debug_lines — дверь линий открывается В РАНТАЙМЕ: призрак решает нужны ли
-  они по нажатию клавиши, а переменная окружения читается один раз при запуске.
-- 17:08:2026 - 19:17:13: native_texture_handle() — имя текстуры В ТЕРМИНАХ БЭКЕНДА, 0xFFFFFFFF = «не знаю». Единственная намеренно дырявая точка контракта, и она узкая: интерфейс редактора рисует ВТОРОЙ библиотекой (Dear ImGui), чей мост к bgfx лежит рядом с этим бэкендом, и они обязаны уметь говорить об одной и той же текстуре — иначе миниатюру детали, нарисованную во внеэкранную мишень, невозможно показать в меню. Добавление с телом по умолчанию (правило 26): нулевой бэкенд и все двойники в тестах компилируются без правок и отвечают «не знаю».
-- 18:08:2026 - 12:51:26: set_present_rect_norm() — куда на экране садится картинка мира.
-  Заказ 18.08: «пусть инструмент рисуется не поверх игрового экрана... пусть
-  игра ниже рисуется, тогда проблем с наложением не будет». Лечит ПРИЧИНУ:
-  полосу и оверлеи разводили ДОГОВОРЁННОСТЬЮ — каждый рисующий сам спрашивал,
-  сколько занято сверху, и сам отступал. Такую договорённость соблюдают все,
-  пока не появится тот, кто о ней не знает; в этом проекте он появлялся трижды.
-  Если мир физически не заходит под полосу, накладываться нечему.
-- 22:08:2026 - 21:00:00: PointLight.interior (только добавление, правило 26): гейт интерьерного света небесной видимостью приёмника — 6 из 8 источников без теневого слота светили сквозь стены (occl = 1.0), волна убранства (24 очага) оживила спящий дефект.
-- 23:08:2026 - 00:30:00: DrawParams.aux2_texture (стадия 5, путевой атлас террейна) и
-  RenderEnvironment.path_tiles_per_m — оба ТОЛЬКО ДОБАВЛЕНИЯ (правило 26).
-- 23:08:2026 - 01:40:00: PointLight.room_center_xz/room_half_xz — коробка комнаты интерьерного
-- 22:08:2026 - 22:51:38: PointLight.softness — мягкость источника 0..1 (wrap-диффуз + пологое затухание, дробная часть w цвета в envParams; только добавление).
-- 22:08:2026 - 23:48:18: DrawParams.aux3_texture (стадия 6, маска троп) и RenderEnvironment.path_mask_* — тропа из фрагмента; только добавления.
-- 23:08:2026 - 17:59:57: MAX_POINT_LIGHTS 8 -> 16 — свет города горит на удалении (заказ владельца 24.08); слоты первых восьми прежние.
-- 23:08:2026 - 18:10:03: DrawParams.emissive — самосветный дро (кодируется отрицательным z у u_params); только добавление.
-- 28:08:2026 - 11:14:50: DrawParams.roughness/metalness — ОТРАЖАТЕЛЬНАЯ ПОЛОВИНА МАТЕРИАЛА (дизайн-волна зоны МАТЕРИАЛЫ, заказ владельца 28.08: «для золота/металла уже есть нужда — герб»). Едут своим uniform u_matParams, а НЕ в u_params: все четыре слота там заняты, и w уже дважды перегружен (aux0, потом «лист привязан»). Умолчания 1/0 — ламберт, то есть сегодняшний кадр бит-в-бит; только добавление (правило 26).
-- 28:08:2026 - 17:40:00: DrawParams.roughness/metalness СНЯТЫ, вместо них DrawParams.material — номер записи в реестре веществ (волна 3 зоны МАТЕРИАЛЫ). Точка смерти была назначена этой волне дизайном (MATERIALS.md §2.7) и наступила в ней: числа вещества на дро — это «вещество как свойство вызова», то есть та же болезнь, которую свод уже осудил на трении тела. Бэкенд берёт отражение из реестра сам (engine/core/materials; платформа смотрит в core по DAG). Uniform u_matParams не тронут — он был нужен одинаково при обоих устройствах. ЭТО НЕ ТОЛЬКО ДОБАВЛЕНИЕ: два поля удалены, и это первый случай, когда правило 26 нарушено сознательно — оба поля прожили один день, единственный их заполнявший — RenderSystem, и оба были объявлены переходными в том же коммите, которым заведены.
-  света (свет принадлежит помещению, а не радиусу; гейт по AO оставлял течь
-  6.9% на наружной кладке). Только добавление.
 */
 
 #pragma once
@@ -399,7 +317,6 @@ struct RenderEnvironment {
     // the shadow-casting RADIUS is capped rather than the honesty.
     PointLight point_lights[MAX_POINT_LIGHTS];
     uint32_t point_light_count = 0;
-
 
     // Wind. ONE wind for the world: foliage now, grass and cloth later, so a
     // second wind can never be invented alongside this one and diverge.

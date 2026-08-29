@@ -1,12 +1,7 @@
-Created: 25:08:2026 - 02:33:32
-Last updated: 25:08:2026 - 02:33:32
 
 ARCHIVED ARTEFACT of the lore session's worldmap pipeline (iteration 6, the
 approved final). Copied verbatim from the lore session's scratchpad; the body
 below is theirs and is not edited here. See docs/design/WORLD_MAP.md 9.11.
-
-UPD:
-- 25:08:2026 - 02:33:32: Archived into the repo unchanged (the scratchpad is session-lived).
 
 ==============================================================================
 
@@ -41,7 +36,6 @@ FILES
            cd ../worldmap/iter6 && node preview6.mjs && node gen6.mjs --port 5203
            node loadtest.mjs --port 5203 && python3 mknotes6.py
 
-
 THE HARD CONSTRAINT FIRST: THE COASTLINE DID NOT MOVE
 ==============================================================================
 
@@ -67,7 +61,6 @@ The carve is written so that it CANNOT move a coast, and then it is measured any
   numbers (6036 / 4319).
   The ocean frame is unchanged too: nearest land to a border north 0.137 south 0.135 west 0.126
   east 0.091 map widths, against iteration 5's 0.137 / 0.135 / 0.126 / 0.091.
-
 
 THE VOLKHONA
 ==============================================================================
@@ -129,7 +122,6 @@ THE VOLKHONA
   would have to run below the sea it is trying to avoid. Iteration 5's central river came out
   at discharge 867; it is now 336, so 531 of it did change sides.
 
-
 THE YAREN, AND THE DEFECT IT WAS ASKED TO FIX
 ==============================================================================
 
@@ -145,7 +137,6 @@ THE YAREN, AND THE DEFECT IT WAS ASKED TO FIX
         h-20 shore cell. The city MOVED 0.021 map widths (about 2 cells, 120 km) onto that
         mouth: the driver looks for the nearest cell that satisfies the passport and the
         river mouth is now the best one near the anchor. It is still inside the Empire.
-
 
 THE TSAR'S PORTAGE / ГОСУДАРЕВ ВОЛОК
 ==============================================================================
@@ -179,7 +170,6 @@ THE TSAR'S PORTAGE / ГОСУДАРЕВ ВОЛОК
   them is left exactly as iteration 4 built it — the saddle is iteration 4's own plain.
   ONE CELL IS 56 km HERE, so the shortest carry this atlas can draw at all is about 170 km;
   this one is 247.
-
 
 THE RIVER NAMES, AS A TABLE
 ==============================================================================
@@ -218,7 +208,6 @@ THE RIVER NAMES, AS A TABLE
     Slavitsa       discharge   336  length  292  mouth u=0.503 v=0.551
     Orbach         discharge   328  length  105  mouth u=0.140 v=0.542
 
-
 WHAT THE EDIT COST ELSEWHERE — REPORTED, NOT HIDDEN
 ==============================================================================
 
@@ -240,7 +229,6 @@ WHAT THE EDIT COST ELSEWHERE — REPORTED, NOT HIDDEN
      Principality of Oberfels       8 ( 0.2%)     165 ( 3.8%)  <-
      Archonate of Aigeros          32 ( 0.7%)     133 ( 3.1%)  <-
      Free City of Gandvig          26 ( 0.6%)      30 ( 0.7%)  
-
 
    Yaan is still the first power by a wide margin and its seat is inside it (Empire of Yaan, 31.3% of the
    land) — the thing the owner asked to be checked. 7 of the nine powers are marked <-, i.e.
@@ -273,7 +261,6 @@ WHAT THE EDIT COST ELSEWHERE — REPORTED, NOT HIDDEN
    unchanged: glacier 9.8% of the land reaching south to v=0.526, against iteration 5's
    9.8% and v=0.526.
 
-
 HOW THE CARVE WORKS, AND THE TWO THINGS IT COST TO LEARN
 ==============================================================================
 
@@ -298,7 +285,6 @@ past a coast that is five cells away and ten units lower.
    adds distance-from-coast/100) sends the water to the NEAREST coast, which is the one the
    river was being routed away from. The floors are now chosen so that the ROUNDED sequence
    steps down, and the steps are placed where they are needed rather than evenly.
-
 
 WHAT ITERATION 6 DOES NOT DO
 ==============================================================================

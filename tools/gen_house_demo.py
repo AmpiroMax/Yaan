@@ -1,6 +1,4 @@
 #
-# Created: 17:08:2026 - 14:46:25
-# Last updated: 17:08:2026 - 17:49:29
 # Module: tools
 # File: tools/gen_house_demo.py
 #
@@ -50,50 +48,6 @@
 #   the defect the judge exists to find. Run tools/check_scene after editing.
 # - NEVER INVENT A PART NAME. require() reads INDEX.txt and refuses an unknown
 #   one HERE, where it is a one-line fix, instead of in the judge's report.
-#
-# UPD:
-# - 17:08:2026 - 14:46:25: Создан — работы 5-6 заказа 17.08 (демка этажности + паспорта домов).
-# - 17:08:2026 - 14:48:55: .signs получил шапку по правилу 17 — файл в git, значит у него есть
-#   происхождение и журнал.
-# - 17:08:2026 - 15:22:41: Переписан по трём измеренным конвенциям (yaw — радианы, панель
-#   серединой на ось, +Z — юг): дом собирается обходом четырёх углов, скаты
-#   сходятся на коньке ровно, имена проверяются по INDEX.txt, дома сняты с троп
-#   стенда. Пролёт 12u и скат 12x12x12 вместо 16u/8x?x8 — только при них 45°
-#   гейбла, свес 1 м и конёк сходятся ОДНОВРЕМЕННО.
-# - 17:08:2026 - 16:31:07: ПОЛЫ И ПОЛОТНА ДВЕРЕЙ (пользователь: «нет ни одного объекта в
-#   демке полов», «дома не целые»): доски 16u поперёк дома по лежням, шаг лежня
-#   1.5 м; полотно закрывает единственный сквозной проём.
-# - 17:08:2026 - 17:01:54: КОНЬКОВЫЙ ПРОГОН — 22 находки roof-seat судьи были настоящими:
-#   ни у одного из трёх домов не было конька, скаты и фронтоны держались ни за
-#   что. Прогон идёт по линии, где сходятся верхние грани обоих скатов и
-#   вершины обоих фронтонов; СРАЩЁН по 12u на пролёт (полка держит лежень не
-#   длиннее 16u = 4 м, а дома 6 и 9 м), круглый d50. Судья: 214 расстановок,
-#   0 находок.
-# - 17:08:2026 - 17:10:24: АРКА-НАВЕС (заказ B): свод из ЗВЕНЬЕВ между парами лежней —
-#   пролёт 10 м, подъём 3 м, глубина 4 м, 8 звеньев на 5 шарнирах, два уклона
-#   45° и 18.4°. Профиль ВЫВЕДЕН ИЗ ПОЛКИ, а не нарисован: разность соседних
-#   шарниров обязана сойтись с run/rise настоящей детали, а rise 4u полка
-#   держит только при depth 8u. Судья: 234 расстановки, 0 находок; контрфакт
-#   без замка — 4 находки ровно по 3.162 м = sqrt(3^2+1^2).
-# - 17:08:2026 - 17:28:41: ЛЕСТНИЧНАЯ КЛЕТКА С ПРОЁМОМ (заказ C): марш 45° на лежнях
-#   нижнего и верхнего уровня, над ним настил с ОБЪЯВЛЕННЫМ проёмом. Длина
-#   проёма СЧИТАЕТСЯ здесь (opening_length_m — это КАЛЬКУЛЯТОР), а мерит её
-#   правило stair-headroom капсулой по носку каждой ступени (это СУДЬЯ); они
-#   не зовут друг друга, и при расхождении прав судья (HOUSES.md §9.3).
-#   Плюс лежни под концами маршей ОБОИХ домов: правило, едва написанное,
-#   нашло там 4 настоящих дефекта (промахи 2.24 / 5.34 / 5.34 / 8.56 м).
-#   Судья: 251 расстановка, 0 находок.
-# - 17:08:2026 - 17:41:00: d0 БЕРЁТСЯ ТОЛЬКО ИЗ ТОЖДЕСТВА d0 = d1 - L (замечание лида).
-#   Здесь стояло d0 = d1 - округлённая_длина, то есть 1.000, и это ДРУГАЯ
-#   величина — начало ДЕТАЛИ, а не начало нужного проёма (1.055 при настиле
-#   1u). Ошибка была в ЯРЛЫКЕ, не в геометрии: разница 0.055 м — запас пустоты,
-#   и деталь 9u покрывает обе длины. Паспорт теперь называет оба числа своими
-#   именами и разницу — запасом.
-# - 17:08:2026 - 17:49:29: ближний лежень клетки переехал ВНУТРЬ следа настила (172.25 -> 172.75).
-#   Он стоял в 0.25 м ПЕРЕД настилом и потому его не нёс: оба несущих лежня
-#   оказались по одну сторону от середины, дальняя половина висела. Нашло
-#   правило deck-on-joints в тот час, когда его навели на настоящее семейство.
-#
 
 import argparse
 import math
@@ -151,7 +105,6 @@ PASSPORTS = {
     ],
 }
 
-
 # --- THE CATALOGUE ---------------------------------------------------------
 def catalogue():
     """Every part name the shelf actually holds.
@@ -170,9 +123,7 @@ def catalogue():
             names.add(line.split()[0])
     return names
 
-
 KNOWN = catalogue()
-
 
 def require(name):
     """A part name, refused HERE if the shelf does not have it.
@@ -186,14 +137,12 @@ def require(name):
         sys.exit(f"[demo] в каталоге нет детали \"{name}\" — правь генератор")
     return name
 
-
 def worn(stem, steps=("w03", "w05", "w08")):
     """The least worn step of `stem` the shelf actually holds."""
     for s in steps:
         if f"{stem}-{s}" in KNOWN:
             return f"{stem}-{s}"
     sys.exit(f"[demo] в каталоге нет детали \"{stem}\" ни в одной степени износа")
-
 
 # --- THE SCENE -------------------------------------------------------------
 def yaw_for(dx, dz):
@@ -205,7 +154,6 @@ def yaw_for(dx, dz):
     the judge would only report it as a seat error."""
     return math.atan2(-dz, dx)
 
-
 def seat(axis_x, axis_z, yaw, thickness=WALL_T):
     """Panel position from the POST AXIS it starts at (HOUSES.md §3.2).
 
@@ -214,7 +162,6 @@ def seat(axis_x, axis_z, yaw, thickness=WALL_T):
     the end hangs a whole thickness off the axis and the judge goes red."""
     return (axis_x - math.sin(yaw) * thickness * 0.5,
             axis_z - math.cos(yaw) * thickness * 0.5)
-
 
 class Scene:
     def __init__(self):
@@ -238,7 +185,6 @@ class Scene:
             out.append("")
         return "\n".join(out)
 
-
 def plinth(scene, ox, oz, span, group):
     """The stone footing ring under the walls: the house stands on stone.
 
@@ -256,7 +202,6 @@ def plinth(scene, ox, oz, span, group):
     for x in (ox, ox + span):
         scene.place(piece, (x + 0.25, y, oz), yaw_for(0, 1), group)
         scene.place(short, (x + 0.25, y, oz + BAY), yaw_for(0, 1), group)
-
 
 def floor(scene, ox, oz, span, level, group):
     """ПОЛ: доски поперёк дома по лежням (HOUSES.md §3.2).
@@ -283,7 +228,6 @@ def floor(scene, ox, oz, span, level, group):
     boards = int(span / 0.5)
     for k in range(boards):
         scene.place(board, (ox + 0.25 + k * 0.5, y, oz), yaw_for(0, 1), group)
-
 
 def walls(scene, ox, oz, span, level, style, group):
     """One storey: a post on every bay line, a panel between two posts.
@@ -326,7 +270,6 @@ def walls(scene, ox, oz, span, level, style, group):
     px, pz = seat(ox, oz + DEPTH, yaw)
     scene.place(panel("blind", 16), (px, y, pz), yaw, group)
 
-
 def door_leaf(scene, ox, oz, span, group):
     """ПОЛОТНО В ДВЕРНОЙ ПРОЁМ — the kit's one sanctioned through-hole, closed.
 
@@ -342,7 +285,6 @@ def door_leaf(scene, ox, oz, span, group):
     yaw = yaw_for(-1, 0)  # the south wall's own yaw: the leaf faces +Z with it
     scene.place(leaf, (ox + span - 0.875, PAD_Y - 0.2, oz + DEPTH + 0.145), yaw,
                 group, "полотно закрывает единственный сквозной проём дома")
-
 
 def roof(scene, ox, oz, span, eaves, cover, gable_mat, group):
     """Two slopes meeting on the ridge, and a gable closing each end.
@@ -399,7 +341,6 @@ def roof(scene, ox, oz, span, eaves, cover, gable_mat, group):
     scene.place(gable, (ox + 0.125, eaves, oz), yaw_for(0, 1), group)
     scene.place(gable, (ox + span - 0.125, eaves, oz + DEPTH), yaw_for(0, -1), group)
 
-
 # --- АРКА / НАВЕС ----------------------------------------------------------
 # Пользователь, 17.08: «прямоугольная, трапецевидная и другая крыша, у которой
 # нижняя грань параллельна верхней, должна низ крепить к горизонтальному
@@ -424,7 +365,6 @@ def roof(scene, ox, oz, span, eaves, cover, gable_mat, group):
 ARCH_RUN_RISE = [(2.0, 2.0), (3.0, 1.0)]  # от пяты к замку: 45°, затем 18.4°
 ARCH_BAY = 2.0    # 8u — глубина ската; полка держит rise 4u только при ней
 ARCH_BAYS = 2     # два пролёта в глубину: навес 4 м, ровно один лежень 16u
-
 
 def arch(scene, ax, z_near, y_spring, cover, group):
     """НАВЕС-АРКА: несколько панелей под разными углами между парами лежней.
@@ -484,7 +424,6 @@ def arch(scene, ax, z_near, y_spring, cover, group):
                             if bay == 0 and sign > 0 else None)
     return span, crown, depth
 
-
 # --- ЛЕСТНИЧНАЯ КЛЕТКА ------------------------------------------------------
 # Пользователь, 17.08: «надо лестницы крепить к пол-потолок, при этом над
 # лестницей должна быть дырка, пространство через которое пройдет игрок».
@@ -502,7 +441,6 @@ PLAYER_H = 1.8          # PLAYER_CAPSULE_HEIGHT, docs/NUMBERS.md
 PLAYER_R = 0.35         # PLAYER_CAPSULE_RADIUS
 DECK_T = 0.25           # настил 1u
 
-
 def opening_length_m(t, thick, height=PLAYER_H, radius=PLAYER_R):
     """L = (H + thick)/t + R*t/(sqrt(1+t^2) + 1).
 
@@ -511,7 +449,6 @@ def opening_length_m(t, thick, height=PLAYER_H, radius=PLAYER_R):
     Множитель t/(sqrt(1+t^2)+1) — тангенс ПОЛОВИНЫ угла между настилом и
     маршем, то есть касательная полусферы к этому углу."""
     return (height + thick) / t + radius * t / (math.sqrt(1.0 + t * t) + 1.0)
-
 
 def stairwell(scene, sx, sz, group):
     """Марш, лежни под его концами и настил с ОБЪЯВЛЕННЫМ проёмом над ним.
@@ -570,7 +507,6 @@ def stairwell(scene, sx, sz, group):
             scene.place(post, (x, PAD_Y, z), 0.0, group)
     return steps, hole_u, d0, L, detail_start
 
-
 def house(scene, ox, oz, span, storeys, style, upper, cover, gable_mat, group):
     """One house on the stand. `ox, oz` is the NORTH-WEST post axis; the ridge
     runs along X, so the gables face east and west and the door faces +Z."""
@@ -601,7 +537,6 @@ def house(scene, ox, oz, span, storeys, style, upper, cover, gable_mat, group):
                     yaw_for(0, 1), group,
                     "лежень верхнего уровня: верх марша садится на него")
 
-
 def passport(scene, ox, oz, span, key, group):
     """The board in front of the house, facing the visitor's approach (+Z).
 
@@ -612,7 +547,6 @@ def passport(scene, ox, oz, span, key, group):
     scene.place(f"PASSPORT:{key}", (ox + span * 0.5, PAD_Y, oz + DEPTH + 2.5),
                 0.0, group,
                 "паспорт дома: что это, почему такая архитектура и материалы")
-
 
 # The three houses. X positions are chosen off the stand's own path network:
 # Gallery's road runs the diagonal from (72,112) to (132,172), and at the
@@ -626,7 +560,6 @@ HOUSES = [
 ]
 HOUSE_Z = 136.0
 
-
 # АРКА-НАВЕС: свой участок восточнее домов (дома кончаются на x 156), пятами
 # по z так, чтобы пришедший видел её профиль сбоку, а не в торец.
 STAIR_X = 172.0
@@ -634,7 +567,6 @@ STAIR_Z = 140.0
 ARCH_X = 162.0
 ARCH_Z_NEAR = 145.0
 ARCH_Y = PAD_Y + STOREY  # пята на верху стойки h13
-
 
 def build():
     scene = Scene()
@@ -674,7 +606,6 @@ def build():
     ]
     return scene
 
-
 HEADER = """# Daggerfall N scene — ДЕМКА ЭТАЖНОСТИ И АРХИТЕКТУРЫ (зона домов, работа 6).
 # СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки вносить в генератор, иначе
 # следующий прогон их сотрёт.
@@ -696,10 +627,9 @@ note = ровная площадка демки: три дома сравнив�
 
 """
 
-STAMP = "17:08:2026 - 17:49:29"
 
 SIGNS_HEADER = [
-    "#", f"# Created: 17:08:2026 - 14:46:25", f"# Last updated: {STAMP}",
+    "#",
     "# Module: assets", "# File: assets/signs/demo.signs",
     "#",
     "# Responsibility:",
@@ -714,20 +644,8 @@ SIGNS_HEADER = [
     "# - СГЕНЕРИРОВАНО tools/gen_house_demo.py — правки в генератор, иначе",
     "#   следующий прогон их сотрёт.",
     "#",
-    "# UPD:",
-    "# - 17:08:2026 - 14:46:25: Создан генератором вместе с demo.scene.",
-    "# - 17:08:2026 - 15:22:41: Перевыпущен вместе со сценой (дома переставлены с троп).",
-    "# - 17:08:2026 - 17:10:24: Паспорт НАВЕСА-АРКИ (заказ B): чем свод собран и почему такой",
-    "#   формы — уклон звена это разность двух шарниров, а не свойство крыши.",
-    "# - 17:08:2026 - 17:28:41: Паспорт ЛЕСТНИЧНОЙ КЛЕТКИ (заказ C): длина проёма ВЫВЕДЕНА,",
-    "#   и на доске стоит само выведенное число до округления по сетке.",
-    "# - 17:08:2026 - 17:41:00: На доске ДВА числа со своими именами — с какого метра проём",
-    "#   НУЖЕН (d0 = d1 - L) и с какого начинается ДЕТАЛЬ после округления;",
-    "#   разница названа запасом. Раньше стояло одно число под чужим ярлыком.",
-    f"# - {STAMP}: Перевыпущен после правки опоры настила клетки (тексты те же).",
     "#", "",
 ]
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -756,7 +674,6 @@ def main():
         f.write(body)
     print(f"[demo] {len(scene.items)} расстановок -> assets/scenes/demo.scene"
           " + assets/signs/demo.signs")
-
 
 if __name__ == "__main__":
     main()

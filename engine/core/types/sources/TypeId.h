@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/types
 File: engine/core/types/sources/TypeId.h
 
@@ -21,10 +19,6 @@ AI Agents Notice (must follow):
 - No RTTI (typeid/dynamic_cast) anywhere in core; this header is the substitute.
 - Ids are NOT stable across runs — never serialize a TypeId (Rule 7 formats use
   explicit tags instead).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — counter-based TypeId, from Quicky.
 */
 
 #pragma once

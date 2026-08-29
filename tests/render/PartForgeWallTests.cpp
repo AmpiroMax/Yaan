@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 13:09:29
-Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/PartForgeWallTests.cpp
 
@@ -23,15 +21,6 @@ AI Agents Notice (must follow):
 - Rule 30: the door case IS the control of the solidity sweep — the same
   instrument that must read 0 on nine styles must read >0 there, or it is
   not measuring daylight at all.
-*/
-/*
-UPD:
-- 17:08:2026 - 13:09:29: Создан — волна вариантов стен.
-- 17:08:2026 - 13:54:03: счёт стилевых панелей 174 -> 696: те же 174 конструкции на четырёх
-  высотах ряда 11/12/13/14u (HOUSES.md §6).
-- 17:08:2026 - 14:29:43: измерители смотрят в meshtest::solid_of(obj), а не в obj.wood — деталь
-  стала текстурной и её геометрия переехала в поток bark. Числа и пороги не
-  тронуты: та же геометрия, тот же вердикт.
 */
 
 #include "engine/render/sources/PartForge.h"

@@ -1,6 +1,4 @@
 /*
-Created: 21:08:2026 - 00:40:00
-Last updated: 23:08:2026 - 05:20:00
 Module: engine/world
 File: engine/world/sources/HouseParquet.cpp
 
@@ -20,13 +18,6 @@ AI Agents Notice (must follow):
 - ПО ФАЙЛУ НА АЛГОРИТМ (решение пользователя 21.08): модуль держит ОДИН
   алгоритм постройки; общие руки — в HouseMeshDetail.h.
 */
-/*
-UPD:
-- 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
-- 23:08:2026 - 05:20:00: у каждой доски своя фаза плитки (иррациональные шаги от row/col):
-  рамка uv центрируется на грани, и весь пол резал плитку с одной фазы —
-  «все дощечки как клоны» (владелец 23.08).
-*/
 
 #include "engine/world/sources/HouseMeshDetail.h"
 
@@ -36,7 +27,6 @@ UPD:
 namespace dfn::world {
 
 namespace {
-
 
 } // namespace
 
@@ -115,6 +105,5 @@ void build_parquet(const Element& e, const ElementParams& p,
     }
     mb.set_material(-1, -1);
 }
-
 
 } // namespace dfn::world

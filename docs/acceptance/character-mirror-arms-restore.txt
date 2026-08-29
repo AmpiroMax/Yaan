@@ -1,5 +1,3 @@
-# Created: 10:08:2026 - 21:20:24
-# Last updated: 10:08:2026 - 21:20:24
 # Module: docs/acceptance
 # File: docs/acceptance/character-mirror-arms-restore.txt
 #
@@ -35,9 +33,6 @@
 #   640x360 frame — legible only at the 5x nearest-neighbour blow-up. A
 #   verdict read off the 640x360 pair alone would be a vantage that cannot
 #   fail (Rule 27).
-#
-# UPD:
-# - 10:08:2026 - 21:20:24: Captured for the arm-burial before/after pair.
 
 # Daggerfall N probe recipe
 build_commit  = 3903d69   # both arms; AFTER additionally carries this commit's diff

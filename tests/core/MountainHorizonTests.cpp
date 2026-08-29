@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 20:17:48
-Last updated: 14:08:2026 - 20:30:18
 Module: tests/core
 File: tests/core/MountainHorizonTests.cpp
 
@@ -28,18 +26,6 @@ AI Agents Notice (must follow):
   is skipped for being in water, on rock or "unrepresentative": a sample set
   chosen by any property correlated with the thing under test is how an
   instrument comes to report "no effect" exactly where the effect is largest.
-*/
-/*
-UPD:
-- 14:08:2026 - 20:17:48: Created — the baseline read before any mountain lands.
-- 14:08:2026 - 20:30:18: The r_min SWEEP replaced a single near-field cutoff, because the first
-  read was measuring the ground under the eye: a 4 m rise 8 m away subtends 26
-  deg, and two standpoints of the lattice reported p50 27.5 and 5.5 deg on a
-  world whose highest point outside the crag is 28 m. The sweep is printed in
-  full rather than resolved to one number (Rule 36: an exclusion chosen by
-  magnitude makes the filter the result). Plus the LR stamp read-out with its
-  BUILT relief measured over the tor footprint rather than at the centre
-  sample, since §2.8.4's slabs are laterally offset.
 */
 
 #include "engine/core/config/sources/Constants.h"

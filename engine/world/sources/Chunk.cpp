@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 17:08:2026 - 11:54:29
 Module: engine/world
 File: engine/world/sources/Chunk.cpp
 
@@ -19,15 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - view() must stay byte-consistent with the frozen math::HeightFieldView
   contract (row-major x fastest, origin = sample (0,0) world x/z).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — implementation.
-- 09:08:2026 - 11:05:22: Stage 3b — SurfaceData::view (SurfaceFieldView per
-  the render agreement).
-- 09:08:2026 - 16:30:44: Representation swap: VoxelSurface::view.
-- 17:08:2026 - 11:53:47: path_wear отдаётся во view.
-- 17:08:2026 - 11:54:29: path_wear отдаётся во view.
 */
 
 #include "engine/world/sources/Chunk.h"

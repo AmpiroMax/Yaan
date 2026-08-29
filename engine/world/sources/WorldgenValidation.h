@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 11:08:2026 - 15:15:55
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.h
 
@@ -23,15 +21,6 @@ AI Agents Notice (must follow):
   design/lead sync is a violation (constants come from dfn::config).
 - Raycasts test terrain occlusion only (trees are readability fabric, not
   walls — documented v2 simplification).
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — validation passes for tests.
-- 09:08:2026 - 13:12:19: Stage 3b amendments: canopy-aware clearance semantics documented; max_corridor_water_depth (C3 vs generated water).
-- 09:08:2026 - 15:18:34: Castle validation: CastleHierarchy (R3 top/ceiling, R4 ratio, R2 crown, C2 attractors with and without the castle) and CastleAccess (ramp slope/step, Backbarrow sightline from yard and gate).
-- 09:08:2026 - 15:31:04: Rule C2-testbed: max_coequal_visible (+ raw and without-castle variants) replacing the absolute bound on the testbed path; POI_VISIBLE_COUNT_MAX renamed to POI_VISIBLE_COUNT_MAX_REGION (region-scale only, design ruling).
-- 09:08:2026 - 15:36:59: Large-mass guard: max_coequal_large — the widest coequal group whose every member subtends >= COEQUAL_LARGE_PX, held to 2 while POI_COEQUAL_VISIBLE_MAX (now 3) governs threshold-scale groups.
-- 11:08:2026 - 15:15:55: ground_relief_20m / relief_floor_binds / flattest_legal_standpoints. NOTE: GROUND_RELIEF_SIGMA_20M_MIN was withdrawn the same day (NUMBERS 0825317) -- sigma survives here as the trend-ranking machinery, not as a contract quantity.
 */
 
 #pragma once

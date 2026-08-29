@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 12:05:10
-Last updated: 18:08:2026 - 13:08:07
 Module: engine/editor
 File: engine/editor/sources/EditorToolIcons.h
 
@@ -32,12 +30,6 @@ AI Agents Notice (must follow):
 - KEEP THEM DISTINGUISHABLE. The suite asserts that no two icons are the same
   bytes; two tools wearing one picture is exactly the confusion the icons were
   asked for to remove.
-*/
-/*
-UPD:
-- 18:08:2026 - 12:05:10: Создан — шесть значков, рисуются кодом, одинакового размера
-  по построению (заказ 18.08).
-- 18:08:2026 - 13:08:07: седьмой значок — тропа.
 */
 
 #pragma once

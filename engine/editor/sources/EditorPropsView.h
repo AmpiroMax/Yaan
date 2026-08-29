@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 22:01:29
-Last updated: 17:08:2026 - 22:01:29
 Module: engine/editor
 File: engine/editor/sources/EditorPropsView.h
 
@@ -39,12 +37,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - NO Begin/End HERE. EditorUi owns the window; this draws content.
 - Every visible string goes through EditorUi::tr() (Rule 5).
-*/
-/*
-UPD:
-- 17:08:2026 - 22:01:29: Создан — колонка свойств выбранной расстановки (заказ 17.08:
-  «справа должно окно рисоваться с его характеристиками, я должен уметь их
-  менять»; режим «Выбор» до сих пор не показывал ничего).
 */
 
 #pragma once

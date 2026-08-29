@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:35:04
-Last updated: 18:08:2026 - 17:35:04
 Module: tests/app
 File: tests/app/HudComposeTests.cpp
 
@@ -30,10 +28,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
-*/
-/*
-UPD:
-- 18:08:2026 - 17:35:04: Создан. Слой 3 разбора App.cpp: рукав на сборку кадра.
 */
 
 #include <doctest/doctest.h>

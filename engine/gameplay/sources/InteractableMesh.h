@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 17:20:00
-Last updated: 13:08:2026 - 17:20:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableMesh.h
 
@@ -48,10 +46,6 @@ AI Agents Notice (must follow):
 - Nothing here may protrude beyond the unit cube: the cube IS the collision box
   after scaling, and drawn geometry outside it is a thing you can see, aim at,
   and never hit.
-*/
-/*
-UPD:
-- 13:08:2026 - 17:20:00: Created — the three demo props become visible.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 14:05:00
-Last updated: 28:08:2026 - 14:05:00
 Module: engine/world
 File: engine/world/sources/HouseEdges.cpp
 
@@ -27,10 +25,6 @@ AI Agents Notice (must follow):
   звали ли фаску: он спрашивает у треугольников, ловит ли ребро свет
   отдельной гранью. Прибор, читающий свою же дозу, всегда зелёный
   (правило 47).
-*/
-/*
-UPD:
-- 28:08:2026 - 14:05:00: Создан вместе с фаской (волна материалов-1).
 */
 
 #include "engine/world/sources/HouseMesh.h"

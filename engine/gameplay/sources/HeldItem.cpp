@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 20:31:09
 Module: engine/gameplay
 File: engine/gameplay/sources/HeldItem.cpp
 
@@ -18,14 +16,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The hand is a view onto the inventory: never let it hold what the actor
   does not carry.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial implementation.
-- 09:08:2026 - 20:28:17: Added update_carried_lights() for render.
-- 09:08:2026 - 20:31:09: Hand offset now reads TORCH_HAND_OFFSET_RIGHT /
-                         TORCH_HAND_OFFSET_BELOW_EYE from NUMBERS (Rule 14);
-                         the placeholder constants are gone.
 */
 
 #include "engine/gameplay/sources/HeldItem.h"

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/world
 File: engine/world/sources/WorldFormat.h
 
@@ -24,11 +22,6 @@ AI Agents Notice (must follow):
 - Rule 7 applies in full: little-endian via BinaryWriter/Reader only, unknown
   sections skipped, migration functions from version 1 on.
 - Bumping WORLD_FORMAT_VERSION requires a migration path in the same changeset.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — section layout for the .dfw world
-  file (Q13, Q49); per-chunk sections for streaming-friendly reads.
 */
 
 #pragma once

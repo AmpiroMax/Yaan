@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
 Module: engine/gameplay
 File: engine/gameplay/sources/Inventory.cpp
 
@@ -19,10 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - has_item semantics (total count) are contract with story — do not change.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial implementation.
 */
 
 #include "engine/gameplay/sources/Inventory.h"

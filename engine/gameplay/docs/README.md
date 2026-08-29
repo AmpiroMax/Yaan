@@ -1,29 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:18:26
-Last updated: 10:08:2026 - 11:06:41
--->
-<!--
-UPD:
-- 09:08:2026 - 00:18:26: Stage-1 state: public contract headers only, no
-  implementation yet.
-- 09:08:2026 - 01:02:15: Stage 2 — implemented player movement
-  (PlayerMovement.h/.cpp + World wrappers) and the dice RNG (Dice.cpp);
-  NpcAction/stats/dialogue remain headers-only by stage scope.
-- 09:08:2026 - 14:12:02: Quest-grill sync — new Condition.h (closed
-  ConditionAtom vocabulary shared by dialogue + quests, QUEST_FORMAT.md §2.1);
-  Dialogue.h conditions swapped to it; Ids.h gained QuestId/FlagId/TopicId/
-  NpcCardId. Segment hashing untouched.
-- 09:08:2026 - 22:31:38: Interaction stage part 2 — visible hands (ViewModel),
-  prop collision (buildings + boulders from the drawn triangles), inventory
-  screen state, player action latches, and jump/crouch/swim.
-- 10:08:2026 - 02:27:07: Landscape stage — THE STEP IS AN EVENT (в3): stride
-  clock in PlayerState, FootfallEvents at the bob minima, landing dip, stop
-  settle, FOV coupling, counterphase hand sway; StepAudio (footsteps by
-  surface + wind loop, в12); PlaytestBot v1 (docs/PLAYTEST.md).
-- 10:08:2026 - 11:06:41: PLAYER_EYE_FORWARD — the eye moved onto the FACE. The
-  camera stood on the capsule axis, inside the body's chest box, so looking
-  down filled the frame with torso (character's measured frame, 4a44c26).
--->
 
 # engine/gameplay
 

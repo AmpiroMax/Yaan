@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/window
 File: engine/platform/window/sources/null/NullWindow.cpp
 
@@ -16,11 +14,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
 */
 
 #include "engine/platform/window/sources/null/NullWindow.h"

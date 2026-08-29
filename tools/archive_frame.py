@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 10:08:2026 - 12:11:29
-Last updated: 10:08:2026 - 12:11:29
 Module: tools
 File: tools/archive_frame.py
 
@@ -26,17 +24,11 @@ AI Agents Notice (must follow):
   64-colour palette pass never produced and softens the pixel edges the whole
   look is built on. The archived frame must be the frame that was rendered.
 """
-"""
-UPD:
-- 10:08:2026 - 12:11:29: Created — the archive step named in the predecessor's
-  finding, made a tool instead of a shell recipe nobody can rerun.
-"""
 
 import struct
 import sys
 import zlib
 from pathlib import Path
-
 
 def read_png(path):
     data = Path(path).read_bytes()
@@ -89,7 +81,6 @@ def read_png(path):
         prev = line
     return width, height, channels, bytes(out)
 
-
 def write_png(path, width, height, channels, pixels):
     colour = {1: 0, 2: 4, 3: 2, 4: 6}[channels]
     raw = bytearray()
@@ -108,7 +99,6 @@ def write_png(path, width, height, channels, pixels):
         + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
         + chunk(b"IEND", b""))
 
-
 def box_downscale(width, height, channels, pixels, factor):
     ow, oh = width // factor, height // factor
     out = bytearray(ow * oh * channels)
@@ -126,7 +116,6 @@ def box_downscale(width, height, channels, pixels, factor):
                 out[(y * ow + x) * channels + c] = (total + half) // (factor * factor)
     return ow, oh, bytes(out)
 
-
 def main(argv):
     if len(argv) < 3:
         raise SystemExit("usage: archive_frame.py <src.png> <dst.png> [native_w]")
@@ -143,7 +132,6 @@ def main(argv):
     ow, oh, out = box_downscale(width, height, channels, pixels, factor)
     write_png(dst, ow, oh, channels, out)
     print(f"{dst}: {width}x{height} /{factor} box average -> {ow}x{oh}")
-
 
 if __name__ == "__main__":
     main(sys.argv)

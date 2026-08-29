@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 12:49:26
-Last updated: 17:08:2026 - 12:49:26
 Module: tests
 File: tests/core/SceneJointRuleTests.cpp
 
@@ -24,10 +22,6 @@ AI Agents Notice (must follow):
 - Rule 30 shapes this file: every assertion of "the rule fires" sits next to
   the assertion that the corrected scene passes THE SAME rule. A red hand
   without its green twin proves only that the rule fires on something.
-*/
-/*
-UPD:
-- 17:08:2026 - 12:49:26: Создан вместе с правилами JointSeat/JointAngle.
 */
 
 #include "engine/world/sources/Scene.h"

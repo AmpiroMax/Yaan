@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 14:55:07
 Module: engine/render
 File: engine/render/sources/SignForge.h
 
@@ -44,13 +42,6 @@ AI Agents Notice (must follow):
 - PURE AND DETERMINISTIC: same params, same bytes, same content hash.
 - A NEWLINE NEVER REACHES THE FONT. BitmapFont draws a solid block for '\n' on
   purpose; this forge takes LINES and never hands it one.
-*/
-/*
-UPD:
-- 17:08:2026 - 14:46:25: Создан — работа 4 заказа 17.08 (таблички навесные / на столбике /
-  настенные, текст — параметр).
-- 17:08:2026 - 14:55:07: read_signs_file() — разбор .signs переехал сюда из dfn_signs: одна
-  функция на двоих потребителей (инструмент и печь приложения).
 */
 
 #pragma once

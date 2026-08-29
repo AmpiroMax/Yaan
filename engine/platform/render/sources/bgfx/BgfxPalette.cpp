@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 10:55:00
-Last updated: 10:08:2026 - 00:15:26
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxPalette.cpp
 
@@ -22,22 +20,6 @@ AI Agents Notice (must follow):
 - Pure and deterministic; covered by PaletteTests, which measures the pine/rock
   case that motivated the conifer family and carries the OLD palette as its
   control.
-*/
-/*
-UPD:
-- 09:08:2026 - 10:55:00: Stage 3 — initial implementation.
-- 09:08:2026 - 23:52:26: Conifer family + non-uniform ramp depths + the CPU
-  quantiser and shade-step metric (see the header UPD for the reasoning).
-- 10:08:2026 - 00:20:00: Ramp depths re-allocated (design's measured second pass, plus
-  a searched correction): olive 8->5 funds water 5->8. Water is the largest
-  smooth gradient in the world and banding, not surface area, is what its
-  shades buy. Water 7 — design's number — steals the lit needle tone back into
-  the water family; 8 does not.
-- 10:08:2026 - 00:15:26: conifer 6->8, paid by dry olive and sand at 4 (design's
-  ruling, 4e4df0b). Taken for the FRAGILITY and not the headline number: at
-  conifer 6 the allocation held only because water happened to be 8, and an
-  allocation that survives by coincidence still leaves the forest's family to a
-  nearest-colour accident. pine vs lit rock 2.24 -> 2.34.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxPalette.h"

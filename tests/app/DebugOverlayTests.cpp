@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 19:24:11
-Last updated: 17:08:2026 - 22:01:29
 Module: tests/app
 File: tests/app/DebugOverlayTests.cpp
 
@@ -20,14 +18,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned file (Rule 25).
-*/
-/*
-UPD:
-- 10:08:2026 - 19:24:11: Created with the capture/restore pair.
-- 17:08:2026 - 22:01:29: Прибор наложения: вывод, которому назвали занятую верхнюю полосу,
-  не печатает в ней НИ ОДНОГО пикселя, а тот же вызов без полосы печатает больше
-  сотни. Контроль обязателен: проверка «пусто сверху» одинаково зелена и для
-  правильного отступа, и для вывода, переставшего рисовать вовсе.
 */
 
 #include <doctest/doctest.h>

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/core/WorldgenV2Tests.cpp
 
@@ -18,47 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Thresholds come from dfn::config — weakening a check needs a design sync.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — initial v2 contract suite.
-- 09:08:2026 - 13:12:19: Stage 3b amendments: derived-ford suite (crossings wade-shallow, FORD_SPACING gaps), §3.3 mud-cap band + coverage tripwire + dist saturation, grid-vs-analytic equality, canopy-aware C1 kept at LANDMARK_VISIBILITY_MIN.
-- 09:08:2026 - 13:28:27: P1 anisotropy retune: structure-tensor elongation invariant (seed-1 median ratio ~3.9, floor 2.5; isotropic sits near 2).
-- 09:08:2026 - 14:03:23: Micro-relief batch: groove field + carved-trail-vs-shoulders test (ford/slope contracts re-asserted), curb-stone margin-band test.
-- 09:08:2026 - 14:41:26: Frame-05 bed fix: NEW invariant — every WaterBed sample is covered by a drawable primitive (lake / pond plane / river ribbon); guards the seed-vs-coverage conflation class of bug.
-- 09:08:2026 - 14:49:01: Scatter-in-water fix: NEW invariant — no scatter instance sits in water per water_at, nor under any drawn pond plane (twin of the WaterBed-coverage invariant, from the placement side).
-- 09:08:2026 - 15:18:34: Castle suite: terrace cut/pad-surface slope, R3, horizontal-dominant mass order, ford command + barrow band, access ramp (slope/step), Backbarrow sightline, R2/R4, and the C2 castle-contribution check; P4 roster updated (castle elements share one terrace, so pads + castle entities == entities).
-- 09:08:2026 - 15:31:04: Rule C2-testbed check on the castle's contribution (the seed-1 layout forms a castle-free crowd at (304,304): hamlet + shrine + lakeshore cave), with all three measures reported in the INFO.
-- 09:08:2026 - 15:36:59: Rule C2-testbed now gates the absolute bound (3) plus the large-mass guard (2), keeping the mandatory raw/unexempted disclosure and the castle-contribution check.
-- 09:08:2026 - 17:45:08: §6.2: pad accounting restated as the NEW invariant — entities == pads + castle elements + derived entrances — with each entrance checked to carry an explicit carve floor. The old assertion encoded the rule this change replaced.
-- 09:08:2026 - 19:33:58: Fortress revision: terrace flatness is measured PER WARD (one box across the chain measures the steps between wards, which are supposed to exist) plus a new check that the chain steps down toward the approach.
-- 10:08:2026 - 00:10:41: NEW invariant "one patch of ground carries exactly one water surface" (no cell in two ponds, no cell at two levels, pond_planes == wet non-lake cells with no stacked centres) plus its Rule 30 control, a hand-built pond pair sharing a cell that the same checkers must flag -- including a same-level variant proving the two checkers are not one measurement twice.
-- 10:08:2026 - 01:48:11: Flat-reach tests (grill в23 / §3.1 amendment): drawn pond level == swum station level at every station standing in a pond (with a vacuity guard), lake settled plane <= design constant, and the Rule 30 control — Pond::spill_level is the record of what the OLD construction drew, so 'spill - level > 0.5 m somewhere' proves the rejected instance really occurs and the clamp really binds.
-- 10:08:2026 - 11:51:23: ScatterSpecies ordinals pinned — render's
-  flora_species_of() switches on them for the MESH across a DAG seam, and its
-  `default` returns Bush, so an ordinal walking off the mapping draws a forest
-  floor of snags and logs as a field of shrubs without failing anything.
-- 10:08:2026 - 20:20:20: §5.12 apron acceptance with THREE controls: the rule
-  must fire on a giant canopy on the flank, must NOT fire on the same canopy
-  far away (the arm that catches the naive global reading), and must NOT fire
-  on a ground-hugging canopy on the flank — the rule is about the silhouette,
-  not about the massif being off-limits.
-- 10:08:2026 - 20:26:55: §5.12's RESIDUAL recorded as a named gap, with the
-  apron-disabled counterfactual as its other arm: 300 m west 39.5%->38.4%,
-  350 m 45.6%->38.1%, 500 m 42.0%->31.0% of the massif's low silhouette
-  hidden by canopies. The apron does real work and more of it with distance,
-  but a third of the silhouette is still hidden by trees standing OFF the
-  massif — the case the scoping excludes and the global reading over-corrects.
-  Asserted at BOTH ENDS so the gap cannot drift silently either way.
-- 11:08:2026 - 15:15:55: §2.1 anisotropy: the probe caught a new octave ignoring the land's grain (3.61 -> 2.22, hill octave untouched); re-sampled through the shared axis field it reads 2.92 against a 3.83 counterfactual (DFN_NO_RELIEF=1).
-- 13:08:2026 - 20:40:00: P4's pad accounting named a LIST where it meant a CLASS. It enumerated DungeonEntrance as the one site kind never scored onto a pad; WallTorch joined that class with the carve lights (4e1c64d) and broke the identity by exactly its own count, 13. Replaced by a `carve_derived` predicate, and the "floor comes from the carve" check extended to the whole class. Expected counts untouched in either direction -- what changed is which side of the identity a carve-derived site is counted on. Semantics belong to zone `dungeon`; done under the lead's cut in its absence and filed in BOARD.md for confirmation.
-- 18:08:2026 - 12:06:09: «grid-pass ... matches the analytic surface_point» брал мировую точку
-  как `256.0f + x * 2.0f` — начало чанка руками, шаг решётки голым числом. Из-за
-  литерала случай проверял, что HEIGHTMAP_STEP равен 2.0, а не сеточный проход,
-  и при переводе шага на 1.0 м покраснел на КАЖДОМ отсчёте, указывая на
-  worldgen, который был ни при чём. Позиция выводится из CHUNK_SIZE и
-  HEIGHTMAP_STEP. (Настоящий разъезд классов поверхности случай тоже поймал —
-  557 утверждений, — и это была честная поломка pass B, см. Worldgen.cpp.)
 */
 
 #include "engine/core/config/sources/Constants.h"

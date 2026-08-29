@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 10:14:00
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxCallback.h
 
@@ -20,13 +18,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - This header stays inside sources/bgfx/ — never include it outside the backend.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 09:08:2026 - 10:14:00: LEAD integration fix (render agent lost to reboot):
-                         screenShot signature updated to the pinned bgfx API
-                         (added TextureFormat::Enum format parameter).
 */
 
 #pragma once

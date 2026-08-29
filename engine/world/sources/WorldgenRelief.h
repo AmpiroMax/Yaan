@@ -1,6 +1,4 @@
 /*
-Created: 11:08:2026 - 14:31:10
-Last updated: 13:08:2026 - 16:35:00
 Module: engine/world
 File: engine/world/sources/WorldgenRelief.h
 
@@ -38,14 +36,6 @@ AI Agents Notice (must follow):
   ground that an approved rule flattens on purpose, and §10.1.2 exempts exactly
   the same list from the σ floor. If the two lists ever disagree, the floor is
   being measured on ground the generator was told to keep flat.
-*/
-/*
-UPD:
-- 11:08:2026 - 14:31:10: Created — §2.7's general pass, §10.1's subject.
-- 13:08:2026 - 16:35:00: relief_mask() and ground_relief_tiers() published —
-  the mask gained a second consumer (§10.1.3's bench/riser operator inherits the
-  same exemption list) and the tiers had to be split because that operator sits
-  BETWEEN them.
 */
 
 #pragma once

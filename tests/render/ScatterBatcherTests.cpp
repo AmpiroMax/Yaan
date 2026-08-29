@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:57:20
-Last updated: 14:08:2026 - 19:34:00
 Module: tests
 File: tests/render/ScatterBatcherTests.cpp
 
@@ -17,15 +15,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:57:20: Stage 3b — initial tests.
-- 09:08:2026 - 19:48:00: Flora bake cost measurement (per-instance tree
-  geometry) as a regression guard against the chunk streaming budget.
-- 10:08:2026 - 01:47:53: Measured tile radius cases; the deleted species_radius
-  table's values kept as the failing control (Rule 30).
-- 14:08:2026 - 19:34:00: случай на банду детализации. Проверяет не таблицу порогов, а ДЕФЕКТ, ради которого перехлёст заведён: игрок, переходящий край полосы и возвращающийся, обязан дать РОВНО две смены уровня. Без перехлёста этот же цикл щёлкает на каждом шаге, и экономия превращается в худший рывок в игре.
 */
 
 #include "engine/render/sources/ScatterBatcher.h"

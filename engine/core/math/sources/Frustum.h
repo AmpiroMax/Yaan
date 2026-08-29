@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/math
 File: engine/core/math/sources/Frustum.h
 
@@ -20,11 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Convention: plane normals point INSIDE the frustum; a point is inside when
   signed distance >= 0 for all six planes.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — plane-based frustum with AABB/sphere
-  tests.
 */
 
 #pragma once

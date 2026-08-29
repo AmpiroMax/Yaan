@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 19:05:00
-Last updated: 13:08:2026 - 20:14:00
 Module: tools
 File: tools/dump_heightmap.cpp
 
@@ -28,12 +26,6 @@ Usage:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 13:08:2026 - 19:05:00: Created -- our half of the real-land comparison.
-- 13:08:2026 - 20:14:00: Header and build line written down, since the numbers in
-  TERRAIN_REFERENCE.md are only reproducible if this is.
 */
 #include "engine/core/config/sources/Constants.h"
 #include "engine/world/sources/LayoutLoad.h"

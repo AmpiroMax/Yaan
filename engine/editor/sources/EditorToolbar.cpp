@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 12:07:20
-Last updated: 18:08:2026 - 12:07:20
 Module: engine/editor
 File: engine/editor/sources/EditorToolbar.cpp
 
@@ -16,10 +14,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Nothing here may write the active tool directly. click_icon()/click_settings()
   are the only two verbs, and they are two DIFFERENT verbs on purpose.
-*/
-/*
-UPD:
-- 18:08:2026 - 12:07:20: Создан вместе с заголовком.
 */
 
 #include "engine/editor/sources/EditorToolbar.h"

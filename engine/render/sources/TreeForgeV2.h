@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 16:50:00
-Last updated: 28:08:2026 - 16:50:00
 Module: engine/render
 File: engine/render/sources/TreeForgeV2.h
 
@@ -53,12 +51,6 @@ AI Agents Notice (must follow):
 - PURE AND DETERMINISTIC: same params, same bytes, same content hash.
 - DO NOT ROUTE THE FIRST ITERATION THROUGH THIS FILE. The two builders coexist
   on purpose until the owner rules which one the shipped maps use.
-*/
-/*
-UPD:
-- 28:08:2026 - 16:50:00: Создан — вторая итерация деревьев: доли кроны, два
-  габитуса на вид, многоствольность от земли, наклон/изгиб ствола с жёстким
-  комлем, сухие обломки сучьев, листва рядами v2 атласа.
 */
 
 #pragma once

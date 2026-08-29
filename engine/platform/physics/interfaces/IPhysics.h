@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 28:08:2026 - 13:40:00
 Module: engine/platform/physics
 File: engine/platform/physics/interfaces/IPhysics.h
 
@@ -52,68 +50,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do not add Jolt types, includes, or assumptions to this header.
 - Contract frozen for stage 1 (Rule 26); changes only via group sync.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 contract (terrain, static boxes,
-                         kinematic character, raycast).
-- 09:08:2026 - 15:08:24: Documented the zero-mask rejection rule (behavioral
-                         clarification; no API change — field set, signatures
-                         and semantics of every existing call are untouched).
-- 09:08:2026 - 16:51:22: ADDITIVE: TerrainMeshDesc + create_terrain_mesh() for
-                         voxel terrain (overhangs/tunnels). create_terrain and
-                         every other call are untouched, so the null backend
-                         and existing tests stay honest.
-- 09:08:2026 - 22:18:17: ADDITIVE: set_character_height()/character_height()
-                         for crouch. Every existing signature and semantic is
-                         untouched; the only implementers of IPhysics are the
-                         two backends in this zone (checked repo-wide), so no
-                         foreign code has to change. Rationale for a real
-                         capsule resize rather than a camera-only crouch is in
-                         the declaration.
-- 13:08:2026 - 18:20:00: ADDITIVE: set_body_transform() — a static body may be
-                         MOVED (a swinging door leaf carries its own ray
-                         target; leaving the box behind makes the drawn door
-                         and the touchable door two different objects). Every
-                         existing signature and semantic is untouched, and the
-                         only implementers are the two backends in this zone.
-- 27:08:2026 - 11:30:36: ADDITIVE: sphere_cast() — свёрнутый ОБЪЁМ вместо луча
-                         нулевой ширины. Заведена ради стрелы камеры третьего
-                         лица: луч проходит сквозь стену, внутри которой уже
-                         стоит ближняя плоскость, и кадр показывает комнату
-                         снаружи дома (жалоба владельца 27.08). Ни одна
-                         существующая сигнатура и ни одна семантика не тронуты;
-                         реализаций у IPhysics три (Jolt, null и двойник
-                         PlayerMovementTests) — обновлены все.
-- 28:08:2026 - 12:58:10: ADDITIVE: ДИНАМИЧЕСКОЕ ТЕЛО (зона ФИЗИКА ПРЕДМЕТОВ,
-                         заказ владельца 28.08 «зажав E, поднимать объекты,
-                         держать, складывать друг на друга»). Заведены
-                         DynamicBodyDesc/create_dynamic_body, BodyPose/
-                         body_pose(), body_velocity/set_body_velocity,
-                         set_body_gravity_factor, body_asleep/activate_body.
-                         Контракт до сегодня знал ровно два рода тел —
-                         статичное и кинематический персонаж, — и предмет,
-                         который падает, ни одним из них не выражается:
-                         static-тело не двигают силы, а капсула персонажа не
-                         лежит на боку. Ни одна существующая сигнатура и ни
-                         одна семантика не тронуты; реализаций у IPhysics три
-                         (Jolt, null и двойник PlayerMovementTests) —
-                         обновлены все.
-- 28:08:2026 - 13:40:00: ВЕЩЕСТВО ВМЕСТО КОЭФФИЦИЕНТОВ. Поля friction и
-                         restitution, заведённые записью выше, сняты с
-                         DynamicBodyDesc: тело называет ВЕЩЕСТВО
-                         (core::SubstanceId), а числа лежат у вещества
-                         (engine/core/materials/sources/PhysicsSubstance.h).
-                         Решение координатора по находке зоны МАТЕРИАЛЫ: класть
-                         вещество полями вызова — та же ошибка, что осуждена на
-                         DrawParams.roughness, и чинить её надо, пока
-                         потребитель один. Той же записью вещество получили
-                         TerrainDesc, TerrainMeshDesc и StaticBoxDesc:
-                         половина всякой пары трения — это ПОЛ, и без него
-                         вопрос «скользит ли миска по доске» задать нельзя.
-                         SUBSTANCE_DEFAULT воспроизводит умолчания Jolt, то
-                         есть мир без единого названного вещества ведёт себя
-                         бит в бит как вчера.
 */
 
 #pragma once

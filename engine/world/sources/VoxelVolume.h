@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 19:55:17
 Module: engine/world
 File: engine/world/sources/VoxelVolume.h
 
@@ -30,14 +28,6 @@ AI Agents Notice (must follow):
   neighbours share their edge samples exactly.
 - The world is NOT destructible (user decision): there is no edit path, no
   re-meshing at runtime. Volumes are generated, extracted once, and dropped.
-*/
-/*
-UPD:
-- 09:08:2026 - 16:00:00: Created — voxel volume for the 3D terrain stage.
-- 09:08:2026 - 16:30:44: Representation swap: VoxelVolume (quantized SDF + material, slab-limited, y-contiguous layout, per-column active band) and the seam-cell contract.
-- 09:08:2026 - 16:47:51: P7: build_voxel_volume takes the layout and subtracts its carves.
-- 09:08:2026 - 17:36:42: §6.2: build_voxel_volume takes derived carve corridors.
-- 09:08:2026 - 19:55:17: Stripes fix: per-column surface height and skin material stored, so extraction can give a vertex the material of ITS OWN position.
 */
 
 #pragma once

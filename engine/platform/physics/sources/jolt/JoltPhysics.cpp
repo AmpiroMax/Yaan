@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 28:08:2026 - 13:12:40
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/JoltPhysics.cpp
 
@@ -42,70 +40,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep the null backend's observable API semantics identical where defined.
 - Do not interpret CollisionMask bits — store and AND them, nothing more.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial Jolt backend (terrain mesh, boxes,
-                         CharacterVirtual with inner body, masked raycast).
-- 09:08:2026 - 15:08:24: Reject layer == 0 (and character collides_with == 0)
-                         with an invalid handle — a body no mask can select is
-                         never intentional; a silently accepted layer-0 terrain
-                         let the player fall through the world (fixed in app
-                         37f1e1c; this is the backend-side guard).
-- 09:08:2026 - 16:51:22: create_terrain_mesh: static MeshShape from the
-                         extracted voxel surface — the terrain path that
-                         supports tunnels and overhangs. Degenerate and
-                         out-of-range triangles are dropped (Jolt rejects a
-                         whole mesh over one bad triangle).
-- 09:08:2026 - 22:18:17: set_character_height/character_height: the
-                         capsule is rebuilt via a shared make_capsule()
-                         and stays anchored at its BOTTOM point, so
-                         crouching moves the head and not the feet.
-- 13:08:2026 - 18:20:00: set_body_transform: a static body may be MOVED, for a
-                         door leaf that carries its own ray target. Static, not
-                         kinematic, on purpose — nothing reads a door leaf's
-                         velocity, and giving it one would put it in the
-                         solver's integration for nothing.
-- 18:08:2026 - 12:06:07: Comment only, no code: chunks are 257x257 after
-                         HEIGHTMAP_RESOLUTION moved 129 -> 257 in NUMBERS.
-                         The MeshShape reasoning is UNCHANGED and still the
-                         reason — 2^n+1 is odd by construction, so a bigger
-                         chunk does not bring the sample count any closer to
-                         Jolt's block size. Stamped so nobody reads the stale
-                         129 as "the shape choice was tied to that number"
-                         and re-opens a settled decision on a wrong premise.
-- 21:08:2026 - 14:35:00: Отладочная дверь DFN_CHAR_TRACE=1 - раз в полсекунды
-  вход/исход CharacterVirtual (позиция, GroundState, нормаль опоры, pending,
-  скорость) и разовая перепись всех тел с габаритами. Ею найден невидимый
-  куб кроны Гилдергрина, о который бился бот Вайтрана: расхождение живого
-  конвейера с голой репродукцией можно было поймать только цифрами изнутри.
-- 22:08:2026 - 20:10:00: [char] ground печатает имя состояния (on/steep/unsupported/air):
-  сырой EGroundState с OnGround == 0 приёмка прочла как непрерывный срыв.
-- 27:08:2026 - 12:02:02: sphere_cast: свёрнутая сфера через NarrowPhaseQuery::CastShape.
-  Задние грани СЧИТАЮТСЯ ТВЁРДЫМИ (CollideWithBackFaces): оболочка интерьера и
-  земля — односторонние сетки, и с умолчанием «игнорировать заднюю грань» щуп
-  камеры сообщал бы «чисто» ровно там, где стена и стоит. mReturnDeepestPoint
-  оставлен включённым, потому что контракт требует отвечать «нельзя двигаться
-  вовсе» при перекрытии на старте, а не «путь свободен».
-- 28:08:2026 - 13:40:00: Трение и упругость ЛЮБОГО тела — из записи вещества
-  (core::substance), а не из полей вызова; пара складывается умолчаниями Jolt.
-  Статичное тело получило вещество той же правкой: половина всякой пары
-  трения — это пол.
-- 28:08:2026 - 13:12:40: ДИНАМИЧЕСКИЕ ТЕЛА (зона ФИЗИКА ПРЕДМЕТОВ). Четвёртый
-  объектный слой DYNAMIC в широкой фазе MOVING; пары DYNAMIC-STATIC,
-  DYNAMIC-DYNAMIC и CHARACTER-DYNAMIC открыты, и последняя — не мелочь: ею
-  капсула игрока ТОЛКАЕТ утварь (владелец 28.08: «моё тело тоже имеет
-  физические свойства — хочу банки, бутылки, еду толкать»). Сила толчка
-  ограничена CharacterVirtual::mMaxStrength, и это ровно то, что заказано
-  словами «бутылку сдвинет, бочку 200 кг — нет»: одна и та же сила против
-  разной массы даёт разный исход БЕЗ таблицы классов веса.
-  ФОРМА — ВЫПУКЛАЯ ОБОЛОЧКА ВЕРШИН ПРЕДМЕТА (ConvexHullShapeSettings), а не
-  коробка рядом с ним: коробка и рисунок разъезжаются в первый же день.
-  Оболочка строится ОДИН РАЗ НА ИМЯ у вызывающего — здесь она строится на
-  тело, и это осознанная цена простого контракта (тридцать предметов комнаты
-  = тридцать построений по ~100 точек).
-  СОН ВКЛЮЧЁН УМОЛЧАНИЕМ Jolt; тело рождается спящим (start_asleep), иначе
-  комната из тридцати предметов оплачивает секунду симуляции ничего.
 */
 
 #include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"

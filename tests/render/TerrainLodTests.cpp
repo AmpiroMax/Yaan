@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 20:58:00
-Last updated: 10:08:2026 - 20:01:43
 Module: tests
 File: tests/render/TerrainLodTests.cpp
 
@@ -19,28 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep GPU-free; this suite is the reason LOD policy can be changed safely.
-*/
-/*
-UPD:
-- 09:08:2026 - 20:58:00: Created with the LOD selection module.
-- 09:08:2026 - 22:12:57: Resident-rectangle carve-out (with the control that a
-  rectangle-blind selection fails) and the skirt-depth derivation.
-  TIMESTAMP CORRECTION (lead's catch, Rule 16): this entry and the file's
-  'Last updated' were first written as 22:40:00 — a time COMPUTED forward from
-  an earlier `date` call rather than read from one. Corrected to the real time
-  of the edit, along with every other stamp in this changeset that had the same
-  origin. The reason it matters is not tidiness: UPD stamps are the only
-  cross-zone ordering record this project has, and a stamp half an hour early
-  reorders history while looking exactly like a correct one.
-- 10:08:2026 - 01:47:53: Straddle-ring fix: the carve-out cases now assert the
-  NEW contract (no node wholly inside; straddlers accepted at ladder level and
-  clipped by the mesher) plus the zero-level-0 ring case the old force-split
-  rule fails.
-- 10:08:2026 - 20:01:43: The cross-fade's SHADOW property: at most one version
-  of a patch of ground is the DOMINANT instance at any instant, which is what
-  makes the backend's fade-gated sun caster sound. The control is the real
-  rejected behaviour (everything drawn casts, i.e. a gate at fade > 0), and it
-  was run: it reports CHECK(2 <= 1) on twelve assertions.
 */
 
 #include "engine/render/sources/TerrainLod.h"

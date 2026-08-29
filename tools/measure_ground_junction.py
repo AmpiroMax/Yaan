@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 10:08:2026 - 20:33:36
-Last updated: 10:08:2026 - 20:33:36
 Module: tools
 File: tools/measure_ground_junction.py
 
@@ -25,11 +23,6 @@ AI Agents Notice (must follow):
   different worlds is the signature of an instrument measuring itself rather
   than the scene. If this is ported to another palette, re-sample the colours
   before trusting a number out of it.
-"""
-"""
-UPD:
-- 10:08:2026 - 20:33:36: Created for §5.12b, after design moved the acceptance
-  off "fraction hidden" and onto the ground junction.
 """
 
 import sys, importlib.util

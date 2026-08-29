@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 00:45:00
 # File: engine/platform/window/CMakeLists.txt
 #
 # Responsibility:
@@ -14,9 +12,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. GLFW types must never leak out of
 #   sources/ (Rule 1): backend headers forward-declare GLFWwindow only.
-#
-# UPD:
-# - 09:08:2026 - 00:45:00: Stage 2 — glfw + null backends, GLFW 3.4 pin.
 
 include(FetchContent)
 

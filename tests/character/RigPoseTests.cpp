@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 21:34:24
 Module: tests
 File: tests/character/RigPoseTests.cpp
 
@@ -17,16 +15,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Expectations derive from dfn::config constants, never literal duplicates.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial suite.
-- 10:08:2026 - 12:10:00: Stance convergence + hinge-limit suites, each with its control; FK heights now assert the soles on the ground.
-- 10:08:2026 - 21:24:59: The arm-breaks-the-silhouette test (the user's «форма персонажа
-  странная», measured), with the joint-on-the-wall control; and the Rule 41
-  caveat on the leg-convergence band — it compares a hip->ANKLE angle against a
-  hip->KNEE band, on top of a hip width that is a silhouette used as a joint span.
-- 10:08:2026 - 21:34:24: Rule 40 sweep — the leg-chain residual, the stance residual and the mirror identities take explicit absolute bounds measured rather than guessed.
 */
 
 #include <doctest/doctest.h>

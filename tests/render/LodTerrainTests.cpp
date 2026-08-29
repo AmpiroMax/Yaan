@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:12:57
-Last updated: 10:08:2026 - 20:15:40
 Module: tests
 File: tests/render/LodTerrainTests.cpp
 
@@ -19,17 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - GPU-free: the null renderer is a runnable mode, not a stub (Rule 3).
-*/
-/*
-UPD:
-- 09:08:2026 - 22:12:57: Created with the LOD drawing half.
-- 09:08:2026 - 22:39:28: pending() vs to_load(), with the ferry bug as its control.
-- 10:08:2026 - 01:47:53: Stale-clip re-ship case (straddle-ring fix): a moved
-  rectangle re-ships only the nodes whose clip changed, and the old mesh
-  draws until the replacement lands.
-- 10:08:2026 - 20:15:40: Which LOD counter a readout may believe. The control
-  is a frustum that rejects everything: pending() answers zero for a CULLED
-  ring and for a MISSING one alike, and last_draw_count() separates them.
 */
 
 #include "engine/render/sources/LodTerrain.h"

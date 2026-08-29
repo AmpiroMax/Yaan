@@ -1,15 +1,3 @@
-<!--
-Created: 09:08:2026 - 01:02:15
-Last updated: 09:08:2026 - 16:51:22
--->
-<!--
-UPD:
-- 09:08:2026 - 01:02:15: Stage 2 — created: collision layer semantics + the
-  HeightFieldView -> terrain body conversion.
-- 09:08:2026 - 16:51:22: Voxel swap — create_terrain_mesh_body() is now the
-  terrain collision path (tunnels/overhangs); heightmap path retained as
-  legacy; measured extraction cost recorded.
--->
 
 # engine/physics
 

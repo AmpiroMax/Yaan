@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 16:50:36
-Last updated: 25:08:2026 - 14:04:08
 Module: engine/app
 File: engine/app/sources/MapCatalog.cpp
 
@@ -9,13 +7,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned file (Rule 25).
-*/
-/*
-UPD:
-- 14:08:2026 - 16:50:36: Created.
-- 15:08:2026 - 01:04:30: разбор ключа objects — карта выбирает свою полку реестра.
-- 16:08:2026 - 21:08:52: разбор ключа scene.
-- 25:08:2026 - 14:04:08: скан существующих папок вместо фиксированного списка, пустые категории не листятся (контракт MAP_LAYOUT.md 14.08; заказ владельца 25.08 — пустые папки из меню убрать); map_categories() удалена.
 */
 
 #include "engine/app/sources/MapCatalog.h"

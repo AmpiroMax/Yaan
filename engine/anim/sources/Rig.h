@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Rig.h
 
@@ -28,12 +26,6 @@ AI Agents Notice (must follow):
 - Bone order/parents are contract (docs/RIG.md): adding at the end is
   compatible; renaming/reparenting/reordering needs a group sync (Rule 26).
 - No hardcoded proportions outside from_config() reading dfn::config (Rule 14).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial rig: 15 bones, hierarchy, rest pose from
-                         BODY_* rows, mirror table.
-- 10:08:2026 - 12:10:00: stance_width + leg_convergence()/standing_hip_height(); rest_rotation and hinge_range on the Rig.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Pose.h
 
@@ -26,11 +24,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Conventions are docs/RIG.md and are contract: yaw 0 faces -Z, +X is the
   character's right, mirror quat map is (w,x,y,z) -> (w,x,-y,-z).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial pose math (FK, mirror, blend).
-- 10:08:2026 - 12:10:00: apply_joint_limits declared.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 12:05:00
-Last updated: 10:08:2026 - 12:12:26
 Module: engine/core/math
 File: engine/core/math/sources/FloraEdgeRules.h
 
@@ -38,32 +36,6 @@ AI Agents Notice (must follow):
 - THE EDGE GRADIENT IS APPLIED EXACTLY ONCE, by the placement, from
   PathSample::edge. Nothing in this file or in FloraField.h computes a second
   ramp; flora's clump_field_edged() did and was deleted for it.
-*/
-/*
-UPD:
-- 10:08:2026 - 12:05:00: TRANSPLANTED from engine/render/sources/FloraEdgeRules.h
-  (flora's authorship and rows unchanged) into core's zone, keyed on
-  math::ScatterSpecies instead of render::FloraSpecies, because the table is
-  PLACEMENT data and placement is core's. That also retires the ordinal hazard
-  flora flagged at PathClassRichness: both declarations are visible here, so
-  by_ordinal() is now backed by static_asserts against PathClass's own values
-  rather than by a comment describing the risk.
-- 10:08:2026 - 12:05:00: edge_band_integral() added — flora's normalisation,
-  computed FROM the ramp rather than pasted, so the ramp can be retuned without
-  silently moving every count in the table.
-- 10:08:2026 - 11:59:55: edge_band_integral() lands with its consumer.
-- 10:08:2026 - 12:11:07: FloraEdgeRule gains per_m2, and flora's two authored
-  ForestFloor densities land in it (moss 0.0040/m2, mushroom 0.0020/m2 — spec
-  §3.13). BLESSED by design 10.08.2026 (65655b2, LANDSCAPE §1.7 BR-3, "densities
-  as proposed"), so they are no longer pending.
-- 10:08:2026 - 12:12:26: the density invariant is ASSERTED rather than described
-  (tests/render/ProcFloraTests.cpp, "edge rule densities carry one unit"), and
-  it asserts BOTH halves. At most one dimension non-zero per row: a row with
-  both is a row two passes each believe they own. AND — the half that actually
-  bit us — a row with BOTH at zero places nothing while looking finished, which
-  is exactly how the forest floor shipped bare; the three §5.12 TalusApron rows
-  are in that state today and the test NAMES them, so the un-authored set cannot
-  quietly grow.
 */
 
 #pragma once

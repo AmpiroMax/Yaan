@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:07:24
-Last updated: 10:08:2026 - 21:07:24
 Module: engine/gameplay
 File: engine/gameplay/sources/GameplaySaveRegistration.cpp
 
@@ -25,11 +23,6 @@ AI Agents Notice (must follow):
   failed. Splitting it means the sections are usable today and the codec is
   pulled in only by whoever actually registers. Merge this back the day
   SaveDelta.cpp exists, and not before.
-*/
-/*
-UPD:
-- 10:08:2026 - 21:07:24: Split out of GameplaySave.cpp so the persistence
-  tests could link once core's Binary IO landed.
 */
 
 #include "engine/gameplay/sources/GameplaySave.h"

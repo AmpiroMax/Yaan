@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 19:52:10
-Last updated: 12:08:2026 - 23:52:00
 Module: tests
 File: tests/render/SkyModelTests.cpp
 
@@ -18,22 +16,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. GPU-free.
-*/
-/*
-UPD:
-- 09:08:2026 - 19:52:10: Initial tests with the day/night stage.
-- 12:08:2026 - 23:52:00: SIX CASES FOR THE TWO MOONS (W9), each with the control its NUMBERS row
-  names. Both moons up, apart and lit in the FIRST FRAME (control: the shipped
-  one-moon model, which returns illumination 0.000 there — the defect the epochs
-  exist for). Both discs bigger than the sun, 2.54x and 1.18x. The pair never
-  repeats its configuration inside 400 days (CONTROL: Skyrim's real shipped 6:5
-  speed ratio, which repeats in 140). Latitude divergence clears two Masser
-  diameters (CONTROL: identical orbits, which cannot diverge at all). Zero
-  inclination and zero eccentricity reproduce the shipped arc exactly, so the
-  new terms are additions and not a rewrite. MY FIRST RESONANCE TEST MEASURED
-  THE WRONG THING and its control PASSED: it counted which separations the pair
-  visits, and every ratio visits them all — a resonant pair simply revisits them
-  sooner. "Which values" was never the question; "how soon again" is.
 */
 
 #include "engine/render/sources/SkyModel.h"

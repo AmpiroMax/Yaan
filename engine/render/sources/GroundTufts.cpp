@@ -1,6 +1,4 @@
 /*
-Created: 12:08:2026 - 00:47:30
-Last updated: 22:08:2026 - 23:12:51
 Module: engine/render
 File: engine/render/sources/GroundTufts.cpp
 
@@ -28,12 +26,6 @@ AI Agents Notice (must follow):
   note, FLORA_SPECKLE_TREELINE_PCT's 23-fold drop). Real, if coarse, blade
   triangles put the edge back on geometry, where the coverage AA already
   running on the internal target antialiases it for free.
-*/
-/*
-UPD:
-- 12:08:2026 - 00:47:30: Created with the layer.
-- 23:08:2026 - 07:20:00: фильтр пятен построек в цикле выращивания.
-- 22:08:2026 - 23:12:51: пышные формы пучка 5/7/9/12 за params.lushness (0 = прежние 3/4/5/7 бит-в-бит).
 */
 
 #include "engine/render/sources/GroundTufts.h"

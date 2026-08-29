@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:51:22
-Last updated: 10:08:2026 - 21:33:30
 Module: tests
 File: tests/sim/TunnelWalkTests.cpp
 
@@ -25,59 +23,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - This test is the stage's acceptance line: it must drive the capsule through
   the real generated world, never a synthetic stand-in.
-*/
-/*
-UPD:
-- 09:08:2026 - 16:51:22: Created with the voxel terrain collision swap.
-- 09:08:2026 - 17:08:40: DEBUG sprint (30 m/s) risk coverage: per-tick
-                         tunnelling detector against tunnel walls and the
-                         castle curtain wall, plus a streaming fall-through
-                         run across chunk boundaries.
-- 09:08:2026 - 18:21:53: Follow core's CHUNK_LOAD_BUDGET (one chunk per
-                         update): drive streaming to SETTLED before walking
-                         instead of assuming a ring loads in one update.
-                         Assertions unchanged.
-- 09:08:2026 - 19:17:00: Steer along the corridor CENTERLINE with a look-ahead
-                         instead of beelining at each waypoint. Diagnosed after
-                         a worldgen change stalled the walk at 91.6 m: the
-                         corridor was open (nudged to the centerline the capsule
-                         walked freely), but a beeline cuts the corner into the
-                         outer wall at a switchback and wedges on voxel-wall
-                         bumps. Assertions unchanged; the walk now completes the
-                         full 8/8 waypoints, ~149 m.
-- 09:08:2026 - 20:56:45: Split the timing: `shape_ms` (my Jolt MeshShape
-                         build) is now measured separately from `stream_ms`
-                         (core's generate + extract inside ChunkManager::update).
-                         The old single timer wrapped both and reported
-                         worldgen's cost as physics' cost. The per-chunk ceiling
-                         now covers only this zone's cost and is an
-                         order-of-magnitude guard, not a budget — the measured
-                         figure moves 2x with machine load alone.
-- 10:08:2026 - 02:44:55: Walk budget 3600 -> 5400 (core's verified fix, landed by the lead with sim resting; the walk is longer since the massif reshape, completing at 4251).
-- 10:08:2026 - 21:33:30: THREE METRICS THAT FAILED OPEN, fixed together
-  because they are one disease: a measurement whose EMPTY state is
-  indistinguishable from its SUCCESS state.
-  (1) count_tunnelling_ticks scored a perfect zero for a capsule that never
-      moved. It is now probe_tunnelling, which reports its own coverage and a
-      verdict word, and the callers assert the coverage before the result.
-  (2) The coverage quantity itself was wrong on the first attempt and the run
-      said so: "moving ticks whose segment met a wall" reads ZERO on a clean
-      pass, because a capsule that does not tunnel never crosses geometry. No
-      threshold on that quantity separates the accepted case from the rejected
-      one, so the QUANTITY was wrong rather than the number (Rule 30). Replaced
-      by IMPEDED ticks — geometry took at least half the intended step — which
-      counts being BLOCKED as the strongest evidence a wall is there.
-  (3) The castle curtain-wall case had no curtain wall: TunnelRig builds terrain
-      collision only, and the wall is a prop. Eight charges from 60 m out were
-      running through open ground and reporting no tunnelling. Impeded ticks
-      went 0 -> 501 once the props are built; it still does not tunnel, so the
-      claim now stands on evidence instead of on absence.
-  Also the floor band at the deep waypoint: Approx(deep.y).epsilon(0.35) is
-  0.35 * (1 + |deep.y|) = a +/-14.67 m tolerance on a ray only 6 m long, which
-  NO RESULT COULD HAVE FAILED (Rule 40 — and it is a DIFFERENCE, so a relative
-  band was the wrong instrument at any scale). Now absolute metres, derived from
-  the voxel lattice the floor is quantised on. Measured: 0.067 m against a
-  1.6 m band.
 */
 
 #include <doctest/doctest.h>

@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 17:45:00
-Last updated: 13:08:2026 - 17:45:00
 Module: tests
 File: tests/sim/GreatOakStairTests.cpp
 
@@ -47,11 +45,6 @@ AI Agents Notice (must follow):
   out of the collider; the only numbers taken from the registry are the
   player's own (PLAYER_STEP_HEIGHT, PLAYER_CAPSULE_*) and the rise, which is
   used as a search stride and not as a position.
-*/
-/*
-UPD:
-- 13:08:2026 - 17:45:00: Created — the climb instrument the lead asked for, so
-  flora sees the verdict while rebuilding the stair rather than a day later.
 */
 
 #include <doctest/doctest.h>

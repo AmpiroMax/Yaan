@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
 Module: engine/platform/physics
 File: engine/platform/physics/sources/jolt/CreateJoltPhysics.h
 
@@ -18,10 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Never leak Jolt types/includes through this header (Rule 1).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — factory per the lead's integration convention.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
 Module: engine/gameplay
 File: engine/gameplay/sources/Dice.h
 
@@ -38,11 +36,6 @@ AI Agents Notice (must follow):
 - Never hardcode combat constants here (Rule 14); formulas read generated
   NUMBERS constants.
 - Never reseed or advance a serialized Rng outside the simulation tick.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 contract (seedable RNG, dice
-                         vocabulary, attack resolution shapes).
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 22:01:29
-Last updated: 17:08:2026 - 22:01:29
 Module: engine/editor
 File: engine/editor/sources/EditorPropsView.cpp
 
@@ -16,10 +14,6 @@ AI Agents Notice (must follow):
 - NO Begin/End HERE. EditorUi owns the window; this draws content.
 - EVERY VISIBLE STRING GOES THROUGH EditorUi::tr() (Rule 5).
 - THIS PANEL DECIDES NOTHING. It edits numbers and asks; the judge answers.
-*/
-/*
-UPD:
-- 17:08:2026 - 22:01:29: Создан вместе с EditorPropsView.h.
 */
 
 #include "engine/editor/sources/EditorPropsView.h"

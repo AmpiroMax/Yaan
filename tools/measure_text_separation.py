@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 13:08:2026 - 16:28:00
-Last updated: 13:08:2026 - 20:05:00
 Module: tools
 File: tools/measure_text_separation.py
 
@@ -57,19 +55,6 @@ AI Agents Notice (must follow):
   tools/archive_frame.py) -- averaging blends ink into background and both
   readings drift toward passing.
 """
-"""
-UPD:
-- 13:08:2026 - 16:28:00: Created by zone ui, at the lead's approval, out of the
-  readout-plate acceptance (docs/acceptance/README.md, the ui section).
-- 13:08:2026 - 17:05:00: Header timestamps corrected -- they were written ahead of
-  the clock, and this file's own subject is measurements that must not flatter.
-- 13:08:2026 - 19:36:00: --either: ownership without the "drawn lighter" clause,
-  for the crosshair. Its outline is BLACK, so over a bright sky the arm draws the
-  mark darker and the default mask owned nothing -- on precisely the ground the
-  outline exists for. The default is unchanged, so every earlier reading stands.
-- 13:08:2026 - 20:05:00: Метка времени записи выше приведена к часам — была написана
-  вперёд, а этот файл о замерах, которые не вправе льстить.
-"""
 
 import argparse
 import struct
@@ -86,7 +71,6 @@ SEPARATION_MIN = 2 * SHADE_STEP
 # sRGB luminance: the palette pass is what decides whether two values collapse
 # into one entry, so it is the metric that decides whether text survives.
 W_R, W_G, W_B = 0.30, 0.59, 0.11
-
 
 def read_png(path):
     """8-bit RGB/RGBA PNG -> (width, height, channels, bytearray)."""
@@ -140,14 +124,11 @@ def read_png(path):
         prev = line
     return w, h, ch, out
 
-
 def luma(pix, i):
     return (W_R * pix[i] + W_G * pix[i + 1] + W_B * pix[i + 2]) / 255.0
 
-
 def chan_diff(a, b, i):
     return max(abs(a[i] - b[i]), abs(a[i + 1] - b[i + 1]), abs(a[i + 2] - b[i + 2]))
-
 
 def ink_mask(w, h, ch, ctrl, test, noise, gate, either=False):
     """Pixels the mark OWNS, decided by the arm alone.
@@ -176,7 +157,6 @@ def ink_mask(w, h, ch, ctrl, test, noise, gate, either=False):
                 ink.add((x, y))
     return ink, unstable
 
-
 def report_pixels(w, ch, ctrl, test, ink):
     rows = [(abs(luma(test, (y * w + x) * ch) - luma(ctrl, (y * w + x) * ch)),
              luma(ctrl, (y * w + x) * ch)) for (x, y) in ink]
@@ -192,7 +172,6 @@ def report_pixels(w, ch, ctrl, test, ink):
     line("all", rows)
     line("over BRIGHT background (>0.55)", [r for r in rows if r[1] > 0.55])
     line("over DARK background (<=0.55)", [r for r in rows if r[1] <= 0.55])
-
 
 def report_edges(w, h, ch, test, ink):
     edges = []
@@ -232,7 +211,6 @@ def report_edges(w, h, ch, test, ink):
         print("  failing edges by the colour that owns them: "
               + ", ".join(f"{c}x{n}" for c, n in top))
 
-
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[7])
     ap.add_argument("control", help="frame with the text OFF")
@@ -264,7 +242,6 @@ def main():
     report_pixels(w, ch, ctrl, test, ink)
     report_edges(w, h, ch, test, ink)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

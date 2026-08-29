@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:35:09
-Last updated: 09:08:2026 - 00:35:09
 Module: tests
 File: tests/DoctestMain.cpp
 
@@ -13,10 +11,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:35:09: Created.
 */
 
 #define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN

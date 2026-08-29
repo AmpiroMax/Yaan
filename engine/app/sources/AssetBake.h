@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 14:43:34
-Last updated: 17:08:2026 - 15:00:28
 Module: engine/app
 File: engine/app/sources/AssetBake.h
 
@@ -36,11 +34,6 @@ AI Agents Notice (must follow):
   houses disappeared" three sessions later.
 - The plan is computed from the FILESYSTEM, never remembered: a half-finished
   bake killed by a crash must be finishable by running again.
-*/
-/*
-UPD:
-- 17:08:2026 - 14:43:34: Создан — печь ассетов при первом запуске (см. выше).
-- 17:08:2026 - 15:00:28: шаг табличек: исходники .signs — контент в git, испечённые .dfo — нет.
 */
 
 #pragma once

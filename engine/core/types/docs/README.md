@@ -1,11 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
--->
-<!--
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
--->
 
 # engine/core/types
 

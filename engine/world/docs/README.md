@@ -1,22 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:16:55
-Last updated: 11:08:2026 - 15:15:55
--->
-<!--
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
-- 09:08:2026 - 00:42:03: Stage 2 — Chunk/Worldgen/ChunkManager implemented; ChunkManager::open_generated added (in-memory generator, lead directive — .dfw IO and SaveDelta deferred to stage 3); value-noise gentle hills with global quantization range for exact edge stitching; suites tests/core/{WorldgenTests,ChunkManagerTests}.cpp.
-- 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 per LANDSCAPE.md: pass modules (Macro/Hydrology/Sites/Scatter/Validation + TestbedLayout + SiteComponents), WORLDGEN_MAX_HEIGHT quantization, Chunk gained SurfaceData + scatter, ChunkManager gained surfacefield/scatter/water_bodies and site-entity component attachment; suite tests/core/WorldgenV2Tests.cpp.
-- 09:08:2026 - 13:12:19: Stage 3b design amendments: derived fords (HydrologyData::ford_stations), §3.3 mud cap + ford bed raise, canopy-aware C1 with clearance factor + sight wedges, pine ridge strips, dist_to_water saturation at DIST_TO_WATER_RANGE, grid-pass chunk generation + binned hydrology (large-domain contexts 11x faster).
-- 09:08:2026 - 13:28:27: P1 anisotropy retune (§2.1): mid octave input-stretched along the drifting axis field (fixed-frame blending); WorldgenWater.cpp split from WorldgenHydrology.cpp (query vs build).
-- 09:08:2026 - 14:03:23: Micro-relief batch: corridor path groove (macro stage, ford-safe) + curb-stone scatter along corridor margins.
-- 09:08:2026 - 14:41:26: Frame-05 bed fix: fill_level split from the Dijkstra seed set (river cells no longer flood coarse cells); ponds exposed as drawable LakePlane primitives via water_bodies(); WaterBed-coverage invariant added.
-- 09:08:2026 - 14:49:01: Scatter-in-water fix: per-cell pond planes (bbox planes over-covered dry ground) + ScatterCtx::dry_enough water gate on every scatter pass including the forced watchpoint cluster; no-scatter-in-water invariant added.
-- 09:08:2026 - 16:30:44: 3D terrain stage 1 — VoxelVolume + VoxelMesh (surface nets) built from each chunk's heightmap; Chunk carries the extracted VoxelSurface; ChunkManager::voxel_mesh() hands it to render/physics; HeightFieldView unchanged.
-- 09:08:2026 - 15:18:34: Castle (§6.1): WorldgenCastle module (terrace + access ramp + hall-castle mass + occlusion), castle site types on mesh ids 8..11, hierarchy/access validation; C1 re-verified with the castle in the occlusion field.
-- 09:08:2026 - 23:49:27: LOD STREAMING HALF — CoarseTerrain module (coarse quadtree node identity on a fixed world grid, the 1/4/8/16/32/64 m ladder, incremental node builder) and the five ChunkManager calls the app ferries to render: world_bounds_xz / request_coarse_nodes / coarse_heightfield / coarse_surfacefield / release_coarse_node. Heights and surface classes are produced by the SAME quantize_height() and classify_surface() the chunk builder uses, so a coarse sample equals a chunk sample exactly where the lattices coincide (measured: 9828 shared points, 0 mismatches, both counterfactual builders rejected). Suites tests/core/{CoarseLodTests,LodSeamTests}.cpp.
-- 11:08:2026 - 15:15:55: §2.7 relief, §10.5 B2 outcrops, the §10.1 probe, build_scatter's new signature.
--->
 
 # engine/world
 

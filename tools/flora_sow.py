@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 28:08:2026 - 22:05:00
-# Last updated: 29:08:2026 - 03:10:00
 # File: tools/flora_sow.py
 #
 # Responsibility:
@@ -37,17 +35,6 @@
 # - ЧИСЛА ЗАКОНА ЖИВУТ ЗДЕСЬ И НИГДЕ БОЛЬШЕ. У генератора карты не может быть
 #   своей плотности куртины: две плотности — два закона, и кадр перестанет
 #   быть доводом о законе.
-#
-# UPD:
-# - 28:08:2026 - 22:05:00: Создан — первая волна ярусов (пункты 1, 2, 3 и 5
-#   очереди записки №2).
-# - 29:08:2026 - 03:10:00: ВТОРАЯ ВОЛНА (закон посева — в города). Ни одного
-#   нового числа и ни одного изменённого: у акцентов и подроста появилась
-#   ручка region, которая у подлеска и ковра была с первого дня. Причина —
-#   город: у него ярусам место в лесу и рощах, а не во дворе, на мостовой и
-#   в теле дома, и сказать это можно только областью. Область приходит
-#   СНАРУЖИ (маска зовущего), потому что закон не знает ни про стенд, ни про
-#   город — и это ровно то свойство, ради которого он лежит отдельным файлом.
 
 import math
 
@@ -133,7 +120,6 @@ CANOPY_RIM = 0.30
 # Подрост и кусты тени в этом смысле не кладут: полог — это ярус 1.
 CANOPY_MIN_HEIGHT_M = 6.0
 
-
 # =====================================================================
 # ДЕТЕРМИНИРОВАННЫЙ ХЭШ. Тот же приём, что clump_detail::mix64 в
 # engine/core/math/sources/FloraField.h — здесь он нужен на питоне, и это
@@ -142,13 +128,11 @@ CANOPY_MIN_HEIGHT_M = 6.0
 # =====================================================================
 _M = (1 << 64) - 1
 
-
 def mix64(x):
     x = (x + 0x9E3779B97F4A7C15) & _M
     x = ((x ^ (x >> 30)) * 0xBF58476D1CE4E5B9) & _M
     x = ((x ^ (x >> 27)) * 0x94D049BB133111EB) & _M
     return x ^ (x >> 31)
-
 
 def h01(*parts):
     """Равномерное [0,1) от произвольного набора целых."""
@@ -157,11 +141,9 @@ def h01(*parts):
         h = mix64(h ^ (int(p) & _M))
     return (h >> 11) / float(1 << 53)
 
-
 def _smoothstep(t):
     t = 0.0 if t < 0.0 else (1.0 if t > 1.0 else t)
     return t * t * (3.0 - 2.0 * t)
-
 
 # =====================================================================
 # §0 ВИДИМОСТЬ НЕБА ОТ ПОЛОГА
@@ -203,7 +185,6 @@ class Canopy:
             t = (1.0 - math.sqrt(d2) / r) / CANOPY_RIM
             v *= 1.0 - CANOPY_SHADE_MAX * _smoothstep(t)
         return v
-
 
 # =====================================================================
 # §4 ОПУШКА: поле троп, выгруженное судьёй (--path-field)
@@ -254,7 +235,6 @@ class PathField:
             return 0.0
         return EDGE_BAND_GAIN
 
-
 # =====================================================================
 # ОБЩАЯ МАШИНА КУРТИНЫ. Один процесс, две настройки (§1 и §3): куртина — это
 # «центры + плотность вокруг с рваной границей», и разными их делают ЧИСЛА, а
@@ -270,11 +250,9 @@ def _clump_centres(salt, span, cell, jitter, occupancy):
             z = (cz + 0.5 + (h01(salt, cx, cz, 3) - 0.5) * 2.0 * jitter) * cell
             yield (cx, cz, x, z)
 
-
 def _ragged_radius(r0, phi1, phi2, ang):
     return r0 * (1.0 + CLUMP_LOBE3 * math.sin(3.0 * ang + phi1)
                  + CLUMP_LOBE5 * math.sin(5.0 * ang + phi2))
-
 
 def _clump_members(salt, cx, cz, x0, z0, r0, step, falloff, span, gain_at):
     """Кандидаты внутри одной куртины, принятые по закону плотности."""
@@ -308,7 +286,6 @@ def _clump_members(salt, cx, cz, x0, z0, r0, step, falloff, span, gain_at):
             yield (px, pz, k, h01(salt, ix, iz, 9))
             k += 1
 
-
 # =====================================================================
 # ПОЛКА: габариты объектов теми же мерками, какими их читает СУДЬЯ.
 # Без этого сеятель и судья мерят разное, и «0 находок» становится удачей.
@@ -320,7 +297,6 @@ def _clump_members(salt, cx, cz, x0, z0, r0, step, falloff, span, gain_at):
 # ровно те 356 находок [no-overlap] и 5 [off-path], которыми первый прогон
 # ярусов ответил на «0 находок». Множитель не подгонка, а та же геометрия.
 YAW_ENVELOPE = 1.4142135623730951
-
 
 class Shelf:
     """name -> (radius, solid_radius, solid). Радиусы отдаются УЖЕ в мерке
@@ -350,13 +326,11 @@ class Shelf:
     def is_solid(self, name):
         return self.sizes.get(name, (0.5, 0.0, False))[2]
 
-
 def bounds_ok(shelf, name, x, z, span, margin=2.0):
     """ВНУТРИ КАРТЫ с тем же запасом, каким мерит судья (edge_margin_m = 2.0
     плюс радиус). Порог берётся у судьи, а не назначается здесь."""
     r = shelf.radius(name) + margin
     return r <= x <= span - r and r <= z <= span - r
-
 
 def path_ok(paths, shelf, name, x, z, need):
     """Пять проб по следу — ТОТ ЖЕ набор точек, каким судья мерит [off-path]:
@@ -368,7 +342,6 @@ def path_ok(paths, shelf, name, x, z, need):
         if paths.clearance(px, pz) < need:
             return False
     return True
-
 
 def thin_solids(placed, shelf, existing=(), slack=0.5, cell=4.0):
     """ПРОРЕЖИВАНИЕ СПЛОШНЫХ по правилу судьи (no-overlap).
@@ -418,7 +391,6 @@ def thin_solids(placed, shelf, existing=(), slack=0.5, cell=4.0):
         add(nm, x, z)
         kept.append(rec)
     return kept, dropped
-
 
 # =====================================================================
 # §1 ПОДЛЕСОК КУРТИНАМИ
@@ -480,7 +452,6 @@ def sow_undergrowth(span, seed, canopy, paths, shelf, palettes, uniform=False,
         out = _uniformise(out, span, salt, paths, shelf, EDGE_UNDER_CLEAR_M)
     return out
 
-
 def _uniformise(placed, span, salt, paths, shelf, clear_m):
     """КОНТРОЛЬНОЕ ПЛЕЧО: тот же счёт и тот же состав, РОВНЫМ рассевом по
     площади. Состав сохраняется нарочно — иначе кадры сравнивали бы не законы
@@ -501,7 +472,6 @@ def _uniformise(placed, span, salt, paths, shelf, clear_m):
         out.append((name, px, pz, h01(salt, guard, 103) * TAU,
                     "КОНТРОЛЬ: равномерный рассев (плечо правила 30)"))
     return out
-
 
 # =====================================================================
 # §2 КОВЁР
@@ -544,7 +514,6 @@ def sow_carpet(span, seed, canopy, paths, shelf, moss_names, grass_names,
                         "ковёр: %s, свет %.2f" % ("мох" if moss else "трава",
                                                   light)))
     return out
-
 
 # =====================================================================
 # §3 АКЦЕНТЫ
@@ -589,7 +558,6 @@ def sow_accents(span, seed, canopy, paths, shelf, light_names, shade_names,
                         % (kind, cx, cz, light)))
     return out
 
-
 # =====================================================================
 # ЯРУС ПОДРОСТА
 # =====================================================================
@@ -601,7 +569,6 @@ SAPLING_P_LIGHT = 0.42
 SAPLING_P_SHADE = 0.14
 SAPLING_CLEAR_M = 3.0        # молодое деревце всё же дерево: держит дистанцию
 SAPLING_TREE_GAP_M = 2.6     # не в стволе взрослого
-
 
 def sow_saplings(span, seed, canopy, paths, shelf, names, trees, region=None):
     """Ярус подроста: молодые деревца 1-3 м под пологом и на опушке.

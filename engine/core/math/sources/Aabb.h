@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/math
 File: engine/core/math/sources/Aabb.h
 
@@ -19,12 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Units are meters (Rule 14). Keep this a POD; heavy queries go to Intersect.h.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — POD AABB with trivial inline helpers.
-- 09:08:2026 - 00:42:03: Stage 2 — added missing <glm/mat4x4.hpp> include
-  (transformed() signature uses glm::mat4).
 */
 
 #pragma once

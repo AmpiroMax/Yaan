@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 14:12:02
 Module: engine/gameplay
 File: engine/gameplay/sources/Ids.h
 
@@ -26,13 +24,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Add a new id type here only when a content file kind actually exists for it.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 id set (dialogue, voice, item,
-                         schedule, loot table).
-- 09:08:2026 - 14:12:02: Quest-grill sync: appended QuestId, FlagId, TopicId,
-                         NpcCardId (QUEST_FORMAT.md contract, story-ACKed).
 */
 
 #pragma once

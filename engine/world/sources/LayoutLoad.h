@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:11:59
-Last updated: 10:08:2026 - 21:11:59
 Module: engine/world
 File: engine/world/sources/LayoutLoad.h
 
@@ -32,11 +30,6 @@ AI Agents Notice (must follow):
   map would otherwise leave the engine's neutral value in place and generate a
   world quietly missing a feature — the same silent-default failure the JSON
   parser rejects duplicate keys to avoid.
-*/
-/*
-UPD:
-- 10:08:2026 - 21:11:59: Created — CODE_AUDIT §3.4: the mechanism half of
-  moving 441 lines of one game's map out of the reusable engine.
 */
 
 #pragma once

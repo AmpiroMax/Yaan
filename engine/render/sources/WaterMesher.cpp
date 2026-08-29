@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:57:20
-Last updated: 09:08:2026 - 11:57:20
 Module: engine/render
 File: engine/render/sources/WaterMesher.cpp
 
@@ -18,10 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic pure functions; covered by WaterMesherTests.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:57:20: Stage 3b — initial implementation.
 */
 
 #include "engine/render/sources/WaterMesher.h"

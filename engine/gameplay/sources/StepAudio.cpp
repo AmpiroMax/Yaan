@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 28:08:2026 - 14:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/StepAudio.cpp
 
@@ -24,12 +22,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Handlers must stay cheap: they run inside the tick's pump.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Created for the landscape stage (в3+в12 audio).
-- 28:08:2026 - 14:30:00: start_wind_loop/update_wind_loop СНЯТЫ (заказ
-  владельца 28.08). Причина — в заголовке; звук ветра теперь только у крон.
 */
 
 #include "engine/gameplay/sources/StepAudio.h"

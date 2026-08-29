@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 00:45:08
 # File: engine/platform/llm/CMakeLists.txt
 #
 # Responsibility:
@@ -16,9 +14,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. Do not FetchContent llama.cpp before
 #   the stage-4 scope says so.
-#
-# UPD:
-# - 09:08:2026 - 00:45:08: Stage 2 — null backend only.
 
 add_library(dfn_platform_llm STATIC
     sources/null/NullLlm.cpp)

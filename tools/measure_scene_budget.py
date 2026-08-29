@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 28:08:2026 - 23:40:00
-# Last updated: 28:08:2026 - 23:40:00
 # File: tools/measure_scene_budget.py
 #
 # Responsibility:
@@ -33,9 +31,6 @@
 #   ИЗМЕРИТЕЛЬ, а не второй движок: если приложение сменит размер плитки,
 #   этот счёт станет неверным МОЛЧА. Поэтому размер вынесен в TILE_M с
 #   явной ссылкой на источник.
-#
-# UPD:
-# - 28:08:2026 - 23:40:00: Создан — волна ярусов флоры.
 
 import os
 import sys
@@ -46,7 +41,6 @@ import dfo_read  # noqa: E402
 # ИСТОЧНИК: engine/app/sources/AppWorld.cpp, «The tile is 32 m».
 TILE_M = 32.0
 STREAMS = ("WOOD", "CARD", "GRND", "BARK")
-
 
 def read_places(path):
     out = []
@@ -64,7 +58,6 @@ def read_places(path):
     if cur.get("object") and cur.get("section") == "place":
         out.append(cur)
     return out
-
 
 def main():
     if len(sys.argv) < 3:
@@ -124,7 +117,6 @@ def main():
     if missing:
         print("  НЕТ НА ПОЛКЕ  : " + ", ".join(sorted(missing)[:8]))
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

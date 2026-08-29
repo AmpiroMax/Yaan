@@ -1,11 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 00:06:00
--->
-<!--
-UPD:
-- 09:08:2026 - 00:06:00: Created documentation workflow rules (adapted from Quicky Engine; added devlog and spec conventions).
--->
 
 # Documentation Rules — Permanent
 

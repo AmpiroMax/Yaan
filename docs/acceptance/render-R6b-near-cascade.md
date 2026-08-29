@@ -1,17 +1,3 @@
-<!--
-Created: 13:08:2026 - 16:30:00
-Last updated: 13:08:2026 - 16:30:00
--->
-<!--
-UPD:
-- 13:08:2026 - 16:30:00: Created. R6b's suspect 1 (SHADOW_TEXEL_M) built as a near
-  cascade, measured against a same-binary control, and left OFF by default: it
-  buys +0.010 of local contrast at the dapple's own scale for +22 % of the
-  frame. The result that outlives it is why — our near forest floor spans
-  1.15x p90/p10 with the shadow either on or off, against reference 03's 3.23x,
-  so there is no sun on it for a finer map to interrupt. The gate has moved to
-  canopy transmission (flora) and floor material tone (ground).
--->
 
 # R6b — THE NEAR SHADOW CASCADE: BUILT, MEASURED, AND LEFT OFF
 

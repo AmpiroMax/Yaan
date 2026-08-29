@@ -1,11 +1,3 @@
-<!--
-Created: 12:08:2026 - 22:57:02
-Last updated: 12:08:2026 - 22:57:02
--->
-<!--
-UPD:
-- 12:08:2026 - 22:57:02: Выделен из docs/design/LANDSCAPE.md (9786 строк против FILE_HARD_LIMIT 800): §10 (шапка), §10.1–§10.4.2. Чистый перенос — ни одна строка тела не изменена, ни один номер секции не изменён; адреса вида «LANDSCAPE.md §X» продолжают действовать, таблица § → файл живёт в docs/design/LANDSCAPE.md.
--->
 
 ## 10. THE OBJECT GRAMMAR — what stands on the heightmap (stage-5, from the 16 reference frames)
 
@@ -291,7 +283,6 @@ wrong response to a mid-field failure — it costs draw calls and moves nothing 
 the frame. **Each band must be populated by a class sized for it**, which is why
 §10.5 opens with outcrops rather than with boulders: outcrops at 5–25 m are the
 only natural class whose expiry lands in the 150–750 m band.
-
 
 ---
 

@@ -1,16 +1,3 @@
-<!--
-Created: 13:08:2026 - 18:55:00
-Last updated: 13:08:2026 - 18:55:00
--->
-<!--
-UPD:
-- 13:08:2026 - 18:55:00: Created. Two of the user's three shadow-and-light
-  complaints, each with its own number and its own control arm: the unlit side
-  carrying no form (p90/p10 1.01x across a bole, now 1.16x) and the shadow
-  crawling under a moving sun (0.1720 texels of grid slide per frame and 11.5
-  full-texel steps per second, now 0.0037 and 0.1). The third — "большие
-  квадратные блоки" — is SHADOW_TEXEL_M and is deliberately untouched.
--->
 
 # THE UNLIT SIDE, AND THE CRAWLING SHADOW
 

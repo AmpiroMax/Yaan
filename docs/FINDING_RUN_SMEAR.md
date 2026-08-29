@@ -1,22 +1,3 @@
-<!--
-Created: 11:08:2026 - 13:28:15
-Last updated: 11:08:2026 - 13:56:21
--->
-<!--
-UPD:
-- 11:08:2026 - 13:28:15: Recovered from five state captures taken 10:08:2026 23:51-23:52 by the smear investigation, which stalled one sentence before writing them down ("Five samples at full run speed, and they settle it"). The captures survived on disk; this file is them. Owner of the mechanism: sim (engine/gameplay). Written by lead so the finding stops living in a thread.
-- 11:08:2026 - 13:39:12: sim ran the falsifying measurement. RESULT BELOW: the candidate
-  mechanism is REFUTED. `speed` at run is 6.0000 to within 0.0075 m/s.
-- 11:08:2026 - 13:47:08: РЕШЕНО. Пользователь указал на изъян метода («при беге тряска есть, а в момент скрина картинка статичная») — и он прав: все наши двери съёмки либо морозят тик, либо ждут сброса буфера, а дефект живёт МЕЖДУ кадрами. Новый прибор `DFN_FRAME_LOG` (по строке на предъявленный кадр, без обратного чтения и без отстоя) показал размах `fov_y` 5.951° при беге против 0.0000° на ходьбе и стоя, с разворотом направления в 97.9% пар кадров — то есть меандр в 9.4 пикселя всей картинкой каждый кадр. Причина: `PreviousCameraPose::fov_scale` никто не копирует (PlayerMovement.cpp:339-341), поэтому интерполяция идёт от вечной 1.0 к живой 1.08 каждый тик. Правило 39 на новом ПОЛЕ теневой копии.
-- 11:08:2026 - 13:49:03: sim, after the user's "there is no shake at the moment the
-  screenshot is taken": the probe now logs THE EYE per tick, not just the
-  scalar. NEW CANDIDATE with a measured walk/run discriminator — see the
-  last section. The refutation above stands unchanged.
-- 11:08:2026 - 13:56:21: sim applied the one-line fix, swept its siblings (Rule 32) and
-  measured it before/after with the lead's frame log. 2.9040 deg of
-  per-frame FOV change becomes 0.0022; 98.3 %% direction reversals become
-  2.8 %%. Six frame logs archived in docs/acceptance/.
--->
 
 # FINDING — the picture smears at run, and `fov_scale` is not inert
 

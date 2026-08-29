@@ -1,6 +1,4 @@
 /*
- * Created: 12:08:2026 - 00:07:11
- * Last updated: 12:08:2026 - 00:07:11
  * Module: engine/platform/render
  * File: engine/platform/render/sources/bgfx/shaders/dfn_ground.sh
  *
@@ -37,11 +35,6 @@
  * - It also may not become a MATERIAL CLASS by the back door: no hard edges, no
  *   thresholds. Every mix here is smooth, so nothing in it can be mistaken for
  *   the shore mask or the slope rock, which are surface truth from core.
- *
- * UPD:
- * - 12:08:2026 - 00:07:11: Created for R5, after the counterfactual arms
- *   (DFN_TERRAIN_TILES 8/32/128) proved the repeating pattern on our ground is
- *   the MATERIAL TILE and not the palette dither or the coverage AA.
  */
 
 #ifndef DFN_GROUND_SH

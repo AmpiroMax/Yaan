@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 22:50:00
-Last updated: 28:08:2026 - 22:50:00
 Module: tools
 File: tools/forge_tiers.cpp
 
@@ -39,10 +37,6 @@ AI Agents Notice (must follow):
 - ДЕТЕРМИНИРОВАН: тот же прогон — те же файлы и те же content_hash.
 - НИ ОДНОГО ИМЕНИ ЧУЖОЙ ПОЛКИ. Страж внизу main() отказывает, если имя не
   начинается с "tier-".
-*/
-/*
-UPD:
-- 28:08:2026 - 22:50:00: Создан — первая волна ярусов флоры (подрост + ковёр).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"

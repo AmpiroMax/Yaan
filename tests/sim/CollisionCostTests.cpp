@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 20:30:54
-Last updated: 10:08:2026 - 20:32:57
 Module: tests/sim
 File: tests/sim/CollisionCostTests.cpp
 
@@ -34,14 +32,6 @@ AI Agents Notice (must follow):
 - This is a MEASUREMENT, not a gate: it asserts only that the shapes build.
   A wall-clock threshold here would go red on a busy machine and get weakened,
   which is the failure Rule 38 describes.
-*/
-/*
-UPD:
-- 10:08:2026 - 20:30:54: Created to size the collision-mesh cost after the
-                         streaming fix made it the dominant remaining term.
-- 10:08:2026 - 20:32:57: CORRECTION (Rule 16/17): the stamp above was
-  written ahead of the clock and now reads the true reading. Appended, not
-  edited silently -- UPD is the cross-zone ordering record.
 */
 
 #include <doctest/doctest.h>

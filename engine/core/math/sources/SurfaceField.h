@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 17:08:2026 - 11:54:29
 Module: engine/core/math
 File: engine/core/math/sources/SurfaceField.h
 
@@ -34,30 +32,6 @@ AI Agents Notice (must follow):
   it. Three copies of one ramp is three chances to drift, and the drift would
   show as a verge that no longer sits on the edge it was measured against —
   which nobody would read as a code defect. Retune the numbers in this file.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — surface/scatter/water handoff contract as
-  agreed with render (floats unquantized; explicit water primitives requested
-  by render for plane/ribbon water materials).
-- 10:08:2026 - 11:19:15: §8.1 path handoff (render's request, 10.08.2026):
-  PathStation / PathGoalMark primitives + the two cross-section profiles
-  moved OUT of WorldgenPaths.cpp so both zones call the same function.
-- 10:08:2026 - 11:51:23: ScatterSpecies gains §5.10's forest floor, §5.11's
-  rich-edge set and §5.12's krummholz (append-only, and the ordinals are the
-  same silent cross-DAG contract PathClass is — pinned). Until this the meshes
-  existed in render and the rules existed in design's document and the forest
-  floor in the world was bare earth, eleven NUMBERS rows deep.
-- 12:08:2026 - 22:41:00: ScatterSpecies::GreatOak (18) — the landmark tree of
-  docs/GIANT_OAKS.md gets an ordinal because there is no other channel: the
-  instance struct is frozen and flora overwrites `scale` for canopy trees, so
-  neither a field nor a size can say "this one is the giant". Placement (the
-  clearing and the derived rarity) is core's; the ordinal -> mesh mapping is
-  flora's, and flora_owns()'s exhaustive switch is what names the file.
-- 17:08:2026 - 11:53:47: SurfaceFieldView::path_wear — ТРОПА КАК СВОЙСТВО ЗЕМЛИ. Пустой span
-  законен и значит «на этом мире троп нет».
-- 17:08:2026 - 11:54:29: SurfaceFieldView::path_wear — ТРОПА КАК СВОЙСТВО ЗЕМЛИ. Пустой span
-  законен и значит «на этом мире троп нет».
 */
 
 #pragma once

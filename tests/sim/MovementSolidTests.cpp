@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:18:17
-Last updated: 09:08:2026 - 22:18:17
 Module: tests
 File: tests/sim/MovementSolidTests.cpp
 
@@ -25,11 +23,6 @@ AI Agents Notice (must follow):
 - Every case here ships a CONTROL: the thing it exists to reject must fail it.
   A slope test that no slope can fail measures nothing.
 - Expectations derive from dfn::config, never from literal duplicates of it.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:18:17: Created with the v1 movement work — jump apex, the
-                         ceiling-refused stand-up, and the cliff invariant.
 */
 
 #include <doctest/doctest.h>

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 19:24:10
-Last updated: 14:08:2026 - 00:14:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.cpp
 
@@ -21,71 +19,6 @@ AI Agents Notice (must follow):
   asset geometry (same standing as ProcMesh's §5 dimensions).
 - SILHOUETTE IDENTITY OUTRANKS REALISM: at 640x360 these species must be
   separable by outline and value alone (LANDSCAPE §1.5).
-*/
-/*
-UPD:
-- 09:08:2026 - 19:24:10: Created — the three catalog trees, willow, snag, bush,
-  big bush, fallen log, deadfall (LANDSCAPE §5.7-§5.10).
-- 09:08:2026 - 20:21:13: Broadleaf foliage switched to alpha-cutout CARDS (oak,
-  birch, willow) with their atlas tone/shape bands and card proportions; the
-  conifer deliberately stays on cone tiers this stage so one frame compares the
-  two treatments. Bushes stay solid (design §5: only tree foliage is cards).
-- 09:08:2026 - 21:18:02: Birch crown base moved to its landed exception band
-  (BIRCH_CROWN_BASE_FRACTION_MIN) after the crown measured 2.30:1 tall-to-wide
-  — a column by construction. Crown widths CALIBRATED against the built tree
-  rather than against the envelope (oak 0.45 -> 0.48, birch 0.30 -> 0.52): the
-  achieved diameter is ~0.7-0.9 of nominal, and the birch had drifted a third
-  under design's 5-7 m brief.
-- 10:08:2026 - 01:59:06: §5.10 forest floor becomes real objects: the snag
-  gains truncated stubs and its SPLIT (Snag weathered grey / SnagPale bone —
-  one geometry, two materials, the design §5.10 model); logs gain moss on the
-  upper side, broken stubs and (big class) an upturned root plate. Pine sprays
-  2 -> 3 planes under the new render-spec floor: card count buys ANGULAR
-  COVERAGE against the worst azimuth.
-- 10:08:2026 - 02:49:15: Moss darkened under design's moss-below-grass rule;
-  the variation multiplier unified as MOSS_TONE_B (one number, three sites).
-- 12:08:2026 - 00:20:00: Crown widths re-derived (oak 0.48 -> 0.70 from three
-  independent arms; birch only as far as its bank-line spacing contract allows;
-  the conifer's ratio deliberately untouched), crown allometry and per-instance
-  width jitter, oak crown base at the band floor, and the GreatOak row.
-  flora_control_arm() -- the zero-dose control that lets BEFORE and AFTER come
-  out of ONE binary.
-- 12:08:2026 - 00:36:00: Great oak fractal depth 4 -> 5 (foliage count is
-  bounded by branch TIPS, not by cluster_count).
-- 12:08:2026 - 00:45:00: card_scrap_floor() defined here; its three call sites
-  now share one definition.
-- 13:08:2026 - 16:20:00: EVERY BROADLEAF RAMIFIES (user, 13.08.2026). Fractal
-  rows for the oak, the birch and the willow -- the great oak's grower was never
-  great-oak-specific. And the cluster sizes are RE-DERIVED from the containment
-  arithmetic rather than nudged: a mass is contained by its card CORNER reach,
-  the oak's was 0.56 of the whole crown radius, so a crown of 26 such masses
-  could not exist and 7 of them were being dropped in silence (birch 16 of 20,
-  willow 15 of 20). Corner reach is now a third of the crown radius and the
-  count rises to match, paid for out of the wood by max_crown_segments().
-- 13:08:2026 - 19:55:00: flora_shyness_arm() defined.
-- 13:08:2026 - 21:00:00: THE PUBLISHED WEBER & PENN ROWS (CA Black Oak,
-  Quaking Aspen, Weeping Willow), transcribed from docs/WEBER_PENN_PARAMS.md.
-  What is ours and says so: the mapping onto our species, the height, and the
-  great oak's two deviated numbers. Plus flora_weber_arm(), the generator door.
-- 13:08:2026 - 19:56:00: flora_far_lod_arm(), the zero-dose door for the far
-  LOD's wood/foliage balance.
-- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
-  this session's own UPD entries above were written AHEAD of the wall clock (one
-  said 22:00 for work committed at 20:24) and are corrected against the commit
-  times. Recorded rather than done silently -- a record whose stamps are
-  invented cannot be put in order afterwards, and the entries it would mislead
-  are this zone's own.
-- 13:08:2026 - 21:50:00: crown_plasticity per species: broadleaf 0.45 (oak,
-  birch, willow), conifer 0.05 (pine, krummholz), and 0 for the great oak, which
-  is the open-grown case by definition -- nothing crowds it, so a plasticity it
-  could never express would be a number with no consumer.
-- 13:08:2026 - 23:27:00: flora_united_bole_arm() defined (DFN_FLORA_ONEBOLE,
-  default on; =0 is the zero-dose arm).
-- 13:08:2026 - 23:45:00: LEAF PACKS: дуб/берёза/ива читают
-  LEAF_CLUSTERS_PER_CROWN (12) и LEAF_CLUSTER_RADIUS_FRAC (0.45) из реестра за
-  дверью flora_pack_arm(); гигант, сосна и стланик не тронуты, у каждого своя
-  записанная причина. Вывод обоих чисел — docs/TREE_MODELS_RESEARCH.md.
-- 14:08:2026 - 00:14:00: flora_trunk_arc_arm() defined.
 */
 
 #include "engine/render/sources/FloraSpecies.h"

@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 17:10:00
-Last updated: 28:08:2026 - 17:10:00
 Module: tools
 File: tools/forge_trees_v2.cpp
 
@@ -30,11 +28,6 @@ AI Agents Notice (must follow):
 - THIS TOOL MUST NEVER WRITE A NAME THE FIRST ITERATION OWNS. Every recipe
   below carries "-v2-" in its name, and the guard at the bottom of main()
   refuses the run if one does not.
-*/
-/*
-UPD:
-- 28:08:2026 - 17:10:00: Создан — три структурных закона по два габитуса и два
-  посева: дуб-v2 (луговой), бук-v2 (лесной ярусный), акация-v2 (многоствольная).
 */
 
 #include "engine/render/sources/ObjectRegistry.h"

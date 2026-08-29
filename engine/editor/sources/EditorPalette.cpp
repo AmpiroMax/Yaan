@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 21:04:27
 Module: engine/editor
 File: engine/editor/sources/EditorPalette.cpp
 
@@ -20,22 +18,6 @@ AI Agents Notice (must follow):
   triple as a box. The forge writes (going_u, width_u, STEPS) there and pins the
   first number at 1 for both pitches; reading it as a length would report a
   3.5 m flight as 0.25 m. Every other family is handled structurally.
-*/
-/*
-UPD:
-- 17:08:2026 - 19:13:38: Создан вместе с EditorPalette.h.
-- 17:08:2026 - 19:22:54: Переезд в engine/editor. ARCHITECTURE.md разрешает Dear ImGui
-  ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
-  (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
-  по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
-- 17:08:2026 - 19:37:50: index_of() и selected_index() через него — один поиск на всех.
-- 17:08:2026 - 20:58:32: ДВЕ ПОТЕРЯННЫЕ СВОЙСТВА, обе найдены одним рукавом на различимость.
-  (1) `hole` у настила выбрасывался — 16 настилов из 24 различаются ТОЛЬКО им,
-  то есть меню держало восемь пар неотличимых строк. Теперь метка.
-  (2) ширина марша выбрасывалась вместе со всей тройкой — все 76 лестниц
-  схлопывались в 38 неотличимых пар. Теперь width_m.
-- 17:08:2026 - 21:04:27: first_of_family() — двоичный поиск по началу имени: семейство это ведущий
-  токен, значит на отсортированной полке оно непрерывно.
 */
 
 #include "engine/editor/sources/EditorPalette.h"

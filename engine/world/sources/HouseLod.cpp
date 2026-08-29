@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 18:30:43
-Last updated: 28:08:2026 - 18:30:43
 Module: engine/world
 File: engine/world/sources/HouseLod.cpp
 
@@ -26,10 +24,6 @@ AI Agents Notice (must follow):
 - СРЕЗАННЫЙ РЯДНЫЙ СЛОЙ ОТДАЁТ СВОЙ МАТЕРИАЛ ПЛАСТИНЕ. Иначе дальний
   кирпичный дом становится штукатурным: кирпич живёт в кусках кладки, а
   пластина под ними носит материал элемента.
-*/
-/*
-UPD:
-- 28:08:2026 - 18:30:43: Создан — волна LOD построек (И13).
 */
 
 #include "engine/world/sources/HouseLod.h"

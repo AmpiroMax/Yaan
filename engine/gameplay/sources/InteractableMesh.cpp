@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 17:20:00
-Last updated: 13:08:2026 - 17:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableMesh.cpp
 
@@ -23,18 +21,6 @@ AI Agents Notice (must follow):
   geometry outside it is a thing the player can see, aim at and never hit.
 - Every mesh must TOUCH all six faces of the cube. A face with nothing on it is
   a face where the crosshair reports a prop and the screen shows empty air.
-*/
-/*
-UPD:
-- 13:08:2026 - 17:20:00: Created.
-- 13:08:2026 - 17:30:00: WRITTEN AFTER THE FIRST ACCEPTANCE FRAME, which is
-  the point of shooting one. (a) BOTH large faces of the door are panelled: only
-  the -Z face was, and the app stands the door with that side facing AWAY from
-  the spawn, so the side the player walks up to was blank and the door read as a
-  flat dark rectangle at 7 m. (b) The handle is on the same WORLD side of both
-  faces -- mirroring it per face put it on the same SCREEN side from both, which
-  is a door hinged on the right and on the left at once. (c) Iron, stone, brass
-  and the planks lifted: a 0.5 m prop in shadow at 7 m was a grey lump.
 */
 
 #include "engine/gameplay/sources/InteractableMesh.h"

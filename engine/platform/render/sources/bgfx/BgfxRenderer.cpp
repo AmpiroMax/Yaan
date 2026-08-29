@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 11:14:50
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRenderer.cpp
 
@@ -26,102 +24,6 @@ AI Agents Notice (must follow):
   the auto renderer type but are untested.
 - Culling is OFF this stage (flat terrain, safety for the Q51 tour); revisit
   with real scenes at stage 3.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation (Metal, internal
-  target + integer upscale, embedded shaders, screenshot scheduling).
-- 09:08:2026 - 10:56:00: Stage 3 — RenderEnvironment -> u_envParams uniforms,
-  backend sky pass (sequential scene view), palette post in the upscale pass
-  (Q9b, RendererInitParams::palette_post), "water" logical name -> alpha-blend
-  state, point-sampled material textures.
-- 09:08:2026 - 11:57:20: Stage 3b — "prop" logical program (vs_terrain +
-  fs_prop: vertex-color albedo, lambert + fog) for placeholder scatter/site
-  meshes.
-- 09:08:2026 - 14:11:37: Dynamic sun shadows (user decision в1): depth-only
-  shadow view (2048 map over the loaded chunk ring, eye-centered ortho from
-  environment.sun_direction, texel-snapped), opaque submits also render into
-  it with the internal "shadow" program; terrain/prop sample it with one hard
-  compare tap (dfn_shadow.sh). Shadows follow the app-animated sun (в2) and
-  switch off below SHADOW_MIN_SUN_ELEVATION (night: ambient only).
-- 09:08:2026 - 18:40:00: Thin casters cast nothing (user bug: tree trunks had
-  no shadow, only the canopy). Root cause was shadow-map TEXEL DENSITY, not a
-  missed submit path — trunk and crown are the same vertices in the same
-  batched draw, so the shadow pass never had a way to skip one. 0.625 m per
-  texel could not represent a 0.28-1.1 m trunk. Shadow map 2048 -> 4096 and
-  half extent 640 -> 320 m => 0.156 m per texel (and the normal offset, which
-  is defined in texels, shrinks with it). Covers the §6.2 standing stones too.
-- 09:08:2026 - 19:26:00: Day/night (в1/в2): env uniform block 11 -> 15 vec4s
-  carrying moon direction/phase/colour/light, star intensity and the carried
-  point light; sky shader gains stars and a phased moon disc; terrain and
-  props light through the shared dfn_surface_light().
-- 09:08:2026 - 19:32:00: Light ARRAY (8 lit, cube-shadow casters to come with
-  interiors) + authored ambient_darkness; env block 15 -> 32 vec4s. REVERSED-Z
-  depth (D32F internal target, clear 0, DEPTH_TEST_GREATER, projection flipped
-  in begin_frame) so CAMERA_FAR 8000 m does not z-fight distant landmarks.
-- 09:08:2026 - 20:02:00: Foliage material path: "foliage" alpha-cutout program
-  (albedo from the leaf mask, vertex colour repurposed to wind data) and the
-  internal "shadow_cutout" caster so the canopy's shadow gets the mask's
-  holes and the same sway; wind packed at env slot [32].
-- 09:08:2026 - 20:40:00: INTERIOR LIGHTING — carried lights now CAST. Cube
-  shadows for up to MAX_SHADOW_POINT_LIGHTS lights: six 90-degree faces per
-  light packed into ONE 2D atlas (4x3 tiles of 512 px) storing linear distance
-  / radius, twelve views ahead of the scene view, and the "point_shadow"
-  caster program. Casters are culled to the light SPHERE and then per FACE,
-  which is what keeps a torch affordable; the sphere test uses per-mesh bounds
-  measured in create_mesh (IRenderer::submit carries no bounds and that
-  contract is frozen — so the one place that already has the vertices keeps
-  them). Lights are reordered so shadow casters occupy the first slots, which
-  makes the shader's light index the cube index by construction.
-- 09:08:2026 - 22:23:29: SUN CASTER CULL. `submit` now rejects a draw's depth
-  pass when its world bounding sphere lies wholly outside the shadow ortho
-  volume (light-space slab test against SHADOW_HALF_EXTENT_M /
-  SHADOW_DEPTH_HALF_M). Verified by A/B with an inverted-cull control.
-- 09:08:2026 - 23:50:06: CRASH FIX (user report: segfault on exit). create_mesh
-  never validated bgfx's handles: on pool exhaustion createVertexBuffer returns
-  BGFX_INVALID_HANDLE (idx 0xFFFF), that was stored in the mesh record and
-  handed back as a VALID engine handle (MeshHandle validity is "our id != 0"),
-  and shutdown then called bgfx::destroy on it — which in a release build skips
-  its assert and indexes m_vertexBufferRef[0xFFFF], the reported stack exactly.
-  Now: a failed create is refused and reported, every destroy is guarded, and
-  live/peak/created/destroyed mesh handles are counted so the budget cliff is
-  reported BEFORE it is walked off. Added the "overlay" program (unlit shaders,
-  alpha blend) for the HUD layer.
-- 10:08:2026 - 01:47:53: Rule 21 split (the file was 1424 lines against the
-  800 ceiling). Impl moved to BgfxRendererImpl.h; this file keeps lifecycle +
-  the embedded shader table; frame pass, submit and handle bookkeeping moved
-  to BgfxRendererFrame/Submit/Resources.cpp. Code moved VERBATIM — no
-  behaviour change (control: identical mesh-handle counts on the same tour).
-- 10:08:2026 - 23:24:48: COVERAGE ANTIALIASING ON THE INTERNAL TARGET — the
-  user's oldest complaint («при беге трясет», «всё дергает и перерисовывается
-  очень рябью»). MSAA 4x on the internal colour+depth target (DFN_MSAA=0|2|4|8),
-  an alpha-weighted mip chain for cutout MASKS only, and
-  BGFX_STATE_BLEND_ALPHA_TO_COVERAGE on the cutout path. Measured, one 0.05 m
-  stride at RUN_SPEED, DFN_WIND_FREEZE=120, 640x360, palette off, control
-  0.000 %: near canopy 0.864 -> 0.621 %, treeline 0.094 -> 0.004 %. MSAA ALONE
-  IS WORTH ALMOST NOTHING (0.819 / 0.080) and MSAA 8x equals 4x to three
-  digits — the residual pixels are not partially covered, they are written or
-  discarded, so the fix had to reach the MASK. Details and the palette-on
-  numbers in docs/specs/render.md.
-- 10:08:2026 - 23:32:21: Число выборок берётся из параметров запуска, DFN_MSAA остаётся перекрытием для инструментов. Врезка лида в одну строку: оставить настройку неподключённой значило бы отгрузить немой ноль ровно того класса, который этот файл сегодня и чинил.
-- 13:08:2026 - 16:10:00: The NEAR CASCADE's resources — a second depth target
-  (SHADOW_NEAR_MAP_SIZE) with its own framebuffer, sampler and light matrix.
-  Allocated SEPARATELY from the far map and separately validated: if this one
-  fails the far map still ships, because "no dapple" is a far better failure
-  than "no shadows".
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
-- 15:08:2026 - 15:23:22: s_texAux (стадия 4) + нейтральная нормаль 1×1 — второй материальный
-  лист дро; «листа нет» становится значением, а не ветвью в каждой программе.
-- 17:08:2026 - 10:14:36: capture_fb уничтожается вместе с остальными целями.
-- 22:08:2026 - 13:45:06: u_shadowSoft — юниформ мягкой тени (3x3 PCF в
-  dfn_shadow.sh, решение владельца, отменяет в1). Создаётся и уничтожается
-  рядом с остальным теневым состоянием.
-- 23:08:2026 - 00:30:00: s_texPath создаётся/уничтожается с остальными.
-- 23:08:2026 - 06:30:00: u_psNear создаётся/уничтожается с остальным теневым состоянием.
-- 22:08:2026 - 23:48:18: s_texPathMask создаётся/уничтожается с остальными (маска троп, стадия 6).
-- 28:08:2026 - 11:14:50: uniform u_matParams (зона МАТЕРИАЛЫ, 28.08) — отражательная
-  половина материала по дро. Свой vec4, а не пятый смысл у u_params: там все
-  четыре слота заняты, а w уже несёт два (aux0 и «лист рельефа привязан»).
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"

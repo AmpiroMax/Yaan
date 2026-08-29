@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 12:08:2026 - 23:01:25
-Last updated: 12:08:2026 - 23:01:25
 Module: tools
 File: tools/measure_dapple.py
 
@@ -52,13 +50,6 @@ AI Agents Notice (must follow):
   THE SAME VANTAGE WITH THE SUN SHADOW OFF. Ground texture, slope shading and
   material dither all survive that arm, so the shipped number alone means
   nothing; the dapple is the DIFFERENCE. Do not quote an absolute.
-
-UPD:
-- 12:08:2026 - 23:01:25: Created for R6b, after the plain luma-range version scored our
-  shadowless forest floor at 1.81x against reference 03's 2.28x — a 79 % "pass"
-  for a picture with no dapple in it whatsoever, because the range was a
-  distance gradient. Same family as the defect recorded in
-  tools/measure_light_split.py: a criterion that its own null case satisfies.
 """
 
 import sys
@@ -70,10 +61,8 @@ from archive_frame import read_png  # noqa: E402
 # The quantiser's own weights (fs_upscale.sc / DFN_LUMA_WEIGHTS).
 LUMA_W = (0.30, 0.59, 0.11)
 
-
 def luma(r, g, b):
     return LUMA_W[0] * r + LUMA_W[1] * g + LUMA_W[2] * b
-
 
 def block_luma(w, h, ch, px, box, block):
     """Grid of block-mean lumas. Non-overlapping: overlapping blocks would
@@ -96,7 +85,6 @@ def block_luma(w, h, ch, px, box, block):
         if row:
             rows.append(row)
     return rows
-
 
 def dapple(grid, win=4):
     """Local light/dark ratio, averaged over windows of win x win blocks.
@@ -123,13 +111,11 @@ def dapple(grid, win=4):
         return None, 0
     return sum(ratios) / len(ratios), len(ratios)
 
-
 def measure(path, box, block, win=4):
     w, h, ch, px = read_png(path)
     grid = block_luma(w, h, ch, px, box, block)
     d, n = dapple(grid, win)
     return d, n, (len(grid), len(grid[0]) if grid else 0)
-
 
 def run(path, box, blocks, win=4, label=""):
     print(f"{Path(path).name}  DAPPLE  box {box[0]},{box[1]},{box[2]},{box[3]}"
@@ -142,7 +128,6 @@ def run(path, box, blocks, win=4, label=""):
                   f" {win}x{win} window")
             continue
         print(f"   {block:8d}   {shape[0]}x{shape[1]:<6} {n:8d}   {d:8.3f}x")
-
 
 def selftest():
     """Rule 48, on synthetic pixels: the null case must NOT pass.
@@ -173,7 +158,6 @@ def selftest():
           "  (a pure gradient must not score as dapple — Rule 48)")
     return 0 if ok else 1
 
-
 def main(argv):
     if len(argv) > 1 and argv[1] == "selftest":
         raise SystemExit(selftest())
@@ -194,7 +178,6 @@ def main(argv):
         blocks = [max(2, bw // d) for d in (80, 40, 27, 16)]
     win = int(argv[4]) if len(argv) > 4 else 4
     run(argv[1], box, blocks, win, argv[5] if len(argv) > 5 else "")
-
 
 if __name__ == "__main__":
     main(sys.argv)

@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 14:30:00
-Last updated: 28:08:2026 - 14:30:00
 Module: engine/app
 File: engine/app/sources/AppProps.cpp
 
@@ -45,10 +43,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Зона big-grab владеет этим файлом.
 - АРИФМЕТИКА РУКИ — ТОЛЬКО В GrabDrive.cpp. Здесь состояние и мир; вторая
   копия пружины разошлась бы с приёмкой (правило 39), которая зовёт ту же.
-*/
-/*
-UPD:
-- 28:08:2026 - 14:30:00: Создан. Пункты 2-4 волны: тела, удержание, стеки.
 */
 
 #include "engine/app/sources/App.h"

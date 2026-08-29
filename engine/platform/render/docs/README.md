@@ -1,18 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:16:00
-Last updated: 14:08:2026 - 16:35:53
--->
-<!--
-UPD:
-- 09:08:2026 - 00:16:00: Stage-1 state: lead-authored frozen interface, no backends yet.
-- 09:08:2026 - 00:50:00: Stage 2 — bgfx + null backends, shaderc build step.
-- 09:08:2026 - 11:26:00: Stage 3 — RenderEnvironment/set_environment + palette_post (contract sync 10:48), sky pass, water state, palette post, point-sampled textures.
-- 09:08:2026 - 11:57:20: Stage 3b — "prop" logical program (vs_terrain + fs_prop); terrain fragment v3 (splat-weight vertex channels + ordered dither).
-- 09:08:2026 - 14:11:37: Dynamic sun shadows (в1): shadow view 0 (views renumbered), depth-only "shadow" program, dfn_shadow.sh sampling in terrain/prop; terrain fragment v4 (surface-class-only splat — legacy height-sand and dirt dryness removed per design ruling).
-- 09:08:2026 - 20:50:00: Interior lighting: CUBE SHADOWS for carried lights (12 face views into one distance atlas, "point_shadow" program, dfn_pointshadow.sh), caster culling from mesh bounds measured at create_mesh, and the touch-order rule that empty draws must precede every setUniform of the frame.
-- 09:08:2026 - 21:08:00: DrawParams sync (lead-authored): submit takes per-draw params; both backends implement the five-argument form, bgfx forwards fade/highlight into u_params.yz and dfn_screen_door dissolves by an ordered 4x4 pattern.
-- 14:08:2026 - 16:35:53: В28 debug/editor introspection sync (render's diff at the lead's direction): frame_stats(), set_wireframe(bool), center_pick() + DrawParams::pick_id. Verification recipe and the honest bgfx limits below.
--->
 
 # engine/platform/render
 

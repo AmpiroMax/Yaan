@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 15:46:07
 Module: engine/render
 File: engine/render/sources/SignForge.cpp
 
@@ -22,15 +20,6 @@ AI Agents Notice (must follow):
 - THE BOARD AND THE LETTER MUST NOT SHARE A TILE (lead, 17.08): they carry
   their own tile index in the vertex colour, and a sign whose ink and board
   land on the same row is a sign with no text on it.
-*/
-/*
-UPD:
-- 17:08:2026 - 14:46:25: Создан вместе с SignForge.h.
-- 17:08:2026 - 14:55:07: read_signs_file() — разбор файла .signs, перенесён из tools/forge_signs.cpp.
-- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
-  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
-  тест текстурного потока не мог её попросить: он проверял умолчание и
-  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #include "engine/render/sources/SignForge.h"

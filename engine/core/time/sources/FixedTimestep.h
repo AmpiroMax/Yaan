@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/time
 File: engine/core/time/sources/FixedTimestep.h
 
@@ -22,11 +20,6 @@ AI Agents Notice (must follow):
   NUMBERS.md); never hardcode it (Rule 14).
 - max_catchup_steps: pending NUMBERS.md entry SIM_MAX_CATCHUP_STEPS (flagged to
   the lead); app passes the value from constants, no default here.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — accumulator with catch-up clamp and
-  interpolation alpha.
 */
 
 #pragma once

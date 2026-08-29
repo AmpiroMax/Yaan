@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 17:44:36
-Last updated: 14:08:2026 - 17:44:36
 Module: engine/app
 File: engine/app/sources/ChatOverlay.h
 
@@ -36,10 +34,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned zone (Rule 25), app cut.
-*/
-/*
-UPD:
-- 14:08:2026 - 17:44:36: Created -- the chat input overlay (live Russian typing).
 */
 
 #pragma once

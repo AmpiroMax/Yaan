@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 12:08:2026 - 22:24:56
-Last updated: 12:08:2026 - 22:47:01
 Module: tools
 File: tools/measure_light_split.py
 
@@ -68,18 +66,6 @@ AI Agents Notice (must follow):
   highlights, which biases the ratio for a coloured albedo. `selftest` prints
   the size of that bias so a reading can be discounted against it; our own
   renderer has neither, which is why our arm is the calibrated one.
-
-UPD:
-- 12:08:2026 - 22:24:56: Created for R6, warm key / cool shade. Built after the
-  arithmetic above showed the natural first version (raw chroma) passing its
-  own zero-dose control on a monochrome light — the defect Rule 48 exists for,
-  found before a measurement rather than after one.
-- 12:08:2026 - 22:47:01: DECILE MODE DELETED, `pair` and `scan` replace it, after the
-  decile mode's -36.5 on reference 14's cobbles turned out to be the cobble
-  TEXTURE and not the light (+0.32 across the frame's own cast shadow edge).
-  The zero-dose control had passed — it was built on one albedo, and the defect
-  needed two. `scan` keeps the located-by-luma idea but at a block size above
-  the texture, and prints its block size for exactly that reason.
 """
 
 import sys
@@ -97,20 +83,16 @@ LUMA_W = (0.30, 0.59, 0.11)
 # shallowest thing either side of this comparison, is 1.79x.
 MIN_LUMA_RANGE = 1.5
 
-
 def luma(r, g, b):
     return LUMA_W[0] * r + LUMA_W[1] * g + LUMA_W[2] * b
-
 
 def warmth(r, g, b):
     """Yellow-blue chromaticity, percent of luma. + = leans yellow/warm."""
     return 100.0 * (0.5 * (r + g) - b) / max(luma(r, g, b), 1e-6)
 
-
 def redness(r, g, b):
     """Red-green chromaticity, same units. The second axis of one offset."""
     return 100.0 * (r - g) / max(luma(r, g, b), 1e-6)
-
 
 def warm_split(shade_rgb, sun_rgb):
     """THE NUMBER. Hue of the light the key adds, over the light already there.
@@ -121,7 +103,6 @@ def warm_split(shade_rgb, sun_rgb):
     """
     ratio = [sun_rgb[i] / max(shade_rgb[i], 0.5) for i in range(3)]
     return warmth(*ratio), redness(*ratio), ratio
-
 
 def box_mean(path, box):
     w, h, ch, px = read_png(path)
@@ -139,7 +120,6 @@ def box_mean(path, box):
     if n == 0:
         raise SystemExit(f"{path}: box {box} is empty")
     return [v / n for v in s], n
-
 
 def pair(path, shadow_box, sun_box, label=""):
     """Same material, two boxes, one either side of a CAST SHADOW EDGE.
@@ -167,7 +147,6 @@ def pair(path, shadow_box, sun_box, label=""):
         return None
     print(f"   WARM_SPLIT {ws:+.2f}   red_split {rs:+.2f}")
     return ws
-
 
 def scan(path, box, block, frac=0.15, label=""):
     """Block means over one box, darkest `frac` against brightest `frac`.
@@ -223,7 +202,6 @@ def scan(path, box, block, frac=0.15, label=""):
     print(f"   WARM_SPLIT {ws:+.2f}   red_split {rs:+.2f}")
     return ws
 
-
 def selftest():
     """THE ZERO-DOSE ARM (Rule 48) and the tonemap bound, no frame needed.
 
@@ -269,7 +247,6 @@ def selftest():
           " (must be 0.00, and the shipped arm must move — Rule 48)")
     return 0 if ok else 1
 
-
 def main(argv):
     if len(argv) > 1 and argv[1] == "selftest":
         raise SystemExit(selftest())
@@ -287,7 +264,6 @@ def main(argv):
         "       measure_light_split.py scan <frame.png> <box> [block_px] [label]\n"
         "       measure_light_split.py selftest\n"
         "  boxes are x0,y0,x1,y1 and are part of the recipe — record them")
-
 
 if __name__ == "__main__":
     main(sys.argv)

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 28:08:2026 - 00:41:00
-Last updated: 28:08:2026 - 00:41:00
 Module: tools
 File: tools/measure_interior_light.py
 
@@ -46,11 +44,6 @@ AI Agents Notice (must follow):
   шкале. Прямое сравнение байтов завысило бы нас втрое и объявило бы
   победу там, где её нет.
 """
-"""
-UPD:
-- 28:08:2026 - 00:41:00: Создан вместе с волной света интерьеров: до этой
-  волны «в домах слишком темно» не имело ни одного числа.
-"""
 
 import sys
 from pathlib import Path
@@ -73,7 +66,6 @@ SKYRIM_MEDIAN_HI = 0.100
 SKYRIM_CONTRAST_LO = 15.0
 SKYRIM_CONTRAST_HI = 40.0
 
-
 def srgb_to_linear(v8):
     """Байт кадра -> свет, доходящий до глаза. Кадр пишется БЕЗ гамма-кодирования
     (в бэкенде нет ни одного BGFX_TEXTURE_SRGB), а монитор читает его как sRGB;
@@ -82,10 +74,8 @@ def srgb_to_linear(v8):
     c = v8 / 255.0
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
 
-
 def luma(px):
     return 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2]
-
 
 def box_luma(w, h, ch, pixels, x0, y0, x1, y1):
     """Люма по прямоугольнику [x0,x1) x [y0,y1) — список значений."""
@@ -100,7 +90,6 @@ def box_luma(w, h, ch, pixels, x0, y0, x1, y1):
             i = row + x * ch
             out.append(luma(pixels[i:i + 3]))
     return out
-
 
 def stats(vals):
     if not vals:
@@ -127,12 +116,10 @@ def stats(vals):
         "contrast": hi / max(lo, 1e-6),
     }
 
-
 def fmt(s):
     return ("n=%7d  mean %6.2f  p10 %6.2f  median %6.2f  p90 %6.2f  "
             "ниже %.0f: %5.1f%%" % (s["n"], s["mean"], s["p10"], s["median"],
                                     s["p90"], READABLE, s["black"]))
-
 
 def fmt_lin(s):
     band = "В ПОЛОСЕ" if SKYRIM_MEDIAN_LO <= s["lin_p50"] <= SKYRIM_MEDIAN_HI \
@@ -145,11 +132,9 @@ def fmt_lin(s):
             % (s["lin_p05"], s["lin_p50"], s["lin_p95"], s["contrast"],
                band, con))
 
-
 def load(path):
     w, h, ch, pixels = read_png(path)
     return w, h, ch, pixels
-
 
 def main(argv):
     if len(argv) < 3:
@@ -198,7 +183,6 @@ def main(argv):
             print("\nконтраст очаг/угол (%s), свет в глаз: %.4f / %.4f = %.1fx"
                   % (tag, hearth, corner, hearth / max(corner, 1e-6)))
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv))

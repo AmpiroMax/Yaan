@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:08:59
-Last updated: 18:08:2026 - 17:08:59
 Module: engine/editor
 File: engine/editor/sources/EditorHistory.cpp
 
@@ -9,10 +7,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 18:08:2026 - 17:08:59: Создан вместе с заголовком.
 */
 
 #include "engine/editor/sources/EditorHistory.h"

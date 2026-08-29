@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 20:47:52
-Last updated: 14:08:2026 - 20:47:52
 Module: engine/world
 File: engine/world/sources/WorldBake.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
   pure function of the params — and would still be wrong: the world-level
   passes (drainage, sites, the giants) are catchment-scale, and paying for them
   per chunk is how a bake turns into an overnight job.
-*/
-/*
-UPD:
-- 14:08:2026 - 20:47:52: Created with WorldBake.h.
 */
 
 #include "engine/world/sources/WorldBake.h"

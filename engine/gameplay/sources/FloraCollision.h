@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 16:05:00
-Last updated: 13:08:2026 - 16:40:00
 Module: engine/gameplay
 File: engine/gameplay/sources/FloraCollision.h
 
@@ -52,16 +50,6 @@ AI Agents Notice (must follow):
 - Nothing here may restate a flora table or formula. If a number is needed,
   measure the mesh or call flora's own accessor.
 - Deterministic: an ordered map, no hashing, no wall clock (Rule 13.2).
-*/
-/*
-UPD:
-- 13:08:2026 - 16:05:00: Created — trunks become solid and brush becomes drag
-                         (user: "деревья — не объекты физики… кусты пропускают
-                         героя").
-- 13:08:2026 - 16:40:00: The great oak's cut is its crown base (climbing), and
-                         the treads it makes solid are measured to be 2.40 m
-                         apart horizontally at a 0.42 m rise -- surfaces, but
-                         not yet a stair. Reported; nothing here can fix it.
 */
 
 #pragma once

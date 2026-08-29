@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 01:00:57
-Last updated: 18:08:2026 - 01:00:57
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteThumb.h
 
@@ -62,13 +60,6 @@ AI Agents Notice (must follow):
   SAME render::splat_weights_of() the meshers use. A hand-picked green here
   would drift from the world silently, and the swatch's whole job is to say
   what the ground will look like.
-*/
-/*
-UPD:
-- 18:08:2026 - 01:00:57: Создан — предпросмотр детали и поверхности (заказ 18.08). Крючок
-  thumbnail в PaletteHooks существовал с 17.08 и не был подключён НИКЕМ: панель
-  честно спрашивала картинку каждый кадр и каждый кадр получала 0, то есть меню
-  из 2412 подписей. Здесь появляется то, что на этот вопрос отвечает.
 */
 
 #pragma once

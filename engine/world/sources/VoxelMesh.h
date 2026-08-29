@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:00:00
-Last updated: 09:08:2026 - 16:30:44
 Module: engine/world
 File: engine/world/sources/VoxelMesh.h
 
@@ -27,11 +25,6 @@ AI Agents Notice (must follow):
 - DETERMINISM (Rule 13.1): vertex indices come from a fixed traversal order.
   If this is ever threaded, threads must write pre-assigned index ranges —
   appending in completion order would break the determinism contract.
-*/
-/*
-UPD:
-- 09:08:2026 - 16:00:00: Created — surface nets extraction for the 3D stage.
-- 09:08:2026 - 16:30:44: Representation swap: surface nets extraction interface + VoxelMeshData.
 */
 
 #pragma once

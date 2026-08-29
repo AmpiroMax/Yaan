@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 09:08:2026 - 21:09:10
-# Last updated: 09:08:2026 - 21:09:10
 # File: tools/verify_fresh.py
 #
 # Responsibility:
@@ -21,12 +19,6 @@
 # - It compares against the newest source TREE-WIDE rather than per target, so
 #   it OVER-reports. That direction is deliberate for a safety guard: do not
 #   "fix" it into precision and quietly reintroduce the hole.
-#
-# UPD:
-# - 09:08:2026 - 21:09:10: Created by core after four incidents in one day that
-#                          shared one shape - the verification machinery
-#                          reporting success for a question it never asked.
-#                          Lives in tools/ (lead zone) so every agent finds it.
 """Refuse to let a verification claim rest on an artifact that was never built.
 
 WHY THIS EXISTS
@@ -83,7 +75,6 @@ SOURCE_DIRS = ("engine", "tests")
 SOURCE_SUFFIXES = (".cpp", ".h", ".hpp", ".c", ".sc", ".cmake")
 EXPECTED_CXX = "/opt/homebrew/opt/llvm/bin/clang++"
 
-
 def newest_source(root: Path) -> tuple[float, Path | None]:
     """Newest mtime across tracked sources, and which file it was."""
     best, best_path = 0.0, None
@@ -106,7 +97,6 @@ def newest_source(root: Path) -> tuple[float, Path | None]:
             best, best_path = m, path
     return best, best_path
 
-
 def registered_tests(build: Path) -> list[str]:
     try:
         out = subprocess.run(
@@ -118,7 +108,6 @@ def registered_tests(build: Path) -> list[str]:
         return []
     return re.findall(r"Test\s+#\d+:\s+(\S+)", out)
 
-
 def find_binary(build: Path, name: str) -> Path | None:
     direct = build / "tests" / name
     if direct.is_file():
@@ -127,7 +116,6 @@ def find_binary(build: Path, name: str) -> Path | None:
         if path.is_file() and os.access(path, os.X_OK):
             return path
     return None
-
 
 def check_toolchain(build: Path) -> list[str]:
     cache = build / "CMakeCache.txt"
@@ -148,7 +136,6 @@ def check_toolchain(build: Path) -> list[str]:
         return ["CMAKE_BUILD_TYPE is EMPTY -- no optimisation; timings from "
                 "this tree are meaningless (cost us a day once already)"]
     return []
-
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
@@ -209,7 +196,6 @@ def main() -> int:
     scope = "tests + app" if args.app else "tests"
     print(f"OK: {len(names)} test binaries present and newer than sources ({scope}).")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

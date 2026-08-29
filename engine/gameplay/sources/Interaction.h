@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 18:56:32
 Module: engine/gameplay
 File: engine/gameplay/sources/Interaction.h
 
@@ -41,14 +39,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Plain data only (Rule 8). No literal user-facing strings (Rule 5).
 - Do not grow a physics sandbox here — interactions are explicit (Q11).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 interaction components (highlightable,
-                         openable, lootable).
-- 09:08:2026 - 18:56:32: Interaction stage: InteractionVerb, Pickup (TAKE),
-                         Usable (USE), and the Openable state machine written
-                         down (locking shaped, unlocking deferred).
 */
 
 #pragma once

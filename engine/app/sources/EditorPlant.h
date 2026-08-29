@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 20:06:53
-Last updated: 17:08:2026 - 20:06:53
 Module: engine/app
 File: engine/app/sources/EditorPlant.h
 
@@ -38,12 +36,6 @@ AI Agents Notice (must follow):
 - NEVER answer "allowed" from a rule written in this file. Every refusal here
   came out of the judge; a new kind of refusal belongs in the judge, where the
   tools and the agents see it too.
-*/
-/*
-UPD:
-- 17:08:2026 - 20:06:53: Создан расколом EditorBrush — судейская половина посадки.
-  Раскол вынужден слоями: панель кисти обязана жить в engine/editor (только там
-  разрешён Dear ImGui), а перевод вердикта живёт в BuildTool, который выше.
 */
 
 #pragma once

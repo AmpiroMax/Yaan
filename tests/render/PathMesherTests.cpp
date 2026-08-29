@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 12:11:29
-Last updated: 10:08:2026 - 12:11:29
 Module: tests
 File: tests/render/PathMesherTests.cpp
 
@@ -22,10 +20,6 @@ AI Agents Notice (must follow):
   shader NOT contain a copy of core's wear formula: if core retunes the
   profile's curvature, the sampled cross-section stops matching it and this
   reds, instead of the two zones silently disagreeing about where a path ends.
-*/
-/*
-UPD:
-- 10:08:2026 - 12:11:29: Created — the path surface splat.
 */
 
 #include "engine/render/sources/PathMesher.h"

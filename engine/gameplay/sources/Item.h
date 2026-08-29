@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 22:21:30
 Module: engine/gameplay
 File: engine/gameplay/sources/Item.h
 
@@ -32,12 +30,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Never hardcode an item here; definitions are data (Rules 5-6).
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial item definition contract (interaction stage).
-- 09:08:2026 - 22:21:30: ItemDef::mesh_id — what the item looks like in the
-                         hand and in the inventory preview (content, Rule 5).
 */
 
 #pragma once

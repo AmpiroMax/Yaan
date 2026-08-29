@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 15:20:00
-Last updated: 09:08:2026 - 19:33:58
 Module: engine/world
 File: engine/world/sources/WorldgenCastle.h
 
@@ -37,12 +35,6 @@ AI Agents Notice (must follow):
   placement. The gate faces the valley/ford and the pad is never rotated
   (settled, do not re-litigate).
 - The castle never creates or moves a ford (fords stay derived, §7.1a).
-*/
-/*
-UPD:
-- 09:08:2026 - 15:20:00: Created — castle pass per design's §6.1 ruling
-  (hall-castle revision: hall/solar mass, access ramp, barrow sightline).
-- 09:08:2026 - 19:33:58: Fortress revision: CastleWard — the castle is a CHAIN of terraces stepping down the spur, not one pad. Ward 0 is the uphill oldest ward nearest the barrow; top_elevation measures from ward 0.
 */
 
 #pragma once

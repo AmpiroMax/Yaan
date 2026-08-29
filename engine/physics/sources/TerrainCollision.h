@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 16:51:22
 Module: engine/physics
 File: engine/physics/sources/TerrainCollision.h
 
@@ -22,13 +20,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Height formula is the frozen HeightFieldView contract:
   height_m = height_offset + raw * height_scale. Never reimplement elsewhere.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — heightfield -> terrain body conversion.
-- 09:08:2026 - 16:51:22: Voxel swap: create_terrain_mesh_body() from
-                         math::VoxelMeshView — the terrain collision path that
-                         supports the crag tunnel. Heightmap path retained.
 */
 
 #pragma once

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 #
-# Created: 09:08:2026 - 00:06:00
-# Last updated: 28:08:2026 - 01:48:50
 # File: tools/header_check.py
 #
 # Responsibility:
-# - Validate the file header and UPD contract across all project source files.
-# - Ensures every tracked file has Created/Last updated timestamps and UPD entries.
+# - Validate the file header contract: every tracked source file opens with a
+#   header that names its Responsibility (Rule 15). Timestamps and UPD logs are
+#   forbidden since 29.08.2026 (owner's order): history lives in git.
 #
 # Dependencies:
 # - Uses: Python stdlib only.
@@ -68,73 +67,6 @@
 #      в середину самой строки '# UPD:'.
 #   3. В .md БРАТЬ ВТОРОЙ ОГРАНИЧИТЕЛЬ. Первый '-->' закрывает блок
 #      Created/Last updated, а не UPD; запись перед ним уходит не туда.
-#
-# UPD:
-# - 09:08:2026 - 00:06:00: Ported from Quicky Engine; skip lists adapted to the
-#                          Daggerfall N layout (games/daggerfall_n assets, model
-#                          weights, compiled shaders, voice manifests).
-# - 09:08:2026 - 00:40:00: Skip any build*/ directory (per-agent build dirs) and
-#                          _deps (FetchContent checkouts) by prefix, not exact name.
-# - 09:08:2026 - 13:18:30: Exempt feature_requests.md (user-authored wishlist, no
-#                          agent header contract).
-# - 09:08:2026 - 13:19:00: Exempt settings.cfg (runtime-generated user graphics
-# - 09:08:2026 - 19:42:19: Read the whole leading comment region instead of a
-#                          fixed 80-line window: the old window made the
-#                          contract depend on how much UPD history a file had,
-#                          and reported a mismatch on a correct header once a
-#                          doc outgrew it.
-#                          settings, also gitignored).
-# - 10:08:2026 - 01:58:01: --files mode: the pre-commit hook now checks only the
-#                          staged set. Six agents share one working tree, and the
-#                          whole-tree gate let any agent's mid-edit file block every
-#                          other agent's commit -- design was blocked twice in one
-#                          night by files it had never touched.
-# - 10:08:2026 - 20:16:01: captures/ и playtest_test_artifacts/ исключены из обхода —
-#                          это ВЫВОД прогонов, и они держали --all вечно красным.
-# - 10:08:2026 - 22:17:20: В режиме --files проверяется то, чего файл-локальная проверка не может в
-#                          принципе: ПОЯВИЛАСЬ ЛИ запись UPD в этом коммите. Всё
-#                          остальное — проверка внутренней согласованности, и файл,
-#                          отредактированный без записи, проходил её безупречно.
-# - 11:08:2026 - 13:31:43: Both gates now share the skip lists. check_file() returned
-#                          clean for formats that cannot carry a header, but the
-#                          HEAD-comparison gate ran on them anyway and demanded a
-#                          UPD entry they had nowhere to put -- .gitignore blocked a
-#                          commit while being named in SKIP_FILENAMES. The gate I
-#                          added yesterday to catch a wrong-block entry acquired the
-#                          same shape of defect it was written to catch: two checks
-#                          disagreeing about their own subject (Rule 41).
-# - 11:08:2026 - 13:59:10: .log добавлен в исключения: это УЛИКА, а не исходник — вывод пробы,
-#                          сложенный рядом с приёмочными кадрами. Его пишет инструмент
-#                          побайтно, и дописанный руками заголовок делает файл уже не тем,
-#                          что было измерено. Та же причина, по которой пропускаются
-#                          captures/ и playtest_test_artifacts/.
-# - 14:08:2026 - 16:45:00: assets/maps/ добавлена в SKIP_PATH_RES — раскладка карт/демок (docs/MAP_LAYOUT.md): .map манифесты, .chat.jsonl, .gitkeep. Это ДАННЫЕ конвейера карт, не исходники; контракт живёт в doc, не в пофайловом заголовке.
-# - 14:08:2026 - 23:36:19: assets/objects/ в SKIP_PATH_RES — реестр объектов (.dfo, INDEX.md): печёные данные, адресуемые content-hash; у бинарника нет шапки, его identity — хэш.
-# - 15:08:2026 - 16:24:04: assets/scenes/ в SKIP_PATH_RES — файлы композиции карт (данные конвейера, контракт в Scene.h).
-# - 17:08:2026 - 17:53:25: README.md исключён — это входная дверь для постороннего, а не исходник;
-#   шапка контракта агентов была бы первым, что он прочтёт, и ему она ничего не говорит.
-# - 20:08:2026 - 15:50:00: assets/houses/ в SKIP_PATH_RES — библиотека построек (.dfh), пишется побайтово-детерминированным write_house.
-# - 25:08:2026 - 02:35:21: docs/design/worldmap/ в SKIP_PATH_RES — архив атласа Яан: final.map — FMG-сейв строгого формата, .txt — дословные архивы с шапкой-преамбулой; контракт в WORLD_MAP.md 9.11.
-# - 27:08:2026 - 10:42:28: НАЗВАНО ВСЛУХ, ЧЕГО ЭТОТ ПРИБОР НЕ ЛОВИТ (см. врезку выше):
-#   у файлов без ограничителя комментария запись, лежащая в комментарии
-#   ПОСРЕДИ КОДА, засчитывается как шапочная. На этом две волны подряд
-#   положили записи мимо шапки (починено в 8433835), причём вторая
-#   подстроилась под ошибку первой, приняв зелёный хук за доказательство
-#   законности места. Врезка несёт ЗАМЕР по всему дереву (остался один
-#   настоящий случай, назван поимённо), известное ложное срабатывание,
-#   довод, почему дыра НЕ закрыта сегодня, и три грабли для тех, кто
-#   правит шапки скриптом. Кода не тронуто ни строки — только шапка.
-# - 27:08:2026 - 10:47:27: НАЗВАННЫЙ СЛУЧАЙ ДОВЕДЁН ДО ДИАГНОЗА (врезка выше).
-#   Соседняя волна усомнилась разумно: четыре записи ниже кода в
-#   engine/app/CMakeLists.txt читаются как НАРОЧНАЯ вторая таблица —
-#   журнал по файлам подпапки. Проверил датами: блоки ЧЕРЕДУЮТСЯ
-#   (18.08 17:36 вверху -> 18.08 18:19 внизу -> ... -> 23.08 внизу ->
-#   27.08 вверху), а так нарочную таблицу не ведут. И у этого есть
-#   живое последствие: 'Last updated' файла отстал на четыре дня, потому
-#   что указывает на последнюю запись НИЖНЕГО блока, тогда как самая
-#   свежая лежит в верхнем. Без этой проверки врезка отправляла бы
-#   владельца чинить то, что он мог счесть задуманным, — и он был бы
-#   вправе отмахнуться.
 
 from __future__ import annotations
 
@@ -147,6 +79,9 @@ from pathlib import Path
 TS_RE = re.compile(r"^\d{2}:\d{2}:\d{4} - \d{2}:\d{2}:\d{2}$")
 CREATED_RE = re.compile(r"Created:\s*(?P<ts>\d{2}:\d{2}:\d{4}\s*-\s*\d{2}:\d{2}:\d{2})")
 UPDATED_RE = re.compile(r"Last updated:\s*(?P<ts>\d{2}:\d{2}:\d{4}\s*-\s*\d{2}:\d{2}:\d{2})")
+RESP_RE = re.compile(r"Responsibility:")
+CODE_EXTENSIONS = {".cpp", ".cc", ".h", ".hpp", ".py", ".sh", ".cmake", ".sc", ".sh"}
+UPD_HEAD_RE = re.compile(r"^\s*(#|//|--|\*)?\s*UPD:\s*$")
 UPD_ENTRY_RE = re.compile(
     r"^\s*(?:[#*]+)?\s*-\s*(?P<ts>\d{2}:\d{2}:\d{4}\s*-\s*\d{2}:\d{2}:\d{2})\s*:\s+.+"
 )
@@ -184,7 +119,6 @@ SKIP_DIRS = {".git", "target", "node_modules", "dist", ".vite", ".cursor",
 # Any path part starting with one of these prefixes is skipped (covers the
 # per-agent build dirs: build_lead/, build_core/, build_render/, build_sim/...).
 SKIP_DIR_PREFIXES = ("build", ".build")
-
 
 def _skip_parts(parts: tuple[str, ...]) -> bool:
     for p in parts:
@@ -262,7 +196,6 @@ SKIP_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".ico", ".wav", ".mp
 SKIP_FILENAMES = {".gitignore", ".gitattributes", "LICENSE", "varying.def.sc",
                   "feature_requests.md", "settings.cfg", "README.md"}
 
-
 # The header contract lives in the leading comment region, whose length grows
 # with a file's UPD history. A fixed line window therefore makes the check
 # silently depend on how much history a file has accumulated: once the block
@@ -273,7 +206,6 @@ SKIP_FILENAMES = {".gitignore", ".gitattributes", "LICENSE", "varying.def.sc",
 # backstop for files that have no such region at all.
 COMMENT_CLOSERS = ("-->", "*/")
 HARD_CAP_LINES = 4000
-
 
 def read_head(path: Path, max_lines: int = HARD_CAP_LINES) -> list[str]:
     """Lines of the leading comment region (plus a little), never truncated
@@ -305,7 +237,6 @@ def read_head(path: Path, max_lines: int = HARD_CAP_LINES) -> list[str]:
         pass
     return lines
 
-
 def check_file(path: Path) -> list[str]:
     errs: list[str] = []
 
@@ -318,35 +249,17 @@ def check_file(path: Path) -> list[str]:
     if not lines:
         return errs
 
-    created = None
-    updated = None
-    upd_entries = 0
-    last_upd_ts = None
+    has_resp = any(RESP_RE.search(line) for line in lines)
+    stray = [line.strip() for line in lines
+             if CREATED_RE.search(line) or UPDATED_RE.search(line) or UPD_HEAD_RE.match(line)]
 
-    for line in lines:
-        if created is None:
-            m = CREATED_RE.search(line)
-            if m:
-                created = m.group("ts").strip()
-                continue
-        if updated is None:
-            m = UPDATED_RE.search(line)
-            if m:
-                updated = m.group("ts").strip()
-                continue
-        m = UPD_ENTRY_RE.match(line)
-        if m:
-            upd_entries += 1
-            last_upd_ts = m.group("ts").strip()
-
-    if not created:
-        errs.append("Missing 'Created:' timestamp in header.")
-    if not updated:
-        errs.append("Missing 'Last updated:' timestamp in header.")
-    if upd_entries == 0:
-        errs.append("Missing UPD entries.")
-    if updated and last_upd_ts and updated != last_upd_ts:
-        errs.append(f"'Last updated' ({updated}) does not match last UPD entry ({last_upd_ts}).")
+    # Responsibility is demanded of CODE (Rule 15); docs, assets and data files
+    # only must not carry the forbidden fields.
+    code = path.suffix.lower() in CODE_EXTENSIONS or path.name == "CMakeLists.txt"
+    if code and not has_resp:
+        errs.append("Missing 'Responsibility:' section in header (Rule 15).")
+    for line in stray[:3]:
+        errs.append(f"Forbidden header field (Rule 17: no timestamps, no UPD log): {line[:60]}")
 
     return errs
 
@@ -367,7 +280,6 @@ def scan_directory(root: Path) -> list[tuple[Path, list[str]]]:
             failures.append((path.relative_to(root), errs))
     return failures
 
-
 def upd_entry_count(text: str) -> int:
     """UPD entries in a blob's leading comment region."""
     n = 0
@@ -375,7 +287,6 @@ def upd_entry_count(text: str) -> int:
         if UPD_ENTRY_RE.match(line):
             n += 1
     return n
-
 
 def head_blob(root: Path, rel: str) -> str | None:
     """The file as it exists in HEAD, or None if it is new / not a git tree."""
@@ -387,7 +298,6 @@ def head_blob(root: Path, rel: str) -> str | None:
     if out.returncode != 0:
         return None
     return out.stdout.decode("utf-8", errors="replace")
-
 
 def check_files(root: Path, rel_paths: list[str]) -> list[tuple[Path, list[str]]]:
     """Checks only the named files (repo-relative). Skip rules still apply, so a
@@ -427,22 +337,12 @@ def check_files(root: Path, rel_paths: list[str]) -> list[tuple[Path, list[str]]
             continue
         errs = check_file(path)
         # Did this commit actually add an entry? Only answerable against HEAD.
-        before = head_blob(root, rel.as_posix())
-        if before is not None:
-            now_text = path.read_text(encoding="utf-8", errors="replace")
-            if now_text != before:
-                if upd_entry_count(now_text) <= upd_entry_count(before):
-                    errs.append(
-                        "file changed but gained no UPD entry (Rule 17). An entry "
-                        "filed in the wrong comment block does not count -- it must "
-                        "be in the UPD block, which is what a reader looks at.")
         if errs:
             failures.append((rel, errs))
     return failures
 
-
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Check Daggerfall N header/UPD contract.")
+    ap = argparse.ArgumentParser(description="Check Daggerfall N header contract.")
     ap.add_argument("--root", default=".", help="Project root directory.")
     ap.add_argument("--all", action="store_true",
                     help="Scan the whole project tree (default behaviour; accepted for "
@@ -461,16 +361,15 @@ def main() -> int:
         failures = scan_directory(root)
 
     if failures:
-        print("Header/UPD contract violations:", file=sys.stderr)
+        print("Header contract violations:", file=sys.stderr)
         for rel, errs in failures:
             print(f"  {rel}", file=sys.stderr)
             for e in errs:
                 print(f"    - {e}", file=sys.stderr)
         return 1
 
-    print("OK: all files pass header/UPD check.")
+    print("OK: all files pass header check.")
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

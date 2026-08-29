@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 28:08:2026 - 14:18:16
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovementWorld.cpp
 
@@ -22,45 +20,6 @@ AI Agents Notice (must follow):
 - Systems stay stateless (Rule 9): interfaces are parameters, nothing stored.
 - The player entity carries the character's EntityId bits as physics user_data
   so raycasts resolve back to it.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Step-feel wiring (в3): both wrappers take a
-                         StepContext; the wrapper fills walker with the
-                         iterated entity, post_step now feeds the real
-                         PreviousTransform so the stride runs on actual
-                         displacement.
-- 09:08:2026 - 00:45:08: Stage 2 — initial World wrappers.
-- 09:08:2026 - 22:18:17: player_pre_step takes a water-surface callback,
-                         bound to world::ChunkManager::water_surface_at by
-                         the app; an unbound callback means a dry world.
-- 09:08:2026 - 22:40:04: Mouse turns the previewed item while the inventory
-                         screen is open.
-- 09:08:2026 - 22:44:47: Preview rotation MOVED OUT of the movement path
-                         into player_actions_step: the world pausing
-                         behind the inventory skips movement, and a
-                         preview that turned here would freeze with it.
-- 11:08:2026 - 13:51:09: Rule 32 sweep after the run smear: the spawn-time
-  PreviousCameraPose now spells out `fov_scale` too. Harmless at spawn (the
-  camera also starts at 1.0), listed anyway because the omission had the same
-  cause as the per-tick one that WAS the defect: an initialiser list that
-  reads as complete.
-- 13:08:2026 - 16:20:00: The wrapper reads the brush drag out of the World's
-  BrushField and ferries it on StepContext. NOT a new parameter, and the
-  asymmetry with water is the point: where water is belongs to engine/world, so
-  its depth arrives as a callback the app binds; where brush is belongs to THIS
-  zone -- update_prop_collision built the drag field from the same scatter it
-  built the trunk bodies from. Asking the app to ferry a number gameplay
-  already owns would be a wire with no information on it, and one more thing
-  for a caller to forget. It also means engine/app is untouched by today's work.
-- 28:08:2026 - 14:18:16: капсула сталкивается с подвижными предметами
-  (LAYER_LOOSE) и получила ПОТОЛОК СИЛЫ ТОЛЧКА push_force_n = 30 Н (заказ
-  владельца 28.08: «моё тело тоже имеет физические свойства — хочу банки,
-  бутылки, еду толкать»). Умолчание Jolt (100 Н) измерено слишком большим:
-  полукилограммовый кубок, задетый на ходу, улетал на 4.8-6.6 м — человек не
-  задевал посуду, а пинал её. Это ВТОРОЙ из двух потолков зоны; первый —
-  сила хвата (GrabDrive.h), и разводить их обязательно: иначе «не могу
-  поднять шкаф» и «не могу отпихнуть шкаф ногой» стали бы одной ручкой.
 */
 
 #include "engine/gameplay/sources/PlayerMovement.h"

@@ -1,5 +1,4 @@
 /*
-Created: 27:08:2026 - 02:35:10
 Module: tests/app
 File: tests/app/PngImageTests.cpp
 
@@ -32,10 +31,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone app (lead) owns this file.
-*/
-/*
-UPD:
-- 27:08:2026 - 02:35:10: Создан вместе с читателем .png.
 */
 
 #include <doctest/doctest.h>

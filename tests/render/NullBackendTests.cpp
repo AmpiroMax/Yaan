@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 09:08:2026 - 00:45:00
 Module: tests
 File: tests/render/NullBackendTests.cpp
 
@@ -17,10 +15,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial tests.
 */
 
 #include "engine/platform/input/sources/null/CreateNullInput.h"

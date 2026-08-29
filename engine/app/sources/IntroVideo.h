@@ -1,5 +1,4 @@
 /*
-Created: 27:08:2026 - 02:35:00
 Module: engine/app
 File: engine/app/sources/IntroVideo.h
 
@@ -33,11 +32,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone app (lead) owns this file.
-*/
-/*
-UPD:
-- 27:08:2026 - 02:35:00: Создан — интро студии предзаписанным видео (заказ
-  владельца 27.08). Формат контейнера и его обоснование — в tools/gen_intro.py.
 */
 
 #pragma once

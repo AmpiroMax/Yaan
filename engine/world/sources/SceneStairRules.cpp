@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 17:16:17
-Last updated: 17:08:2026 - 17:16:17
 Module: engine/world
 File: engine/world/sources/SceneStairRules.cpp
 
@@ -25,10 +23,6 @@ AI Agents Notice (must follow):
   opening_length_m() и не должен: две независимые дороги к одному числу —
   единственное, что вообще способно поймать ошибку в любой из них. Сведи их в
   одну, и обе ошибутся одинаково.
-*/
-/*
-UPD:
-- 17:08:2026 - 17:16:17: Создан: лестница на шарнирах и проём, измеренный капсулой.
 */
 
 #include "engine/world/sources/SceneStairRules.h"

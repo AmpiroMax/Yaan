@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:05:44
-Last updated: 10:08:2026 - 21:18:55
 Module: engine/core/serialization
 File: engine/core/serialization/sources/BinaryWriter.cpp
 
@@ -48,19 +46,6 @@ next reader hits the edge case in this file and not in a commit log):
    the two files define one format between them.
 
 3. container_version IS OPAQUE TO CORE. See BinaryReader::container_version().
-*/
-/*
-UPD:
-- 10:08:2026 - 21:05:44: Stage-2 implementation, written by sim under an
-  explicit lead carve of core's zone (Rule 25). The save path was 100 %
-  declaration: six files included it and could not link, and two authored
-  round-trip tests sat compiled out behind DFN_SIM_HAVE_BINARY_IO. The grammar
-  implemented here is exactly the one in the header; the only things added are
-  the three decisions above, each ruled on by the lead before being written.
-- 10:08:2026 - 21:18:55: The misuse latch is now the declared ok()
-  instead of a sentinel value inside open_section_length_offset_ (lead-approved
-  header change; a private member carrying a second meaning is a defect lying
-  in wait for its next reader).
 */
 
 #include "engine/core/serialization/sources/BinaryWriter.h"

@@ -1,6 +1,4 @@
 /*
-Created: 16:08:2026 - 22:28:22
-Last updated: 17:08:2026 - 14:29:43
 Module: engine/render
 File: engine/render/sources/HewnBar.h
 
@@ -25,19 +23,6 @@ AI Agents Notice (must follow):
 - Rule 52 lives HERE: every bar is capped at both ends — a volume, not a tube.
 - PURE AND DETERMINISTIC. No std::mt19937, no wall clock, no state outside
   the caller's HewnRng.
-*/
-/*
-UPD:
-- 16:08:2026 - 22:28:22: Вынос из PartForge.cpp без изменения геометрии: имена
-  получили префикс Hewn (Material/Rng/tone в заголовке движка без префикса —
-  ловушка для каждого включившего), тела перенесены дословно.
-- 17:08:2026 - 14:29:43: ШКУРА (работа 3, текстуры деталям): HewnMaterial несёт PartSkin, и при
-  textured бруски пишут uv в СЫРЫХ единицах тайла (метры/span) плюс номер
-  тайла в вершинном цвете — вершины при этом НЕ ДВИГАЮТСЯ ни на байт (тот же
-  порядок и то же число выборок rng), что и делает нетекстурный путь
-  контрольной рукой из ОДНОГО бинарника (правило 47). hewn_tone_scale вынесен
-  из hewn_tone, чтобы закон выветривания жил в одном месте: альбедо и синий
-  канал вершины берут ОДНУ выборку, а не две копии закона (правило 39).
 */
 
 #pragma once

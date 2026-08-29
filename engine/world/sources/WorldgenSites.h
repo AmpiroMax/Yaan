@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 17:08:2026 - 13:14:56
 Module: engine/world
 File: engine/world/sources/WorldgenSites.h
 
@@ -26,25 +24,6 @@ AI Agents Notice (must follow):
   candidate loops have fixed attempt counts and deterministic tie-breaks.
   WorldEntityIds are sequential in (site, building) order — save deltas anchor
   to them (Q56); reordering sites is a worldgen_version bump.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — P4 sites & pads.
-- 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h.
-- 09:08:2026 - 15:18:34: Castle: SitesData carries the CastleBuild (its terrace is a separate square stamp with its own cut allowance).
-- 09:08:2026 - 17:36:42: §6.2: EntranceWorks (mound + cut forecourt + derived adit) and entrance_works_height.
-- 17:08:2026 - 11:35:28: BuildingPad стал прямоугольным (half_extents; ноль = прежний круг), и
-  стамп вынесен в apply_pads — ОДНО определение, двое зовущих: площадки
-  генератора и площадки КОМПОЗИЦИИ. Две копии стампа высоты были бы двумя
-  ответами на «какая тут земля», и судья композитора мерил бы не тот мир, по
-  которому ходит игрок. Терраса города 120x80 м, а круг такого сказать не
-  может: вписанный теряет углы, через которые идут улицы, описанный ровняет то,
-  что задумано нетронутым.
-- 17:08:2026 - 13:14:56: RiverChannel + apply_rivers + river_water_surface — АВТОРСКИЙ ВОДОТОК.
-  Полилиния несёт ОТМЕТКУ ВОДЫ на каждой станции: падение реки — решение
-  дизайнера (где пороги, насколько канал ниже набережной), а не следствие земли,
-  в которую река ещё не врезана. Одно описание даёт и ВРЕЗ, и ВОДУ: врезанная
-  без воды река — сухая канава, вода без вреза — простыня на склоне.
 */
 
 #pragma once

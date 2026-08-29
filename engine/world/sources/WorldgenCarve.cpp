@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:45:00
-Last updated: 13:08:2026 - 20:51:00
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.cpp
 
@@ -22,24 +20,6 @@ AI Agents Notice (must follow):
   segment's floor line: flat floor to stand on, flat ceiling overhead. The
   corridor floor follows the polyline's y, so a climbing segment is a ramp.
 - Deterministic pure geometry.
-*/
-/*
-UPD:
-- 09:08:2026 - 16:45:00: Created — carve SDF for the crag tunnel and barrow.
-- 09:08:2026 - 16:47:51: Created — carve distance fields and column ranges.
-- 09:08:2026 - 17:36:42: §6.2: mouth walk (first station whose ceiling is under terrain) and derived-corridor overloads.
-- 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
-- 10:08:2026 - 02:29:54: open_daylight_portals() implementation (STEP 1 m walk, 0.25 m floor clearance, 60 m cap). Seed 1: crag tunnel exit extended ~15 m to (761.3, 65.4, 254.5), floor +0.44 m over terrain — the exit portal exists again.
-- 10:08:2026 - 21:27:14: Recorded (no behaviour change) that
-  DARKNESS_FALLOFF_MIN is read as the whole ramp width while
-  DARKNESS_FALLOFF_MAX has zero references anywhere. One of three orphaned
-  range halves found in the constants census; needs a design ruling, not a
-  local edit.
-- 13:08:2026 - 16:45:00: МЕРЦАНИЕ В ПОДЗЕМЕЛЬЕ ПОЧИНЕНО (жалоба пользователя «темнеет в глазах, потом мигает»). Точка запроса поднимается на CARVE_QUERY_LIFT_M = VOXEL_SIZE перед ВСЕМИ проверками вхождения: запрос задаётся о низе капсулы, то есть о точке НА нарисованном полу, а нарисованный пол — реконструкция на решётке вокселя и стоит от аналитической плоскости в пределах вокселя, поэтому точный `>= 0` спрашивал о геометрии тоньше, чем геометрия умеет отвечать. Замер: 13 переключений ambient_darkness 0.000↔1.000 ЗА ОДИН КАДР на проход → 1; доля подземных тиков «по ту сторону границы» 3.6 % → 0.0 %. Подъём, а НЕ допуск на расстояние: изотропный допуск убрал мерцание и зачернил ОТКРЫТУЮ подходную выемку на 51 кадр (поймано дневной рукой). Вторая копия того же вопроса — свои ворота в corridor_path_from_mouth — держала 7 переключений из 13 после починки только первых. Новый enclosure_trace() — те же промежуточные величины ОДНОГО вычисления, чтобы прибор не мог разойтись с боевым кодом. Подробности и приёмка: docs/FINDING_DUNGEON_DARK.md.
-- 13:08:2026 - 17:12:00: ВТОРАЯ ПОЛОВИНА ТОЙ ЖЕ ЖАЛОБЫ: путь до дневного света меряется от ПОРТАЛА — станции, где поднятый пол коридора пересекает поверхность, — а не от carve_mouth(), который отвечает на другой вопрос («где сомкнулся ПОТОЛОК») и у свитчбэка Равенскара стоит в 45 м ВНУТРИ тоннеля. Из-за этого на входе была чернота с первого шага вместо склона на DARKNESS_DEPTH_MIN, а на сотом метре — полный дневной свет под 12 м скалы (20.5 % подземных кадров); у коридора с двумя дневными концами признавался ровно один. Считаются ВСЕ пересечения, берётся ближайшее; carve_mouth намеренно не тронут (P4 выводит из него метки входов). Плюс берётся наиболее замкнутая из исходной и поднятой точки, иначе подъём выталкивал запрос на высоте глаз через свод 2.6-метрового прохода Бэкбарроу. Живьём: переключений 0↔1 за кадр 13 → 0, наибольшая покадровая ступень 1.000 → 0.0036, день под землёй 23.7 % → 7.4 % (и все они ближе 17 м пути от портала). Регрессия — tests/core/VoxelTests.cpp, рука до правки падает по всем трём проверкам.
-- 13:08:2026 - 18:40:00: ТРЕТИЙ ДЕФЕКТ ТОГО ЖЕ ПРАВИЛА (жалоба пользователя «темнеет снаружи, когда ещё крыши нет никакой»): ворота замкнутости спрашивали про ТОЧКУ ЗАПРОСА, а надо про КРЫШУ. Врезанный в склон коридор — сначала открытая ТРАНШЕЯ: пол уже под поверхностью холма, потолок ещё на свету. Новый carve_roof_over(); тем же предикатом теперь определяется и портал в измерителе пути, иначе два определения «замкнуто» разъедутся (этот файл сегодня дважды платил ровно за это). Замер: из 2730 тиков с потолком ВЫШЕ рельефа 1673 несли тьму, худший — полная чернота при потолке на 1.31 м в воздухе; после правки 0 из 5511. Верный предикат всё это время лежал в carve_mouth этажом выше.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
-- 13:08:2026 - 20:51:00: ФАКЕЛЫ РАССТАВЛЕНЫ ПО РЕЕСТРУ, А НЕ ПО ЛИТЕРАЛУ. Шаг, высота и отступ настенного факела переехали в NUMBERS.md (WALL_TORCH_SPACING 6, WALL_TORCH_HEIGHT 1.8, WALL_TORCH_INSET 0.25); шаг ВЫВЕДЕН из TORCH_RADIUS_DARK. Прежние 10 м несли опровержение в собственном комментарии: «never more than 5 m from a flame, which is the torch's own useful radius in the dark (TORCH_RADIUS_DARK 4 m)» — 5 > 4 в одном предложении. Замер на боевой сборке: 28.5 % ПОЛНОСТЬЮ ТЁМНЫХ станций оси тоннеля лежали дальше собственной досягаемости света 4.05 м, то есть получали РОВНО НОЛЬ, худшая 5.25 м; три снимка пользователя из пяти стояли в этой полосе (3.76, 3.76, 5.10 м до ближайшего пламени). Дверь дозы DFN_TORCH_SPACING — обе руки из одного бинарника (правило 47). И то, чего эта правка НЕ чинит, записано у кода, а не только в отчёте (правило 38): стоя в 2.79 м от горящего подсвечника, пол под собственными ногами читает РОВНО 0 из 255 при шаге палитры 19.99, положительный контроль DFN_DARK=0 на том же боксе 37. Расстановка решает, ГДЕ пламя, и не решает, насколько далеко оно светит.
 */
 
 #include "engine/world/sources/WorldgenCarve.h"
@@ -595,7 +575,6 @@ EnclosureTrace enclosure_trace(const TestbedLayout& layout,
     tr.darkness = std::clamp((path - (depth_min - falloff)) / falloff, 0.0f, 1.0f);
     return tr;
 }
-
 
 // TORCHES ON THE WALLS OF A CARVED CORRIDOR.
 //

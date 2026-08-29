@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/serialization
 File: engine/core/serialization/sources/ContentHash.cpp
 
@@ -17,12 +15,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - ALGORITHM FROZEN FOREVER (see header). Do not modify constants or byte order.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — implementation (built ahead of the rest of
-  the serialization module because the Rule 13.1 determinism test hashes
-  through it; BinaryWriter/Reader stay deferred).
 */
 
 #include "engine/core/serialization/sources/ContentHash.h"

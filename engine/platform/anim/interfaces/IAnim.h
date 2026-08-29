@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
 Module: engine/platform/anim
 File: engine/platform/anim/interfaces/IAnim.h
 
@@ -40,11 +38,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do not add ozz types, includes, or assumptions to this header.
 - Contract frozen for stage 1 (Rule 26); changes only via group sync.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 contract (skeleton/clip load, instances,
-                         blended evaluation to plain matrix spans).
 */
 
 #pragma once

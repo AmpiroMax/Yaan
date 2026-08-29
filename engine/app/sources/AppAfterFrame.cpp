@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:36:58
-Last updated: 28:08:2026 - 19:30:00
 Module: engine/app
 File: engine/app/sources/AppAfterFrame.cpp
 
@@ -43,17 +41,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
 */
-/*
-UPD:
-- 18:08:2026 - 17:36:58: Создан. Слой 4 разбора App.cpp: хвост кадра (165 строк) уехал
-  из run() сюда, вместе с доводом, по которому он там был.
-- 20:08:2026 - 15:30:00: Лента прохода DFN_RECORD_EVERY: каждый N-й показанный кадр — .png + строка rec.log тем же снимком, что F2.
-- 28:08:2026 - 19:30:00: Затвор один на всех, и у него появились две недостающие очереди:
-  ЧАНКИ (ChunkManager::pending_chunk_count — та самая «честная дыра», записанная
-  здесь же) и СХОДИМОСТЬ КАПСУЛЫ (PLAYER_SETTLE_EPS_M). Признак «мир успокоился»
-  выводился из событий ChunkLoaded за кадр — то есть отвечал «что-то приехало» на
-  вопрос «очередь пуста».
-*/
 
 #include "engine/app/sources/App.h"
 
@@ -66,7 +53,6 @@ UPD:
 namespace dfn::app {
 
 void App::after_frame(float alpha, float frame_dt) {
-
 
     // TRAJECTORY RECORDING (O3): every PRESENTED frame's eye pose + counted
     // clock + fov, so replay reproduces the image exactly. Recording is an

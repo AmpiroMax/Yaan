@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:00:00
-Last updated: 10:08:2026 - 21:05:10
 Module: engine/core/math
 File: engine/core/math/sources/VoxelField.h
 
@@ -37,25 +35,6 @@ AI Agents Notice (must follow):
   looks like — and they drifted the moment SurfaceClass gained a member this
   enum lacked (see UPD). Both zones call this function now. Adding a
   SurfaceClass without a home here is a compile error, which is the point.
-*/
-/*
-UPD:
-- 09:08:2026 - 16:00:00: Created — voxel surface handoff for the 3D terrain
-  stage (representation swap).
-- 09:08:2026 - 16:30:44: Representation swap: VoxelMeshView + VoxelMaterial — the additive cross-zone geometry handoff (HeightFieldView untouched, still the ground-height query).
-- 09:08:2026 - 21:37:57: ADDITIVE: VoxelMeshView::sky_visibility (per-vertex, 255=open sky, 0=sealed) at render's request; an empty span means unknown and render falls back to 255, so the field lands before it is filled. No existing field moved.
-- 10:08:2026 - 21:05:10: RULE 39 DEFECT, FIXED AT THE ROOT. VoxelMaterial had no
-  member for SurfaceClass::GrassRockBlend, so world's private projection folded
-  the blend into plain Grass and the class was destroyed at the hop. The two
-  meshers then disagreed on the same shader input: the heightfield path drew
-  the blend with rock weight 0.5 and the voxel path with 0.0, on the same
-  chunk-load branch (App.cpp:532 vs :535). MEASURED on the seed-1 testbed (4x4
-  chunks): 3536 of 266256 surface samples (1.33%) are GrassRockBlend, and
-  26136 of 1183258 voxel vertices (2.21%) stand on one — they were all drawn as
-  grass. ADDITIVE: GrassRockBlend = 5 appended (no ordinal moved; the uint8_t
-  values are a silent cross-DAG contract), and the projection is exported as
-  voxel_material_of() so render can key ONE splat table off it. Agreed with
-  render before landing; render takes the mesher-side consolidation.
 */
 
 #pragma once

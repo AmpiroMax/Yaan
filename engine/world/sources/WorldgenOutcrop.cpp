@@ -1,6 +1,4 @@
 /*
-Created: 11:08:2026 - 15:12:44
-Last updated: 11:08:2026 - 15:12:44
 Module: engine/world
 File: engine/world/sources/WorldgenOutcrop.cpp
 
@@ -19,10 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic and position-based (Rule 13.1).
-*/
-/*
-UPD:
-- 11:08:2026 - 15:12:44: Created.
 */
 
 #include "engine/world/sources/WorldgenOutcrop.h"

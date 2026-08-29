@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/WorldgenSites.cpp
 
@@ -21,23 +19,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - DETERMINISM (Rule 13.1): fixed attempt counts, deterministic fallbacks,
   sequential WorldEntityIds in placement order (Q56 anchor).
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — P4 implementation.
-- 09:08:2026 - 13:12:19: Stage 3b amendments: corridor_distance moved to TestbedLayout.h; placer fallback scores dry-over-flat-over-wet and shies from banks.
-- 09:08:2026 - 15:18:34: Castle: solved first (its terrace outranks ordinary pads), elements appended to the shared record list keeping WorldEntityIds sequential; pads_height applies the terrace + ramp.
-- 09:08:2026 - 17:36:42: §6.2: entrances no longer use the pad scorer at all — relief within 25 m selects adit vs sunken barrow, the generator stamps the mound/forecourt it needs on flat ground, and the marker is derived from the mouth with an explicit floor height. Hand-authored carves outrank generated stubs.
-- 09:08:2026 - 18:58:01: Live-play fixes: (a) the forecourt now runs from the flank lintel PAST the mound rim to natural grade — it previously ended while still on the mound, so the rim walled off the exit and the barrow read as 'facing into rock, as if there is no entrance'; (b) the mound is a paraboloid DOME instead of a smoothstep plateau-with-rim ('crooked, just a square'); (c) the cut flares outward so it reads as a way in rather than a slot.
-- 17:08:2026 - 11:35:28: apply_pads; для прямоугольника расстояние берётся ДО КОРОБКИ, а не до
-  центра — снаружи ближайшая точка лежит на границе, поэтому кольцо растушёвки
-  идёт по форме, а не раздувается из углов.
-- 17:08:2026 - 13:14:56: реализация; параметр отрезка ЗАЖАТ — иначе на изгибе вырастал бы
-  фантомный канал вдоль продолжения каждого сегмента. Дно БЕРЁТСЯ, а не
-  минимизируется: русло, которое «не выше дна», перегородил бы любой природный
-  подъём, и река шла бы в гору в стену нетронутой земли.
-- 18:08:2026 - 12:06:09: ground_slope — через central_difference_slope. Тот же голый `d = 2.0f`;
-  места посадки и раскраска обязаны мерить уклон одним прибором.
 */
 
 #include "engine/world/sources/WorldgenSites.h"

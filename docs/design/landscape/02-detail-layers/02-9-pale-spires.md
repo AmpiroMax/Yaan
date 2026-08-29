@@ -1,11 +1,3 @@
-<!--
-Created: 12:08:2026 - 22:57:02
-Last updated: 12:08:2026 - 22:57:02
--->
-<!--
-UPD:
-- 12:08:2026 - 22:57:02: Выделен из docs/design/LANDSCAPE.md (9786 строк против FILE_HARD_LIMIT 800): §2.9–§2.9.5. Чистый перенос — ни одна строка тела не изменена, ни один номер секции не изменён; адреса вида «LANDSCAPE.md §X» продолжают действовать, таблица § → файл живёт в docs/design/LANDSCAPE.md.
--->
 
 ## 2.9 Pale spires — the white rock formation (ruling, stage-4)
 

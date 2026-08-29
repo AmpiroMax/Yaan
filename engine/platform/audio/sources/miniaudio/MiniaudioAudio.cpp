@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 28:08:2026 - 14:05:00
 Module: engine/platform/audio
 File: engine/platform/audio/sources/miniaudio/MiniaudioAudio.cpp
 
@@ -71,33 +69,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - miniaudio types must never leak out of this directory (Rule 1).
 - Contract semantics live in IAudio.h; change them only via group sync.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Stage 3 audio bring-up — full backend v1 (playback,
-                         variation, buses, 3D, layered music; reverb no-op).
-- 27:08:2026 - 20:00:24: OGG VORBIS, and music that is really 2D
-  (owner's order, relayed through the music session: the title theme loops in the main menu).
-  1. stb_vorbis is included ahead of the implementation, which is the whole of
-     the change: miniaudio's own Vorbis data source is written and shipped, it
-     was simply compiled out. Until today load_sound("*.ogg") returned an
-     invalid handle and said nothing about why — the format the music pipeline
-     produces was the one format the engine could not open.
-  2. play_music() now DISABLES SPATIALIZATION on every layer. It never did,
-     and miniaudio spatializes by default: the music sat at world origin and
-     was panned and attenuated by where the listener stood. Nobody had heard
-     it, because nothing had ever been played through play_music — the bug was
-     shipped in the same commit that wrote "false = 2D (UI, music stingers)"
-     into the contract. Fixed as a mechanism, not for the menu's case:
-     ANY caller of play_music wants a track, not an emitter.
-- 28:08:2026 - 14:05:00: ОККЛЮЗИЯ И РЕВЕР — два узла графа (зона «звук от
-  источника», заказ владельца 28.08).
-  1. set_voice_lowpass(): ma_lpf_node между голосом и его шиной, заводится при
-     первом ненулевом срезе и снимается при нулевом. Нужен потому, что стена,
-     которая только УБАВЛЯЕТ громкость, звучит как расстояние, а не как стена.
-  2. set_bus_reverb(): ma_delay_node между шиной и её родителем — обещание
-     контракта, простоявшее пустым с 10.08, теперь исполняется (оговорка о
-     качестве одиночной линии — в заметках выше).
 */
 
 #include "engine/platform/audio/sources/miniaudio/CreateMiniaudioAudio.h"

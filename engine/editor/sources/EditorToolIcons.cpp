@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 12:05:40
-Last updated: 18:08:2026 - 19:44:10
 Module: engine/editor
 File: engine/editor/sources/EditorToolIcons.cpp
 
@@ -17,12 +15,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - No sizes in pixels inside a drawing. A number like "x = 7" is right for one
   icon size and silently wrong for the next one somebody asks for.
-*/
-/*
-UPD:
-- 18:08:2026 - 12:05:40: Создан вместе с заголовком.
-- 18:08:2026 - 13:17:00: седьмой значок — тропа.
-- 18:08:2026 - 19:44:10: Три собственных значка постройки: якорь с отвесом, брус между двумя точками, полотно на четырёх углах.
 */
 
 #include "engine/editor/sources/EditorToolIcons.h"

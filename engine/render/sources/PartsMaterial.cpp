@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 16:55:00
-Last updated: 28:08:2026 - 16:55:00
 Module: engine/render
 File: engine/render/sources/PartsMaterial.cpp
 
@@ -16,10 +14,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly; дизайн зоны — docs/design/MATERIALS.md.
 - ЗДЕСЬ НЕТ И НЕ БУДЕТ НИ ОДНОГО СВОЙСТВА ВЕЩЕСТВА. Цвет, блик, плотность —
   в данных. Появится здесь число про вещество — вернулись к двум реестрам.
-*/
-/*
-UPD:
-- 28:08:2026 - 16:55:00: Создан — волна 3 зоны МАТЕРИАЛЫ.
 */
 
 #include "engine/render/sources/PartsMaterial.h"

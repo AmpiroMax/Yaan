@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 27:08:2026 - 11:36:00
-# Last updated: 27:08:2026 - 11:36:00
 # Module: tools
 # File: tools/heraldry/png_io.py
 #
@@ -30,11 +28,6 @@
 # - Follow docs/ARCHITECTURE.md strictly.
 # - Это ОФЛАЙН-инструмент. Рантайм читает PNG своим PngImage.h; второй читатель
 #   в engine/ заводить нельзя.
-#
-# UPD:
-# - 27:08:2026 - 11:36:00: Создан — чтение/запись PNG без Pillow для генератора
-#   3D-герба (заказ владельца 27.08: «герб-дуб ... объектом 3D»).
-#
 """PNG 8-bit non-interlaced reader/writer on the standard library alone."""
 
 import struct
@@ -46,7 +39,6 @@ PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 # Каналов на пиксель по типу цвета PNG (IHDR colour type).
 _CHANNELS = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}
-
 
 def _unfilter(raw: bytes, width: int, height: int, channels: int) -> np.ndarray:
     """Снимает пять фильтров строки PNG. Возвращает (h, w, channels) uint8.
@@ -93,7 +85,6 @@ def _unfilter(raw: bytes, width: int, height: int, channels: int) -> np.ndarray:
         out[y] = row
         prev = row
     return out.reshape(height, width, channels)
-
 
 def read_png(path: str) -> np.ndarray:
     """Читает PNG и отдаёт RGBA uint8 (h, w, 4). Расширяет серый/RGB до RGBA."""
@@ -143,7 +134,6 @@ def read_png(path: str) -> np.ndarray:
     else:               # RGBA
         rgba[...] = pixels
     return rgba
-
 
 def write_png(path: str, rgba: np.ndarray) -> None:
     """Пишет RGBA8 (h, w, 4) как PNG. Фильтр строки 0 — размер тут не главное."""

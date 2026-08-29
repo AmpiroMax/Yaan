@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:08
-# Last updated: 28:08:2026 - 15:15:00
 # File: tests/sim.cmake
 #
 # Responsibility:
@@ -15,64 +13,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. Sim-owned; other zones register in
 #   their own <zone>.cmake.
-#
-# UPD:
-# - 10:08:2026 - 01:53:17: Added sim_step_feel (the step as an event: spacing,
-#                          stride arithmetic, zero-when-still, dip/settle,
-#                          FOV clamp) and sim_audio (miniaudio backend +
-#                          placeholder bank; DFN_REPO_ROOT for asset paths).
-# - 09:08:2026 - 00:45:08: Stage 2 — dice, player movement, null backends,
-#                          jolt physics suites.
-# - 09:08:2026 - 16:51:22: Added sim_tunnel_walk — the voxel terrain collision
-#                          acceptance walk through the crag tunnel.
-# - 09:08:2026 - 18:56:32: Added sim_interaction (four verbs, inventory, saves).
-# - 09:08:2026 - 22:18:17: Added sim_movement_solid (jump apex, crouch under a
-#                          ceiling, and the cliff-vs-jump invariant).
-# - 09:08:2026 - 22:27:49: Added sim_prop_collision (buildings and boulders).
-# - 09:08:2026 - 22:34:38: Added sim_view_model (hand anchor, inventory state).
-# - 10:08:2026 - 21:13:08: Added sim_save_format — the save CONTAINER's own
-#                          suite (byte-exact grammar + endianness, the
-#                          committed fixture that proves an older build's file
-#                          still loads, skip-unknown, fail-soft truncation, and
-#                          the two misuse latches). Registered here rather than
-#                          in core.cmake because sim implemented the IO under a
-#                          lead carve; it moves to tests/core/ when core takes
-#                          serialization back.
-# - 10:08:2026 - 21:21:55: Added sim_save_delta — the .dfs codec end to
-#                          end on a real file: delta round trip with a second
-#                          payload as its control, the gameplay sections
-#                          travelling in the same file, the seed guard, the
-#                          missing-META refusal, and the forward-compatibility
-#                          case (a section this build does not understand must
-#                          survive a load AND a re-save).
-# - 10:08:2026 - 21:24:32: sim_jolt_physics links dfn_render, for the same
-#                          reason test_lod_seam does: the new diagonal case
-#                          checks that two zones agree about one geometry, and
-#                          it reads render's actual mesh rather than a literal
-#                          copy of its triangulation.
-# - 10:08:2026 - 21:33:52: sim_tunnel_walk links dfn_gameplay. The castle
-#                          curtain-wall tunnelling case had no curtain wall in
-#                          its physics world — the rig built terrain collision
-#                          only, and the wall is a prop — so eight charges were
-#                          running through open ground and reporting success.
-# - 13:08:2026 - 16:20:00: Added sim_flora_collision — the world you cannot walk
-#                          through (solid boles measured from their own drawn
-#                          triangles, brush as drag, the log/step-height
-#                          watershed), with the control arms for each claim.
-# - 13:08:2026 - 17:30:00: Added sim_interactable_visible.
-# - 13:08:2026 - 17:45:00: Added sim_great_oak_stair (RED on purpose; label known-defect).
-# - 13:08:2026 - 18:10:00: sim_interactable_visible links dfn_physics (the
-#                          entity-{0,0} targeting case needs the Jolt backend).
-# - 27:08:2026 - 12:02:42: sim_camera_boom — стрела камеры третьего лица
-#                          (чистая арифметика, без физического стенда).
-# - 28:08:2026 - 14:10:00: sim_loose_props — динамические тела предметов:
-#                          сон стопки, повторяемость подъёма комнаты, толчок
-#                          предметом и телом игрока, выпадение из заклиненной
-#                          руки. Зона big-grab.
-# - 28:08:2026 - 15:15:00: sim_world_ambience — приёмка звука ОТ ИСТОЧНИКА:
-#                          кривая шелеста по расстоянию, ноль в чистом поле,
-#                          дом против улицы, окклюзия, бюджет голосов.
-#                          Зона «звук от источника».
 
 add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:59:28
-Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/core/ForestStandTests.cpp
 
@@ -24,143 +22,6 @@ AI Agents Notice (must follow):
   whoever changes it re-pins it in the same commit with the reason in the
   UPD block. Scatter/entities are deliberately NOT pinned (content passes
   evolve); the heightmap is the stable core.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:59:28: Created — stand selector + LF-1/LF-2 acceptances.
-- 10:08:2026 - 10:29:50: tensor_ratio window 72 m -> 320 m — THE INSTRUMENT WAS
-  MEASURING ITSELF: inside one wavelength every smooth field reads elongated,
-  so the isotropic control passed the acceptance it exists to fail (4.8
-  against a 2.5 floor). At ~3 wavelengths aniso 3.10 / control 1.61.
-  Continuity floor raised 0.5 -> 0.65 on the post-fix measurements.
-- 10:08:2026 - 10:39:07: LF-8 acceptances — gullies vs the pass-OFF control, and the
-  fan-association SYMMETRY test after the density instrument was measured
-  passing a shuffled field at 1.000.
-- 10:08:2026 - 10:50:58: §8.1 path network acceptances: BR-2 (real endpoints, measured
-  overhead, the ornament control), BR-1 (hidden run, re-measured on the
-  SHIPPED terrain, with the open-glade must-fail control), the three-band wear
-  field on flora's datum, path flatness (curvature + cross tilt, after the
-  max-min instrument was caught measuring slope), and the class rule.
-- 10:08:2026 - 11:08:01: BR-6 cadence per regime with the tail clause, and BR-5 RECORDED
-  AS AN OPEN DEFECT with its measurement — the landform cannot carry it while
-  its swale floors percolate.
-- 10:08:2026 - 11:11:16: PathClass ordinals pinned — flora's maintenance column maps to
-  them positionally across a DAG seam no static_assert can reach.
-- 10:08:2026 - 11:37:17: The vantage suite, and it is the reason three defects
-  are not in the tree: the LF-2 standpoints were the argmin of a field that is
-  EXACTLY ZERO over 55 % of the stand, so "the minimum" was a plateau of tied
-  ties and the winner was whichever corner the scan reached first; the BR-1
-  pair stood at 402 m against a 185 m control, which is two pictures rather
-  than a control; and the first run of all of it was read off a STALE BINARY
-  because a `head -20` on the build log hid the compile errors under the
-  warnings (Rule 34 — the premise was unchecked). Adds: the cross-section
-  agreement between PathNetwork::sample and core/math, the render handoff's
-  exactness, GoalKind's ordinal pin, and the mechanical pairing rule that a
-  control's label is its claim's label plus "_control" — a Rule 27 obligation
-  only a human can check is one that stops being checked.
-- 10:08:2026 - 11:51:23: §5.10 acceptances. The density test measured
-  SNAG_DENSITY_OPEN over the WHOLE STAND and read 0.029/ha against a declared
-  0.25-0.5 — a nine-fold miss that was entirely the denominator, since the oak
-  mass covers this stand and "open ground" is the clearings alone. Fixed by
-  exporting the placement's own domain predicates and dividing by the area the
-  placement multiplied by. Plus: logs measured against the CONTOUR with the
-  fold-uniform 0.785 rad of a drawn yaw as the reachable control, nothing dead
-  on a tread, and the canopy envelope against its own old value.
-- 10:08:2026 - 11:59:55: §5.11 acceptances, and one of them was rewritten
-  because the first version could not fail: BR-3's headline ratio came out at
-  ~27000 against an off-path ground carrying NO ground cover at all, since
-  flora's ForestFloor rows have per_100m = 0 (the column is per 100 LINEAR
-  metres and a forest floor is not a linear feature). Comparing against zero is
-  not a measurement, so the claim asserted is design's actual ruling — the
-  margin ORDERS by maintenance, hint-path > dirt > cobble > 0 — and the gap is
-  reported rather than papered over.
-- 10:08:2026 - 12:11:07: BR-3 measured against a real denominator at last —
-  same-set, design's ruled reading (65655b2): margin 0.1077/m2 vs wood
-  0.000730/m2, ratio 148. Logged, with the ORDERING clause as the gate, which
-  is design's ruling and flora's recommendation. Plus the one-dimension-per-row
-  invariant, whose §5.12 arm records the apron's three consumerless rows as a
-  NAMED GAP so "the apron is done" cannot be inferred from a green run.
-- 10:08:2026 - 12:15:37: TWO RULED-BUT-UNFIXED DEFECTS NAMED IN PLACE, both of
-  them cases of a green assertion about the wrong thing. (1) The moss density
-  above. (2) The tread-clearance case proves the ribbon clears the HEIGHT FIELD,
-  and the field is not what occludes it: the drawn ground is the VOXEL surface
-  at VOXEL_SIZE 1.0 m, on which a PATH_GROOVE_DEPTH of 0.15 m cannot exist at
-  all (render's finding, measured by lift sweep). Left green on purpose — what
-  it proves is still worth proving — but it does not prove the road is visible,
-  and anything placed by HEIGHT and drawn against the VOXEL surface inherits
-  the same gap.
-- 10:08:2026 - 19:45:47: The tread-clearance case now proves the RIGHT object:
-  a new case measures the tread against the surface actually drawn (chunk
-  heightmap -> voxel volume -> surface nets), with the pre-pass field -- the
-  ground this stand shipped this morning -- as a control that FAILS it (worst
-  -0.287 m vs +0.100 m, median -0.006 m vs +0.146 m). Writing that control
-  exposed a second defect in both cases: Approx(x).epsilon(0.25) is not a +-25%
-  band, doctest's tolerance is eps*(scale + max|lhs|,|rhs|) with scale 1.0, so
-  the band around 0.15 was -0.14..+0.44 m and a BURIED tread passed it. Both
-  replaced with explicit bounds.
-- 10:08:2026 - 19:59:10: The dead-wood "stands on the shipped ground" check was
-  .epsilon(0.02) against a ~20 m height, i.e. a 0.42 m tolerance — it claimed
-  the wood was on the ground while admitting a log floating knee-high. The
-  quantity is a height ERROR and its threshold now sits in metres: worst
-  deviation < 0.01 m, with the pre-path field as a control that must differ by
-  more than 0.05 m so the assertion cannot be measuring nothing.
-- 10:08:2026 - 20:13:53: BR-5 canary restated as a DIFFERENCE with a MEASURED
-  denominator (design's amendment, 0c24946). The old form compared the siting
-  median against a 0.06 literal that was twice a ground median design has now
-  withdrawn as arithmetically impossible — a threshold derived from a number
-  nobody can reproduce. The unchosen-ground median is now measured in the test
-  beside the claim. The withdrawn figures are struck through rather than
-  deleted: a number quoted into a design ruling should stay findable by whoever
-  reads the ruling.
-- 10:08:2026 - 20:20:20: probe caveat recorded (sim's catch): the three-arg
-  build_voxel_volume omits the derived adit corridors and is exact only on a
-  stand with no carves.
-- 10:08:2026 - 20:40:52: THE max() FLOOR OVERSHOOTS THE AUTHORED EDGE DENSITY,
-  measured after flora asked whether the max was deliberate. It is (design
-  ruled max-not-product so cobble keeps a moss residual), but `base` is
-  normalised by the EDGE RAMP'S integral, so wherever clump > edge*rich the
-  realised count exceeds per_100m*rich. Cobble's FlowerCarpet weight is exactly
-  0.0 and it realises ~20 per 100 m of its own route against dirt's 27 and
-  faint-trail's 45 — a residual it is not. Recorded, not enforced: closing the
-  gap between the ruling's intent and its effect is design's.
-  Incidentally settles flora's bare-verge question in the direction they
-  suspected: Dirt places 2.7x MORE than authored, so an empty 40 m of verge is
-  drifts, not under-placement.
-- 10:08:2026 - 20:44:36: RULE 32'S OTHER HALF. The max() finding covered ONE of
-  two habitats; measuring one and stopping is the state that reads as finished.
-  The two compose differently and nothing said so — PathMargin takes a max()
-  FLOOR, ForestFloor a pure PRODUCT — so they miss in OPPOSITE directions:
-  PathMargin 2.5-2.7x OVER authored, ForestFloor 0.15-0.31x, i.e. 3.3-6.6x
-  UNDER. Mechanism measured: a product delivers authored x E[clump], and
-  E[clump] here is 0.086-0.163, so the shortfall is set by the MEAN OF A NOISE
-  FIELD rather than by anything authored — and the row is being raised to
-  compensate, which makes the authored number mean "density before an
-  implementation detail". Measured, not fixed; which composition is right is
-  design's.
-- 11:08:2026 - 15:15:55: testbed heightmap re-pinned for a deliberate terrain change (DFN_NO_RELIEF=1 reproduces the old digest byte for byte); LF-8's gully detector left RED-as-WARN because it scores by local depth and cannot tell a meso hollow from a boss flank; BR-5's open defect recorded as it worsens in the honest direction; §5.11 cobble/faint demoted with the proof it predates this work.
-- 12:08:2026 - 22:55:00: canopy_height_at's call updated for its new signature (it takes the context, so it can see the great oak standing in a clearing). The stand itself is untouched: place_great_oaks returns nothing on StandId::Forest, on purpose — lifting a hectare of oaks out of a MEASURED stand would move BR-3/BR-5's denominators without anybody asking.
-
-- 13:08:2026 - 17:26:00: Testbed heightmap digest re-pinned for §10.1.3's forms
-  (0x4952433a53d5a07c -> 0xdeee808fa40668ec). The pass's own doors reproduce the
-  old digest byte for byte, which is what makes this a deliberate change rather
-  than a drift.
-- 13:08:2026 - 17:32:00: Digest re-pinned at the approved 18 m draw pitch.
-- 13:08:2026 - 17:56:00: Digest re-pinned for the cut banks; the two
-  intermediate digests of the same afternoon are recorded beside it so a bisect
-  has names to land on.
-- 13:08:2026 - 18:04:00: Digest re-pinned for the back-tilted benches.
-- 13:08:2026 - 18:27:00: Digest re-pinned at the approved 14 m draw pitch.
-- 13:08:2026 - 00:40:00: testbed digest RE-PINNED to 0xf28a4e5d2d93ed0f for the drainage pass and the retired comb. `DFN_DRAW_DEPTH=1 DFN_FLOW_OFF=1` reproduces the old pin 0xbb0f8c74d3980922 byte for byte -- the equality that proves the new pass is an addendum and that the rejected sample is still reachable.
-- 18:08:2026 - 12:06:09: закреплённый слепок карты тестбеда переприколочен в четвёртый раз, и
-  впервые не из-за прохода, а из-за РЕШЁТКИ: HEIGHTMAP_STEP 2.0 -> 1.0 м,
-  отсчётов 16 641 -> 66 049. Старый 0xf28a4e5d2d93ed0f, новый
-  0x60c08a7949960c6e. ОБЫЧНЫЙ КОНТРОЛЬ НЕДОСТУПЕН ЧЕСТНО: у прежних перепиновок
-  была дверь окружения, воспроизводящая старый мир бит в бит, а сборка на 257
-  отсчётов не может выдать карту на 129 в принципе. Поэтому заведён ДРУГОЙ, и
-  он сильнее: новая решётка СОДЕРЖИТ старую (чётные индексы стоят на 0, 2, 4 …
-  256 м), квантизация общая и позиционная, значит чётная подрешётка обязана
-  давать СТАРЫЙ слепок бит в бит — и даёт. Это доказывает не «слепок изменился
-  законно», а «земля не сдвинулась ни на отсчёт, мы храним больше того же».
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -1571,7 +1432,6 @@ TEST_CASE("the path_along vantages stand ON the tread with both margins in frame
     INFO("path_along vantages ", checked);
     CHECK(checked >= 2); // the SET is the evidence for the per-class scoping
 }
-
 
 namespace {
 

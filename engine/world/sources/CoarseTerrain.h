@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:49:27
-Last updated: 09:08:2026 - 23:52:50
 Module: engine/world
 File: engine/world/sources/CoarseTerrain.h
 
@@ -32,15 +30,6 @@ AI Agents Notice (must follow):
   quantize_height() on the same pure terrain_height(); anything that samples
   "the continuous field instead" reintroduces the 0.30 m border step the chunk
   seam already paid for, at 64 m scale.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:49:27: Created — coarse node identity, ladder, incremental
-  builder (core's half of the LOD contract with render).
-- 09:08:2026 - 23:49:27: The ladder now reads dfn::config (the lead landed the
-  eight NUMBERS rows); core's local copy deleted. COARSE_NODE_ROW_BUDGET
-  derived from measurement and requested as the last row.
-- 09:08:2026 - 23:52:50: COARSE_NODE_ROW_BUDGET reads dfn::config too — the lead landed the row.
 */
 
 #pragma once

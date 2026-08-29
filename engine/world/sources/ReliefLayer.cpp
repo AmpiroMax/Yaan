@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:05:00
-Last updated: 23:08:2026 - 00:30:00
 Module: engine/world
 File: engine/world/sources/ReliefLayer.cpp
 
@@ -19,20 +17,6 @@ AI Agents Notice (must follow):
 - THE READER IS TOTAL BUT NOT FORGIVING ABOUT NUMBERS. An unknown key is
   skipped (the format will grow); a malformed number is an error WITH ITS LINE,
   because "0 by accident" is the failure mode this project keeps paying for.
-*/
-/*
-UPD:
-- 17:08:2026 - 19:05:00: Создан вместе с ReliefLayer.h.
-- 18:08:2026 - 12:38:09: КРИВАЯ ТРОПЫ И КАНАЛ ЕЁ ИЗНОСА (заказ 18.08 «не по квадратам... между
-  любыми точками»). Дуга — центростремительный Катмулл-Ром: он ПРОХОДИТ через
-  поставленные точки, а Безье с ручками вне кривой заставил бы целиться туда,
-  куда тропа не идёт. Поперечник НЕ НОВЫЙ: math::path_wear_profile, тот же, что
-  у сгенерированной сети (SurfaceField.h прямо запрещает вторую копию), а
-  «мягкость» двигает НАЧАЛО спада — ровно как жёсткость у кисти.
-  В ФАЙЛ ПИШУТСЯ ТОЧКИ, А НЕ ОТСЧЁТЫ: тропа, сохранённая мазками, потом не
-  правится — композитор редактировал бы след своего решения вместо решения.
-- 23:08:2026 - 00:30:00: path читает/пишет необязательное третье число — класс полотна 0..3;
-  файл из двух чисел читается как раньше (укатанный грунт).
 */
 
 #include "engine/world/sources/ReliefLayer.h"
@@ -212,7 +196,6 @@ bool ReliefLayer::bounds_xz(glm::vec2& min_xz, glm::vec2& max_xz) const {
     max_xz = {relief_world_of(hi_x) + RELIEF_STEP_M, relief_world_of(hi_z) + RELIEF_STEP_M};
     return true;
 }
-
 
 // ============================== THE PATH CURVE ==============================
 

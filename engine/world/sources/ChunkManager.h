@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 28:08:2026 - 19:30:00
 Module: engine/world
 File: engine/world/sources/ChunkManager.h
 
@@ -28,53 +26,6 @@ AI Agents Notice (must follow):
 - publish() (synchronous) is used for both events; ChunkUnloaded handlers run
   BEFORE the chunk memory is freed — that ordering is part of the frozen
   HeightFieldView lifetime contract.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — streaming interface with batch ECS
-  ops (Q22, Rule 11), event-driven handoff agreed with render/sim (Rule 26).
-- 09:08:2026 - 00:42:03: Stage 2 — added open_generated() (in-memory generator
-  path, lead directive: no .dfw IO this stage); open(file) documented as
-  deferred to stage 3. Additive change only.
-- 09:08:2026 - 11:05:22: Stage 3b (additive): surfacefield()/scatter() per
-  resident chunk + water_bodies() (render handoff agreement); open_generated
-  builds the WorldGenContext once; chunk load attaches Transform/RenderMesh/
-  LocalBounds/SiteMarker to P4 site entities via batch ops.
-- 09:08:2026 - 16:30:44: Representation swap: voxel_mesh(coord) — the 3D geometry handoff, same lifetime as heightfield().
-- 09:08:2026 - 21:37:57: NEW darkness_at(world) — §6.3 authored darkness (0 open daylight .. 1 pitch black) as a one-position query; keeps worldgen internals out of the app's frame loop.
-- 09:08:2026 - 22:10:12: NEW water_surface_at(vec2) for sim's swimming — resolves against the analytic water field, NOT the drawable primitives (whose coverage guarantee runs field->primitive only, so they can extend past real water) and NOT the sampled grid (quantised at the shoreline).
-- 09:08:2026 - 23:49:27: LOD STREAMING HALF (the agreed seam with render): world_bounds_xz / request_coarse_nodes / coarse_heightfield / coarse_surfacefield / release_coarse_node, plus the two residency counters. Coarse nodes are built incrementally under a per-update row budget inside update(), nearest-to-focus first, and are freed ONLY by release_coarse_node — render drops its mesh before it calls it.
-- 10:08:2026 - 02:05:00: surface_class_at(vec2) for sim's footstep sound — nearest sample of the SAMPLED field render splats from (see doc comment for why it differs from the analytic water_surface_at).
-- 10:08:2026 - 11:37:17: path_surface() and stand_vantages() — the §8.1 path
-  network and the stand's own acceptance standpoints, whole-world and built at
-  open, exactly like water_bodies(). Render owns the Tour and cannot see
-  dfn::world; without these a tour on DFN_MAP=forest shot the TESTBED's
-  coordinates.
-- 14:08:2026 - 21:22:22: open() ПЕРЕСТАЛ БЫТЬ ЗАГЛУШКОЙ — чанки читаются из испечённого .dfw
-  (2.3 мс против 84.0 мс на генерацию, замер на боевом стенде в одном процессе).
-  Подпись выросла на WorldGenParams, и это честно, а не временно: файл несёт
-  чанки, но не результаты уровня мира (озёра, сеть троп, точки съёмки стенда),
-  которые менеджер отдаёт между загрузками. Отсутствующий в файле чанк
-  ГЕНЕРИРУЕТСЯ, а не пропускается: выпечка покрывает пролёт, и шаг за его край
-  обязан встретить землю, а не небо.
-- 17:08:2026 - 19:05:00: РУКА РЕДАКТОРА НА ЗЕМЛЕ — set_composed_relief / invalidate_area /
-  rebuild_dirty (зона кистей рельефа, заказ 17.08; добро лида получено). Три
-  вызова, потому что решений три, и слияние их в один спрятало бы среднее:
-  что земля теперь такая, какая земля перестала быть правдой, и сколько кадра
-  можно на это потратить. Мазок накрывает один чанк сотню раз, пока едет мышь.
-  Перестройка ГЕНЕРИРУЕТ СНАЧАЛА и подменяет ПОТОМ: очевидная реализация —
-  выгрузить и дать стримингу вернуть — оставляет дыру 256 м на кадр, и
-  композитор смотрит, как земля под ним мигает на каждом штрихе. И слой
-  ставится ОДНИМ ПОЛЕМ контекста, без build_world_context: гидрология, сайты,
-  эрозия, дренаж и сеть троп решены ДО того, как слой применяется, поэтому
-  замена поля — не срез пути мимо пересборки, а вся пересборка целиком.
-- 28:08:2026 - 19:30:00: pending_chunk_count(focus) — счётчик, о котором зона app
-  писала «request to core is out for the real counter». Затвор беспилотного
-  кадра ждал, пока мир догрузится, а спрашивал события ChunkLoaded за кадр:
-  «что-то приехало» вместо «очередь пуста». Кадр, снятый на непустой очереди,
-  зависит от того, сколько машина успела, — то есть от загрузки машины, а не
-  от того, что снимают. Обрезка ПРОТЯЖЕНИЕМ обязательна: клетка за краем мира
-  не приедет никогда.
 */
 
 #pragma once

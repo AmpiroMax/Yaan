@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 20:55:10
-Last updated: 10:08:2026 - 01:47:53
 Module: engine/render
 File: engine/render/sources/TerrainLod.cpp
 
@@ -19,24 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure: no GPU, no ECS, no clock. Keep it that way — this is the file that
   makes LOD policy testable at all.
-*/
-/*
-UPD:
-- 09:08:2026 - 20:55:10: Created with the LOD selection module.
-- 09:08:2026 - 22:01:04: Resident-rectangle exclusion in the descent (coarse
-  nodes stop where core's chunk streaming begins) + lod_skirt_depth_m.
-- 09:08:2026 - 22:39:28: pending() rebuilt each update.
-- 10:08:2026 - 01:47:53: THE STRADDLE-RING FIX (core's measurement: the old
-  "straddling -> force split" rule pushed ~80% of a frame's selection to
-  level 0 — 44 of 51 nodes at 500-700 m — because a chunk-aligned 1280 m
-  rectangle always cuts the 512 m level-1 grid at odd 256 m multiples, and a
-  level-0 node is the most expensive thing core builds at 11.3 ms). A
-  straddling node is now judged by the distance to the ground it would
-  actually contribute — the part OUTSIDE the rectangle — and accepted at its
-  own level when that is far enough; the overlap is removed by the MESHER
-  (TerrainMeshOptions::clip_*), not by refining the selection. Split is still
-  taken when the outside part is genuinely close (eye outside the rect), and
-  level 0 remains the exact terminal.
 */
 
 #include "engine/render/sources/TerrainLod.h"

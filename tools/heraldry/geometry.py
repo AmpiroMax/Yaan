@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 27:08:2026 - 12:02:00
-# Last updated: 27:08:2026 - 12:02:00
 # Module: tools
 # File: tools/heraldry/geometry.py
 #
@@ -50,11 +48,6 @@
 # - Ключи вершин — ЦЕЛОЧИСЛЕННЫЕ (узел сетки либо ребро сетки), никогда не
 #   округлённые координаты: округление float — это сварка вершин, которые
 #   алгоритм считал разными, и она проявляется дырой в сетке, а не ошибкой.
-#
-# UPD:
-# - 27:08:2026 - 12:02:00: Создан — ядро генератора 3D-герба (заказ владельца
-#   27.08: «объектом 3D с краями и без лишнего фона»).
-#
 """Classical silhouette-to-relief geometry: EDT, marching-squares meshing, RDP."""
 
 import numpy as np
@@ -104,7 +97,6 @@ def _edt_1d(f: np.ndarray) -> np.ndarray:
         d[:, q] = (q - vk) ** 2 + f[idx, vk]
     return d
 
-
 def distance_transform(mask: np.ndarray) -> np.ndarray:
     """Точное евклидово расстояние (в пикселях) от каждого True до ближайшего
     False. Вне маски — ноль. Двухпроходное: параболы по строкам, затем по
@@ -115,7 +107,6 @@ def distance_transform(mask: np.ndarray) -> np.ndarray:
     d = _edt_1d(f)                       # по строкам
     d = _edt_1d(np.ascontiguousarray(d.T)).T   # по столбцам
     return np.sqrt(np.maximum(d, 0.0))
-
 
 # ------------------------------------------------------------------- чистка
 
@@ -144,7 +135,6 @@ def _label(mask: np.ndarray):
                     queue.append((ny, nx))
         sizes.append(count)
     return labels, np.array(sizes)
-
 
 def clean_mask(mask: np.ndarray, min_blob: int, min_hole: int):
     """Выкидывает крупинки и затыкает мелкие дыры. Возвращает (маска, отчёт).
@@ -178,7 +168,6 @@ def clean_mask(mask: np.ndarray, min_blob: int, min_hole: int):
               "holes_filled": holes_filled, "holes_kept": holes_kept}
     return padded[1:-1, 1:-1], report
 
-
 def blur(field: np.ndarray, radius: float) -> np.ndarray:
     """Гауссово размытие через три прохода прямоугольным ядром (приближение,
     доказанное центральной предельной теоремой; три прохода дают ошибку ~3%).
@@ -200,7 +189,6 @@ def blur(field: np.ndarray, radius: float) -> np.ndarray:
         out = (cumulative[width:, :] - cumulative[:-width, :]) / width
     return out
 
-
 # --------------------------------------------------- марширующие квадраты
 
 class CapMesh:
@@ -210,7 +198,6 @@ class CapMesh:
         self.points = []      # [(x, y)] в пикселях исходной картинки
         self.triangles = []   # [(i, j, k)] против часовой в экранных осях
         self.segments = []    # [(i, j)] — отрезки изолинии, внутренность слева
-
 
 def march_cells(field: np.ndarray, iso: float, step: float) -> CapMesh:
     """МЕШЕР: сетка шагом `step` по полю `field`, каждая ячейка отсекается
@@ -348,7 +335,6 @@ def march_cells(field: np.ndarray, iso: float, step: float) -> CapMesh:
             emit([(i, j), (i + 1, j), (i + 1, j + 1), (i, j + 1)])
     return mesh
 
-
 def chain_loops(segments, point_count):
     """Сшивает граничные отрезки в замкнутые контуры по общим вершинам.
 
@@ -390,7 +376,6 @@ def chain_loops(segments, point_count):
             open_chains += 1
     return loops, {"open_chains": open_chains, "forks": forks}
 
-
 # ------------------------------------------------------- Дуглас — Пойкер
 
 def douglas_peucker(points, tolerance: float):
@@ -430,7 +415,6 @@ def douglas_peucker(points, tolerance: float):
             stack.append((split, last))
     return np.nonzero(keep)[0].tolist()
 
-
 def simplify_loop(loop, points, tolerance: float):
     """Дуглас — Пойкер на ЗАМКНУТОМ контуре: разрезаем в самой дальней от
     первой точке, упрощаем две половины отдельно и сшиваем. Разрез в
@@ -443,7 +427,6 @@ def simplify_loop(loop, points, tolerance: float):
     first = [loop[i] for i in douglas_peucker(pts[:far + 1], tolerance)]
     second = [loop[far + i] for i in douglas_peucker(pts[far:], tolerance)]
     return first + second[1:-1]
-
 
 def sample_bilinear(field: np.ndarray, xs: np.ndarray, ys: np.ndarray) -> np.ndarray:
     """Билинейная выборка поля в произвольных точках (векторно)."""

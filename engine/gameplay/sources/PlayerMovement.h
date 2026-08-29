@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 13:08:2026 - 16:20:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerMovement.h
 
@@ -41,67 +39,6 @@ AI Agents Notice (must follow):
   before any mutation; only post_step writes new curr values.
 - The PLAYER is not an NPC: NpcAction (Rule 15) governs NPCs; this system is
   the player-input path and never touches NPC state.
-*/
-/*
-UPD:
-- 10:08:2026 - 12:08:26: THREE GEARS (user ruling): WALK 1.8 / JOG 3.0 / RUN
-                         6.0 + the debug sprint on its own flag. New `Gait`
-                         enum on PlayerState — THE one gait decision, which
-                         character reads for clip selection instead of
-                         re-deriving it from speeds (Rule 35). Default gear is
-                         WALK: with only a walk clip in the engine, every gear
-                         above it saturates the clip's swing cap and slides
-                         (jog 31%, run 60%) — revisit when the flight-phase
-                         clips land.
-- 10:08:2026 - 11:06:41: Eye moved onto the FACE (PLAYER_EYE_FORWARD): the eye
-                         point is now capsule bottom + PLAYER_EYE_HEIGHT +
-                         facing * PLAYER_EYE_FORWARD. Consumers deriving from
-                         CameraPose (interaction ray, hand anchor) shift
-                         forward with it — consequences, not surprises.
-- 10:08:2026 - 01:53:17: THE STEP IS AN EVENT (landscape stage, в3): stride
-                         cycle in PlayerState (the one step clock, Rule 35 —
-                         character's leg animation consumes the same phase);
-                         head bob whose minima fire FootfallEvents; landing
-                         dip from measured impact; stop settle; FOV-speed
-                         coupling via CameraPose.fov_scale; StepContext with
-                         EventBus + surface-class callback. Old signatures
-                         kept as delegating overloads (app rewires via the
-                         lead's block).
-- 09:08:2026 - 00:45:08: Stage 2 — initial movement contract + implementation.
-- 09:08:2026 - 22:18:17: Jump, crouch and swim (v1, user-approved).
-                         Locomotion mode enum; jump LATCHES across render
-                         frames; crouch resizes the capsule, not just the
-                         camera; water depth arrives as a parameter
-                         because deciding where water is belongs to
-                         engine/world (core's ruling).
-- 09:08:2026 - 22:29:52: Action latches (interact / light / inventory) —
-                         edge events survive a fast render loop.
-- 09:08:2026 - 22:40:04: Inventory navigation latches (selection, equip).
-- 09:08:2026 - 22:44:47: Drop latch.
-- 10:08:2026 - 20:26:56: THE EYE RIDES THE TRUNK'S LEAN. StepContext gains
-  eye_lean, FERRIED from character (anim::eye_lean_offset), never derived here
-  -- deriving it would copy their AUTHORED gait_run_weight table. Not eased on
-  this side on purpose: the property is "chest never ahead of eye", which holds
-  only if the eye tracks the body's lean at every instant.
-- 10:08:2026 - 20:32:57: CORRECTION (Rule 16/17). The stamp on the entry
-                         above was written 22 minutes AHEAD of the clock I had
-                         just read; it now reads the true 20:26:56. Recorded as
-                         an appended entry rather than a silent edit, because
-                         UPD blocks are this project's only cross-zone ordering
-                         record, so a forward stamp REORDERS history rather
-                         than merely misdating a file (character2's catch,
-                         independent of my own).
-- 10:08:2026 - 22:37:10: StepContext::crouch_eye -- the crouched eye placement,
-  FERRIED from character (anim::crouch_eye_offset) exactly as eye_lean is.
-  character's lead carve; see the .cpp entry for the 0.4081 m.
-- 13:08:2026 - 16:20:00: StepContext::brush_density -- HOW DEEP IN BRUSH the
-  walker is, ferried in exactly as eye_lean and crouch_eye are. The user's
-  complaint that bushes let the hero straight through is answered with his own
-  proposal (slow, do not block), and it lands on the SAME speed multiplier
-  wading already used rather than beside it: one place answers "why am I slow"
-  (Rule 35). The slowest medium wins instead of the two multiplying -- water
-  0.6 x brush 0.65 = 0.39 would make a willow thicket at the water's edge, the
-  most atmospheric place in the world, the one the player cannot cross.
 */
 
 #pragma once

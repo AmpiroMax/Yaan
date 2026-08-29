@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 17:52:40
-Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/render/MapScreenTests.cpp
 
@@ -18,18 +16,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. GPU-free (Rule 3 spirit).
-*/
-/*
-UPD:
-- 09:08:2026 - 17:52:40: Initial tests with the map screen.
-- 09:08:2026 - 22:42:14: the castle marker range follows SITE_MESH_ID_LAST
-  instead of a copied 11, so it cannot fall behind the id table again.
-- 18:08:2026 - 12:06:09: FakeChunk держал `RES = 129` и `v.step = 2.0f` голыми числами, то есть
-  продолжал бы проверять решётку, которой у движка больше нет — молча зеленея.
-  Оба читаются из NUMBERS.md. Заодно исправлены две вещи, которые ломались бы
-  на 257: пандус `x * 500` переполнял uint16 (на восточном краю нужно 128 000,
-  и монотонный склон превращался в пилу), а водяная полоса стояла на отсчёте 64
-  «по середине» — теперь это RES / 2.
 */
 
 #include "engine/core/config/sources/Constants.h"

@@ -1,11 +1,3 @@
-<!--
-Created: 10:08:2026 - 20:40:13
-Last updated: 10:08:2026 - 20:40:13
--->
-<!--
-UPD:
-- 10:08:2026 - 20:40:13: Created — full read-only audit of size, coupling and quality at commit eda8d6d + working tree, requested by the user. Measurements only; every ratio names its numerator and denominator (Rule 30).
--->
 
 # Code Audit — Daggerfall N
 

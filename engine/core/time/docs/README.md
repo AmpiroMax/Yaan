@@ -1,12 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:42:03
--->
-<!--
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 — public contract documented (headers only, no implementation yet).
-- 09:08:2026 - 00:42:03: Stage 2 — implemented (Clock.cpp, FixedTimestep.cpp); SIM_MAX_CATCHUP_STEPS landed in NUMBERS.md; suite tests/core/TimeTests.cpp.
--->
 
 # engine/core/time
 

@@ -1,6 +1,4 @@
 /*
-Created: 12:08:2026 - 22:52:00
-Last updated: 15:08:2026 - 14:07:36
 Module: engine/world
 File: engine/world/sources/WorldgenPlacement.h
 
@@ -27,15 +25,6 @@ AI Agents Notice (must follow):
   drifts silently: the copy keeps admitting what the original learned to
   reject. Anything that decides WHERE a thing may stand belongs here the moment
   it has two callers.
-*/
-/*
-UPD:
-- 12:08:2026 - 22:52:00: Created by extraction from WorldgenScatter.cpp — the
-  wedge struct, its construction and the two exclusion rings, unchanged.
-- 12:08:2026 - 22:54:00: screen_px_per_rad / readable_distance_m — the same
-  extraction for the read-distance ladder, which had two copies in this zone.
-- 15:08:2026 - 14:07:36: screen_px_per_rad() читает DESIGN_RES_H вместо INTERNAL_RES_H —
-  форма мира не зависит от графической настройки игрока (см. строку NUMBERS).
 */
 
 #pragma once

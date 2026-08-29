@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:36:58
-Last updated: 18:08:2026 - 17:36:58
 Module: tests/app
 File: tests/app/AfterFrameTests.cpp
 
@@ -27,10 +25,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
-*/
-/*
-UPD:
-- 18:08:2026 - 17:36:58: Создан. Слой 4 разбора App.cpp: рукав на решения хвоста кадра.
 */
 
 #include <doctest/doctest.h>

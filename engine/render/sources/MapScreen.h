@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 17:20:05
-Last updated: 09:08:2026 - 17:20:05
 Module: engine/render
 File: engine/render/sources/MapScreen.h
 
@@ -38,11 +36,6 @@ AI Agents Notice (must follow):
 - Keep this pure and GPU-free; the renderer owns texture/mesh lifetime.
 - The numeric constants below are look-dev/layout values on the NUMBERS.md
   migration list (messaged to the lead) — do not scatter new ones elsewhere.
-*/
-/*
-UPD:
-- 09:08:2026 - 17:20:05: Created — first map screen (terrain value + hill
-  shade + water, site silhouettes, player arrow, explored-chunk reveal).
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:45:00
-Last updated: 13:08:2026 - 18:59:13
 Module: engine/world
 File: engine/world/sources/WorldgenCarve.h
 
@@ -30,17 +28,6 @@ AI Agents Notice (must follow):
   a burrow and walks badly; the cross-section here is a box (flat floor, flat
   ceiling) so the corridor reads as cut rock and the player stands upright.
 - Deterministic: pure geometry, no rng.
-*/
-/*
-UPD:
-- 09:08:2026 - 16:45:00: Created — P7 carve pass for the 3D terrain stage.
-- 09:08:2026 - 16:47:51: Created — P7 carve SDF: box cross-section corridors (flat floor, real headroom) and chambers, plus the per-column range the voxel builder needs to widen its band.
-- 09:08:2026 - 17:36:42: §6.2: carve_mouth / site_carve_mouth (entrance markers derived from the mouth, never scored) and carve overloads taking derived corridors.
-- 09:08:2026 - 21:37:57: NEW enclosure_darkness() — LANDSCAPE §6.3 authored darkness as the RULE, replacing the app-side stand-in that measured depth below the local surface (which calls a deep valley floor a cave). Both halves of design's rule are evaluated: ENCLOSED (inside carved air AND rock overhead) and EARNED (>= DARKNESS_DEPTH_MIN walked ALONG the corridor from the nearest mouth, not straight-line through rock — a switchback is dark because you walked it). Ramps over DARKNESS_FALLOFF_MIN. Measured seed 1: valley floor 0.000, barrow mouth 0.000, 20 m in 0.375, chamber 1.000, solid rock (not a place) 0.000.
-- 10:08:2026 - 02:29:54: open_daylight_portals() — endpoints of flagged corridors pushed along their own leg (grade preserved) until the floor stands in open air; capped, and a corridor that cannot reach daylight is left as-is so the acceptance walk stays the alarm.
-- 13:08:2026 - 16:45:00: NEW enclosure_trace() — те же промежуточные величины того же вычисления (какие ворота решили: вхождение, «над землёй», заработанный путь). enclosure_darkness() реализована как .darkness этого вызова, поэтому отладочной копии, способной разойтись с боевой, не существует. Заведено под разбор «темнеет, потом мигает»: результат сам по себе не отличает «не замкнуто» от «замкнуто, но ничего не заработано», а причины и правки у них разные.
-- 13:08:2026 - 18:40:00: EnclosureTrace: above_ground -> open_to_sky + новое поле roof_y. Вторые ворота судят КРЫШУ прорезки против рельефа, а не точку запроса.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once

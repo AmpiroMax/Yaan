@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 20:47:52
-Last updated: 14:08:2026 - 20:47:52
 Module: engine/world
 File: engine/world/sources/WorldBake.h
 
@@ -27,14 +25,6 @@ AI Agents Notice (must follow):
 - The chunk ORDER is part of the format's determinism promise (Rule 13.1): row
   major, z outer. Two bakes of one seed are byte-identical, which is what makes
   a cached bake trustworthy rather than merely convenient.
-*/
-/*
-UPD:
-- 14:08:2026 - 20:47:52: Created — the generator finally has an offline caller.
-  A LIBRARY function rather than only a CLI, because the app has to be able to
-  bake a map on its first run (docs/MAP_LAYOUT.md: the manifest is the recipe,
-  the .dfw is the cache) and a composition root shelling out to a binary it
-  shipped beside itself would be a second way to do one thing.
 */
 
 #pragma once

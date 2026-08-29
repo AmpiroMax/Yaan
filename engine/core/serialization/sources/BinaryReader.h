@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/serialization
 File: engine/core/serialization/sources/BinaryReader.h
 
@@ -22,11 +20,6 @@ AI Agents Notice (must follow):
 - Skip-unknown is mandatory (Rule 7): an unrecognized tag is data to step over,
   never an error. Corrupt data must fail soft (ok() == false), never crash.
 - STAGE 1 CONTRACT: declarations only; bodies arrive in stage 2.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — section reader per Rule 7 (Q49) with
-  skip-unknown and bounds-checked reads.
 */
 
 #pragma once

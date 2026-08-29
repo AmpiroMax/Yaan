@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 13:01:31
-Last updated: 28:08:2026 - 13:01:31
 Module: engine/app
 File: engine/app/sources/PropPhysics.cpp
 
@@ -16,10 +14,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Зона big-grab владеет этим файлом.
 - ТАБЛИЦА ПЛОТНОСТЕЙ ВРЕМЕННАЯ И ЗНАЕТ ОБ ЭТОМ. Она переезжает в ось 1
   материалов целиком; до тех пор её единственный потребитель — эта зона.
-*/
-/*
-UPD:
-- 28:08:2026 - 13:01:31: Создан вместе с заголовком.
 */
 
 #include "engine/app/sources/PropPhysics.h"

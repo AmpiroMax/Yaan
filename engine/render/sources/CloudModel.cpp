@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:57:10
-Last updated: 13:08:2026 - 18:59:13
 Module: engine/render
 File: engine/render/sources/CloudModel.cpp
 
@@ -21,28 +19,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure: time arrives as a parameter; no clock reads, no GPU, no ECS.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:57:10: Created with the cloud pass (W4).
-- 10:08:2026 - 10:45:06: THE COVERAGE FIELD's reference implementation
-  (cloud_field_raw / cloud_field / cloud_alpha) — the CPU mirror of
-  dfn_env.sh, added so the field's DISTRIBUTION can be asserted (Rule 31).
-- 11:08:2026 - 14:43:13: cloud_field3 / cloud_field3_with — the 3-D mirror of dfn_env.sh's
-  dfn_cloud_field3 (R3.1), with its own measured mean/SD and an injectable
-  pair so the 2-D constants can be shipped as the failing control.
-- 12:08:2026 - 22:45:00: R3.3 — lod_sum() computes the raw sum, mean_lod and sd_lod from
-  ONE set of octave weights so the three cannot disagree; cloud_field
-  remaps through THAT distribution; cloud_alpha converges on the residual.
-  cloud_field_fixed_sd added as the rejected form.
-- 13:08:2026 - 19:20:00: R3.4 — cloud_ceiling_m / cloud_decks_m: THE CEILING'S HEIGHT
-  IS A FIELD. Driven half by the weather state's own cloud_cover (heavy cover =
-  a low wet ceiling) and half by PLACE, read from THE coverage field at a
-  wavelength of two world widths — the same construction asked a different
-  question, never a second weather source (Rule 35). Range [400, 2000] m, both
-  ends derived rather than picked (see the header). apply_clouds now takes the
-  eye, because place is one of its two arguments.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/render/sources/CloudModel.h"

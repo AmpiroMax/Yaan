@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 21:03:54
-Last updated: 17:08:2026 - 21:03:54
 Module: tests/app
 File: tests/app/EditorPaletteAxesTests.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
   wear (a material property), framex exists only with clay and plaster (a bond
   tied to a material). Two controls that fail for the same reason are one
   control wearing two hats.
-*/
-/*
-UPD:
-- 17:08:2026 - 21:03:54: Выделен из EditorPaletteTests.cpp: свой предмет и правило 21 (1031 строка).
 */
 
 #include <doctest/doctest.h>

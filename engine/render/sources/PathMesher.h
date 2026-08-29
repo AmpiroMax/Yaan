@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 12:11:29
-Last updated: 18:08:2026 - 12:06:07
 Module: engine/render
 File: engine/render/sources/PathMesher.h
 
@@ -62,21 +60,6 @@ ordered 4x4 Bayer threshold the terrain splat uses (fs_path.sc). The mesh's
 outer boundary sits where wear is already 0, so it is fully discarded there and
 there is no edge to see — the tread dissolves into whatever the terrain drew.
 The prohibition is on a hard-edged stamped strip, which this is the opposite of.
-*/
-/*
-UPD:
-- 10:08:2026 - 12:11:29: Created — the path surface splat.
-- 18:08:2026 - 12:06:07: The "why geometry, not a splat channel" argument
-  re-costed against the 1 m chunk lattice (HEIGHTMAP_STEP 2.0 -> 1.0,
-  NUMBERS). The objection this file rests on is now roughly HALF as strong: a
-  2.2 m tread gets ~3 samples across where it used to get 1-2, and the worst
-  centreline offset halves with the cell. Written down as a weakening rather
-  than quietly left standing, because a successor who checks the arithmetic
-  will find it and trust the rest of the block less. What is deliberately NOT
-  written is the conclusion that the ribbon is therefore unnecessary: three
-  samples still have to carry three bands, and nobody has measured a 1 m
-  splat channel against this geometry. That decision stays open and owned by
-  whoever runs the measurement.
 */
 
 #pragma once

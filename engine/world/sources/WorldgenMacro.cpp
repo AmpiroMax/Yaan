@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 14:08:2026 - 22:27:28
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.cpp
 
@@ -23,92 +21,6 @@ AI Agents Notice (must follow):
   fallback only for non-quarter exponents.
 - The quantization range is WORLDGEN_MAX_HEIGHT shared by ALL chunks (offset
   0) — edge stitching depends on this function being position-based.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — P1 macro v2; octave constants now consumed
-  from dfn::config (WORLDGEN_OCTAVE*), local constexprs removed.
-- 09:08:2026 - 13:28:27: P1 anisotropy retune (§2.1, gated on HILL_ANISOTROPY): mid octave input-stretched along a drifting per-valley axis field via bilinear blending of fixed-frame samples (position-varying rotation rejected — |world|*grad(theta) distortion; cross-axis rhythm pinned at the 128 m contract by construction).
-- 09:08:2026 - 14:03:23: Micro-relief batch: path groove applied in macro_height before the river carve (channel clamp overrides in-water; constant along-path depth keeps CORRIDOR_SLOPE_MAX untouched; ~6 deg edge slopes stay under the blend threshold).
-- 09:08:2026 - 19:13:01: crag_height honours ridge_amp_meters when set (absolute flank relief), falling back to the fractional form otherwise.
-- 09:08:2026 - 21:37:57: LANDSCAPE §2.8 banded contour massif: crag_height -> massif_height. Per-bearing profile exponent p>1 (concave, the anti-dome fix), per-bearing radial lobing, non-uniform contour bands with a per-bearing cliff/ramp riser class. Bearing fields sample a CIRCLE in the lattice (periodic by construction, no branch cut at +-pi). Benches keep the profile compressed to a per-bearing angle under MASSIF_BENCH_SLOPE_MAX rather than being flattened; risers are planar cliff faces whose width is solved from the drawn angle; bench width narrows with elevation. Measured seed 1: I1 15.0deg (need 12), I3 16.5% surface over 55deg (need 12), I4 fullest bin 24.2% (max 30), I5 100% of radials (need 70), I6 CV 0.518 (need 0.35).
-- 09:08:2026 - 21:37:57: §2.8 ANGULAR LOBES (I7/I8). ROOT CAUSE of the flat lobing found and it was a geometry error in my own helper: making a sampling circle's circumference span `lobes` cells forces radius = lobes*CELL/2pi, so at 3 aretes the circle is 61 m across INSIDE a 64 m cell — it fits in one cell, the noise reads as one smooth patch, and contour radius varied +-4% where the amplitude constants ask +-18-35%. A circle cannot be both small enough to carry few lobes and large enough to cross cells. Replaced by polygon_radius(): the cross-section is an irregular ROUNDED POLYGON via support function min_i d_i/cos(theta-alpha_i), whose boundary is FLAT FACETS meeting at corners — which is what an arete is — with re-entrant COULOIRS cut on the facet mid-bearings (a support function is convex-only, capped at n*tan(pi/n)/pi, and couloirs are exactly what convexity cannot express). Outline blends circle->polygon with elevation (§2.8.2 'eps increasing with elevation' = I8's rise clause), and couloirs FADE toward the summit because they are flank features that merge into the aretes — which also resolves the I7/I8 tug, since summit contours stay clean facets while flanks keep re-entrant perimeter. Periodic with no branch cut: theta enters only through cos(theta-alpha). Seed 1: I7 4 persistent aretes (need 3), I8 1.37/1.36/1.52 each >= 1.35 with rise 0.15. GROUND_MICRO_* implemented (previously unused constants) but SCOPED to the massif above the cliffline: applied globally it moved the shoreline and broke the §3.3 bed/mud cap (22.3 m vs 21.5 m), so the general 'земля слишком плоская' pass stays a separate job designed against hydrology/corridors/fords.
-- 09:08:2026 - 21:37:57: §2.8.4 SUMMIT TOR (I2): the top SUMMIT_TOR_HEIGHT is a stack of tilted, laterally offset slabs over a SUMMIT_TOR_RADIUS footprint. HEIGHT-FUNCTION work, not the cancelled placed-mesh class — §2.8.4's own scale table puts >=3 m features in the terrain SDF, and these slabs are metres thick. Slab count DERIVED from the ~3 m Nyquist floor expressed as VOXEL_SIZE rather than borrowed from the cancelled ROCK_STACK_* constants. The cone is capped at the tor's base ONLY inside the stack, so the peak stays at the ruled L0_RELIEF (measured exactly 115.0) instead of inflating to 116.1. Two bugs found by measuring: deriving the base from _MIN while drawing slab height from _MIN..MAX overshot the peak, and returning a flat platform outside the slabs built a MESA — cost 3.6 deg of summit slope, which is the shape I2 exists to reject. I2 now 52.9 deg surface / 32.5 deg footprint against a 40.1 floor.
-- 09:08:2026 - 21:37:57: §2.8.2 UNIT CHANGE (design's ruling): couloir depth is ABSOLUTE metres, not a fraction of local radius — a quantity held as a fraction of local radius is self-similar by construction, which is what I8's rise clause exists to detect. Scale is the CLIFF BAND height (a couloir incises the bands), not the massif radius: taking MASSIF_RADIAL_LOBE_AMP off the 180 m base gives 32-63 m insets, wider than the upper mountain, so the clamp binds everywhere and silently restores the old fraction behaviour (measured: levels 1.50/1.50/1.60 but rise 0.10 and I7 gone). Angular width stays RELATIVE. Result across 12 seeds: I8 rise now fails ZERO seeds (was the blocking clause), level fails 1.
-- 09:08:2026 - 21:37:57: §2.8.7 STEEPNESS CASCADE. (1) L0_RELIEF is RELIEF ABOVE THE FOOT, not an absolute elevation — the code read it as absolute, so the peak sat at 115.0 over a 18.8 m valley floor and the user approved 115 m while looking at 96.2. Datum is now base_height at the crag centre; measured relief is exactly 115.0. (2) THE PROFILE DECAYED TO ZERO INSTEAD OF TO THE DATUM: h = H*(1-t)^p buried the whole concave tail under the base terrain's max(), leaving only the steep crossing where the cone cuts the valley floor visible — which is why the built envelope measured shallowest at the summit and steepest at the foot, the exact inverse of what p>1 exists to produce. The concave profile was in the formula and clipped out of the surface. Now datum + relief*(1-t)^p. (3) Summit tor footprint DERIVED from MASSIF_SUMMIT_RADIUS_FRAC of the base radius instead of drawn from SUMMIT_TOR_RADIUS_MIN/MAX: at 5-10 m on a 190 m massif, disabling the tor entirely gave an identical silhouette TO THE DECIMAL, so it certified through I2's surface weighting while being invisible to the camera. Measured after the cascade, 12 seeds: I1 (envelope basis) 30.3-52.0 deg, I2 64.8-74.3, I3 62.0-71.7%, I10 1.23-1.63 — all four now pass on EVERY seed. I4 and I8 regressed and are reported, not patched.
-- 09:08:2026 - 21:48:23: SYSTEMIC FIX: bearing_field is a sum of INTEGER HARMONICS with seeded phases, not noise sampled on a circle. The circle construction was degenerate for the same reason the radial one was — rc = lobes*CELL/2pi puts the whole circle inside a couple of lattice cells. MEASURED: the field NEVER RETURNED A VALUE BELOW 0.4 and was lumpy above it (26% of samples at 0.6, 30% at 0.8) against a perfectly uniform raw lattice, so every per-bearing 'seeded spread' silently used only the top 60% of its declared range — the profile exponent never approached MASSIF_PROFILE_EXPONENT_MIN, cliff risers were never drawn near MASSIF_CLIFF_SLOPE_MIN (50-60 deg bin held 4% of surface), and the 0.5 cliff/ramp split did not split evenly. I had fixed this geometry once for the lobe field and left the broken helper feeding four other consumers: fixing a symptom is not fixing a mechanism. Riser angle additionally drawn uniform in sin(theta) so surface area spreads evenly in the measure I4 actually reads. Result across 12 seeds: I6 now passes EVERY seed (was failing), I1/I2/I3/I5/I10 robust; I4 and I8-rise still fail and are reported, not patched.
-- 09:08:2026 - 22:04:20: §2.8.2 facet rulings 1+2 (per-facet parameters, couloirs as PLANAR FACET PAIRS via line-through-two-points rather than smoothed dents). Ruling 3 (crest sized to acceptance distance) MEASURED AND REVERTED: it moved I11 at 600 m from 1/1/0/0 to 2/1/2/0 against a floor of 3 -- failing either way -- while dropping I7 from a passing 3 to 1. Also removed a dead outer notch term that subtracted a FRACTION as if it were METRES (a ~1 m no-op, inert but one refactor from mattering).
-- 10:08:2026 - 02:59:28: Stand selector (§8): macro_height branches whole to forest_stand_height when layout.stand == Forest; testbed path untouched (pinned-heightmap guard). ground_micro_relief exported — the §2.7 octave gains its second consumer (Rule 32: one implementation).
-- 10:08:2026 - 20:20:20: breaks_massif_apron implemented against base_height +
-  MASSIF_CLIFFLINE_FRAC; no new constant.
-- 11:08:2026 - 15:15:55: aniso_value_noise extracted from aniso_mid_octave and exported as aniso_octave_sample: an isotropic octave laid over the ridgelets ERASES the grain rather than lying beside it (§2.1 anisotropy 3.61 -> 2.22 with HILL_ANISOTROPY untouched).
-- 13:08:2026 - 16:35:00: aniso_value_noise takes the stretch as a parameter.
-- 13:08:2026 - 17:28:00: aniso_value_noise takes the theta offset.
-- 13:08:2026 - 01:15:00: DFN_OCT1_AMP / DFN_OCT2_AMP sweep doors (measurement only, exact no-ops at 1.0 -- the pinned testbed digest is unchanged absent the env, and moves with it). They were opened to raise the LONG-WAVE half of the ground, and what they found is that this lever SATURATES: base_height clamps h/BASE_AMPLITUDE_M into [0,1] before valley_curve, so past ~1.6x the field flattens into a plateau and Dh(200 m) FALLS -- 4.33 m at 1.0x, 4.68 at 1.6x, 2.51 at 1.6x with octave 2 doubled, 1.16 at 3.0x. Amplitude alone cannot make bigger hills; the clamp has to move with it. Left in place because the next attempt needs them.
-- 14:08:2026 - 20:30:18: §2.5 THE REGIONAL MASSIF IS BUILT, and it is the same shape operator
-  instantiated twice rather than an amplitude. LR_RELIEF/LR_BASE_RADIUS_* were
-  approved 09.08 and had ZERO references in the generator; measured reason to
-  build them now: the whole 2x2 km world reads 2-28 m of ground outside
-  Ravenscar's own stamp, i.e. 13 m/km against 29.6 m/km for Iowa farmland, the
-  flattest cultivated plain in docs/design/TERRAIN_REFERENCE.md's reference set.
-  Three parts. (1) massif_height() gained a SHAPE SEED separate from the world
-  seed: every §2.8 field keys on (seed, stream, index) with no dependence on
-  where its stamp stands, so two stamps sharing a seed are one mountain twice --
-  fine at one massif, a defect at two. The DATUM keeps the world seed, or the
-  stamp would sit on a step. (2) regional_massif() derives its position instead
-  of tabling it (§7.1a): the corner of the largest square its own lobed
-  footprint fits inside, farthest from the valley landmark. Output on seed 1:
-  (1606, 1606), 1605 m from Ravenscar -- inside §2.5's own "~1.4-1.6 km out"
-  band, which nobody typed. (3) Its named control is the stamp at radius 0
-  reached through the SAME max(), because massif_height returns 0 beyond
-  radius*(1+amp) and the line above already does max(h, 0) everywhere off
-  Ravenscar -- so DFN_LR_OFF=1 is this expression at identity, and it
-  reproduces the pre-change horizon read to the last digit.
-  Measured, one binary, two arms, skyline angle over a fixed unfiltered 5x5
-  standpoint lattice at r_min 143 m (the acceptance distance of the smallest
-  landform this project calls a massif): p90 2.21 -> 6.51 deg, max 30.61 ->
-  53.15, share of bearings carrying a mountain 12.3 -> 22.4 %. Built relief
-  279.3 m against the ruled 280. Zero new red tests, the pinned testbed digest
-  included: the stamp lands in the outer half NUMBERS.md itself calls
-  authorless backdrop.
-  REPORTED, NOT CHOSEN: LR_RIDGE_COUNT 4-7 is not honoured. On §2.8's
-  support-polygon cross-section a near-regular n-gon caps its lobe ratio at
-  n*tan(pi/n)/pi = 1.27 (n=4) and 1.16 (n=5) against I8's floor of 1.35, so
-  4-7 ridges is arithmetically excluded before a seed is drawn; the count is
-  L0_ARETE_COUNT, the value the 12-seed sweep measured. That row needs design.
-  ALSO OPEN: §2.8's I1-I11 exist in NUMBERS.md and in NO CODE ANYWHERE (grep:
-  MASSIF_LOBE_RATIO, MASSIF_STEEP_FRACTION_MIN and MASSIF_SILHOUETTE_BREAKS_MIN
-  have zero readers in the tree), so this massif is UNVALIDATED against the
-  shape language it is built from -- as is Ravenscar.
-- 14:08:2026 - 21:10:18: THE COULOIR DEPTH FIX WAS WRITTEN, ARGUED FOR IN FOUR
-  PARAGRAPHS, AND NEVER WIRED UP -- found because the lead asked why this file
-  had unused variables, and the answer was that one of them was not litter but
-  a lost computation. Two rulings disagree about the couloir's unit: §2.8.2
-  (09.08) says CLIFF-BAND scale, 8-15 m, quoting "32-63 m insets are wider than
-  the upper mountain"; the Rule 33 paragraph sitting directly above the code
-  (13.08) says MASSIF scale, quoting I11 breaks collapsing from 5/8/12/4 at
-  300 m to 1/1/0/0 at 600 m because 8-15 m is below the readable size there.
-  The code computed BOTH and used the older one; the newer value survived only
-  as an unused `amp_d`, and only the compiler knew. Not resolved here and not
-  switched on: it becomes the dose door DFN_COULOIR_MASSIF_SCALE, so both arms
-  come out of ONE binary and design rules on a measurement rather than on two
-  paragraphs. Default is the shipped value, so terrain is bit-identical and the
-  pinned testbed digest holds. It bears directly on the regional massif, whose
-  acceptance distance is 3R = 855 m -- past the ~700 m the Rule 33 paragraph
-  says the massif-scale couloir clears. First read is a NON-RESULT and is
-  recorded as one: at one bearing, 857 m, the two arms are near-identical to
-  the eye, and a real verdict needs I11, which does not exist in this tree.
-  Two genuine leftovers removed rather than silenced: amp_lo/amp_hi in
-  massif_height (the amplitude moved INTO polygon_radius when the support
-  polygon replaced the circle-sampled lobe field; both rows are still consumed
-  one call down) and bearing_ridged() (lost its last caller to the same
-  replacement -- aretes are facet CORNERS now, not ridged peaks). Both checked
-  before removal and recorded rather than dropped in silence, because §2.5's
-  own text still asks for "ridged noise, not fBm" and a reader will come
-  looking.
-- 14:08:2026 - 22:27:28: Ветка macro_height на stand_is_floral(): OneTree едет полем леса, чья
-  раскладка успокаивает гривы, — отдельная функция высоты была бы вторым P1,
-  который пришлось бы держать правдивым.
 */
 
 #include "engine/world/sources/WorldgenMacro.h"

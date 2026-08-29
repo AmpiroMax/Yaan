@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:36:59
-Last updated: 10:08:2026 - 12:05:00
 Module: engine/render
 File: engine/render/sources/FloraEdgeRules.h
 
@@ -27,25 +25,6 @@ AI Agents Notice (must follow):
   scattered instance.
 - This file is a TRANSITION and may be deleted once flora's includes point at
   engine/core/math/sources/FloraEdgeRules.h directly.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:36:59: Created — edge set + water margin + talus apron rows,
-  with the jewel budget flag and the shade-side moss association.
-- 10:08:2026 - 02:49:15: Design's asks: the band DATUM is named (0 = the worn
-  edge of the trodden surface, outward — never the centreline), and the
-  krummholz flag-direction wind note is recorded at the row.
-- 10:08:2026 - 11:07:33: Design's maintenance ruling: PathClassRichness per
-  row (hint >= dirt > cobble; moss in stair joints, flowers never). The weight
-  scales the edge PEAK, not the base presence — a kept verge is not bare
-  ground. BR-3's ratio scoped to the unmaintained classes.
-- 10:08:2026 - 11:24:00: per_100m's dimension made unambiguous — a TOTAL
-  COUNT across the band, with the normalisation the ramp requires, after core
-  asked whether it was a peak or a mean density (it is neither).
-- 10:08:2026 - 12:05:00: CONTENTS MOVED to engine/core/math/sources/FloraEdgeRules.h,
-  re-keyed on math::ScatterSpecies. This is the migration flora's own ordinal
-  note asked for: in core both PathClass and PathClassRichness are visible, so
-  the positional coupling is checkable instead of merely described.
 */
 
 #pragma once

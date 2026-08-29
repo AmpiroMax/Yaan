@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 16:58:13
-Last updated: 17:08:2026 - 17:49:29
 Module: tests
 File: tests/core/SceneHouseRuleTests.cpp
 
@@ -32,16 +30,6 @@ AI Agents Notice (must follow):
 - A RULE THAT NEVER WENT RED IS NOT CHECKED. Every SceneRule value added by
   the 17.08 order has a red arm here; if you add a fifth, add its red arm in
   the same commit, not in the next one.
-*/
-/*
-UPD:
-- 17:08:2026 - 16:58:13: Создан. Живые красные руки на четыре правила заказа 17.08 и на
-  шов «группа»: правила постройки судят ЧЛЕНА ПОСТРОЙКИ, одиночный образец
-  витрины судится землёй (и контрфакт: снятая группа не глушит судью, а
-  меняет его — висящий скат немедленно краснеет как OnGround).
-- 17:08:2026 - 17:49:29: настил зовётся своим НАСТОЯЩИМ именем с полки (deck-timber-16x16x1-w03)
-  вместо выдуманного floor-*. Пока правило смотрело на несуществующее
-  семейство, эти тесты проверяли только сами себя.
 */
 
 #include "engine/world/sources/Scene.h"

@@ -1,6 +1,4 @@
 /*
-Created: 12:08:2026 - 01:02:15
-Last updated: 12:08:2026 - 01:02:15
 Module: tests/render
 File: tests/render/GroundTuftsTests.cpp
 
@@ -19,9 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - EVERY CASE HERE HAS A CONTROL ARM (Rule 30). A test that only asserts the
   good case passes on a function that returns a constant.
-
-UPD:
-- 12:08:2026 - 01:02:15: Created with the layer.
 */
 
 #include <doctest/doctest.h>

@@ -1,5 +1,3 @@
-# Created: 13:08:2026 - 16:09:00
-# Last updated: 13:08:2026 - 16:09:00
 # Module: docs/acceptance
 # File: docs/acceptance/ui-state-capture-4ad628b.txt
 #
@@ -16,12 +14,6 @@
 #
 # AI Agents Notice (must follow):
 # - Follow docs/ARCHITECTURE.md strictly. This file is a RECORD; do not edit it.
-#
-# UPD:
-# - 13:08:2026 - 16:09:00: Archived as part of the UI inventory (zone ui).
-#
-# Daggerfall N state capture
-# Restore with: DFN_RESTORE=<this file> DFN_MENU=0 ./dfn_app
 captured_at = 13:08:2026 - 16:04:10
 build_commit = 4ad628b+dirty
 stand = 0

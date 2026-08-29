@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 22:01:29
-Last updated: 17:08:2026 - 22:01:29
 Module: tests/app
 File: tests/app/HouseScenarioTests.cpp
 
@@ -45,14 +43,6 @@ AI Agents Notice (must follow):
 - IF THE THIRD CASE GOES RED, THE FINDING WAS FIXED. Do not "repair" the test
   to match: read the note above it, confirm the roof now builds part by part,
   and write the new number down.
-*/
-/*
-UPD:
-- 17:08:2026 - 22:01:29: Создан — рукав постройки дома БЕЗ ОКНА (заказ 17.08 п.3).
-  Держит три числа: дом демки судится начисто (контроль модели земли), БЕЗ
-  ГРУППЫ рука получает 21 отказ из 46 (поэтому у руки появилось поле
-  постройки), и с группой по одной детали встают 38 из 46 — остальные восемь
-  это КОЛЬЦО конёк-фронтон, находка, а не недоделка.
 */
 
 #include <doctest/doctest.h>

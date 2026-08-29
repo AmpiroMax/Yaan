@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:27:49
-Last updated: 09:08:2026 - 22:27:49
 Module: tests
 File: tests/sim/PropCollisionTests.cpp
 
@@ -23,10 +21,6 @@ AI Agents Notice (must follow):
 - Deliberately NO terrain body: with terrain present, a downward ray hits the
   ground and every one of these cases would pass without any prop at all. The
   absence of terrain is what makes the assertions mean something.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:27:49: Created with prop collision (buildings, boulders).
 */
 
 #include <doctest/doctest.h>

@@ -1,26 +1,3 @@
-<!--
-Created: 09:08:2026 - 23:05:26
-Last updated: 10:08:2026 - 00:21:48
--->
-<!--
-UPD:
-- 09:08:2026 - 23:05:26: Created. Literature review + algorithm selection for the
-                         tree rewrite the user ordered ("необходимо найти
-                         нормальные алгоритмы генерации деревьев, прям плотно
-                         поискать"). Owned by flora; docs/specs/flora.md stays
-                         the zone spec and this file is the ALGORITHM record it
-                         cites.
-- 09:08:2026 - 23:59:54: BUILT. §3 filled in from the botanical review, §4 (what
-                         changed in the code), §5 (measured result), §6 (three
-                         invariants and the two that did not discriminate until
-                         they were run against a known-bad object), §7 (the
-                         birch, escalated with evidence rather than attempted a
-                         fifth time).
-- 10:08:2026 - 00:21:48: TOUR FRAME READ (Rule 27 discharged — the world builds
-                         again). Three defects that ONLY a real frame showed,
-                         all in §8. Birch crown base landed at 0.40 by the lead
-                         and design; measurements re-derived against it.
--->
 
 # Flora — tree generation algorithms (literature review and selection)
 
@@ -242,7 +219,6 @@ revolution instead of a ring of individual branches with air between them.
 | RiverBirch | space colonization, single stem, narrow ovoid envelope high on the trunk, pendulous tips | §1.3.3 gives the delineated trunk a narrow crown implies |
 | HighlandPine | explicit whorl generator (§2) | rhythmic monopodial growth is not competition |
 | Snag / logs / bushes | unchanged | no crown to get wrong |
-
 
 ### 3.1 Sources for the botany
 
@@ -488,7 +464,6 @@ floor) and leaves ~7.6 m of clear trunk on a 19 m birch.
 was derived by design to fix a crown ASPECT problem, and it did — aspect is 1.27
 against a ceiling of 1.8. It then created a silhouette problem one level down.
 Escalated with the two frames; design and the lead rule.
-
 
 ---
 

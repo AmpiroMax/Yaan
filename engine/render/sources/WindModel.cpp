@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 20:10:11
-Last updated: 09:08:2026 - 20:10:11
 Module: engine/render
 File: engine/render/sources/WindModel.cpp
 
@@ -18,10 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure: time arrives as a parameter; no clock reads, no GPU, no ECS.
-*/
-/*
-UPD:
-- 09:08:2026 - 20:10:11: Created with the foliage wind mechanism.
 */
 
 #include "engine/render/sources/WindModel.h"

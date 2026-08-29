@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 13:55:00
-Last updated: 28:08:2026 - 13:55:00
 Module: engine/app
 File: engine/app/sources/GrabDrive.cpp
 
@@ -17,10 +15,6 @@ AI Agents Notice (must follow):
 - ЭТО ЕДИНСТВЕННОЕ МЕСТО, ГДЕ ЖИВЁТ АРИФМЕТИКА ХВАТА. И игра, и беспилотный
   замер зовут ЭТИ функции: две копии пружины разошлись бы, и приёмка мерила бы
   не то, во что играют.
-*/
-/*
-UPD:
-- 28:08:2026 - 13:55:00: Создан вместе с заголовком.
 */
 
 #include "engine/app/sources/GrabDrive.h"

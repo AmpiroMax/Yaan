@@ -1,5 +1,3 @@
-# Created: 13:08:2026 - 22:10:00
-# Last updated: 13:08:2026 - 23:50:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-crown-plasticity-recipe.txt
 #
@@ -23,11 +21,6 @@
 # - THE FRAME IN THIS FILE IS A BAD FRAME AND IS PUBLISHED AS ONE. It is not a
 #   choice being offered; it is evidence that the tree is the problem. Do not
 #   quote it as a spacing verdict.
-#
-# UPD:
-# - 13:08:2026 - 22:10:00: Created with the plasticity table and the near frame.
-# - 13:08:2026 - 23:50:00: THE BRANCH-SPAN LEVER MEASURED AND REFUTED, and the
-#   quantity that DOES move the target costed instead. Frame added for x3.5.
 
 WHAT THE USER RULED (13.08.2026, verbatim)
 
@@ -96,7 +89,6 @@ WHY IT IS THIS WAY, AND IT IS TODAY'S OWN DOING
 
   This is a diagnosis with a mechanism and it has NOT been tried, so it is
   written as the next thing to test and not as the answer.
-
 
 ================================================================================
 THE BRANCH-SPAN LEVER — MEASURED ACROSS ITS RANGE AND REFUTED (13.08.2026)

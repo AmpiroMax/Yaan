@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 14:12:02
-Last updated: 09:08:2026 - 14:12:02
 Module: engine/gameplay
 File: engine/gameplay/sources/Condition.h
 
@@ -44,11 +42,6 @@ AI Agents Notice (must follow):
 - The set is CLOSED: new kinds/ops only via a group sync (Rule 26), recorded
   in QUEST_FORMAT.md and here in the same change.
 - Keep atoms plain serializable data (Rule 8); no pointers, no strings.
-*/
-/*
-UPD:
-- 09:08:2026 - 14:12:02: Created at the quest-grill sync: closed atom set per
-  QUEST_FORMAT.md §2.1 with sim's pinned semantics, story ACK on record.
 */
 
 #pragma once

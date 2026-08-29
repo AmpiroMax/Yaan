@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 20:55:10
-Last updated: 18:08:2026 - 12:06:07
 Module: engine/render
 File: engine/render/sources/TerrainLod.h
 
@@ -33,32 +31,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep this PURE: no GPU calls, no ECS, no wall clock. Time arrives as a
   delta parameter so tests can step it exactly.
-*/
-/*
-UPD:
-- 09:08:2026 - 20:55:10: Created — LOD node ladder, screen-error selection and
-  the two-level fade window (render half of the LOD contract with core).
-- 09:08:2026 - 22:01:04: The RESIDENT RECTANGLE (the ground core streams at
-  full chunk detail) is now an input to the descent: nodes fully inside it are
-  dropped and nodes straddling its border are forced to split, so coarse
-  terrain and chunk terrain never draw the same ground. Plus lod_skirt_depth_m
-  — the apron that hides T-junction cracks between adjacent levels.
-- 09:08:2026 - 22:39:28: LodResidency::pending() — the standing set of selected-but-
-  not-yet-delivered nodes, which is what the app ferry must retry against.
-- 10:08:2026 - 01:47:53: Straddle-ring fix (core's finding): straddling nodes
-  are no longer force-split to level 0; they are judged by the distance to
-  their ground OUTSIDE the rectangle and clipped by the mesher instead. See
-  select_lod_nodes' doc for the contract and the measurement.
-- 18:08:2026 - 12:06:07: The `resident` rectangle's JUSTIFICATION, not its
-  behaviour. The chunk lattice went 2 m -> 1 m (HEIGHTMAP_STEP, NUMBERS), so
-  it now equals LOD_VOXEL_SIZE_L0 exactly, and the premise this file used to
-  argue from — "the two systems draw the ground at slightly different
-  heights" — is simply false. The exclusion survives because its real reason
-  was never the ratio but the DOUBLE DRAW; the ratio only decided what the
-  artefact looked like. Rewritten to the failure mode that is actually left
-  (z-fighting between coplanar surfaces) with the dead 2:1 ratio recorded as
-  history, so that the next reader who checks the numbers and finds the old
-  premise untrue does not conclude the rectangle can go.
 */
 
 #pragma once

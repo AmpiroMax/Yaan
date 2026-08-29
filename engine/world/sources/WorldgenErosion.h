@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 10:39:07
-Last updated: 10:08:2026 - 10:39:07
 Module: engine/world
 File: engine/world/sources/WorldgenErosion.h
 
@@ -32,11 +30,6 @@ AI Agents Notice (must follow):
   would stop being reproducible.
 - Rule 24: written from the transport math (see the .cpp's derivation), not
   vendored from a reference implementation.
-*/
-/*
-UPD:
-- 10:08:2026 - 10:39:07: Created — LF-8 droplet erosion (в17) with the
-  pass-OFF control built into the same entry point.
 */
 
 #pragma once

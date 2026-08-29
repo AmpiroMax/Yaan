@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/time
 File: engine/core/time/sources/Clock.h
 
@@ -20,10 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Only the app loop and tooling may use this; simulation code receives dt as a
   parameter and must not include this header.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — monotonic frame clock.
 */
 
 #pragma once

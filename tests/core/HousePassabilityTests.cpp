@@ -1,6 +1,4 @@
 /*
-Created: 20:08:2026 - 14:05:00
-Last updated: 20:08:2026 - 20:30:00
 Module: tests/core
 File: tests/core/HousePassabilityTests.cpp
 
@@ -28,11 +26,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Правки домов — в tools/forge_houses.cpp
   с перегенерацией артефактов; маршруты здесь описывают ЗАКАЗАННЫЕ комнаты.
-*/
-/*
-UPD:
-- 20:08:2026 - 14:05:00: Создан: маршруты Г-образного и П-образного домов, счёт створок, контроль глухой стены.
-- 20:08:2026 - 20:30:00: Опора крестом из пяти точек: зазоры открытых ступеней не роняют капсулу.
 */
 
 #include <doctest/doctest.h>

@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 11:52:10
-Last updated: 28:08:2026 - 11:52:10
 Module: engine/app
 File: engine/app/sources/FurnitureSeats.cpp
 
@@ -14,10 +12,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Зона lead владеет этим файлом.
-*/
-/*
-UPD:
-- 28:08:2026 - 11:52:10: Создан вместе с заголовком.
 */
 
 #include "engine/app/sources/FurnitureSeats.h"

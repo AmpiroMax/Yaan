@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:13:00
-Last updated: 22:08:2026 - 15:40:00
 Module: tests
 File: tests/render/RenderSystemTests.cpp
 
@@ -20,51 +18,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - GPU-free: null backend only.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:13:00: Stage 3 — initial tests.
-- 09:08:2026 - 11:57:20: Stage 3b — scatter upload/drop, per-body water,
-  site placeholder mesh registry (blessed ids 1..7).
-- 09:08:2026 - 20:52:00: Interior lighting: carried lights land at the HAND
-  (offset rotated by body yaw) and only MAX_SHADOW_POINT_LIGHTS of them get a
-  shadow map. Two counts re-baselined for flora's foliage stream: init now
-  uploads three textures (leaf mask atlas) and a scattered chunk builds three
-  meshes (branches + leaf cards + micro tile).
-- 10:08:2026 - 02:30:08: register_mesh cases (character zone seam): blessed
-  body range accepted, collisions and foreign ranges refused, registered id
-  resolves in the ECS pass.
-- 10:08:2026 - 21:12:53: Rule 40 sweep (code audit). The carried-light DIRECTION
-  assertion used Approx(49.65f).epsilon(0.01), which admits
-  0.01 * (1 + 49.65) = +-0.5065 m -- wider than the whole 0.35 m
-  displacement it guards, so z = 50.0 (a light left at the carrier
-  origin, the exact bug the case's own comment names) PASSED it. Now an
-  explicit-metre residual bound, with two Rule 30 controls that run
-  through the real render path: the origin light and the right distance
-  in the wrong direction must both FAIL, and the second also PASSES the
-  magnitude assertion, which is why direction needed its own line.
-- 13:08:2026 - 19:11:13: THE FLAME BREATHES, so two assertions that read a torch's
-  colour as a VALUE were hidden clock reads -- green only while the sine sat
-  near zero, and red at the wall-clock instant the suite happened to reach
-  them. Both are bands now (width from SkyModel.h, not a second copy of 0.12),
-  each with the control the band alone cannot fail: b/r for the warm default,
-  g/r for the explicit colour. Plus a new case for the thing a band CANNOT
-  catch -- that the flame moves at all -- swept over 2 s of PINNED visual clock
-  (DFN_VISTIME) with the same-second repeat as its determinism control. Its
-  first version sampled two instants 0.145 s apart, from the oscillator's own
-  claim of '5.7/9.1 Hz, beat 0.29 s': the rates are not in hertz (the code
-  multiplies by tau and by 1/tau, which cancel), the real rates are 0.91 and
-  1.45 Hz, and the pair measured 0.0057 where it needed 0.01.
-  Shadow casters back to MAX_SHADOW_POINT_LIGHTS (the backend's double-append
-  is fixed), so that assertion stands as written.
-- 13:08:2026 - 20:37:12: set_visual_time's two cases — what is told is what is used, the same
-  time gives the same cloud field back, and an untold system still runs on the
-  wall clock (the additive half). The control is the +30 s arm: without it the
-  reproducibility assertion would pass on a clock that was never read.
-- 15:08:2026 - 16:10:00: счёт процедурных текстур 4 -> 5: добавился лист нормалей коры.
-- 19:08:2026 - 02:48:10: Счёт текстур 5 -> 7: две плитки постройки (брус и штукатурка) из листа набора.
-- 19:08:2026 - 04:05:50: Счёт текстур на init обратно 5: плитки постройки стали ленивыми.
-- 22:08:2026 - 15:40:00: Счёт текстур на init 6 — прибавился лист нормалей земли.
 */
 
 #include "engine/render/sources/RenderSystem.h"

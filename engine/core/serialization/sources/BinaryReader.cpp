@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:05:44
-Last updated: 10:08:2026 - 21:05:44
 Module: engine/core/serialization
 File: engine/core/serialization/sources/BinaryReader.cpp
 
@@ -41,11 +39,6 @@ format between them):
    first next_section() under-runs and latches exactly like a truncation.
 
 3. container_version IS OPAQUE TO CORE — documented at the accessor below.
-*/
-/*
-UPD:
-- 10:08:2026 - 21:05:44: Stage-2 implementation, written by sim under an
-  explicit lead carve of core's zone (Rule 25), together with BinaryWriter.cpp.
 */
 
 #include "engine/core/serialization/sources/BinaryReader.h"

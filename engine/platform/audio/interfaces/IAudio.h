@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 28:08:2026 - 13:55:00
 Module: engine/platform/audio
 File: engine/platform/audio/interfaces/IAudio.h
 
@@ -56,16 +54,6 @@ AI Agents Notice (must follow):
   расширена ОДИН раз, зоной «звук от источника» (28.08): set_voice_lowpass.
   Оба бэкенда обновлены в той же волне — иначе расширение контракта означало бы
   бэкенд, который его не исполняет.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 contract (playback, 3D, buses+reverb,
-                         variation sets, layered music).
-- 28:08:2026 - 13:55:00: set_voice_lowpass() — срез верха на ОДНОМ голосе
-                         (окклюзия стенами, заказ владельца 28.08 «звук должен
-                         распространяться по физике»). И переписан комментарий
-                         set_bus_reverb: он больше не описывает пустышку —
-                         бэкенд miniaudio исполняет его линией задержки.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:12:00
-Last updated: 09:08:2026 - 11:12:00
 Module: tests
 File: tests/render/ProcTextureTests.cpp
 
@@ -19,10 +17,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:12:00: Stage 3 — initial tests.
 */
 
 #include "engine/render/sources/ProcTexture.h"

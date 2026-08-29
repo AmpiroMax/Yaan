@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:14:11
-Last updated: 17:08:2026 - 19:22:54
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteState.cpp
 
@@ -30,14 +28,6 @@ AI Agents Notice (must follow):
   losing a line, because nobody can tell where the rows came from afterwards.
 - save_state writes EVERY map, not the current one. Rewriting the file from one
   map would forget the others, and the loss would show up a week later.
-*/
-/*
-UPD:
-- 17:08:2026 - 19:14:11: Отделён от EditorPalette.cpp (правило 21: 832 строки).
-- 17:08:2026 - 19:22:54: Переезд в engine/editor. ARCHITECTURE.md разрешает Dear ImGui
-  ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
-  (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
-  по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
 */
 
 #include "engine/editor/sources/EditorPalette.h"

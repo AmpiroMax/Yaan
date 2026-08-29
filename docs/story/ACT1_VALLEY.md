@@ -1,19 +1,3 @@
-<!--
-Created: 09:08:2026 - 15:00:07
-Last updated: 09:08:2026 - 21:36:48
--->
-<!--
-UPD:
-- 09:08:2026 - 15:00:07: Created the act-1 outline for main arc A (The Debt of Harrowmere) on the built valley: four main quests with stage skeletons, secondaries, fishing/farming template concepts, the Harrowward castle beats, escalation and hope-spot placement, act-gate release, world flags, and the minimum buildable scope for core/design.
-- 09:08:2026 - 15:05:56: Folded in design's castle ruling (LANDSCAPE §6.1): location row updated, two new §4 beats keyed to the ruled terrain (the castle+barrow one-frame composition; the solar that faces away from the grave visible from its own yard), §7 split into design-owned exterior vs story-requested interior set, open item 1 closed.
-- 09:08:2026 - 19:17:47: Castle rescaled to a fortress per the user's decision (LANDSCAPE §6.1 revised): §4 gains the scale note and a third beat (the re-read — walls as testimony the valley stopped seeing), §7 exterior spec updated to the 80x80 m towered curtain on a 120 m terraced pad. Interior set unchanged and still act-1 blocking.
-- 09:08:2026 - 19:28:46: MQ4's trespass route given a body from design's geometry — the unbuilt NNE stretch of ward C, reachable off-corridor past the barrow — and the act-1/act-3 rhyme recorded: the player breaks in by the same path the dead will later take, under the tower that has watched the grave through that gap for four generations.
-- 09:08:2026 - 19:32:18: Recorded that the trespass route is now a VALIDATED worldgen invariant (continuous, deliberately non-corridor-grade, forced within 40 m of the barrow entrance) and that ward C's completion fraction has two dependents - the act-1 trespass route and the act-3 muster gap.
-- 09:08:2026 - 19:36:28: MQ4's ascent of Ravenscar is now a validated worldgen invariant (continuous walkable route to the tower ruin, <=25 deg, checked every run) - design added it after story's near-miss exposed that act 1 climaxed on a summit with no guaranteed route. Specified as an unbuilt worn watchmen's path, visually distinct from act 2's built stair.
-- 09:08:2026 - 21:27:32: Answered design's pre-clearance on reshaping Ravenscar (steeper, narrower base, four ribs): nothing in the arc needs a broad-shouldered crag — steeper suits act 1 — but recorded two escalation conditions in §2: the ward-tower ascent must stay an UNBUILT walkable path (a built stair here would collapse the two-different-climbs distinction with act 2's Seven Thousand Steps), and the narrowed base must be re-checked so the castle still reads against rock rather than sky, since that siting is what protects the tower's skyline monopoly.
-- 09:08:2026 - 21:33:24: Design accepted both conditions as binding in LANDSCAPE (incl. closing the graded-ramp-is-masonry loophole). Recorded the reshape's gift — on a steep banded massif the walkable line must wrap, so ledges are traverses and cliff-band breaks are risers, making the unbuilt worn path true by construction — and the escalated castle risk: the Ward may end up freestanding if the hem contracts far enough, with design committed to moving it or stopping the contraction; if it moves, story must be consulted since barrow proximity, the yard sightline and the trespass route are all keyed to its position.
-- 09:08:2026 - 21:36:48: Recorded design's binding order of preference for the castle-spur risk (flare the apron, then stop the contraction, then move the castle with story's consult) — the consult trigger is now binding on terrain and read by core's re-siting pass.
--->
 
 # ACT1_VALLEY.md — Act 1 on the Built Valley
 

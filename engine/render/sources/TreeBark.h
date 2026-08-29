@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 16:35:00
-Last updated: 28:08:2026 - 16:35:00
 Module: engine/render
 File: engine/render/sources/TreeBark.h
 
@@ -24,13 +22,6 @@ AI Agents Notice (must follow):
   shelf was re-baked across the move and every content_hash came out
   unchanged — that comparison is the licence for the move and must be repeated
   by anyone who edits below this line.
-*/
-/*
-UPD:
-- 28:08:2026 - 16:35:00: Создан — pack_wind/bark_tube вынесены из TreeForge.cpp
-  дословно, чтобы вторая итерация деревьев (TreeForgeV2) не заводила вторую
-  копию отображения тайла коры. Хэши всех .dfo первой итерации сверены до и
-  после переноса — ни один не изменился.
 */
 
 #pragma once

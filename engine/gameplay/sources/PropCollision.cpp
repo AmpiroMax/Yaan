@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:21:30
-Last updated: 13:08:2026 - 16:55:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PropCollision.cpp
 
@@ -20,30 +18,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The DRAWN placement is authoritative; never invent a second one here.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:21:30: Created — buildings and boulders become solid.
-- 13:08:2026 - 16:20:00: Boles and downed logs join the merged body; bushes and
-                         brushwood fill BrushField instead of costing bodies.
-- 13:08:2026 - 16:45:00: The drag query skips chunks the walker cannot be
-                         standing in (what BrushField::Chunk::coord is for):
-                         0.0014 -> 0.0006 ms, and, more to the point, the cost
-                         stops being linear in CHUNK_LOAD_RADIUS, which is a
-                         number somebody will raise. Counters now say how many
-                         PLANTS became solid and draggy — "one body per chunk"
-                         says nothing about how many trees are in it, and the
-                         trees are what the budget argument is about.
-- 13:08:2026 - 16:55:00: THE RESIDENCY MARKER IS THE BRUSH FIELD, not the body
-                         map. Every resident chunk gets a brush entry; only a
-                         chunk with something solid gets a BODY, so gating the
-                         build on the body map rebuilt every propless chunk's
-                         geometry on every tick, forever, waiting for a body
-                         that was never coming. Caught reading my own diff, not
-                         by a measurement -- the testbed happens to give every
-                         chunk a body, which is exactly why it would have
-                         shipped. Case: "a chunk with nothing solid in it is
-                         built once, not every tick".
 */
 
 #include "engine/gameplay/sources/PropCollision.h"

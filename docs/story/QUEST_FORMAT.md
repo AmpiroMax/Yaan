@@ -1,16 +1,3 @@
-<!--
-Created: 09:08:2026 - 14:03:29
-Last updated: 09:08:2026 - 18:56:27
--->
-<!--
-UPD:
-- 09:08:2026 - 14:03:29: Initial quest data format PROPOSAL: quest state-machine schema (states/transitions/conditions/effects), world-flag registry, journal and localization key conventions, dialogue graph nodes over sim's DialogueLine, settlement-craft template quest concept, LLM character card schema. Sent to sim for contract negotiation.
-- 09:08:2026 - 14:10:06: Sim ACKed all sections; recorded sim's pinned runtime semantics in §9 (tick ordering, cascade bound, edge-triggered dialog_exit, sticky npc_dead, instantiator = sim runtime, card->prompt split, journal entry shape). Status raised to ACKED, contract-freeze pending the group sync that lands sim's Dialogue.h condition-atom diff.
-- 09:08:2026 - 14:12:35: Freeze ACK recorded in §9: lead blessed the header change gated on story's explicit ACK; story ACKed sim's nine counters (incl. op set = six comparisons, HasFlag/NotHasFlag subsumed). §2.1/§4 contract-frozen for the stage on sim's header change landing.
-- 09:08:2026 - 14:15:17: Status raised to CONTRACT-FROZEN: sim's Condition.h/Dialogue.h/Ids.h change landed (ConditionAtom closed set, ConditionGroup{all_of,any_of} on quest transitions, new id types), build clean, tests green; lead batches the commit with the sync record.
-- 09:08:2026 - 14:21:12: Lead rulings recorded: content path is games/daggerfall_n/assets/... (ARCHITECTURE layout wins, AGENTS.md corrected); LLM prompts are English + explicit output-language instruction. Both open items closed.
-- 09:08:2026 - 18:56:27: Added §10 — inventory semantics settled with sim (has_item = total count of an ItemId; take_item reports shortfall without failing the transition, with a binding has_item-gate authoring rule and a requested lint), story's quest_item/no_drop ask, item id convention, and the joint JSON-reader dependency on core with story's parser requirements.
--->
 
 # QUEST_FORMAT.md — Quest & Dialogue Data Format (CONTRACT)
 

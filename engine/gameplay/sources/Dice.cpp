@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
 Module: engine/gameplay
 File: engine/gameplay/sources/Dice.cpp
 
@@ -28,10 +26,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - NEVER change the advance/mix/mapping once a save has shipped (determinism
   and replays depend on it, Rule 13.2).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — splitmix64 dice implementation.
 */
 
 #include "engine/gameplay/sources/Dice.h"

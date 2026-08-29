@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:17:13
-Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/ImGuiBackend.cpp
 
@@ -18,11 +16,6 @@ AI Agents Notice (must follow):
   drawn into the window and into the capture target with nothing recomputed.
   If you ever bake the projection into the vertices, the screenshot path loses
   the interface and nobody will notice for a week.
-*/
-/*
-UPD:
-- 17:08:2026 - 19:17:13: Создан — программа, раскладка вершин, атлас шрифта,
-  подача списков в произвольный вид, текстуры для панелей.
 */
 
 #include "engine/platform/render/sources/bgfx/ImGuiBackend.h"

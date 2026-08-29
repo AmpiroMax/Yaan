@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 14:08:2026 - 16:35:53
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.cpp
 
@@ -16,14 +14,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 09:08:2026 - 10:59:00: Stage 3 — set_environment no-op.
-- 09:08:2026 - 21:02:17: DrawParams sync: submit signature; params ignored.
-- 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe no-op;
-  frame_stats / center_pick return zeroed/no-hit refs.
 */
 
 #include "engine/platform/render/sources/null/NullRenderer.h"

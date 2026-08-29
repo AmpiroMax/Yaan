@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 17:30:00
-Last updated: 13:08:2026 - 18:59:13
 Module: tests
 File: tests/sim/InteractableVisibleTests.cpp
 
@@ -26,20 +24,6 @@ AI Agents Notice (must follow):
 - The selector this file asserts against is render's, not a restatement of it:
   if render's ECS pass changes which components it needs, this file must be the
   thing that goes red.
-*/
-/*
-UPD:
-- 13:08:2026 - 17:30:00: Created with the three placeholder meshes.
-- 13:08:2026 - 18:10:00: The entity-{0,0} case: the first prop a world spawns
-                         packs to user_data 0 and used to be untargetable.
-- 13:08:2026 - 18:15:00: The ray box must die with its prop.
-- 13:08:2026 - 18:25:00: The verb must have a VISIBLE consequence — the door
-                         swings, the lever throws, and the ray target follows.
-- 13:08:2026 - 18:40:00: A settled leaf must have prev == curr, or it sweeps
-                         between its last two frames for ever (the run smear).
-- 13:08:2026 - 18:55:00: A mesh authored in metres must still fill its own ray
-                         box (scale = half_extents / mesh_model_half_extents).
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include <doctest/doctest.h>

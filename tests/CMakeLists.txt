@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:35:09
-# Last updated: 18:08:2026 - 00:24:58
 # File: tests/CMakeLists.txt
 #
 # Responsibility:
@@ -15,24 +13,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. LEAD-owned; register tests via your
 #   zone's tests/<zone>.cmake using add_dfn_test(name source libs...).
-#
-# UPD:
-# - 09:08:2026 - 00:35:09: Created scaffold for stage 2.
-# - 09:08:2026 - 00:55:00: doctest include marked SYSTEM (silences __COUNTER__
-#                          pedantic warnings in every zone's test TUs — core's
-#                          report, note 2); enable_testing moved to root.
-# - 10:08:2026 - 01:52:48: character zone added to the test loop (new Rule 25 zone).
-# - 10:08:2026 - 19:26:40: Зона app в цикле тестов: у лида появился код, который можно проверять отдельно от окна.
-# - 10:08:2026 - 21:05:04: Ворота DAG в ctest: архитектура утверждала, что слои держит CMake, а он не держал.
-# - 10:08:2026 - 21:36:13: Каждый тест запускается ИЗ КОРНЯ репозитория: тест, читающий ассет по относительному пути, был зелёным у одного агента и красным у другого на одном коммите.
-# - 18:08:2026 - 00:24:58: Зона platform в цикле. Её рукав ОДИН, и он единственный
-#   во всём дереве поднимает НАСТОЯЩЕЕ окно GLFW — не по недосмотру, а потому что
-#   держит отказ, невидимый для всего остального: App просит захват курсора
-#   каждым кадром, платформа считала каждый вызов событием и обнуляла смещение
-#   мыши, камера редактора не поворачивалась вовсе. Все наши автоматические
-#   прогоны идут через двери, а двери захват не запрашивают ни разу — то есть
-#   каждый прибор в дереве мерил здоровую руку, и отказ три захода подряд
-#   разбирал пользователь за игрой.
 
 add_library(dfn_doctest_main STATIC DoctestMain.cpp)
 target_include_directories(dfn_doctest_main SYSTEM PUBLIC

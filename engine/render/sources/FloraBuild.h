@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:48:30
-Last updated: 14:08:2026 - 23:12:28
 Module: engine/render
 File: engine/render/sources/FloraBuild.h
 
@@ -25,29 +23,6 @@ AI Agents Notice (must follow):
 - Split out of ProcFlora.cpp for Rule 21 (800 LOC) when the space-colonization
   rewrite landed; the containment rules here cost a debugging round EACH and
   their comments are the record of why (flora.md §3.7).
-*/
-/*
-UPD:
-- 09:08:2026 - 23:48:30: Created — extracted from ProcFlora.cpp unchanged except
-  for `cluster` being renamed `blob_cluster` (it collided with the local
-  variable name in every caller) and the sway origin becoming the skeleton
-  ANCHOR rather than the crown base.
-- 10:08:2026 - 20:15:51: CARD_TILT_FLAT_* / CARD_TILT_LEAN_* / CARD_FLAT_PER_CLUSTER — the
-  ruled card-plane tilt bands. NUMBERS rows requested from lead the same day.
-- 10:08:2026 - 20:32:40: The five card-tilt constants now READ config:: (rows landed in
-  NUMBERS.md, 2ffe2c1) instead of carrying their own copies. The tilt
-  distribution test passing unchanged against the generated values is the
-  cross-check that the rows carry the numbers that were measured.
-- 12:08:2026 - 00:20:00: Tree::crown_axis -- the XZ centre of the crown, which
-  is the top of the leaning bole rather than the stump.
-- 13:08:2026 - 18:30:00: Tree::structure -- the collision side-channel, filled by
-  the same emitters that draw the wood, so what a body hits cannot drift from
-  what the player sees.
-- 13:08:2026 - 21:00:00: Tree::species — the enum, at the END of the struct
-  because the one caller uses a positional aggregate initializer.
-- 14:08:2026 - 23:12:28: ROOT_SPUR_* (пользователь на стенде одного дерева: «надо ещё у пня корни
-  добавить, что из-под земли вокруг вылезают») и Tree::ground. RISE ужат 0.22 →
-  0.10 по кадру: просвет под дугой читался паучьими ногами, а не корнями.
 */
 
 #pragma once

@@ -1,5 +1,3 @@
-# Created: 14:08:2026 - 21:22:41
-# Last updated: 14:08:2026 - 21:22:41
 # Module: docs/acceptance
 # File: docs/acceptance/terrain-regional-massif-857m-3fb68fd-dirty.txt
 #
@@ -12,11 +10,6 @@
 # - Follow docs/ARCHITECTURE.md strictly.
 # - Записано машиной при съёмке; НЕ править руками — правка делает рецепт
 #   ложью, а кадр — воспоминанием (правило 54).
-#
-# UPD:
-# - 14:08:2026 - 21:22:41: Снято при посадке регионального массива (§2.5).
-# Daggerfall N state capture
-# Restore with: DFN_RESTORE=<this file> DFN_MENU=0 ./dfn_app
 captured_at = 14:08:2026 - 20:42:32
 build_commit = 3fb68fd+dirty
 stand = 0

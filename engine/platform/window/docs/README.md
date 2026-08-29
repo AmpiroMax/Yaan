@@ -1,12 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:50:00
--->
-<!--
-UPD:
-- 09:08:2026 - 00:16:00: Stage-1 state: interface only, no backends yet.
-- 09:08:2026 - 00:50:00: Stage 2 — glfw + null backends implemented.
--->
 
 # engine/platform/window
 

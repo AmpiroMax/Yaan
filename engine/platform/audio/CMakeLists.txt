@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:08
-# Last updated: 27:08:2026 - 20:00:24
 # File: engine/platform/audio/CMakeLists.txt
 #
 # Responsibility:
@@ -15,29 +13,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. miniaudio types must never leak out
 #   of sources/miniaudio/ (interface + factory headers stay miniaudio-free).
-#
-# UPD:
-# - 09:08:2026 - 00:45:08: Stage 2 — null backend only.
-# - 10:08:2026 - 01:53:17: Stage 3 audio bring-up (landscape stage, в12):
-#                          miniaudio backend, pinned 0.11.22 per the spec's
-#                          FetchContent plan. Fetched as sources only (no
-#                          add_subdirectory): the single header is the whole
-#                          library, and building their subproject would add
-#                          targets we do not use.
-# - 27:08:2026 - 20:00:24: OGG VORBIS (owner's order via the music session — the title
-#                          theme loops in the main menu). stb_vorbis v1.22 is
-#                          compiled in ONE extra TU, StbVorbis.cpp, and it is
-#                          taken from the miniaudio checkout we ALREADY pin
-#                          (extras/stb_vorbis.c) rather than copied into
-#                          third_party/: one pin, one version, one provenance,
-#                          and no snapshot to drift when either side moves
-#                          (Rule 24). Licence: MIT or public domain, at our
-#                          choice — recorded in StbVorbis.cpp's header.
-#                          The extras/ directory joins the include path for the
-#                          same two files that already see miniaudio itself; it
-#                          stays PRIVATE, so nothing outside this library can
-#                          reach a Vorbis symbol (Rule 1).
-#
 
 include(FetchContent)
 

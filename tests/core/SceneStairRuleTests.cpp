@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 17:16:17
-Last updated: 17:08:2026 - 17:16:17
 Module: tests
 File: tests/core/SceneStairRuleTests.cpp
 
@@ -30,10 +28,6 @@ AI Agents Notice (must follow):
   и игрока с шишкой, и это ровно тот обмен, ради запрета которого свод пишут.
 - ИМЕНА ДЕТАЛЕЙ ЗДЕСЬ — НАСТОЯЩИЕ, они есть на полке (dfn_kit --list). Красная
   рука, собранная из выдуманного имени, проверяет то, чего в мире нет.
-*/
-/*
-UPD:
-- 17:08:2026 - 17:16:17: Создан вместе с правилами StairSeat/StairHeadroom.
 */
 
 #include "engine/world/sources/Scene.h"

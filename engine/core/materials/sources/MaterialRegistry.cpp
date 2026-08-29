@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 16:20:00
-Last updated: 28:08:2026 - 16:20:00
 Module: engine/core/materials
 File: engine/core/materials/sources/MaterialRegistry.cpp
 
@@ -17,10 +15,6 @@ AI Agents Notice (must follow):
 - НИ ОДНОГО `switch` ПО МАТЕРИАЛУ. Разрешение идёт таблицей и только таблицей
   (MATERIALS.md §2.2); единственные switch здесь — по ключу разбора, то есть по
   грамматике файла, которую мы обязаны исчерпать.
-*/
-/*
-UPD:
-- 28:08:2026 - 16:20:00: Создан — волна 3 зоны МАТЕРИАЛЫ.
 */
 
 #include "engine/core/materials/sources/MaterialRegistry.h"

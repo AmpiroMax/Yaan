@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 28:08:2026 - 14:10:00
 Module: engine/platform/audio
 File: engine/platform/audio/sources/miniaudio/CreateMiniaudioAudio.h
 
@@ -19,14 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Never leak miniaudio types/includes through this header (Rule 1).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Stage 3 audio bring-up — factory per the lead's
-                         integration convention (create_*_audio).
-- 28:08:2026 - 14:10:00: Оговорка о пустом set_bus_reverb СНЯТА: зона «звук от
-                         источника» завела ревер линией задержки. Вместе с ней
-                         записан честный предел этого ревера.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:13:15
-Last updated: 10:08:2026 - 21:13:15
 Module: engine/world
 File: engine/world/sources/LayoutLoad.cpp
 
@@ -17,10 +15,6 @@ AI Agents Notice (must follow):
   missing or mistyped key is a NAMED error rather than a silent fallback: a
   map that half-loads generates a world with a feature quietly absent, which
   reads as a worldgen bug for as long as it takes someone to diff the JSON.
-*/
-/*
-UPD:
-- 10:08:2026 - 21:13:15: Created — CODE_AUDIT §3.4 mechanism half.
 */
 
 #include "engine/world/sources/LayoutLoad.h"

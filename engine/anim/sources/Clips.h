@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 28:08:2026 - 11:16:40
 Module: engine/anim
 File: engine/anim/sources/Clips.h
 
@@ -35,16 +33,6 @@ AI Agents Notice (must follow):
 - Never advance a phase here: phase is sim's clock, arriving as a parameter
   (Rule 35, state form). A time-based oscillator in this file is the exact
   defect the seam exists to prevent.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial procedural clip set.
-- 10:08:2026 - 20:00:23: anim::Gait + gait_run_weight(): the gear is ferried and looked up, never re-derived from speed (Rules 35, 37).
-- 10:08:2026 - 20:22:44: eye_lean_offset() declared — producer/consumer with sim, deliberately not a NUMBERS row.
-- 10:08:2026 - 22:25:12: crouch_eye_offset() declared — the crouched camera comes from the RIG, not from CROUCH_EYE_HEIGHT.
-- 28:08:2026 - 11:16:40: HEAD_STABILIZE поднят из Clips.cpp в этот заголовок:
-  пятый читатель (наклон сидящего, Posture.cpp) живёт в другом файле, и
-  литерал 0.6 в двух файлах — это правило 35 в чистом виде.
 */
 
 #pragma once

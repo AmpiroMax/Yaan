@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 12:08:20
-Last updated: 18:08:2026 - 20:26:30
 Module: tests/app
 File: tests/app/EditorToolboxTests.cpp
 
@@ -27,19 +25,6 @@ AI Agents Notice (must follow):
   expected result of half of these tests, and a test whose pass condition is
   "nothing happened" passes just as well on a toolbox that does nothing at all
   — so each of them stands beside an arm where the SAME call DOES something.
-*/
-/*
-UPD:
-- 18:08:2026 - 12:08:20: Создан — рукав ящика инструментов (заказ 18.08 и
-  docs/AUDIT_EDITOR_TOOLS.md).
-- 18:08:2026 - 12:51:26: пара «подпись говорит почему, мир не обещает» за пределом дальности.
-  Порознь каждая половина прошла бы на сломанном коде: подпись без гашения
-  оставляет зелёное кольцо там, куда щелчок не достанет, гашение без подписи —
-  молчание, неотличимое от поломки. Контрфакт: снял проверку — 6 утверждений.
-- 18:08:2026 - 13:08:07: седьмой значок (тропа) в списке различимости — иначе новый значок мог бы
-  совпасть с чужим побайтово и никто бы не заметил.
-- 18:08:2026 - 19:44:10: Три новых значка в перечне попарно-разных.
-- 18:08:2026 - 20:26:30: Ящик ЗОВЁТ показ и за пределом дальности, сказав правду о ней; обещание прячет инструмент.
 */
 
 #include "engine/editor/sources/EditorToolIcons.h"

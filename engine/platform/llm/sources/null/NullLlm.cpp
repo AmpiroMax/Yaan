@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
 Module: engine/platform/llm
 File: engine/platform/llm/sources/null/NullLlm.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Semantics here are contract (ILlm.h notes): Done on submit, fallback verbatim,
   from_fallback = true; handles released after try_get_result.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial null backend implementation.
 */
 
 #include "engine/platform/llm/sources/null/CreateNullLlm.h"

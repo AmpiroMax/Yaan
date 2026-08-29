@@ -1,5 +1,3 @@
-# Created: 10:08:2026 - 22:56:41
-# Last updated: 10:08:2026 - 22:56:41
 # Module: docs/acceptance
 # File: docs/acceptance/flora-canopy-speckle-pose.txt
 #
@@ -24,9 +22,6 @@
 # - Restore with:
 #     DFN_RESTORE=docs/acceptance/flora-canopy-speckle-pose.txt ./dfn_app
 #   and add DFN_WIND_FREEZE=120 before quoting any pixel number off it.
-#
-# UPD:
-# - 10:08:2026 - 22:56:41: Created. The pose behind the 0.864 % / 0.093 % baseline.
 captured_at = 10:08:2026 - 22:53:25
 build_commit = flora-canopy-speckle
 stand = 0

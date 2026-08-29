@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 12:07:10
-Last updated: 18:08:2026 - 12:07:10
 Module: engine/editor
 File: engine/editor/sources/EditorToolbar.h
 
@@ -37,11 +35,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The bar DECIDES NOTHING. Every click here calls a toolbox method; if a rule
   about what a click means appears in this file, it is in the wrong file.
-*/
-/*
-UPD:
-- 18:08:2026 - 12:07:10: Создан — двойные кнопки с картинками, треугольник настроек,
-  шестерёнка с общими параметрами (заказ 18.08).
 */
 
 #pragma once

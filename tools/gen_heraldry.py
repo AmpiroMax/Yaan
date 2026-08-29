@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 27:08:2026 - 12:58:00
-# Last updated: 27:08:2026 - 12:58:00
 # Module: tools
 # File: tools/gen_heraldry.py
 #
@@ -64,11 +62,6 @@
 #   разрешены, но не нужны (см. шапку tools/heraldry/geometry.py).
 # - ИСТОЧНИК СИЛУЭТА: Wikimedia Commons, «Quercus robur Silhouette», автор
 #   oddsock, CC BY 2.0 — АТРИБУЦИЯ ОБЯЗАТЕЛЬНА в титрах (assets/branding/README.txt).
-#
-# UPD:
-# - 27:08:2026 - 12:58:00: Создан — 3D-герб из силуэта дуба (заказ владельца
-#   27.08).
-#
 """Bakes the Yaan oak seal as a relief 3D object from a 2D silhouette PNG."""
 
 import argparse
@@ -93,11 +86,9 @@ DEFAULT_PREVIEW = "docs/reports/heraldry"
 GOLD = (0.62, 0.44, 0.13)
 GOLD_RIM = (0.78, 0.60, 0.22)   # фаска светлее поля — так её видно и без блика
 
-
 def log(message: str) -> None:
     sys.stdout.write(message + "\n")
     sys.stdout.flush()
-
 
 def build_height_field(distance: np.ndarray, bevel_w: float, bevel_h: float,
                        dome_reach: float, dome_h: float) -> np.ndarray:
@@ -111,7 +102,6 @@ def build_height_field(distance: np.ndarray, bevel_w: float, bevel_h: float,
     t = np.minimum(d, dome_reach) / max(1e-6, dome_reach)
     pillow = np.sqrt(np.maximum(0.0, 1.0 - (1.0 - t) ** 2))
     return bevel_h * ramp + dome_h * pillow
-
 
 def assemble(cap, loops, height_px, pixel_scale, thickness, bevel_w):
     """Собирает три части в один меш: крышка с рельефом, стенка, дно.
@@ -221,9 +211,7 @@ def assemble(cap, loops, height_px, pixel_scale, thickness, bevel_w):
     return (np.concatenate(positions), np.concatenate(normals),
             np.concatenate(colors), order)
 
-
 DISTANCE_CACHE = [None]
-
 
 def check_mesh(positions, indices, quantum=1e-6):
     """ЗАМКНУТ ЛИ МЕШ И НАРУЖУ ЛИ СМОТРЯТ НОРМАЛИ.
@@ -258,7 +246,6 @@ def check_mesh(positions, indices, quantum=1e-6):
             "unmatched_edges": unmatched, "duplicated_edges": duplicated,
             "signed_volume": volume}
 
-
 def write_obj(path, positions, normals, indices):
     """Wavefront .obj — только чтобы владелец мог открыть меш чем угодно."""
     with open(path, "w") as handle:
@@ -270,7 +257,6 @@ def write_obj(path, positions, normals, indices):
             handle.write("vn %.5f %.5f %.5f\n" % (x, y, z))
         for a, b, c in indices + 1:
             handle.write("f %d//%d %d//%d %d//%d\n" % (a, a, b, b, c, c))
-
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -418,7 +404,6 @@ def main(argv=None) -> int:
 
     log("готово за %.1f с" % (time.time() - start))
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

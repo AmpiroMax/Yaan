@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 13:28:27
-Last updated: 10:08:2026 - 01:48:11
 Module: engine/world
 File: engine/world/sources/WorldgenWater.cpp
 
@@ -23,15 +21,6 @@ AI Agents Notice (must follow):
   with_distance only toggles bookkeeping) — generate_chunk equality depends
   on it and a test pins it.
 - Position-based and stateless (Rule 13.1): chunk independence relies on it.
-*/
-/*
-UPD:
-- 09:08:2026 - 13:28:27: Split from WorldgenHydrology.cpp (file-size limit;
-  hydrology build vs query responsibilities separated).
-- 10:08:2026 - 01:48:11: Flat-reach change (§3.2 extension): the lake branch
-  reads the SETTLED level from hydro.lake.surface_height — min(rim design
-  level, river entry level) — never the LAKE_LEVEL_TESTBED constant, which
-  would recreate the drawn-above-the-river defect for the lake.
 */
 
 #include "engine/world/sources/WorldgenHydrology.h"

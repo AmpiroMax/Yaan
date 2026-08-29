@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 01:53:17
 Module: engine/gameplay
 File: engine/gameplay/sources/StepFeel.h
 
@@ -38,10 +36,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep this file pure: no state, no ECS, no platform types, no clock.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Created for the landscape stage (шаг как событие).
 */
 
 #pragma once

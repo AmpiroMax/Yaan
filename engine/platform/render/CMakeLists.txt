@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:00
-# Last updated: 28:08:2026 - 17:31:25
 # File: engine/platform/render/CMakeLists.txt
 #
 # Responsibility:
@@ -20,45 +18,6 @@
 # - Follow docs/ARCHITECTURE.md strictly. bgfx types never leak out of sources/.
 # - macOS/Metal shaders only this stage; Windows profiles arrive with the
 #   Windows bring-up sync.
-#
-# UPD:
-# - 09:08:2026 - 00:45:00: Stage 2 — bgfx backend, shaderc step, null backend.
-# - 09:08:2026 - 01:10:00: bgfx/bimg/bx include dirs marked SYSTEM (zero-warning
-#   gate: third-party headers must not trip -Wpedantic in our TUs).
-# - 09:08:2026 - 10:57:00: Stage 3 — sky/water shader pairs, dfn_env.sh shared
-#   include (shader dir added to shaderc -i), BgfxPalette.cpp.
-# - 09:08:2026 - 11:57:20: Stage 3b — fs_prop fragment shader ("prop" program
-#   for placeholder scatter/site meshes; shares vs_terrain).
-# - 09:08:2026 - 14:11:37: Dynamic sun shadows — vs_shadow/fs_shadow pair,
-#   dfn_shadow.sh shared include added to the shaderc dependency list.
-# - 09:08:2026 - 20:08:11: Foliage: vs_foliage/fs_foliage (alpha-cutout
-#   leaf cards + wind sway) and vs_shadow_cutout/fs_shadow_cutout (the same
-#   mask punched through the shadow map, swaying identically).
-# - 09:08:2026 - 20:36:00: Interior lighting — vs_point_shadow/fs_point_shadow
-#   (carried-light cube faces, distance-to-light atlas) and dfn_pointshadow.sh
-#   added to the shaderc dependency list.
-# - 10:08:2026 - 01:47:53: Rule 21 split of BgfxRenderer.cpp (1424 lines) into
-#   lifecycle / frame / submit / resources over the private BgfxRendererImpl.h.
-# - 12:08:2026 - 00:11:40: dfn_ground.sh (R5 ground colour) added to the shaderc
-#   DEPENDS list, AND IT COST TWO FALSE MEASUREMENTS BEFORE IT WAS ADDED. A new
-#   shared .sh is invisible to this build until it is named here, so editing it
-#   rebuilds NOTHING and the app keeps running the previous shader while the
-#   agent reads the frames as evidence about the new one. Both readings came
-#   back "the change did nothing", which is exactly what a real no-op looks
-#   like. The tell that broke it: a DOSE SWEEP whose three arms were bit
-#   identical -- a uniform needs no rebuild at all, so identical arms could
-#   only mean the binary predated the source. If you add a shared header here,
-#   add it to this list in the same edit.
-# - 17:08:2026 - 19:17:13: sources/bgfx/ImGuiBackend.cpp + пара vs_imgui/fs_imgui —
-#   бэкенд Dear ImGui к bgfx для интерфейса РЕДАКТОРА. У самой bgfx его нет: он
-#   живёт в её примерах и в библиотеку не входит, поэтому он наш. Правило 1
-#   держит третьи стороны в platform sources/, поэтому мост живёт здесь, а не в
-#   engine/app. Правка зоны редактора по разрешению лида (17.08); существующих
-#   проходов и чисел не тронуто.
-# - 28:08:2026 - 17:31:25: dfn_core в зависимостях (зона МАТЕРИАЛЫ, волна
-#   3): бэкенд разрешает DrawParams::material в шероховатость и
-#   металличность сам. По DAG платформа смотрит в ядро, и это единственное,
-#   что она оттуда берёт.
 
 include(FetchContent)
 

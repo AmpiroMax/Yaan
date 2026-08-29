@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:47:53
-Last updated: 28:08:2026 - 17:31:25
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererSubmit.cpp
 
@@ -26,59 +24,6 @@ AI Agents Notice (must follow):
   decides whether to submit AT ALL (and deliberately keeps off-screen casters
   inside the volume); this one decides whether a submitted draw also needs a
   depth pass. Both sides were A/B-verified with a non-vacuous control.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:47:53: Created in the Rule 21 split of BgfxRenderer.cpp.
-  submit moved verbatim; no behaviour change.
-- 10:08:2026 - 20:01:43: The sun caster pass now obeys DrawParams::fade
-  (SHADOW_CASTER_MIN_FADE). A cross-fading terrain LOD node cast SOLID depth
-  at every fade value, so both levels of one patch of ground were in the
-  shadow map together and the visible one was shadowed by the other.
-- 10:08:2026 - 23:24:48: COVERAGE ANTIALIASING ON THE INTERNAL TARGET — the
-  user's oldest complaint («при беге трясет», «всё дергает и перерисовывается
-  очень рябью»). MSAA 4x on the internal colour+depth target (DFN_MSAA=0|2|4|8),
-  an alpha-weighted mip chain for cutout MASKS only, and
-  BGFX_STATE_BLEND_ALPHA_TO_COVERAGE on the cutout path. Measured, one 0.05 m
-  stride at RUN_SPEED, DFN_WIND_FREEZE=120, 640x360, palette off, control
-  0.000 %: near canopy 0.864 -> 0.621 %, treeline 0.094 -> 0.004 %. MSAA ALONE
-  IS WORTH ALMOST NOTHING (0.819 / 0.080) and MSAA 8x equals 4x to three
-  digits — the residual pixels are not partially covered, they are written or
-  discarded, so the fix had to reach the MASK. Details and the palette-on
-  numbers in docs/specs/render.md.
-- 13:08:2026 - 16:10:00: Casters inside 40 m also draw into VIEW_SHADOW_NEAR.
-  The cull against the near volume is what keeps this from being a second full
-  shadow pass, and the cutout mask is BOUND AGAIN for it — bgfx consumes the
-  pending setTexture with the preceding submit, and a leaf card that punched a
-  solid rectangle into the near map would raise the 40 px reading and lower the
-  8 px one, i.e. produce the exact opposite of the claim under test.
-- 13:08:2026 - 22:28:39: The carried-light cube pass now honours
-  DrawParams::casts_in_point_shadows (the "фонарь не заслоняет собственное
-  пламя" defect: every cube texel held the light holder's own mesh at
-  0.11-0.64 m and the sconce lit NOTHING). DFN_LOD_POINT_CAST=1 and
-  DFN_SELF_POINT_CAST=1 are the counterfactual arms; DFN_PS_LOG=1 names every
-  draw entering a cube face -- the door that found the culprit.
-- 14:08:2026 - 16:35:53: В28: each scene submit accumulates scene_draws_accum /
-  scene_tris_accum and runs the centre-of-screen ray against its bounding
-  sphere for center_pick (nearest hit). Reuses world_center / world_radius.
-- 15:08:2026 - 15:23:22: привязка DrawParams::aux_texture к стадии 4 с нейтральной подменой;
-  u_params.w — признак «лист есть» (был «зарезервировано»).
-- 23:08:2026 - 00:30:00: aux2_texture привязывается на стадию 5 с нейтральной подстановкой.
-- 22:08:2026 - 23:48:18: aux3_texture привязывается на стадию 6 (маска троп): износ линейно, CLAMP, нейтральная подстановка.
-- 23:08:2026 - 18:10:03: params.z = -1 у эмиссивного дро (fs_prop выводит альбедо без освещения).
-- 28:08:2026 - 11:22:00: params.z = -(2 + сила) у ОКОННОЙ ВСТАВКИ (сила из
-  DrawParams::aux1): второй род эмиссии различается величиной того же z,
-  порог -1.5. Ноль в aux1 — прежние -1.0 бит-в-бит.
-- 28:08:2026 - 12:49:39: u_matParams ставится на КАЖДОМ дро (зона МАТЕРИАЛЫ, 28.08).
-  Безусловно, а не «если материал задан»: uniform в bgfx липкий, и дро,
-  промолчавший после золотого герба, унаследовал бы его блик.
-- 28:08:2026 - 17:31:25: дро НАЗЫВАЕТ вещество, а не несёт его числа
-  (волна 3 зоны МАТЕРИАЛЫ). u_matParams заполняется из ЗАПИСИ РЕЕСТРА по
-  DrawParams::material — это единственное место во всём движке, которое читает
-  числа вещества ради отрисовки. Поля roughness/metalness на дро сняты: у
-  вызова нет владельца, которому задать вопрос, почему у гранита здесь одно
-  число, а в файле другое. Сам uniform переезд пережил без правки — он был
-  нужен одинаково при обоих устройствах.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"

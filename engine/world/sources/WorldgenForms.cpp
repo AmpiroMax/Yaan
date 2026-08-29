@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 16:12:40
-Last updated: 13:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/WorldgenForms.cpp
 
@@ -17,47 +15,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic and position-based (Rule 13.1).
-*/
-/*
-UPD:
-- 13:08:2026 - 16:12:40: Created.
-- 13:08:2026 - 17:28:00: IRREGULARITY, and the defect it answers was named by
-  this pass's own frames rather than by any instrument: at a tight pitch the
-  draws read as a WASHBOARD, and regularity is how a generated world gives
-  itself away. Three shape changes, no extra strength — a bounded DOMAIN WARP
-  so the pitch itself wanders (a position-varying CELL would tear the lattice;
-  a warp keeps one lattice and moves the query, and the local pitch is the cell
-  divided by one plus the warp's derivative), a threshold field so talwegs
-  pinch out and end, and TRIBUTARIES AT A BEARING off the trunk. The last is
-  the one that mattered: the gap between draws was ALREADY irregular (CV 0.573
-  shipped against 0.567 with the wander off — identical), so spacing was never
-  the defect. Parallelism was. Bank-direction spread 0.204 -> 0.359 on a scale
-  whose ends are 0.16 (corduroy) and 0.80 (no direction at all).
-- 13:08:2026 - 17:32:00: Draw pitch 24 -> 18 m (approved). It moves ALL FOUR of
-  A1's order statistics at once — min 1->2, p5 1->2, median 2->3, max 5->6 —
-  which is what separates a real shift from one column's speckle.
-- 13:08:2026 - 17:54:00: THE CUT BANK — the channel section is asymmetric and
-  the undercut side swaps along its length, which is what a stream does at every
-  bend. It needs no new direction source: the side is the sign of the channel
-  field about its own axis, i.e. the channel's own geometry read one derivative
-  further. Columns of the A1 frame carrying at least one pocket went 96.4 % ->
-  98.4 % and the frame's WORST column stopped being 1.
-- 13:08:2026 - 18:04:00: THE BACK-TILTED BENCH (оползневая ступень) — the only
-  NON-monotone term in this file, and it was written against a hole the pocket
-  histogram found rather than against a look: 35-45 m carried one pocket in 64
-  columns because that ground RISES, and rising ground below the eye hides
-  nothing whatever is laid on it, since every other form here is a monotone
-  transfer and a monotone transfer of a rising profile still rises. A rotational
-  slump tilts its block BACK into the hill, so behind the lip the ground dips
-  before it climbs — that sign change is the mechanism. Measured: +17 pockets in
-  45-55 m and +2 in 35-45 m, sigma 0.765 -> 0.773 against a 1.20 ceiling.
-- 13:08:2026 - 18:27:00: Draw pitch 18 -> 14 m (approved), and with it the
-  contract is MET: A1 reads p5 3 against GROUND_OCCLUSION_COUNT_MIN 3 on the
-  drawn 2 m heightmap (min 2 / p5 3 / median 4 / max 7). The pocket histogram
-  says why it took a pitch rather than a strength: the 35-45 m hole that the
-  back-tilted bench could only dent went from 1 pocket to 54, because at this
-  pitch a crossing lands in that band instead of skipping it.
-- 13:08:2026 - 00:40:00: THE COMB IS RETIRED. draw_forms defaults to depth 0: a fixed 14 m pitch put 9.2 % of the ground's relief energy into the 8-20 m band where real land carries 0.00-0.05 %. Retired rather than deleted, and reachable at DFN_DRAW_DEPTH=1, because the rejected sample has to stay reproducible (Rule 51).
 */
 
 #include "engine/world/sources/WorldgenForms.h"

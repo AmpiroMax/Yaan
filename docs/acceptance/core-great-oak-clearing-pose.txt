@@ -1,5 +1,3 @@
-# Created: 12:08:2026 - 23:00:00
-# Last updated: 12:08:2026 - 23:08:00
 # Module: docs/acceptance
 # File: docs/acceptance/core-great-oak-clearing-pose.txt
 #
@@ -24,13 +22,6 @@
 #   and without it the restored player falls out of the sky before the shutter.
 # - The CONTROL arm is DFN_NO_GREAT_OAK=1 on the same binary: no giants, no
 #   clearing, everything else identical by construction (Rule 30/48).
-#
-# UPD:
-# - 12:08:2026 - 23:00:00: Created with the placement pass.
-# - 12:08:2026 - 23:08:00: The two arms shot (commit 7c33e6d), the vantage
-#   corrected once (the first stood 300 m back at 62 m and photographed the
-#   intervening crowns), and the pixel-diff instrument REFUSED with its own
-#   measurement: re-shoot noise 11.9 % against 4.7 % between the arms.
 captured_at = 12:08:2026 - 23:00:00
 build_commit = core-great-oak-clearing
 stand = 0

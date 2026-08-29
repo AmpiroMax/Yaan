@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/types
 File: engine/core/types/sources/Handle.h
 
@@ -19,10 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep trivially copyable; components store these by value.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — tagged POD handle template.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/input
 File: engine/platform/input/sources/glfw/GlfwInput.h
 
@@ -24,14 +22,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep GLFW includes out of this header (forward declaration only).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 14:08:2026 - 16:59:44: Added text_input() — codepoints accumulated by a GLFW
-  char callback (mirrors the scroll-callback policy), snapshotted per frame in
-  update(). DFN_TEXT_INPUT_LOG=1 prints accepted codepoints to stderr.
-- 18:08:2026 - 00:24:58: place_cursor() — объявление нового пункта контракта IInput.
 */
 
 #pragma once

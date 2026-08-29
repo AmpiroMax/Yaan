@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/math
 File: engine/core/math/sources/Intersect.h
 
@@ -20,10 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure functions only; add new shapes here rather than as methods, so shape
   headers stay POD-small.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — ray/box/sphere/triangle/plane tests.
 */
 
 #pragma once

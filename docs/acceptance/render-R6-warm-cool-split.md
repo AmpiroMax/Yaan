@@ -1,14 +1,3 @@
-<!--
-Created: 12:08:2026 - 22:49:49
-Last updated: 12:08:2026 - 22:49:49
--->
-<!--
-UPD:
-- 12:08:2026 - 22:49:49: Created. R6's first half (warm key / cool shade) measured on the
-  user's own reference frames and on ours with one calibrated instrument. The
-  result REFUTES the premise: we already have the split, it is larger than any
-  reference's, and the references have none. No code changed.
--->
 
 # R6a — WARM KEY / COOL SHADE: measured on the reference frames
 

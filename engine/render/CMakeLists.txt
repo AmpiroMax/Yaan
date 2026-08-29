@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:00
-# Last updated: 28:08:2026 - 17:31:25
 # File: engine/render/CMakeLists.txt
 #
 # Responsibility:
@@ -14,72 +12,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. This layer never links bgfx (Rule 1);
 #   backends are linked by engine/app.
-#
-# UPD:
-# - 09:08:2026 - 00:45:00: Stage 2 — implementation sources.
-# - 09:08:2026 - 11:05:00: Stage 3 — ProcTexture.cpp (procedural textures).
-# - 09:08:2026 - 11:57:20: Stage 3b — ProcMesh, ScatterBatcher, WaterMesher.
-# - 09:08:2026 - 17:32:10: Map screen — PixelCanvas (first UI primitive) and
-#   MapScreen (explored top-down map).
-# - 09:08:2026 - 19:26:00: SkyModel.cpp (day/night sun+moon model).
-# - 09:08:2026 - 19:42:00: VoxelMesher.cpp (draw the carved voxel surface).
-# - 09:08:2026 - 19:46:00: FloraSpecies.cpp + ProcFlora.cpp (flora agent's zone,
-#   same directory, registered here per Q34).
-# - 09:08:2026 - 20:10:11: WindModel.cpp (one wind for the world).
-# - 09:08:2026 - 20:21:13: FloraCards.cpp (flora agent's alpha-cutout leaf mask
-# - 09:08:2026 - 20:58:00: TerrainLod.cpp (LOD node ladder, selection and the
-#   two-level fade window).
-# - 09:08:2026 - 22:12:57: LodTerrain.cpp (the LOD DRAWING half: node meshes,
-#   skirts, cross-faded submission) + RenderSystemResources.cpp (RenderSystem
-#   split at the 800-line hard limit, Rule 21).
-#   atlas + card emitter). EDITED BY THE FLORA AGENT under an explicit
-#   lead-granted Rule 25 exception (render's session had ended and the leaf-card
-#   stage could not wait); bounded to registration only — no shader, material,
-#   wind or backend change. Not a precedent.
-# - 09:08:2026 - 23:27:10: Registered the flora agent's three new translation
-#   units (FloraSkeleton / FloraBuild / FloraNeighbours) at its request. The
-#   last two are Rule 21 splits of ProcFlora.cpp (931 lines, over the hard
-#   limit) rather than new features, and ProcFlora.h is unchanged, so nothing
-#   crosses the render/flora seam. Registered by render, not by flora — the
-#   file is render's under Rule 25 and the earlier exception said so itself.
-# - 09:08:2026 - 23:32:07: BitmapFont.cpp — the project's first font.
-# - 10:08:2026 - 03:14:00: CloudModel.cpp (W4 cloud drift off the shared wind).
-# - 12:08:2026 - 00:52:40: sources/GroundTufts.cpp — the sparse near-field grass layer.
-# - 13:08:2026 - 21:00:00: sources/FloraWeber.cpp — the Weber & Penn generator, at
-#   flora's request and with the lead's leave (Rule 21: it does not fit in
-#   FloraSkeleton.cpp, already over the 800-line limit).
-# - 14:08:2026 - 23:36:19: ObjectRegistry.cpp (.dfo реестра объектов) + TreeForge.cpp
-#                          (кузница деревьев по индустриальной схеме) — третий
-#                          инструмент разворота в1.
-# - 16:08:2026 - 20:55:43: sources/PartForge.cpp — СТРОИТЕЛЬНЫЙ НАБОР (брус,
-#   столб, доска, стена, фронтон, скат, лестница, дверь, окно, фундамент,
-#   забор) в тот же реестр .dfo. Запрос пользователя: агент собирает дом из
-#   готовых деталей, а не пишет дом кодом.
-# - 17:08:2026 - 09:49:23: sources/FloraFireflies.cpp — поле светлячков (этап 3 полянки).
-
-# - 17:08:2026 - 13:02:08: sources/PartForgeJoints.cpp — семья соединителей, вынесена из
-#   PartForge.cpp при разрезе по семьям (999 строк против предела 800).
-# - 17:08:2026 - 13:09:29: sources/PartForgeWalls.cpp — варианты стен (10 стилей x проёмы).
-# - 17:08:2026 - 13:17:36: sources/PartForgeCatalogue.cpp — список полок, вынесен из PartForge.cpp.
-# - 17:08:2026 - 13:21:37: sources/PartForgeRoofs.cpp — семья крыш (5 покрытий, вальма, дымник).
-# - 17:08:2026 - 14:29:43: sources/PartsAtlas.cpp — СВОЙ ЛИСТ НАБОРА (колонка = поверхность,
-# - 17:08:2026 - 14:46:25: sources/SignForge.cpp — таблички с текстом (работа 4 заказа 17.08).
-# - 23:08:2026 - 22:40:00: sources/LoadingScreen.cpp — ЭКРАН ЗАГРУЗКИ как предмет
-#                          движка (И15 волна А; владелец 24.08: не шторка, а экран
-#                          с холстом и статусом загрузки).
-#   ряд = тон/износ): текстуры деталям, работа 3 заказа 17.08.
-# - 28:08:2026 - 11:14:50: sources/MaterialRegistry.cpp — ПОНЯТИЕ «материал»
-#   (дизайн-волна зоны МАТЕРИАЛЫ, заказ владельца 28.08): именованные вещества
-#   вместо безымянной пары (поверхность, тон) и вместо выбора программы.
-# - 28:08:2026 - 16:55:00: sources/TreeBark.cpp (pack_wind/bark_tube, вынесены из
-#   TreeForge.cpp дословно) и sources/TreeForgeV2.cpp — ВТОРАЯ ИТЕРАЦИЯ ДЕРЕВЬЕВ
-#   (заказ владельца 28.08 по разнице с Готикой 3). Кузница v1 не тронута: новый
-#   строитель стоит РЯДОМ, а не флагом внутри — так неизменность 77 испечённых
-#   .dfo есть свойство построения, а не аккуратности.
-# - 28:08:2026 - 17:31:25: MaterialRegistry.cpp -> PartsMaterial.cpp (зона
-#   МАТЕРИАЛЫ, волна 3): записи о веществе уехали в engine/core и в данные,
-#   здесь остался МОСТ — перевод ординала листа набора в имя и обратно.
-#   dfn_core в зависимостях по той же причине.
 add_library(dfn_render STATIC
     sources/BitmapFont.cpp
     sources/CloudModel.cpp

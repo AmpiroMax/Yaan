@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 10:55:00
-Last updated: 10:08:2026 - 00:15:26
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxPalette.h
 
@@ -46,32 +44,6 @@ AI Agents Notice (must follow):
 - Keep this header bgfx-free so tests can link it without a GPU.
 - palette_quantise MIRRORS fs_upscale.sc. The luma weights (0.30/0.59/0.11) and
   the nearest-colour rule are the contract between them; change both or neither.
-*/
-/*
-UPD:
-- 09:08:2026 - 10:55:00: Stage 3 — initial 64-color palette.
-- 09:08:2026 - 23:52:26: CONIFER RAMP (design ruling, LANDSCAPE §4.2). Needles
-  had no family of their own and quantised into grass greens, which put the most
-  common dark mass in the world onto the same ramp as the grass and within zero
-  shade steps of the darkest rock stop (0.197 vs 0.192) — the colour half of
-  "the mountain was eaten by the forest". Ramp depths became non-uniform to pay
-  for it (sand 8->5, water 8->5) rather than deleting a family. Added the CPU
-  quantiser + the shade-step metric so separation is measured, not asserted.
-- 10:08:2026 - 00:20:00: MEASUREMENT REFUTED THE ENTRY ABOVE, which is left in
-  place per Rule 17 and corrected here. Needles did NOT quantise into grass
-  greens; they quantised into WATER TEALS, on the old palette too, and the
-  0.197/0.192 luminance pair was never the operative comparison. The real
-  mechanism is that the quantiser weights blue 0.11, so water and needles are
-  nearly the same colour to it. The family had to be re-derived along the ray
-  through flora's measured needle albedo before the tones landed on it at all.
-  Ramp depths re-allocated with it (olive 5, sand 5, water 8, conifer 6); see
-  the .cpp for why water is 8 and not the 7 design proposed. Design has
-  independently reproduced and accepted all of this (LANDSCAPE §4.2, 81a160d).
-- 10:08:2026 - 00:15:26: conifer 6->8, paid by dry olive and sand at 4 (design's
-  ruling, 4e4df0b). Taken for the FRAGILITY and not the headline number: at
-  conifer 6 the allocation held only because water happened to be 8, and an
-  allocation that survives by coincidence still leaves the forest's family to a
-  nearest-colour accident. pine vs lit rock 2.24 -> 2.34.
 */
 
 #pragma once

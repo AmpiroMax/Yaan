@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 18:50:00
-Last updated: 22:08:2026 - 13:45:06
 Module: tools
 File: tools/measure_shadow_jitter.cpp
 
@@ -40,17 +38,6 @@ AI Agents Notice (must follow):
 - IT MIRRORS, WHICH MEANS IT CAN DRIFT. The constants below are copied from
   BgfxRendererImpl.h and SkyModel.cpp. If update_shadow's snapping changes,
   this file is wrong until it is changed too — check it before quoting it.
-*/
-/*
-UPD:
-- 13:08:2026 - 18:50:00: Created for the user's "тени дергаются, когда движется
-  солнце". First numbers: without the direction snap the grid slid 0.1720
-  texels per frame on average and stepped a full 0.156 m texel 11.5 times a
-  second, against the sun's own 0.36 mm of shadow motion per frame; at the
-  shipped 0.00182 rad quantum, 0.0037 texels, median exactly zero, 0.1 events
-  per second.
-- 22:08:2026 - 13:45:06: зеркало SHADOW_HALF_EXTENT_M 320 -> 160 вслед за
-  движком (мягкие тени, BgfxRendererImpl.h).
 */
 
 #include <glm/glm.hpp>

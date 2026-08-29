@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 01:05:34
-Last updated: 18:08:2026 - 01:05:34
 Module: tests/app
 File: tests/app/EditorBrushOutlineTests.cpp
 
@@ -25,11 +23,6 @@ AI Agents Notice (must follow):
 - SEPARATE FROM EditorBrushTests.cpp ONLY BECAUSE OF RULE 21: the two suites
   are one subject and share the target app_editor_brush; the split is the 800
   line limit and nothing else.
-*/
-/*
-UPD:
-- 18:08:2026 - 01:05:34: Создан — контур зоны кисти: обод, плоская вершина, цвет
-  направления и посадка кольца на землю.
 */
 
 #include <doctest/doctest.h>
@@ -61,7 +54,6 @@ float ramp_ground(void* /*ctx*/, glm::vec2 p) { return FLAT_GROUND_M + 0.25f * p
 BrushGround flat_world() { return BrushGround{&flat_ground, nullptr}; }
 
 } // namespace
-
 
 // ========================= THE ZONE, MADE VISIBLE ===========================
 

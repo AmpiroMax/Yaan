@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 20:06:53
-Last updated: 17:08:2026 - 20:06:53
 Module: engine/app
 File: engine/app/sources/EditorPlant.cpp
 
@@ -18,11 +16,6 @@ AI Agents Notice (must follow):
   `if (on_a_path) return {false, ...}`, the rule belongs in the judge.
 - ASK BY DIFFERENCE, NEVER BY INDEX ALONE — see verdict_by_difference for the
   measured defect that rule was bought with.
-*/
-/*
-UPD:
-- 17:08:2026 - 20:06:53: Создан расколом EditorBrush (слои: панель кисти обязана быть в
-  engine/editor, перевод вердикта — в engine/app).
 */
 
 #include "engine/app/sources/EditorPlant.h"

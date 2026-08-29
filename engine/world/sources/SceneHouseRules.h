@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 16:30:25
-Last updated: 17:08:2026 - 16:30:25
 Module: engine/world
 File: engine/world/sources/SceneHouseRules.h
 
@@ -38,14 +36,6 @@ AI Agents Notice (must follow):
 - A JOINT WITH NOTHING ON IT IS NEVER A FINDING. The user said it in as many
   words («столбы можно ставить без стен, без ограничений»): a colonnade, a
   ruin, a fence of posts are all legal. Only what IS attached is judged.
-*/
-/*
-UPD:
-- 17:08:2026 - 16:30:25: Создан. JointSeat/JointAngle перенесены сюда из Scene.cpp
-  дословно (их писала зона домов), и рядом встали четыре новых правила
-  заказа 17.08: стена на ДВУХ шарнирах, ёмкость шарнира по числу граней,
-  пол/потолок на 2..4 горизонтальных шарнирах, крыша краем (или верхним
-  углом) на горизонтальном шарнире с исключением на КОЗЫРЁК.
 */
 
 #pragma once

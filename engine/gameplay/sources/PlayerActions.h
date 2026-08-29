@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:29:52
-Last updated: 09:08:2026 - 22:44:47
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerActions.h
 
@@ -38,13 +36,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Systems stay stateless (Rule 9). Every latch this reads, it clears.
 - The PLAYER only: NPC behaviour arrives as NpcAction (Rule 15).
-*/
-/*
-UPD:
-- 09:08:2026 - 22:29:52: Created — one entry point for the player's action keys.
-- 09:08:2026 - 22:44:47: Takes IPhysics (dropping spawns a real prop);
-                         owns the preview rotation so it survives the
-                         world pause; ItemDropped event.
 */
 
 #pragma once

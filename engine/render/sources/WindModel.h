@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 20:04:00
-Last updated: 09:08:2026 - 20:04:00
 Module: engine/render
 File: engine/render/sources/WindModel.h
 
@@ -37,10 +35,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep this pure: no GPU, no ECS, no clock reads. Time arrives as a parameter.
-*/
-/*
-UPD:
-- 09:08:2026 - 20:04:00: Created for the foliage wind stage (в: leaf cards).
 */
 
 #pragma once

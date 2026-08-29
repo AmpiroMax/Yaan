@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 29:08:2026 - 00:20:00
-# Last updated: 29:08:2026 - 00:20:00
 # File: tools/check_flora_sow.py
 #
 # Responsibility:
@@ -34,9 +32,6 @@
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
-#
-# UPD:
-# - 29:08:2026 - 00:20:00: Создан — волна ярусов флоры.
 
 import math
 import os
@@ -48,7 +43,6 @@ import flora_sow as fs  # noqa: E402
 
 SPAN = 256.0
 SEED = 20260828
-
 
 class FakeShelf:
     """Полка без полки: закон не должен зависеть от того, что испекли."""
@@ -69,13 +63,11 @@ class FakeShelf:
     def scale(self, name):
         return 1.0
 
-
 SHELF = FakeShelf({"fern": 0.7, "bush": 1.6, "moss": 1.8, "sward": 1.4,
                    "grass": 0.9, "mushroom": 0.3, "sapling": 0.6},
                   {"fern": False, "bush": True, "moss": False, "sward": False,
                    "grass": False, "mushroom": False, "sapling": True})
 PAL = {"shade": ["fern"], "light": ["fern"], "any": ["fern"]}
-
 
 def clark_evans(pts):
     n = len(pts)
@@ -107,7 +99,6 @@ def clark_evans(pts):
         total += math.sqrt(best)
     return (total / n) / (0.5 / math.sqrt(n / area))
 
-
 class Grove:
     """Полог: плотная роща в середине карты и открытый луг вокруг."""
 
@@ -117,7 +108,6 @@ class Grove:
             for j in range(7):
                 out.append((90.0 + i * 9.0, 90.0 + j * 9.0, 7.0, 20.0))
         return out
-
 
 def main():
     bad = []
@@ -213,7 +203,6 @@ def main():
         return 1
     print("[sow] четыре руки закона посева зелёные")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

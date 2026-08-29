@@ -1,6 +1,4 @@
 /*
-Created: 12:08:2026 - 22:49:00
-Last updated: 18:08:2026 - 18:55:48
 Module: engine/world
 File: engine/world/sources/WorldgenGreatOak.cpp
 
@@ -22,13 +20,6 @@ AI Agents Notice (must follow):
   counts read in a fixed order from a seeded stream. Do not make it depend on
   iteration order of anything, on a chunk, or on floating-point tie-breaks that
   a compiler may reassociate.
-*/
-/*
-UPD:
-- 12:08:2026 - 22:49:00: Created.
-- 18:08:2026 - 18:55:48: The pass's cost measured and recorded (~0.6 s per world
-  build, two arms of one binary). Not optimised: the obvious saving moves the
-  chosen site, and the acceptance frames are shot against the site.
 */
 
 #include "engine/world/sources/WorldgenGreatOak.h"
@@ -73,7 +64,6 @@ constexpr int CANDIDATES_PER_CELL = 1024;
 /// instead of on every legal one — would change which site wins ties, and that
 /// silently moves a landmark the acceptance frames are already shot against.
 /// Whoever spends it must re-shoot docs/acceptance/core-great-oak-*.
-
 
 } // namespace
 

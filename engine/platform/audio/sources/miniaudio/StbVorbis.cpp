@@ -1,6 +1,4 @@
 /*
-Created: 27:08:2026 - 20:00:24
-Last updated: 27:08:2026 - 20:00:24
 Module: engine/platform/audio
 File: engine/platform/audio/sources/miniaudio/StbVorbis.cpp
 
@@ -53,12 +51,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do NOT edit stb_vorbis itself, and do not copy it into the tree. If a fix is
   needed, move the miniaudio pin and say so in the module CMakeLists.
-*/
-/*
-UPD:
-- 27:08:2026 - 20:00:24: Created — Ogg Vorbis decoding for the main theme
-  (owner's order, relayed through the music session: the title theme loops in the main menu). Vorbis was
-  defect #2 of the three named in docs/reports/music-research.html §8.
 */
 
 // Warnings suppressed for THIS FILE ONLY, and named one by one rather than

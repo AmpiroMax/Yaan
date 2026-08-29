@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 20:10:00
-Last updated: 13:08:2026 - 23:30:00
 Module: engine/render
 File: engine/render/sources/FloraWeber.h
 
@@ -27,26 +25,6 @@ AI Agents Notice (must follow):
   them. Every species row in FloraSpecies.cpp is derived from OUR design briefs
   and is labelled as ours. If those tables are ever obtained, they replace our
   rows wholesale — that is the entire point of using a published model.
-*/
-/*
-UPD:
-- 13:08:2026 - 20:10:00: Created. The user, 13.08.2026: «вижу текущие деревья и
-  прям страшно становится, неужели в инете нет никаких алгоритмов… чтобы
-  размеры веток / число веток / листья по-живому строились». There are, this is
-  the standard one, and Arbaro and Blender's sapling generator are both it.
-- 13:08:2026 - 21:00:00: Species tables are the PAPER'S after all — the lead
-  extracted them from the PDF (docs/WEBER_PENN_PARAMS.md) after this zone
-  refused to reproduce them from memory. The notice above is kept as written
-  because the refusal is the reusable part: the numbers arrived because someone
-  asked for them, not because anyone guessed well. Plus `base_splits` — the
-  paper's `0BaseSplits`, which is where an oak's several main axes come from.
-- 13:08:2026 - 23:30:00: WeberParams::bole — the authored bole polyline, the
-  fix for the TWO-TRUNK defect the user saw as «ветки своими углами из
-  основания торчат»: level 0 walks the drawn trunk instead of growing an
-  invisible one (measured before: 94-100 % of L1 branch bases off the drawn
-  bole surface, oak mean 5.30 m). base_splits move from the ground to the
-  polyline's end and become DRAWN leaders. Dose door: DFN_FLORA_ONEBOLE=0
-  restores the old growth (door read in ProcFlora; this file stays pure).
 */
 
 #pragma once

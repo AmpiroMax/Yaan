@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:12:57
-Last updated: 22:08:2026 - 23:49:20
 Module: engine/render
 File: engine/render/sources/LodTerrain.cpp
 
@@ -19,21 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The residency rules (no draw before resident, no release before faded out)
   live in LodResidency and must not be re-implemented or short-circuited here.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:12:57: Created with the LOD drawing half.
-- 09:08:2026 - 22:39:28: pending() forwarded.
-- 10:08:2026 - 01:47:53: Straddle-ring fix — upload clips the mesh against the
-  resident rectangle, update() re-ships stale clips through pending(), and
-  node bounds are measured over INDEXED vertices only (a clipped mesh keeps
-  its full vertex grid but must not cull as if it drew all of it).
-- 13:08:2026 - 22:28:39: LOD draws set casts_in_point_shadows = false: the coarse
-  stand-in is built without carves, so inside a tunnel it is rock through the
-  corridor's air, and a torch's cube map filled with it lights nothing.
-- 22:08:2026 - 15:40:00: params.aux_texture = aux — рельеф кольца тот же, что у чанков.
-- 23:08:2026 - 00:30:00: options.path_classes из хранимого указателя.
-- 22:08:2026 - 23:49:20: aux3 — маска троп в дро кольца.
 */
 
 #include "engine/render/sources/LodTerrain.h"

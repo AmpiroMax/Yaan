@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 28:08:2026 - 13:56:00
 Module: engine/platform/audio
 File: engine/platform/audio/sources/null/NullAudio.cpp
 
@@ -18,12 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Semantics here are contract (IAudio.h notes); keep them in sync.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial null backend implementation.
-- 28:08:2026 - 13:56:00: set_voice_lowpass — пустой, как и всё здесь (зона
-                         «звук от источника»).
 */
 
 #include "engine/platform/audio/sources/null/CreateNullAudio.h"

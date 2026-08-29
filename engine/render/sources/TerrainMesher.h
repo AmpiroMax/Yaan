@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 00:25:12
 Module: engine/render
 File: engine/render/sources/TerrainMesher.h
 
@@ -29,30 +27,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep this a pure function: no GPU calls, no ECS access.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial contract + implementation.
-- 09:08:2026 - 11:57:20: Stage 3b — SurfaceFieldView overload; vertex color
-  re-purposed from tint to splat weights (shader contract updated in step).
-- 09:08:2026 - 14:11:37: Dryness/dirt channel removed (design ruling): splat
-  keys off core's surface_class only; alpha reserved.
-- 09:08:2026 - 22:01:04: LOD support. (1) UVs are WORLD-REFERENCED (world xz /
-  CHUNK_SIZE) instead of 0..1 across the field. For a field whose origin sits
-  on the 128 m node grid this is identical to the old formula — the difference
-  is a whole number of tile repeats — but under the old formula a 1..8 km LOD
-  node stretched one texture set across the entire node. A test pins the
-  equality rather than asserting it in prose. (2) TerrainMeshOptions::
-  skirt_depth_m appends a vertical apron to the four borders, which is what
-  hides the T-junction crack between two adjacent LOD levels.
-- 10:08:2026 - 01:47:53: TerrainMeshOptions::clip_min/clip_max — the mesh half
-  of the straddle-ring fix (see TerrainLod.cpp UPD of the same date): cells
-  wholly inside the chunk-streamed rectangle are not emitted and skirts hang
-  along the cut boundary. Empty clip keeps the emission path bit-identical.
-- 23:08:2026 - 00:30:00: PathClassField/pack_path_alpha — материал полотна в альфе вершины
-- 23:08:2026 - 00:25:12: PathClassField::covered — точка на полотне (для фильтра сева травы, круг 6 н.16).
-  (2 бита класса + 6 бит износа), «нет тропы» остаётся 255. Одна упаковка
-  на все мешеры кадра — контракт с разбором в fs_terrain.
 */
 
 #pragma once

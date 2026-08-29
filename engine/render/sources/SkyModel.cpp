@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 19:04:20
-Last updated: 13:08:2026 - 19:11:13
 Module: engine/render
 File: engine/render/sources/SkyModel.cpp
 
@@ -28,30 +26,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure: no GPU, no ECS, no wall clock. Inputs are fractions.
-*/
-/*
-UPD:
-- 09:08:2026 - 19:04:20: Created with the day/night stage.
-- 12:08:2026 - 23:52:00: Two-moon geometry (W9). THE EPOCH SIGN WAS THE ONE THING THAT HAD TO BE
-  DERIVED RATHER THAN COPIED: `+ epoch` puts Masser 162 deg from the meridian at
-  the first frame, i.e. below the horizon, which is the exact defect the epoch
-  rows were written to fix. `- epoch` reproduces FIVE of design's stated numbers
-  at once (lit fractions 0.500 / 0.750 exactly, flat-arc hour angles +18 / +48,
-  30 deg apart) and is the only sign under which moonrise is DELAYED, as
-  MASSER_SYNODIC_DAYS claims. MEASURED against the shipped tilted arc: lit
-  fractions and the 53.33 min/day delay come out exact; the hour angles read
-  +20.25 / +46.65 and the separation 25.54 deg rather than 30, because
-  SKY_ARC_TILT 0.45 is not in design's flat derivation. Both moons stand at 65
-  and 41 deg elevation, 2.3x the separation floor — the row's claim holds, its
-  two quoted angles are a flat-arc idealisation.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
-- 13:08:2026 - 19:11:13: THE EPOCH CAME OFF THE CLOCK RECONSTRUCTION, and it was a real
-  defect and not a rounding: elongation is TAU*days/P + epoch, so the fallback
-  `days = phase*P` landed at `phase*TAU + MASSER_ELONGATION_EPOCH`, i.e. 270 deg
-  off. A caller asking for a FULL moon (phase 0.5) with no world clock got a
-  HALF-LIT one -- moon_light 0.4998 where the test demands > 0.5 and the
-  geometry demands 1.0 -- while the header claimed the reconstruction was exact
-  for elongation, phase and illumination. It is now.
 */
 
 #include "engine/render/sources/SkyModel.h"

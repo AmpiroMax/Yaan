@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 12:08:2026 - 00:29:55
-Last updated: 12:08:2026 - 00:29:55
 Module: tools
 File: tools/measure_speckle.py
 
@@ -35,12 +33,6 @@ AI Agents Notice (must follow):
   under crowns and at a treeline. A claim about the GROUND is a different
   subject and needs its own standpoint and its own baseline — the canopy
   numbers are not a threshold anything else may be read against.
-
-UPD:
-- 12:08:2026 - 00:29:55: Created for R5's cost side. The R5 ground change raises
-  the spatial frequency of the ground (a second grass fetch at an
-  incommensurate scale), and that is exactly the class that shimmers, so it is
-  measured rather than argued.
 """
 
 import sys
@@ -55,10 +47,8 @@ LUMA_W = (0.30, 0.59, 0.11)
 # comparable across standpoints.
 DEFAULT_THRESHOLD = 64.0
 
-
 def luma(r, g, b):
     return LUMA_W[0] * r + LUMA_W[1] * g + LUMA_W[2] * b
-
 
 def speckle(a_path, b_path, box=None, threshold=DEFAULT_THRESHOLD):
     wa, ha, ca, pa = read_png(a_path)
@@ -85,7 +75,6 @@ def speckle(a_path, b_path, box=None, threshold=DEFAULT_THRESHOLD):
     return {"flipped": flipped, "total": total, "worst": worst,
             "pct": 100.0 * flipped / max(total, 1)}
 
-
 def main(argv):
     if len(argv) < 3:
         raise SystemExit("usage: measure_speckle.py <still.png> <stepped.png> "
@@ -99,7 +88,6 @@ def main(argv):
           + (f"  box {box}" if box else "  whole frame"))
     print(f"  SPECKLE {m['pct']:.3f} %  ({m['flipped']}/{m['total']} px flip "
           f"more than {thr:.0f} luma)   worst flip {m['worst']:.1f}")
-
 
 if __name__ == "__main__":
     main(sys.argv)

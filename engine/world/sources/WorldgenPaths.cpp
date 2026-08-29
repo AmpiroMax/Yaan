@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 10:44:13
-Last updated: 10:08:2026 - 11:37:17
 Module: engine/world
 File: engine/world/sources/WorldgenPaths.cpp
 
@@ -20,14 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Rule 13.1: no unordered containers on the output path; the A* frontier
   breaks ties on the node INDEX so the expansion order is reproducible.
-*/
-/*
-UPD:
-- 10:08:2026 - 10:44:13: Created.
-- 10:08:2026 - 11:37:17: The wear/edge ramps MOVED to core/math (SurfaceField.h):
-  render draws the tread from them per pixel and flora plants the verge
-  against them, so a copy here would drift into a verge sitting beside an edge
-  that has moved. Plus the BR-1 standpoint pair.
 */
 
 #include "engine/world/sources/WorldgenPaths.h"

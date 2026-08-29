@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 20:20:00
-Last updated: 13:08:2026 - 23:35:00
 Module: engine/render
 File: engine/render/sources/FloraWeber.cpp
 
@@ -19,20 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly; zone contract docs/specs/flora.md.
 - PURE AND DETERMINISTIC. Same (params, seed) -> byte-identical output.
 - THE MODEL IS THE PAPER'S, THE SPECIES NUMBERS ARE OURS (see FloraWeber.h).
-*/
-/*
-UPD:
-- 13:08:2026 - 20:20:00: Created.
-- 13:08:2026 - 21:00:00: Breadth-first with stride subsampling (a node budget
-  and depth-first recursion build a BROKEN tree, not a cheap one), base splits,
-  and the record of a level-dropping heuristic that was implemented, measured
-  and removed.
-- 13:08:2026 - 23:35:00: THE UNITED BOLE. When WeberParams::bole is set, level
-  0 walks the drawn trunk's polyline (no own curvature/lean/splits on the
-  guided run), the free run past its end is the DRAWN central leader, and
-  base_splits fork at the bole's end as drawn leaders instead of fanning
-  invisibly from the ground. Fix for the measured two-trunk defect (94-100 %
-  of L1 branch bases off the drawn bole, oak mean 5.30 m).
 */
 
 #include "engine/render/sources/FloraWeber.h"

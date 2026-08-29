@@ -1,6 +1,4 @@
 #!/usr/bin/env python3
-# Created: 20:08:2026 - 15:20:00
-# Last updated: 20:08:2026 - 15:20:00
 # Module: tools
 # File: tools/make_walk_video.py
 #
@@ -11,19 +9,14 @@
 #   и собирает walkthrough.mp4 + walkthrough.srt (кадр = строка состояния).
 #
 # Usage: python3 tools/make_walk_video.py <dir_with_rec_pngs> <out_stem> [fps]
-#
-# UPD:
-# - 20:08:2026 - 15:20:00: Создан.
 
 import os
 import subprocess
 import sys
 
-
 def srt_time(t):
     ms = int(t * 1000)
     return f"{ms // 3600000:02d}:{ms % 3600000 // 60000:02d}:{ms % 60000 // 1000:02d},{ms % 1000:03d}"
-
 
 def main():
     if len(sys.argv) < 3:
@@ -52,7 +45,6 @@ def main():
         out + ".mp4",
     ])
     print(f"written {out}.mp4 ({len(lines)} строк субтитров в {out}.srt)")
-
 
 if __name__ == "__main__":
     main()

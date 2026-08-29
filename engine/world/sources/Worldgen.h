@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/Worldgen.h
 
@@ -30,61 +28,6 @@ AI Agents Notice (must follow):
   fast-math dependence; all randomness flows from the seeded engine below.
 - WorldEntityIds are assigned deterministically (chunk-ordered, stable across
   regeneration with the same params) — save deltas depend on it (Q56).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — offline deterministic worldgen API
-  (Q13, Rule 13.1) with per-chunk entry point for tests.
-- 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 (LANDSCAPE.md): WorldGenParams
-  gains the TestbedLayout field (additive, lead-approved); WorldGenContext +
-  build_world_context so streaming builds hydrology/sites once; terrain and
-  surface queries exposed for validation/tests.
-- 10:08:2026 - 10:40:28: LF-8 (§2.10, в17): WorldGenContext carries the baked ErosionGrid.
-  Empty unless the layout declares the pass, and sampling an empty grid is 0 —
-  so the QUERY is unconditional and only the BUILD is gated (Rule 32).
-- 10:08:2026 - 10:52:15: §8.1 path network on WorldGenContext (в7/в24). Empty on stands
-  that declare no paths, and an empty network reports "far from any path", so
-  consumers need no stand check.
-- 10:08:2026 - 10:55:03: BR-6 find layer on WorldGenContext (в20).
-- 10:08:2026 - 19:55:51: compose_passes() published: the pass stack had three
-  open-coded copies (terrain_height, generate_chunk, the coarse node builder)
-  and two of them were never told when the forest stand's branch landed. One
-  definition now, called by all three.
-- 11:08:2026 - 15:15:55: compose_passes takes the WaterSample: §2.7's relief tapers across the shore band and needs dist_to_water. No caller pays a field evaluation for it -- all three already held the sample.
-- 12:08:2026 - 22:55:00: WorldGenContext::great_oaks (docs/GIANT_OAKS.md §2). A
-  world-level pass because the giants' spacing is DERIVED from the read distance
-  of a 96 m crown and comes out longer than this world's diagonal: the count is
-  an output, not a density, and it is one giant.
-- 13:08:2026 - 00:40:00: WorldGenContext::flow -- the drainage grid. A world-level pass because drainage area is a catchment quantity: a chunk computing its own would make channels that stop at its border.
-- 17:08:2026 - 11:35:28: WorldGenParams::composed_pads — площадки, которые author'ит композиция.
-  Пусто на всяком мире, который их не объявляет, и пустой список — no-op БИТ В
-  БИТ: именно это позволяет завести правку высот, не сдвинув закреплённую карту
-  тестбеда ни на один сэмпл.
-- 17:08:2026 - 13:14:56: WorldGenParams::composed_rivers.
-- 17:08:2026 - 19:05:00: WorldGenParams::composed_relief — СЛОЙ РУЧНОЙ ПРАВКИ ЗЕМЛИ (заказ
-  17.08 про кисти рельефа; добро лида получено до правки). Он входит ИМЕННО
-  сюда, а не куда-нибудь ещё, потому что через compose_passes идут и
-  terrain_height, которым мерит судья композиции, и generate_chunk, обо что
-  бьются ноги игрока: одно место применения — и «земля, по которой ходишь» и
-  «земля, которую судит check_scene» совпадают без единой строки согласования.
-  Любой второй вход был бы двумя правдами о земле. Пустой слой — no-op БИТ В
-  БИТ, и не по счастливой арифметике float, а явной досрочной проверкой:
-  x + 0.0f не равно x, когда x это -0.0f, а закреплённый дайджест тестбеда
-  дороже одной ветки. И classify_surface получил НЕОБЯЗАТЕЛЬНЫЙ последний
-  аргумент — назначенный композитором класс поверхности; только добавление,
-  все прежние вызовы компилируются как компилировались (правило 26).
-- 18:08:2026 - 12:06:09: SLOPE_STENCIL_ARM_M + central_difference_slope — ПЛЕЧО УКЛОНА СТАЛО
-  СВОИМ ЧИСЛОМ (NUMBERS.md, TERRAIN_SLOPE_STENCIL_M = 2.0). Его не было:
-  terrain_slope брала плечо из HEIGHTMAP_STEP, а WorldgenScatter, WorldgenSites
-  и WorldgenValidation держали каждый свой голый `d = 2.0f` — пять мест (пятое,
-  сеточный проход generate_chunk, считало по соседним ОТСЧЁТАМ) сходились ровно
-  потому, что шаг хранения случайно равнялся двум. Смена шага на 1.0 м развела
-  бы раскраску камня, рассев и проходимость МОЛЧА. Значение оставлено 2.0
-  намеренно: уклон здесь отвечает «что это за склон», им красят камень против
-  травы и судят проходимость, а это свойство ФОРМЫ РЕЛЬЕФА в человеческий рост,
-  а не свойство того, как густо мы её храним; привяжи плечо к шагу — и любое
-  будущее уточнение хранения перекрасит весь мир при неизменной земле. Формула
-  теперь одна на всех пятерых (правило 32), плечо — одно.
 */
 
 #pragma once

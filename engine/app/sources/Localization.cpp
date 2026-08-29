@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 00:01:47
-Last updated: 10:08:2026 - 00:01:47
 Module: engine/app
 File: engine/app/sources/Localization.cpp
 
@@ -10,10 +8,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned file (Rule 25).
-*/
-/*
-UPD:
-- 10:08:2026 - 00:01:47: Created.
 */
 
 #include "engine/app/sources/Localization.h"

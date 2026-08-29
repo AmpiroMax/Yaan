@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:58:00
-Last updated: 10:08:2026 - 01:58:00
 Module: tests
 File: tests/core/JsonTests.cpp
 
@@ -21,10 +19,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The reject list IS the documented policy; relaxing one needs a spec sync.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:58:00: Created with the JSON reader (tech-debt task 3).
 */
 
 #include "engine/core/serialization/sources/Json.h"

@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 #
-# Created: 09:08:2026 - 00:06:00
-# Last updated: 10:08:2026 - 01:58:01
 # File: tools/hooks/pre-commit
 #
 # Responsibility:
@@ -14,10 +12,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
 # - Do not bypass with --no-verify; fix the headers instead.
-#
-# UPD:
-# - 09:08:2026 - 00:06:00: Created hook running header_check over the whole tree.
-# - 10:08:2026 - 01:58:01: Staged-files-only gate (design's process flag).
 
 set -euo pipefail
 

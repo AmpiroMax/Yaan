@@ -1,5 +1,4 @@
 /*
-Created: 27:08:2026 - 00:12:40
 Module: engine/app
 File: engine/app/sources/PngImage.h
 
@@ -40,11 +39,6 @@ AI Agents Notice (must follow):
   that is the zone the menu belongs to and a cross-zone move needs the render
   zone's owner. If a second zone needs to read a PNG, that is the moment to
   move it to engine/core or engine/render -- do NOT copy it (Rule 39).
-*/
-/*
-UPD:
-- 27:08:2026 - 00:12:40: Создан — чтение .png (inflate + расфильтровка) ради
-  герба Империи Яан и знака студии в меню (заказ владельца 26.08).
 */
 
 #pragma once

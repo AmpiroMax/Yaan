@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 00:24:58
 Module: engine/platform/input
 File: engine/platform/input/sources/null/NullInput.h
 
@@ -17,15 +15,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 14:08:2026 - 16:59:44: Implemented text_input() — always an empty stream
-  (headless has no keyboard), keeps the contract compiling for auto-runs/tests.
-- 18:08:2026 - 00:24:58: place_cursor() запоминает положение, и mouse_position() теперь его
-  отдаёт. Раньше он возвращал ноль всегда, то есть противоречил бы сам себе
-  сразу после первой постановки.
 */
 
 #pragma once

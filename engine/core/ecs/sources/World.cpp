@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/ecs
 File: engine/core/ecs/sources/World.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - destroy_batch visits each pool ONCE with the whole batch (Rule 11); keep it
   that way when touching this file.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — implementation.
 */
 
 #include "engine/core/ecs/sources/World.h"

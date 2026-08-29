@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 10:48:00
-Last updated: 28:08:2026 - 19:20:00
 Module: engine/render
 File: engine/render/sources/ProcTexture.cpp
 
@@ -21,27 +19,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic pure functions only: integer hashes, no float trig seeding, no
   std::rand. Byte-identical output across platforms is a test invariant.
-*/
-/*
-UPD:
-- 09:08:2026 - 10:48:00: Stage 3 — initial implementation.
-- 10:08:2026 - 11:34:12: §8.1 path surfaces + the periodic cellular primitive
-  they are built on. Note on the ramps: the two stone kinds take their value
-  variation PER STONE (from the cell id) and their shading from the joint
-  distance, so the quantiser sees a few flat plates with dark lines between
-  them rather than a continuous field — which is what makes them read as set
-  stones at 640x360 instead of as grey noise.
-- 22:08:2026 - 15:40:00: terrain_field_t() извлечён из shade_texel (четыре клетки сплата) —
-- 23:08:2026 - 17:58:10: шов COBBLE — мягкая канавка −0.26 вместо порогового сброса −0.45, квантование 6 -> 24 ступени (палитра выключена): чёрные обводки камней у источников света.
-  до-квантовое поле одно, альбедо и нормали не могут разойтись;
-  generate_terrain_normal_atlas() — центральные разности того же поля,
-  рельеф на клетку художественно завышен по прецеденту PartsAtlas.
-- 28:08:2026 - 19:20:00: lattice_hash01() — решётка БЕЗ интерполяции. Всё
-  остальное в этом файле интерполирует между узлами, а интерполяция и есть то,
-  что снимает энергию на Найквисте плитки: поле из fbm гладко НА МАСШТАБЕ
-  ТЕКСЕЛЯ, сколько бы октав ему ни дали. Выведено наружу, а не скопировано в
-  набор: вторая цепочка хэшей в дереве — теневой дефект правила 39, и она же
-  молча ломает всякое утверждение о детерминизме.
 */
 
 #include "engine/render/sources/ProcTexture.h"

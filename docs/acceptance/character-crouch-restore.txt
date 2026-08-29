@@ -1,5 +1,3 @@
-# Created: 10:08:2026 - 22:40:13
-# Last updated: 10:08:2026 - 22:40:13
 # Module: docs/acceptance
 # File: docs/acceptance/character-crouch-restore.txt
 #
@@ -41,9 +39,6 @@
 #   1.2284); the app derives the feet by subtracting the crouch offset, so
 #   editing pos_y to a standing value drops the player through a squat's worth
 #   of air.
-#
-# UPD:
-# - 10:08:2026 - 22:40:13: Captured for the crouched-camera before/after pair.
 
 captured_at = 10:08:2026 - 22:40:13
 build_commit = c296fec

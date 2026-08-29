@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 28:08:2026 - 18:05:00
-# Last updated: 29:08:2026 - 00:50:00
 # File: tools/gen_trees_v2.py
 #
 # Responsibility:
@@ -38,23 +36,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
 # - ДЕТЕРМИНИРОВАН: один и тот же посев — тот же файл до байта.
-#
-# UPD:
-# - 28:08:2026 - 18:05:00: Создан — смотровая площадка второй итерации.
-# - 29:08:2026 - 00:50:00: ЯРУСЫ (волна по записке №2 ресёрчера, пункты 1/2/3/5).
-#   Стенд перестал быть только галереей деревьев: поверх полога сеются куртины
-#   подлеска, сплошной ковёр мха и травы с переключением по видимости неба,
-#   редкие акценты группами и ярус подроста 1-3 м. Сам ЗАКОН посева живёт в
-#   tools/flora_sow.py — здесь только палитры стенда, масштабы посадки и порядок
-#   заходов; иначе у каждой карты завелась бы своя плотность куртины, и кадр
-#   перестал бы быть доводом о законе.
-#   Два КОНТРОЛЬНЫХ ПЛЕЧА ключами (правило 30): --no-tiers (сцена «до») и
-#   --uniform (тот же счёт подлеска РОВНЫМ рассевом). Второе — единственный
-#   способ доказать, что куртина есть закон, а не украшение.
-#   БАЗА НАХОДОК СУДЬИ теперь считается ЯВНО: полог рощиц даёт 5 находок
-#   [no-overlap] (сомкнутые кроны — правило «два ствола в одной яме», прочитанное
-#   на роще), и ярусы обязаны не добавить НИ ОДНОЙ. Прежний код возвращал успех
-#   по «0 находок», которого у этой карты не бывает.
 
 import math
 import os
@@ -76,11 +57,9 @@ SHELVES = [os.path.join(ROOT, "assets", "objects", "trees"),
 SPAN = 256          # м, одна плитка мира
 STEP = 1            # шаг решётки .relief; обязан совпасть с RELIEF_STEP_M
 
-
 def smoothstep(t):
     t = max(0.0, min(1.0, t))
     return t * t * (3.0 - 2.0 * t)
-
 
 def delta(x, z):
     """СКЛОН. Плато-луг до x=40, подъём 19 м до x=200, верхняя терраса дальше.
@@ -93,7 +72,6 @@ def delta(x, z):
         + 0.9 * math.sin(x * 0.062) * s \
         + 0.7 * math.sin(z * 0.021 + 1.3)
     return base + wav
-
 
 # --- КОМПОЗИЦИЯ ------------------------------------------------------------
 # (объект, x, z, заметка). yaw и малый разброс — из посева.
@@ -117,7 +95,6 @@ GROVES = [
 ]
 
 TERRACE = ["acacia-v2-luga-b", "acacia-v2-luga-a", "beech-v2-luga-a"]
-
 
 def build_places(rng):
     places = []
@@ -143,7 +120,6 @@ def build_places(rng):
         places.append((name, 216.0 + rng.uniform(-4, 4), 60.0 + i * 70.0,
                        rng.uniform(0, 6.283), "верхняя терраса: крона против неба"))
     return places
-
 
 # --- ЯРУСЫ (записка №2 ресёрчера, пункты 1.2/1.3/1.4/3.1) ------------------
 # Ни одного нового имени в подлеске и акцентах: кузницы полянки (assets/objects/
@@ -177,14 +153,12 @@ SCALE = {
 CARPET_REACH_M = 20.0
 TIER_SEED = 20260828
 
-
 def path_field(checker):
     """Поле троп у СУДЬИ (--path-field): та же величина, которой он ловит
     [off-path]. Свой расчёт троп в генераторе был бы вторым источником."""
     r = subprocess.run([checker, os.path.relpath(SCENE, ROOT), "--path-field", "1.0"],
                        cwd=ROOT, capture_output=True, text=True)
     return flora_sow.PathField.parse(r.stdout)
-
 
 def sow_tiers(places, checker, uniform=False):
     """Сеет ярусы поверх готовой расстановки деревьев. places — список
@@ -233,7 +207,6 @@ def sow_tiers(places, checker, uniform=False):
             out.append((n, x, z, yaw, note, 0.0))
     return out, stats, canopy, paths, objects
 
-
 def write_relief():
     lines = [
         "# Daggerfall N relief — СКЛОН смотровой площадки второй итерации.",
@@ -250,7 +223,6 @@ def write_relief():
     with open(RELIEF, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     return len(lines) - 4
-
 
 def write_scene(places):
     out = [
@@ -278,7 +250,6 @@ def write_scene(places):
     with open(SCENE, "w", encoding="utf-8") as f:
         f.write("\n".join(out))
 
-
 def read_scene_y():
     """Читает pos из .scene обратно — после --fix там генераторная земля."""
     out = []
@@ -300,7 +271,6 @@ def read_scene_y():
                 out.append((cur["object"], cur["pos"][0], cur["pos"][2],
                             cur["yaw"], cur["note"], cur["pos"][1]))
     return out
-
 
 def write_map():
     text = """name = Лес второй итерации
@@ -330,7 +300,6 @@ built_commit =
     with open(MAP, "w", encoding="utf-8") as f:
         f.write(text)
 
-
 def run_checker(checker, fix):
     # --relief: судья читает НАШ ЖЕ файл склона (ключ заведён 28.08 этой же
     # волной). Пока его не было, y приходилось считать в два шага — генератор
@@ -341,7 +310,6 @@ def run_checker(checker, fix):
     if fix:
         args.append("--fix")
     return subprocess.run(args, cwd=ROOT, capture_output=True, text=True)
-
 
 def findings(stdout):
     """Сколько находок насчитал судья в последней строке отчёта."""
@@ -355,7 +323,6 @@ def findings(stdout):
             except (IndexError, ValueError):
                 return -1
     return -1
-
 
 def offenders(stdout):
     """Индексы размещений, на которые судья ругается «стоит НА тропе».
@@ -371,7 +338,6 @@ def offenders(stdout):
             except ValueError:
                 pass
     return out
-
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -451,7 +417,6 @@ def main():
         return 1
     print("[trees-v2] ярусы не добавили НИ ОДНОЙ находки сверх базы %d" % base)
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

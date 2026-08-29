@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:21:30
-Last updated: 09:08:2026 - 22:44:47
 Module: engine/gameplay
 File: engine/gameplay/sources/ViewModel.cpp
 
@@ -20,18 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Every offset comes from dfn::config (Rule 14); the anchor is the TORCH
   anchor and must not be duplicated into a second set of numbers.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Counterphase arm sway (в3, the fourth ratified
-                         component): the hand swings opposite the camera's
-                         lateral bob, from the SAME stride clock (Rule 35 —
-                         no second oscillator), scaled by the live bob
-                         amplitude so it is zero at rest.
-- 09:08:2026 - 22:21:30: Created — visible hands.
-- 09:08:2026 - 22:40:04: The flame moves to the torch HEAD via the shared
-                         TORCH_FLAME_ABOVE_GRIP row (was burning at the grip).
-- 09:08:2026 - 22:44:47: hand_anchor_position() for the drop point.
 */
 
 #include "engine/gameplay/sources/ViewModel.h"

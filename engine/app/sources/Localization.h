@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 00:01:26
-Last updated: 10:08:2026 - 00:01:26
 Module: engine/app
 File: engine/app/sources/Localization.h
 
@@ -25,10 +23,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned file (Rule 25).
-*/
-/*
-UPD:
-- 10:08:2026 - 00:01:26: Created. Interaction prompts are the first consumer.
 */
 
 #pragma once

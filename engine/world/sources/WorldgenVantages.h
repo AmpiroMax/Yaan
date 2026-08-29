@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 11:19:15
-Last updated: 10:08:2026 - 11:19:15
 Module: engine/world
 File: engine/world/sources/WorldgenVantages.h
 
@@ -29,12 +27,6 @@ AI Agents Notice (must follow):
   a fixed lattice in a fixed order and break ties on the FIRST hit, because
   "the best of several equal candidates" chosen by container order is not
   reproducible.
-*/
-/*
-UPD:
-- 10:08:2026 - 11:19:15: Created — the stand loads and the bot walks it, but
-  the tour's vantages were the testbed's, so a tour on the forest stand shot
-  one frame and stopped.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:12:57
-Last updated: 22:08:2026 - 23:49:20
 Module: engine/render
 File: engine/render/sources/LodTerrain.h
 
@@ -39,37 +37,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - No ECS, no wall clock: dt arrives as a parameter. The only impure thing here
   is IRenderer, and it is always a parameter, never stored (Rule 9).
-*/
-/*
-UPD:
-- 09:08:2026 - 22:12:57: Created — the render half of LOD that actually draws:
-  node mesh residency, skirted coarse meshes, frustum culling and the
-  screen-door cross-fade through DrawParams::fade.
-- 09:08:2026 - 22:39:28: pending() forwarded for the app ferry.
-- 10:08:2026 - 01:47:53: Straddle-ring fix, drawing half. A node overlapping
-  the resident rectangle is meshed WITHOUT the overlapped cells
-  (TerrainMeshOptions::clip_*), and the clip a mesh was built with is
-  remembered: when the rectangle moves, every resident node whose clipped
-  region changed re-enters pending() while its old mesh keeps drawing, so the
-  ferry re-ships it through the ordinary upload path (core keeps node fields
-  until release) and the swap keeps the fade — no hole, no pop, no app change.
-- 10:08:2026 - 20:01:43: The "coarse nodes are past the shadow volume" claim in
-  draw() now carries its MEASURED margin (512 m worst against a 320 m volume,
-  1.6x) instead of standing as an assertion, because it is the premise that
-  decides whether a cross-fading node can double-cast into the sun shadow map.
-- 18:08:2026 - 12:06:07: Disambiguation only, no behaviour: the seam note's
-  "129 samples" is spelled COARSE_NODE_RESOLUTION (= LOD_NODE_VOXELS + 1) and
-  says out loud that it is the node lattice. HEIGHTMAP_RESOLUTION moved
-  129 -> 257 (NUMBERS), so the two lattices no longer share a number, and a
-  reader who assumed this 129 tracked the chunk would now be wrong about the
-  seam with core — the exact kind of silent divergence this note exists to
-  prevent.
-- 22:08:2026 - 15:40:00: draw() принимает aux-лист нормалей — кольцо обязано шейдить рельеф
-  как чанковая земля, иначе шов LOD мигает плоскостью; заметка о марже
-  тени обновлена под полуохват 160 (маржа выросла до 3.2x).
-- 23:08:2026 - 00:30:00: set_path_classes — кольцо пакует альфу тем же правилом, что чанки:
-- 22:08:2026 - 23:49:20: draw(...aux3) — маска троп кольцу, тем же листом, что чанкам.
-  разные упаковки при одном дозовом разборе читались бы мусорными классами.
 */
 
 #pragma once

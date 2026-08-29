@@ -1,6 +1,4 @@
 /*
-Created: 12:08:2026 - 22:52:00
-Last updated: 12:08:2026 - 22:52:00
 Module: tests/core
 File: tests/core/GreatOakTests.cpp
 
@@ -27,10 +25,6 @@ AI Agents Notice (must follow):
   set around a second build_world_context, never a rebuild and never an
   older commit — a rebuild also moves the terrain and answers a different
   question.
-*/
-/*
-UPD:
-- 12:08:2026 - 22:52:00: Created with the placement pass.
 */
 
 #include "engine/core/config/sources/Constants.h"

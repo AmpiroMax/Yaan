@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 19:30:00
-Last updated: 28:08:2026 - 19:30:00
 Module: tests/render
 File: tests/render/TreeForgeV2Tests.cpp
 
@@ -21,10 +19,6 @@ AI Agents Notice (must follow):
   crown_width_frac равен 1.0, значит проверять присваивание; проверять надо
   ширину ПОСТРОЕННОЙ кроны — именно на ней разошлись рецепт и вид у первой
   итерации (INDEX.md несёт абзац об этом расхождении).
-*/
-/*
-UPD:
-- 28:08:2026 - 19:30:00: Созданы вместе с кузницей v2.
 */
 
 #include "engine/render/sources/FloraCards.h"

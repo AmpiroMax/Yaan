@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 17:40:00
-Last updated: 17:08:2026 - 17:40:00
 Module: tools
 File: tools/new_map.cpp
 
@@ -32,10 +30,6 @@ AI Agents Notice (must follow):
 - The skeleton is DELIBERATELY INCOMPLETE where a human must choose: name and
   description are placeholders, built_commit is empty. A skeleton that looked
   finished would ship placeholders into the map list.
-*/
-/*
-UPD:
-- 17:08:2026 - 17:40:00: Создан — явное создание папки и карты (заказ 17.08).
 */
 
 #include <cstdio>

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Rig.cpp
 
@@ -19,11 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - H is PLAYER_CAPSULE_HEIGHT on purpose (Rule 35: the body fits sim's capsule;
   there is deliberately no BODY_HEIGHT row). Do not introduce a second height.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial rest-pose build + config mapping.
-- 10:08:2026 - 12:10:00: Legs converge to BODY_STANCE_WIDTH_FRAC; hinge ranges for knees and elbows (the two joints run in OPPOSITE senses).
 */
 
 #include "engine/anim/sources/Rig.h"

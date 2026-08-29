@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:59:28
-Last updated: 14:08:2026 - 23:36:19
 Module: engine/world
 File: engine/world/sources/WorldgenForest.cpp
 
@@ -27,20 +25,6 @@ AI Agents Notice (must follow):
   future fog pass (WEATHER W5) fills and what LF-2's own acceptance ("from a
   swale floor the neighboring swale is hidden; the crest reveals it")
   measures. Do not "simplify" it to raw noise.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:59:28: Created — §8.1 stand mechanism + LF-1/LF-2 ground.
-- 10:08:2026 - 10:29:50: Swale-floor lip 0.35 -> LF2_SWALE_FLOOR_FRAC 0.55: the
-  continuity acceptance is a percolation problem. Largest connected floor
-  component went 0.23 -> 0.84 (2048 m, seed 1) and now GROWS with the domain
-  instead of shrinking. Derivation table in the header.
-- 10:08:2026 - 10:40:28: Forest stand declares LF-8 (в17).
-- 11:08:2026 - 15:15:55: glade_factor exported (§2.7's meso tier must taper through в9's authored calm plain too); the stand stops applying the micro octave itself now that compose_passes applies relief generally.
-- 14:08:2026 - 22:27:28: one_tree_stand_layout() строится РАЗНИЦЕЙ от forest_stand_layout(), а не с
-  нуля: новая нейтрализация тестбедного штампа, добавленная там, наследуется,
-  а не пропускается здесь.
-- 14:08:2026 - 23:36:19: gallery_stand_layout() — разницей от one_tree_stand_layout, тот же довод.
 */
 
 #include "engine/world/sources/WorldgenForest.h"

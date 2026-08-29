@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:00
-# Last updated: 28:08:2026 - 19:30:00
 # File: tests/render.cmake
 #
 # Responsibility:
@@ -13,73 +11,6 @@
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. GPU-free tests only (null backends).
-#
-# UPD:
-# - 09:08:2026 - 00:45:00: Stage 2 — mesher, camera, tour, null backend tests.
-# - 09:08:2026 - 11:14:00: Stage 3 — proc texture, palette, render system
-#   (water/env) tests.
-# - 09:08:2026 - 11:57:20: Stage 3b — proc mesh, scatter batcher, water mesher.
-# - 09:08:2026 - 17:55:00: Map screen tests (explored chunks, markers, compose).
-# - 09:08:2026 - 19:53:00: Sky model tests (sun/moon geometry, night invariants).
-# - 09:08:2026 - 19:46:00: Flora generator tests (flora agent's suite).
-# - 09:08:2026 - 20:58:00: Terrain LOD tests (ladder, selection, fade window).
-# - 09:08:2026 - 22:12:57: LodTerrain tests (the LOD drawing half over the null
-#   renderer: no draw before delivery, fade values, release on disable).
-# - 09:08:2026 - 23:32:07: Bitmap font tests (glyph coverage + the unmappable
-#   control, UTF-8 decoding, alias identity, bitmap uniqueness, clipping).
-# - 10:08:2026 - 03:14:30: Cloud model tests (downwind drift, becalmed control).
-# - 10:08:2026 - 12:11:29: Path mesher tests (the cross-section's knot error
-#   against core's own profile, with the wrong-curve control). NOTE: the first
-#   version of this entry was stamped 12:26:05 — a time SIXTEEN MINUTES IN THE
-#   FUTURE, computed forward instead of read from the clock (Rule 16). It broke
-#   the shared header gate and cost sim a --no-verify commit. Corrected from a
-#   real `date` reading; recorded rather than quietly overwritten, because the
-#   UPD block is this project's ordering record and a silent correction is
-#   indistinguishable from the error never happening.
-# - 12:08:2026 - 01:02:15: Ground tuft tests (density rate with a zero control,
-#   determinism, material and slope filters with their controls, the Rule 33
-#   view cut, and that the clumps are not one stamp in copies).
-# - 17:08:2026 - 12:40:06: Part-forge joint tests (замкнутость и обмотка призм стоек с
-#   контролями, контракт грани, лежень, имена, каталог соединителей).
-
-# - 17:08:2026 - 13:09:29: Part-forge wall tests (сплошность десяти стилей, дверь — контроль
-#   прибора, имена, каталог).
-# - 17:08:2026 - 13:23:29: Part-forge roof tests (замкнутость покрытий, пара вальма/полувальма,
-#   дымник, имена, каталог); измерители — в MeshMeters.h.
-# - 17:08:2026 - 13:49:34: Part-forge stair tests (крутой марш достаёт этаж за свою длину,
-#   пологий — контроль тем же измерителем; ступень против PLAYER_STEP_HEIGHT).
-# - 17:08:2026 - 14:29:43: Parts atlas tests (лист набора: непрозрачность против маски листвы,
-#   палитра против соседнего ряда, контраст против плоской грани, шов против
-#   рампы, рельеф соломы против штукатурки; шкура бруса не двигает вершины).
-# - 17:08:2026 - 14:46:25: Sign forge tests (точное покрытие растра буквы прямоугольниками против
-# - 17:08:2026 - 14:46:25: Sign forge tests (точное покрытие растра буквы прямоугольниками против
-#   контроля-попиксельно, поднятый объём против пустой доски, тон буквы против
-#   тона доски, имя от текста, три формы).
-#   контроля-попиксельно, поднятый объём против пустой доски, тон буквы против
-#   тона доски, имя от текста, три формы).
-# - 20:08:2026 - 02:12:49: render_flame_phase — фаза мерцания факела (сеялась от размера пула
-#   кандидатов) и ревизия листа в ключе кэша плитки набора. У обоих случаев
-#   контроль — дофиксная формула, выписанная дословно (правило 39).
-# - 23:08:2026 - 22:55:00: render_loading_screen — экран загрузки И15: модель этапов
-#   и разность против контрольной руки, рисующей тот же экран без слов.
-# - 27:08:2026 - 10:18:14: render_object_registry_house — секция HOUS формата .dfo
-#   (куски запечённой постройки с номером плитки). Главный рукав там —
-#   «пустая секция не трогает личность»: иначе 2400+ файлов полок сменили бы
-#   хэш и перестали читаться до перепечки.
-# - 27:08:2026 - 10:34:00: МЕТКА ЗАПИСИ ВЫШЕ ИСПРАВЛЕНА НА РЕАЛЬНОЕ ВРЕМЯ (правило 16):
-# - 28:08:2026 - 11:14:50: render_material_registry — понятие МАТЕРИАЛ (зона МАТЕРИАЛЫ,
-#   28.08): полнота отображения 36 пар листа набора, умолчание == ламберт
-#   (контрольная рука кадра), золото против штукатурки блином fs_prop.
-#   стояло 15:xx при стенных 10:18 — метка была выбрана позже чужой записи 14:30
-#   в AppHouse.cpp, лишь бы сошлась сверка хука, вместо того чтобы разобраться с
-#   чужой. Поставлено время коммита 9e2c8c9 (10:18:14). Текста и кода не трогал.
-# - 28:08:2026 - 19:30:00: render_tree_forge_v2 — ВТОРАЯ ИТЕРАЦИЯ ДЕРЕВЬЕВ
-#   (заказ владельца 28.08 по записке docs/reports/trees-g3). Пять разниц,
-#   каждая по ПОСТРОЕННОЙ геометрии: глубина и ширина кроны, два габитуса
-#   одного вида, жёсткий комель при ушедшей вершине, стволы от земли, ряды
-#   пачки v2 в атласе (просветы внутри карточки, тёмная сердцевина), число
-#   долей обода. Контрольные руки к трём из пяти — первая итерация теми же
-#   метрами: без них «крона глубже половины» — число без масштаба.
 add_dfn_test(render_object_registry_house render/ObjectRegistryHouseTests.cpp
     dfn_render dfn_core)
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)

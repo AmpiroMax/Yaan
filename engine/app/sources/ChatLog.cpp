@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 16:43:03
-Last updated: 14:08:2026 - 19:14:02
 Module: engine/app
 File: engine/app/sources/ChatLog.cpp
 
@@ -14,15 +12,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned zone (Rule 25), app cut.
-*/
-/*
-UPD:
-- 14:08:2026 - 16:43:03: Created.
-- 14:08:2026 - 16:48:45: Rewrote to the MAP_LAYOUT.md JSONL contract; added the
-  stand->map bridge and JSON string escaping.
-- 14:08:2026 - 19:14:02: Столбец `capture` в выгрузке кольца (и в шапке-легенде):
-  снимок оставляет в трейсе ориентир. Пустое значение пишется как «-», как и у
-  соседнего aim, — читателю столбцов нужен непустой токен, иначе колонки едут.
 */
 
 #include "engine/app/sources/ChatLog.h"

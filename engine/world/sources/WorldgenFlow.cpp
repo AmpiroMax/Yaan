@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 21:50:00
-Last updated: 13:08:2026 - 21:50:00
 Module: engine/world
 File: engine/world/sources/WorldgenFlow.cpp
 
@@ -18,10 +16,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic (Rule 13.1): see the ordering note in the header. Every loop
   here is in a fixed order and every tie is broken by cell index.
-*/
-/*
-UPD:
-- 13:08:2026 - 21:50:00: Created.
 */
 
 #include "engine/world/sources/WorldgenFlow.h"

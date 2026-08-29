@@ -1,6 +1,4 @@
 """
-Created: 28:08:2026 - 15:50:00
-Last updated: 28:08:2026 - 18:05:00
 Module: tools/quality
 File: tools/quality/check_furn_gabarit.py
 
@@ -83,14 +81,6 @@ AI Agents Notice (must follow):
 - РУКА ПЕЧАТАЕТ ЧИСЛА, ПО КОТОРЫМ СУДИТ. «Габарит сошёлся» без таблицы
   расхождений не отличается от руки, которая не нашла ни одного предмета.
 """
-# UPD:
-# - 28:08:2026 - 15:50:00: Создан волной фаски по замечанию координатора.
-# - 28:08:2026 - 18:05:00: ПОПРАВКА ЗАМЕРА в шапке (находка волны номенклатуры,
-#   проверена здесь же): полка при --bevel 0.06 равна штатной НЕ ЦЕЛИКОМ, а на
-#   12 телах из 35. Прежняя фраза «упёрта в предел на убранстве» обобщала с
-#   мелких тел на все, потому что сверялась колонка треугольников, а она к
-#   ширине нечувствительна по построению. Кода не трогал: рука сторожит
-#   габарит, а он сходится и на 60 мм.
 
 import os
 import subprocess
@@ -110,7 +100,6 @@ LIMIT = (2.0 * BEVEL_W, 2.0 * BEVEL_W, BEVEL_W, BEVEL_W)
 TRIS_ITEM_MAX = 6.0
 TRIS_TOTAL_MAX = 4.5
 
-
 def read_index(path):
     """имя -> (x, z, низ, верх, треугольники, хэш)"""
     out = {}
@@ -123,7 +112,6 @@ def read_index(path):
                          int(p[5]), p[7])
     return out
 
-
 def bake(binary, out_dir, bevel):
     r = subprocess.run([binary, out_dir, "--bevel", str(bevel)],
                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
@@ -131,7 +119,6 @@ def bake(binary, out_dir, bevel):
         sys.stderr.write(r.stderr)
         raise SystemExit(f"[габарит] печь вернула {r.returncode} при фаске {bevel}")
     return read_index(os.path.join(out_dir, "INDEX.md"))
-
 
 def main():
     args = sys.argv[1:]
@@ -229,7 +216,6 @@ def main():
           "бюджете; перепечка дважды совпала")
     return 0
 
-
 def bake_default(binary, out_dir):
     r = subprocess.run([binary, out_dir], stdout=subprocess.DEVNULL,
                        stderr=subprocess.PIPE, text=True)
@@ -237,7 +223,6 @@ def bake_default(binary, out_dir):
         sys.stderr.write(r.stderr)
         raise SystemExit(f"[габарит] печь вернула {r.returncode} при штатной фаске")
     return read_index(os.path.join(out_dir, "INDEX.md"))
-
 
 if __name__ == "__main__":
     sys.exit(main())

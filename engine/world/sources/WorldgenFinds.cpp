@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 10:55:03
-Last updated: 10:08:2026 - 10:55:03
 Module: engine/world
 File: engine/world/sources/WorldgenFinds.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Rule 13.1: fixed traversal order (routes in order, stations in order, then
   the wilderness lattice in row-major order) and one seeded stream.
-*/
-/*
-UPD:
-- 10:08:2026 - 10:55:03: Created.
 */
 
 #include "engine/world/sources/WorldgenFinds.h"

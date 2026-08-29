@@ -1,7 +1,5 @@
 #!/usr/bin/env python3.11
 """
-Created: 13:08:2026 - 20:55:00
-Last updated: 13:08:2026 - 20:55:00
 Module: tools
 File: tools/measure_drainage.py
 
@@ -31,11 +29,6 @@ AI Agents Notice (must follow):
 - The channel threshold is a CHOICE and it moves R_b. Report it with every
   number and sweep it before believing any single value.
 """
-"""
-UPD:
-- 13:08:2026 - 20:55:00: Created -- the rejected-sample instrument for stage 2
-  of the furrow work.
-"""
 import glob
 import heapq
 import math
@@ -54,7 +47,6 @@ OURS = os.environ.get("DFN_HEIGHT_DUMPS", os.path.join(tempfile.gettempdir(), "d
 NB = [(-1, 0, 1.0), (1, 0, 1.0), (0, -1, 1.0), (0, 1, 1.0),
       (-1, -1, math.sqrt(2)), (-1, 1, math.sqrt(2)),
       (1, -1, math.sqrt(2)), (1, 1, math.sqrt(2))]
-
 
 def fill_depressions(h):
     """Priority-flood (Barnes et al. 2014). Water must have somewhere to go, or
@@ -85,7 +77,6 @@ def fill_depressions(h):
             heapq.heappush(pq, (v, z, x))
     return out
 
-
 def d8(h, res):
     """Steepest-descent receiver per cell, then drainage area by processing
     cells from high to low (a topological order for a descent graph)."""
@@ -110,7 +101,6 @@ def d8(h, res):
         if bj >= 0:
             area[bj, bi] += area[j, i]
     return recv, area
-
 
 def strahler(recv, channel):
     """Strahler order over the channel network, and the count per order."""
@@ -149,7 +139,6 @@ def strahler(recv, channel):
             stack.append(ds)
     return order
 
-
 def links_per_order(order, recv, channel):
     """A LINK is a maximal run of one order, which is what Horton counts --
     counting CELLS instead would just measure resolution."""
@@ -172,7 +161,6 @@ def links_per_order(order, recv, channel):
             if not up_same:  # this cell starts a link of its order
                 counts[int(o)] = counts.get(int(o), 0) + 1
     return counts
-
 
 def report(h, res, name, thresh_m2=None):
     h = h.astype(np.float64)
@@ -199,12 +187,10 @@ def report(h, res, name, thresh_m2=None):
                     "links_by_order": c} for t, rb, dd, c in rows]
     return out
 
-
 def load_f32(p):
     a = np.fromfile(p, dtype=np.float32).astype(np.float64)
     n = int(round(math.sqrt(a.size)))
     return a.reshape(n, n)
-
 
 def down(h, ri, ro):
     f = int(round(ro / ri))
@@ -212,7 +198,6 @@ def down(h, ri, ro):
         return h, ri
     n = (h.shape[0] // f) * f
     return h[:n, :n].reshape(n // f, f, n // f, f).mean(axis=(1, 3)), ri * f
-
 
 def main():
     grid = float(sys.argv[1]) if len(sys.argv) > 1 else 4.0
@@ -243,7 +228,6 @@ def main():
             print(f"{rep['name']:26s} {row['threshold_m2']:8.0f} {row['R_b']:6.2f} "
                   f"{row['drainage_density_km_km2']:7.1f}  {row['links_by_order']}", flush=True)
     json.dump(res_all, open(os.path.join(CACHE, "drainage.json"), "w"), indent=1)
-
 
 if __name__ == "__main__":
     main()

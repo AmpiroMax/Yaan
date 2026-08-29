@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 12:40:00
-Last updated: 28:08:2026 - 12:40:00
 Module: tests
 File: tests/app/SeatAimTests.cpp
 
@@ -23,10 +21,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - ЧИСЛА ЗДЕСЬ — ЗАМЕРЫ С ЧЕРТЕЖЕЙ, а не копии таблицы: если furn-bench поднимут
   на сантиметр, красным станет ЭТОТ файл, и это правильно.
-*/
-/*
-UPD:
-- 28:08:2026 - 12:40:00: Создан. Обязательство эпохи «сидеть и лежать».
 */
 
 #include <doctest/doctest.h>

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:00
-Last updated: 18:08:2026 - 11:50:28
 Module: engine/platform/input
 File: engine/platform/input/interfaces/IInput.h
 
@@ -45,28 +43,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Public contract, frozen for the stage (Rule 26): changes only via group sync.
 - Do not add GLFW types, includes, or scancode assumptions to this header.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
-- 14:08:2026 - 16:59:44: Added text_input() — per-frame Unicode codepoint stream
-  for live text entry (tool B28 chat overlay). Additive, appended after the
-  existing queries; all prior call-sites unchanged (Rule 26 sync per lead
-  directive).
-- 18:08:2026 - 00:24:58: place_cursor() — поставить указатель. Добавление к контракту
-  (правило 26), заведённое ради ПРИБОРА: рукав, проверяющий, что захват курсора
-  не съедает смещение мыши, обязан двигать мышь сам, иначе ноль на выходе
-  одинаково значит и «сломано», и «никто не трогал». Напрямую через GLFW рукав
-  этого сделать не может — правила 2 и 23 держат сторонние заголовки внутри
-  бэкендов, и ворота DAG ловят нарушение. Нулевой бэкенд запоминает значение.
-- 18:08:2026 - 11:50:28: capture_request_resets_delta() — правило «повторный запрос захвата не
-  событие» вынесено выражением. МОЙ СОБСТВЕННЫЙ РУКАВ ОКАЗАЛСЯ ШАТКИМ, и это
-  разбор, а не косметика: сквозной стенд с настоящим окном перестал мерить
-  (0 из 40 подряд, включая КОНТРОЛЬНУЮ руку) — при захваченном курсоре система
-  не отдаёт положение окну без фокуса. Он краснел не на поломке, а на
-  окружении, то есть был ровно тем красным, который начинают обходить
-  взглядом. Теперь стенд пропускает себя вслух, а правило проверяется здесь —
-  всегда и без окна. Не копия кода: бэкенд зовёт ЭТО ЖЕ выражение.
 */
 
 #pragma once
@@ -156,7 +132,6 @@ public:
     // нет указателя, которому можно приказать.
     virtual void place_cursor(const glm::vec2& pos) = 0;
 
-
     // Text input ---------------------------------------------------------------
     // Unicode codepoints entered during the frame just closed by update(), in
     // arrival order (already resolved through keyboard layout / IME). This is
@@ -191,6 +166,5 @@ public:
                                                           bool now_captured) {
     return was_captured != now_captured;
 }
-
 
 } // namespace dfn::platform

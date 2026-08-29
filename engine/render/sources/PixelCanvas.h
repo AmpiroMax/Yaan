@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 17:15:10
-Last updated: 09:08:2026 - 23:32:07
 Module: engine/render
 File: engine/render/sources/PixelCanvas.h
 
@@ -33,16 +31,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep this pure: no IRenderer, no world/ECS access, no globals.
-*/
-/*
-UPD:
-- 09:08:2026 - 17:15:10: Created for the map screen (user request "миникарта
-  как в скайриме"): the project's first UI drawing surface, kept general so a
-  menu screen can reuse it.
-- 09:08:2026 - 23:32:07: clear_transparent() — the HUD layer (interaction
-  prompts) composites over the world, unlike the opaque map screen. Text
-  itself arrives as BitmapFont.h free functions rather than as a member, so
-  this stays a raster surface and does not grow a text engine.
 */
 
 #pragma once

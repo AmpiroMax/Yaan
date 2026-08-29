@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 11:08:2026 - 23:58:40
-Last updated: 11:08:2026 - 23:58:40
 Module: tools
 File: tools/measure_ground_colour.py
 
@@ -55,13 +53,6 @@ AI Agents Notice (must follow):
   Whatever change is made to the ground, shooting it at zero amplitude must
   return the BEFORE numbers. A criterion that still passes at zero dose is
   measuring the light or the terrain, not the material.
-
-UPD:
-- 11:08:2026 - 23:58:40: Created for R5. The diagnosis it was built to serve was
-  settled first, by frames rather than by this file: DFN_TERRAIN_TILES 8/32/128
-  moved the blob scale by exactly the same factor in both directions, so the
-  pattern on our ground is the MATERIAL TILE and not the palette dither, the
-  ordered splat dither or the coverage AA. This file measures what is left.
 """
 
 import sys
@@ -82,10 +73,8 @@ LUMA_W = (0.30, 0.59, 0.11)
 # render-side mottling (TerrainMesher UPD 09:08:2026 - 14:11:37).
 SHADE_STEP = 0.0784 * 255.0
 
-
 def luma(r, g, b):
     return LUMA_W[0] * r + LUMA_W[1] * g + LUMA_W[2] * b
-
 
 def opponents(r, g, b):
     """The two chroma axes, in the same 0..255 units as luma.
@@ -97,7 +86,6 @@ def opponents(r, g, b):
     """
     return r - g, 0.5 * (r + g) - b
 
-
 def stats(values):
     n = len(values)
     if n == 0:
@@ -105,7 +93,6 @@ def stats(values):
     m = sum(values) / n
     var = sum((v - m) ** 2 for v in values) / n
     return m, var ** 0.5
-
 
 def block_means(w, h, ch, px, box, block_px, stride=None):
     """Mean (luma, rg, yb) of every whole block inside the box.
@@ -138,7 +125,6 @@ def block_means(w, h, ch, px, box, block_px, stride=None):
             out.append((sl / n, srg / n, syb / n))
     return out
 
-
 def scales(path, box, divisors=(64, 16, 4)):
     """Block-mean spread at several block sizes, chroma and luma apart.
 
@@ -168,7 +154,6 @@ def scales(path, box, divisors=(64, 16, 4)):
                      "luma_rulers": sd_l / SHADE_STEP})
     return rows
 
-
 def print_scales(path, box, rows, label=""):
     print(f"{Path(path).name}  GROUND COLOUR  box {box[0]},{box[1]},{box[2]},{box[3]}"
           + (f"  {label}" if label else ""))
@@ -184,7 +169,6 @@ def print_scales(path, box, rows, label=""):
         keep = rows[-1]["chroma_sd"] / rows[0]["chroma_sd"]
         print(f"  SURVIVAL coarse/fine chroma {keep:.2f}"
               "   (1.00 = colour structure at every scale; ~0 = one stamp)")
-
 
 def main(argv):
     if len(argv) > 1 and argv[1] == "refs":
@@ -202,7 +186,6 @@ def main(argv):
     frame = argv[1]
     box = tuple(int(t) for t in argv[2].split(","))
     print_scales(frame, box, scales(frame, box), argv[3] if len(argv) > 3 else "")
-
 
 if __name__ == "__main__":
     main(sys.argv)

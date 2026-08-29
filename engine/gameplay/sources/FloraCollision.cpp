@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 16:05:00
-Last updated: 13:08:2026 - 16:50:00
 Module: engine/gameplay
 File: engine/gameplay/sources/FloraCollision.cpp
 
@@ -23,19 +21,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - No flora table, formula or threshold may be restated here. Maturity comes
   from flora's own analyse_neighbourhood; every dimension comes from vertices.
-*/
-/*
-UPD:
-- 13:08:2026 - 16:05:00: Created.
-- 13:08:2026 - 16:40:00: The great oak is cut at its CROWN BASE, not at
-  TRUNK_COLLISION_HEIGHT: people are meant to live in it, and a stair tread
-  with no collision is a painted stair. 241 triangles for the whole bole --
-  a landmark's budget, and there is one per region.
-- 13:08:2026 - 16:50:00: Written down: why the collider is built at LOD Full
-  and why it takes no season. Both are decisions a reader will otherwise
-  re-litigate -- collision must match the tree you are standing next to, and
-  season moves only the leaf CARDS, so a collider that changed with it would be
-  announcing a difference the wood does not have.
 */
 
 #include "engine/gameplay/sources/FloraCollision.h"

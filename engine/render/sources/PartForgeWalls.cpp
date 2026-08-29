@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 13:09:29
-Last updated: 17:08:2026 - 15:46:07
 Module: engine/render
 File: engine/render/sources/PartForgeWalls.cpp
 
@@ -29,17 +27,6 @@ AI Agents Notice (must follow):
   daylight there and nowhere else.
 - A wall is seen from BOTH sides (the farmhouse east-wall lesson): masonry is
   full-thickness, skins come in pairs, infill slabs read from either face.
-*/
-/*
-UPD:
-- 17:08:2026 - 13:09:29: Создан — волна вариантов стен (10 стилей x 4 проёма).
-- 17:08:2026 - 14:29:43: обшивка носит ПИЛЁНУЮ колонку атласа (skin_as_board), ядро за ней —
-  свою: доска и брус — разные поверхности одного дерева. material_of получил
-  wear (ряд атласа = тон и износ вместе).
-- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
-  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
-  тест текстурного потока не мог её попросить: он проверял умолчание и
-  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #include "engine/render/sources/PartForgeDetail.h"

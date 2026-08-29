@@ -1,6 +1,4 @@
 /*
-Created: 12:08:2026 - 00:44:12
-Last updated: 22:08:2026 - 23:12:51
 Module: engine/render
 File: engine/render/sources/GroundTufts.h
 
@@ -43,17 +41,6 @@ AI Agents Notice (must follow):
   this project has already fought twice. Tufts cannot fix the middle distance
   and must not try. Their band is the near metres — which is legitimate,
   because that band is currently empty.
-*/
-/*
-UPD:
-- 12:08:2026 - 00:44:12: Created. User request, verbatim: «надо траву сделать не
-  просто как поверхность где ходим, а добавить мелкую разную траву, её должно
-  быть не много, но она должна быть везде и прикрывать плоскость, особенно в
-  зоне равнин». Read carefully, that is not a lawn: SPARSE, VARIED, EVERYWHERE.
-- 23:08:2026 - 07:20:00: build_ground_tufts принимает пятна построек (cx,cz,hx,hz) — внутри
-- 22:08:2026 - 23:12:51: GroundTuftParams.lushness — пышность пучка (0 = прежние формы бит-в-бит).
-  них пучки не растут («былинки сквозь пол», владелец 23.08). Фильтр на
-  выращивании, а не на сборе: порядок загрузки чанков и домов не важен.
 */
 
 #pragma once

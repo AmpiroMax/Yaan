@@ -1,5 +1,4 @@
 /*
-Created: 27:08:2026 - 00:14:10
 Module: engine/app
 File: engine/app/sources/PngImage.cpp
 
@@ -9,10 +8,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone app (lead) owns this file.
-*/
-/*
-UPD:
-- 27:08:2026 - 00:14:10: Создан вместе с заголовком.
 */
 
 #include "engine/app/sources/PngImage.h"

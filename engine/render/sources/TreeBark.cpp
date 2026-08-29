@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 16:35:00
-Last updated: 28:08:2026 - 16:35:00
 Module: engine/render
 File: engine/render/sources/TreeBark.cpp
 
@@ -18,11 +16,6 @@ AI Agents Notice (must follow):
   TreeForge.cpp's anonymous namespace; every shelf .dfo re-baked to the same
   content_hash across the move. Change nothing here without repeating that
   comparison — the whole first iteration hangs off this mapping.
-*/
-/*
-UPD:
-- 28:08:2026 - 16:35:00: Создан — тело pack_wind/bark_tube перенесено из
-  TreeForge.cpp без единой правки; сверка хэшей полки до/после — без изменений.
 */
 
 #include "engine/render/sources/TreeBark.h"
@@ -194,7 +187,5 @@ void bark_tube(MeshData& m, glm::vec3 p0, glm::vec3 p1, glm::vec3 axis, float r0
     }
     (void)tri_wave;
 }
-
-
 
 } // namespace dfn::render

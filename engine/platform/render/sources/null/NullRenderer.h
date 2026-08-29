@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 12:51:26
 Module: engine/platform/render
 File: engine/platform/render/sources/null/NullRenderer.h
 
@@ -20,18 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Behavior must satisfy every IRenderer postcondition; a feature that crashes
   under this backend is a bug (Rule 3).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 09:08:2026 - 10:59:00: Stage 3 — set_environment (accepted-and-ignored per
-  the contract sync 10:48).
-- 09:08:2026 - 21:02:17: DrawParams sync: submit takes per-draw params;
-  accepted and ignored here (Rule 3 — inert but valid, never a crash).
-- 14:08:2026 - 16:35:53: В28 debug/editor hooks: set_wireframe (no-op),
-  frame_stats / center_pick (zeroed/no-hit refs). Inert but valid (Rule 3).
-- 17:08:2026 - 18:29:30: set_debug_lines — пусто, здесь ничего не рисуется.
-- 18:08:2026 - 12:51:26: set_present_rect_norm — пусто, здесь ничего не выводится.
 */
 
 #pragma once

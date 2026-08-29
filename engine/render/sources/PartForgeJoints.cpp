@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 13:02:08
-Last updated: 17:08:2026 - 13:02:08
 Module: engine/render
 File: engine/render/sources/PartForgeJoints.cpp
 
@@ -24,11 +22,6 @@ AI Agents Notice (must follow):
   seats flush on, and that is the family's guarantee, not a style choice.
 - Facet orientation is a CONTRACT with the judge (engine/world/Scene.cpp):
   at yaw 0 the first facet's outward normal points +X. Move both or neither.
-*/
-/*
-UPD:
-- 17:08:2026 - 13:02:08: Вынос из PartForge.cpp дословно (разрез по семьям);
-  контроль — перепечка набора не изменила ни одного .dfo.
 */
 
 #include "engine/render/sources/PartForgeDetail.h"

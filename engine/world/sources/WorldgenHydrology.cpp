@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 21:27:14
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.cpp
 
@@ -23,19 +21,6 @@ AI Agents Notice (must follow):
 - MONOTONIC WATER INVARIANT: w[i] = min(w[i-1], effective terrain) by
   construction; build sets ok=false on any violation instead of emitting a
   climbing river.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — P2 implementation.
-- 09:08:2026 - 13:12:19: Stage 3b amendments: §3.3 mud cap prunes pond water beyond max(SHORE_SAND_DIST, 2x width) of the trace; fords derived from corridor x trace crossings + FORD_SPACING_MAX gap fill; channel bed clamped into the trapezoid band (fords raise the bed); corridor-mask stations ford-shallow; pond beds raised on corridor crossings; dist_to_water saturated at DIST_TO_WATER_RANGE; station bins built early + binned nearest queries (wilderness contexts were quadratic: 9.8 s -> 0.9 s at 21x21 chunks).
-- 09:08:2026 - 13:28:27: Split: per-sample query side (water_sample_impl/water_at/carve_height) moved to WorldgenWater.cpp (file was at 780/800 lines); build side stays here.
-- 09:08:2026 - 14:41:26: Frame-05 bed fix (ROOT CAUSE): fill_level no longer doubles as the Dijkstra seed set — river trace cells seed a LOCAL set instead, so trace cells stop flooding their whole 16 m coarse cell in water_at's pond branch (67 station-only cells -> 0; WaterBed 24.6k -> 18.7k m2, water coverage 2.30% -> 1.78%). Pond primitives built from cell FOOTPRINTS (water_at floods whole cells).
-- 09:08:2026 - 14:49:01: Scatter-in-water fix (part 1): pond primitives are now ONE PLANE PER CELL, not a per-pond bounding box — pond cell sets are diagonal strings along the trace, so the bbox over-covered 1.7-6x and painted water over dry ground carrying birches/stones. Per-cell squares match the water_at coverage truth exactly and tile seamlessly at a shared level.
-- 10:08:2026 - 00:10:41: POND CELL OWNERSHIP (correctness, found via render's crash report). The trace revisits ground it has already flooded -- a pond that spills raises eff, so the next local minimum downstream floods a region containing the previous pond's cells -- and every revisit APPENDED the cell to another pond carrying its own stale level. Measured at 2x2 km: 17335 cell entries over 1042 distinct cells (x16.6), one cell claimed by 36 ponds, 94.5% of cells claimed at MORE THAN ONE level, 17336 drawable planes summing to 106% of the world area against 7.01% real water. Cells are now TRANSFERRED to the rising pond, not duplicated, with one ownership index shared across both traces. Additionally pond_planes are emitted from fill_level -- the coverage truth water_at answers from -- instead of from the pond objects, so the drawn level and the swum level stop being two copies of one fact. After: x1.0 duplication, 0 cells at two levels, 1042 planes, plane area 6.66% against 7.01% real water. fill_level itself is UNCHANGED (1042 wet cells before and after): the water did not move, only the bookkeeping. Both invariants re-verified green (monotonic water; every WaterBed sample covered, worst gap 0 m).
-- 10:08:2026 - 01:48:11: THE POND BECOMES A FLAT REACH OF THE RIVER (grill в23, design-ratified §3.1 amendment). The monotone pass no longer descends through a pond: a station inside a pond takes the pond's level, and the pond's level settles to min(spill saddle, the level the river ENTERS at) — the settle runs to fixpoint because a trace can re-enter a pond it left. Cells the lowered water no longer reaches DRAIN (footprint shrinks). Pond::spill_level records the pre-clamp saddle so the control test can prove the old construction drew ponds above the river feeding them (7.98 m at the largest pond). Drawn (fill_level/pond_planes) == swum (station surfaces) is now true by construction and guarded by an ok backstop. §3.2 extension (design amendment c): the LAKE obeys the same entry rule — hydro.lake.surface_height = min(LAKE_LEVEL_TESTBED, river entry level); the query side reads the settled level, never the constant.
-- 10:08:2026 - 21:27:14: Recorded (no behaviour change) that FORD_SPACING_MIN
-  has zero references while its _MAX is enforced — nothing stops two fords
-  landing on top of each other. Second of three orphaned range halves.
 */
 
 #include "engine/world/sources/WorldgenHydrology.h"
@@ -802,6 +787,5 @@ HydrologyData build_hydrology(uint64_t seed, const TestbedLayout& layout, glm::v
     // accelerate the mud cap above and every water_at query afterwards.)
     return hydro;
 }
-
 
 } // namespace dfn::world

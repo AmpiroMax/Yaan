@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 13:01:31
-Last updated: 28:08:2026 - 13:01:31
 Module: tests/app
 File: tests/app/PropPhysicsTests.cpp
 
@@ -26,10 +24,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Зона big-grab владеет этим файлом.
-*/
-/*
-UPD:
-- 28:08:2026 - 13:01:31: Создан вместе с PropPhysics.*.
 */
 
 #include <doctest/doctest.h>

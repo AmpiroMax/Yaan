@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:00
-Last updated: 09:08:2026 - 00:16:00
 Module: engine/render
 File: engine/render/sources/DebugDraw.h
 
@@ -28,10 +26,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Public contract, frozen for the stage (Rule 26): changes only via group sync.
 - Debug visuals only — never gameplay-relevant rendering.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
 */
 
 #pragma once

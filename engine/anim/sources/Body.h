@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 28:08:2026 - 18:50:00
 Module: engine/anim
 File: engine/anim/sources/Body.h
 
@@ -39,24 +37,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Components are plain data (Rule 8). Segment entities are spawned at init
   paths, never on streaming paths (Rule 11 does not bite here).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial body/puppet systems.
-- 10:08:2026 - 20:00:23: BodyDrive::gait — the ferry target lead's parked switch writes into.
-- 10:08:2026 - 20:41:06: BodyDrive::run_weight — the eased gear weight, read by this zone's trunk lean AND ferried to sim's eye so the two cannot drift.
-- 11:08:2026 - 15:18:52: BodyDrive::gear_weight is the ease's own integrator; run_weight now PUBLISHES gait_fade(speed) * gear_weight, i.e. the lean the trunk is actually drawn with. Not cosmetic: the ferried eye was leaning by a number the body was not (docs/FINDING_CROUCH_AND_ALT_LEAN.md).
-- 28:08:2026 - 11:16:40: ПОЗЫ МЕБЕЛИ (обязательство эпохи «сидеть и лежать»,
-  заказ владельца 28.08). BodyDrive получил заявку позы (posture, её землю,
-  рыск и высоту сиденья), собственный интегратор перехода posture_blend и
-  ВЫХОД eye_point — глаз нарисованной позы. body_root_for() смешивает корень
-  стоящего и корень позы тем же весом, что и сами углы, иначе тело уезжает на
-  мебель раньше (или позже) собственных суставов.
-- 28:08:2026 - 18:50:00: ПЕРЕХОД В ПОЗУ СТАЛ ДВИЖЕНИЕМ (второй хвост сдачи зоны «сидеть и
-  лежать», коммит ed8bf25): posture_shown — что РИСУЕТСЯ, пока блендер едет
-  обратно (без него вставали с кровати через сидячую позу); drawn_posture();
-  POSTURE_BLEND_TIME_S снят — длительность стала свойством позы
-  (anim::posture_transit_s: 0.60 сесть, 0.90 лечь).
 */
 
 #pragma once

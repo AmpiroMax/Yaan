@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:57:20
-Last updated: 14:08:2026 - 23:12:28
 Module: engine/render
 File: engine/render/sources/ProcMesh.cpp
 
@@ -21,32 +19,6 @@ AI Agents Notice (must follow):
 - Pure and deterministic — no RNG beyond fixed tables, no GPU, no ECS.
 - Dimensions/colors cite LANDSCAPE.md §5/§6 (design owns the values; real
   content moves to data files per Rule 5).
-*/
-/*
-UPD:
-- 09:08:2026 - 11:57:20: Stage 3b — initial placeholder mesh catalog.
-- 09:08:2026 - 14:11:37: Micro-relief (user decision в3): stone rebuilt as a
-  ~0.9 m chunky faceted boulder (position-hash crush, re-derived flat normals)
-  — the crushed 0.42 m box read as a flat speck.
-- 09:08:2026 - 20:05:00: pack/tri/quad promoted out of the anonymous namespace
-  and declared in the header — the flora agent's ProcFlora (new zone, same
-  directory) builds its tubes and clusters on them (agreed in-session).
-- 09:08:2026 - 22:29:52: The §6.1.3 CASTLE MASS, ids 8..12 — hall, hollow
-  curtain wall with a gate opening, twin-tower gatehouse, battered solar,
-  corner drum tower. build_site_mesh returned an EMPTY mesh above id 7 and the
-  ECS pass drops a cache miss silently, so Harrowward has been invisible in the
-  world since it was generated (sim found it: they build prop collision from
-  these triangles, so the castle had no collision either). Phase colour is the
-  §6.1.3 in-world A/B distinction — the only way a placeholder can say "built
-  twice" at 640x360. Merlons are 1.2 m wide because of the THIN-CASTER RULE: a
-  caster under ~0.31 m drops out of the sun shadow map entirely.
-- 14:08:2026 - 23:12:28: append_transformed БОЛЬШЕ НЕ РЕЗЕРВИРУЕТ впритык. reserve(size+src) на
-  каждом вызове глушил геометрический рост вектора: почти каждый апенд
-  перевыделял и копировал ВЕСЬ накопленный буфер, цена росла с приёмником, а не
-  с добавкой. Замер на бюджетном тесте батчера: 100 деревьев 69 мс до находки,
-  139 мс когда второй мелкий апенд на дерево удвоил число полных копий, 16-27 мс
-  после удаления обоих reserve — в 4-8 раз дешевле ИСХОДНОЙ базы. Это боевой
-  путь стриминга чанков; выпечка флоры была вдвое дороже, чем должна, всё время.
 */
 
 #include "engine/render/sources/ProcMesh.h"
@@ -510,7 +482,6 @@ void quad(MeshData& m, glm::vec3 a, glm::vec3 b, glm::vec3 c, glm::vec3 d,
     tri(m, a, b, c, color);
     tri(m, a, c, d, color);
 }
-
 
 void append_transformed(MeshData& dst, const MeshData& src, glm::vec3 translation,
                         float yaw, float scale) {

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:50:00
-Last updated: 09:08:2026 - 00:50:00
 Module: engine/app
 File: engine/app/sources/Main.cpp
 
@@ -13,10 +11,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned file (Rule 25).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:50:00: Created.
 */
 
 #include "engine/app/sources/App.h"

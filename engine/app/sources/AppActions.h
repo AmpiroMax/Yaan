@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 16:59:18
-Last updated: 18:08:2026 - 16:59:18
 Module: engine/app
 File: engine/app/sources/AppActions.h
 
@@ -39,15 +37,6 @@ AI Agents Notice (must follow):
 - ADDING A KEY? Controls.h gets the binding, this gets the route, AppInput.cpp
   gets the method. Miss any one of the three and it does not compile or does
   not dispatch -- never "works but is undocumented".
-*/
-/*
-UPD:
-- 18:08:2026 - 16:59:18: Создан. Слой 1 разбора App.cpp (docs/PLAN_APP_DECOMPOSITION.md):
-  восемнадцать обработчиков клавиш, размазанных по run(), стали таблицей из
-  двадцати одной строки. Свойство, которого до сегодня не держал никто: набор
-  диспатчеров ПОЛОН (строка на каждое Action) и ОДНОЗНАЧЕН (пара «метод +
-  аргумент» не повторяется), и НИ ОДНА клавиша не проходит сквозь открытое окно
-  чата.
 */
 
 #pragma once

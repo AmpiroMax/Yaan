@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:57:10
-Last updated: 13:08:2026 - 20:04:45
 Module: engine/render
 File: engine/render/sources/CloudModel.h
 
@@ -45,54 +43,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep this pure: no GPU, no ECS, no clock reads. Time arrives as a parameter.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:57:10: Created for the cloud pass (W4: one field, two
-  samplers; drift off the shared wind).
-- 10:08:2026 - 10:45:06: The coverage field's reference implementation and its
-  constants. The shipped field was a Gaussian octave sum thresholded as if it
-  were uniform, so `cover` did not mean coverage (cover 0.10 drew nothing);
-  the remap makes it mean coverage, and cloud_field_raw stays as the control.
-- 11:08:2026 - 14:43:13: cloud_field3 — the same field in 3D, for the horizon cumulus band
-  (R3.1). Its own MEASURED mean/SD 0.5000/0.1185; the 2D pair fails the
-  uniformity assertion here, which is the shipped control. Needed because the
-  2D read made the band's silhouette a single-valued function of azimuth, so a
-  hole in it was impossible by construction and the masses came out as
-  mushroom caps.
-- 12:08:2026 - 22:45:00: R3.3 — the field is renormalised onto the mean and spread that
-  SURVIVE its own per-octave LOD (cloud_lod_residual / sd_lod / mean_lod),
-  so `cover` means coverage at EVERY sampling rate and not only at full
-  resolution, and the far-field convergence is keyed to how much field is
-  left rather than to cells-per-pixel. cloud_field_fixed_sd is the form
-  that shipped until now, kept as the control: measured at 0.50 cells/px
-  it drew 0.0000 of the plane for a requested cover of 0.15 and 1.0000
-  for 0.60. Rule 31's premise (uncorrelated octaves of equal marginal
-  variance) was MEASURED before it was used — predicted SD tracks measured
-  SD within 0.03 % from 0.0 to 0.80 cells/px.
-- 13:08:2026 - 19:20:00: R3.4 — THE CEILING'S HEIGHT IS A FIELD WITH A RANGE, at the
-  user's instruction: «должен быть диапазон где им можно быть... на разных
-  локациях будут на разных высотах, и в разную погоду на разных, будем таким
-  образом погоду и климат отображать». CLOUD_CEILING_MIN_M 400 is derived from
-  CAMERA_FOV_Y (below it one field cell subtends more than the whole frame and
-  the deck stops being a deck), CLOUD_CEILING_MAX_M 2000 from R3.2's own 1.3
-  merge ratio against the middle deck. The range is split half/half between
-  weather and place, and the half is derived too: at 30 % the place term's swing
-  would move apparent cell size by 1.23x, under the 1.3 threshold, i.e. it would
-  be invisible. Expressible at all only because R3.2 draws the decks by
-  intersecting the view ray with a plane at a real altitude.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
-- 13:08:2026 - 20:04:45: CLOUD_CEILING_MIN_M / MAX_M have their NUMBERS rows and come from the
-  generated header now. With them, the MEASUREMENT the lead asked for — is the
-  range a BEHAVIOUR or a possibility? WEATHER is a behaviour (1270 m clear ->
-  470 m overcast, apparent cell size 2.70x against a 1.30x discrimination
-  threshold). PLACE IS NOT, and it is said out loud: at fixed weather the whole
-  1024 m testbed spans 1.17x, UNDER that threshold, because the place
-  wavelength is two world widths and the map fits in half a cell — the term
-  realises 145 m of the 800 the share gave it. And cloud_ceiling_m's header
-  CLAIMED walking does not change the ceiling; it does (0.029 m per frame of
-  walking, 97.6 m per 300 m), so the false sentence is replaced by the numbers
-  and by what they actually mean: it reads as place, not as jitter.
 */
 
 #pragma once

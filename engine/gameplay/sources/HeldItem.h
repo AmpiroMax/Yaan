@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 20:28:17
 Module: engine/gameplay
 File: engine/gameplay/sources/HeldItem.h
 
@@ -38,13 +36,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Never set HeldItem fields directly; the events and the inventory invariant
   depend on these functions being the only path.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial held-item / torch state.
-- 09:08:2026 - 20:28:17: update_carried_lights(): the render bridge
-                         (HeldItem -> components::CarriedLight), with the hand
-                         offset measured from the capsule bottom.
 */
 
 #pragma once

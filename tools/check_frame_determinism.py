@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 28:08:2026 - 18:45:00
-Last updated: 28:08:2026 - 18:45:00
 Module: tools
 File: tools/check_frame_determinism.py
 
@@ -27,9 +25,6 @@ AI Agents Notice (must follow):
 - КОНТРОЛЬНАЯ РУКА ОБЯЗАТЕЛЬНА. --unpin all возвращает прогону стенные часы
   (дверь DFN_UNPIN), и на нём этот прибор ОБЯЗАН краснеть. Зелёный прибор без
   красного контроля не отличим от прибора, который ничего не мерит.
-
-UPD:
-- 28:08:2026 - 18:45:00: Создан — волна детерминизма тура.
 """
 
 import argparse
@@ -81,7 +76,6 @@ RECIPES = {
     },
 }
 
-
 def run_once(app, recipe, out_dir, unpin, timeout_s):
     os.makedirs(out_dir, exist_ok=True)
     env = dict(os.environ)
@@ -112,11 +106,9 @@ def run_once(app, recipe, out_dir, unpin, timeout_s):
                   file=sys.stderr)
     return sorted(n for n in os.listdir(out_dir) if n.endswith(".png"))
 
-
 def md5(path):
     with open(path, "rb") as f:
         return hashlib.md5(f.read()).hexdigest()
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -199,7 +191,6 @@ def main():
     print("ВЕРДИКТ (контроль):", "разошлись, как и обязаны" if ok
           else "НЕ РАЗОШЛИСЬ — контроль ничего не разделяет")
     return 0 if ok else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:27:49
-Last updated: 09:08:2026 - 22:27:49
 Module: engine/gameplay
 File: engine/gameplay/sources/InventoryScreen.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Sort order is part of the contract: stable, by item id. Do not "optimise" it
   into insertion order — the selection guarantee depends on it.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:27:49: Created — inventory screen state.
 */
 
 #include "engine/gameplay/sources/InventoryScreen.h"

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/ecs
 File: engine/core/ecs/sources/EntityId.h
 
@@ -19,11 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - POD only; must stay trivially copyable and backend-agnostic.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — generational EntityId + GroupId, based on
-  Quicky ECS with the streaming-group addition (Q22, Rule 11).
 */
 
 #pragma once

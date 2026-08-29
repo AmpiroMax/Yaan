@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/time
 File: engine/core/time/sources/FixedTimestep.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - After a clamped catch-up the excess time is DROPPED (accumulator folded into
   [0, step_dt)) so alpha() stays in [0, 1) — documented header contract.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — implementation.
 */
 
 #include "engine/core/time/sources/FixedTimestep.h"

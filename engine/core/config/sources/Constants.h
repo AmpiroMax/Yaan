@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 18:08:2026 - 12:06:07
 Module: engine/core/config
 File: engine/core/config/sources/Constants.h
 
@@ -22,17 +20,6 @@ AI Agents Notice (must follow):
 - Never hardcode a value that belongs in NUMBERS.md (Rule 14); if a constant is
   missing, it gets added to NUMBERS.md first, then regenerated — never inlined.
 - This wrapper stays one include; do not add hand-written constants here.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — consuming-side wrapper; generation
-  contract agreed with the lead (emit path, naming, types).
-- 18:08:2026 - 12:06:07: The HEIGHTMAP_RESOLUTION example in the generation
-  contract says 257, following NUMBERS.md (129 -> 257 with the 1 m lattice).
-  The list here is illustrative, not authoritative — but it is the first
-  thing a newcomer reads about the generator, and an example that disagrees
-  with the table teaches exactly the habit Rule 14 forbids: trusting a
-  hand-written copy of a generated number.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 17:25:00
-Last updated: 28:08:2026 - 17:25:00
 Module: tests
 File: tests/core/MaterialTableTests.cpp
 
@@ -34,10 +32,6 @@ AI Agents Notice (must follow):
   списка разойдутся в первый же день, когда в один добавят вещество, а в
   другой забудут. Случай обязан жить до тех пор, пока PhysicsSubstance.h не
   начнёт спрашивать реестр; удалять его вместе с массивом, а не раньше.
-*/
-/*
-UPD:
-- 28:08:2026 - 17:25:00: Создан — волна 3 зоны МАТЕРИАЛЫ.
 */
 
 #include "engine/core/materials/sources/MaterialRegistry.h"

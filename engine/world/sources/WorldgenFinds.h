@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 10:55:03
-Last updated: 10:08:2026 - 10:55:03
 Module: engine/world
 File: engine/world/sources/WorldgenFinds.h
 
@@ -28,10 +26,6 @@ AI Agents Notice (must follow):
 - The real rejected instance IS the control here: the current world has no
   find layer at all, so every gap is infinite. Any threshold above zero
   encounters stands above it.
-*/
-/*
-UPD:
-- 10:08:2026 - 10:55:03: Created — BR-6 two-regime find placement with BR-5 siting.
 */
 
 #pragma once

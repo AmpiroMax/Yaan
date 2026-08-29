@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:42:03
-# Last updated: 28:08:2026 - 17:31:25
 # File: engine/core/CMakeLists.txt
 #
 # Responsibility:
@@ -14,24 +12,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. No third-party libraries here beyond
 #   glm via dfn_headers (Rule 2).
-#
-# UPD:
-# - 09:08:2026 - 00:42:03: Stage 2 — created dfn_core with ECS/time/events/math
-#                          implementations (serialization IO deferred;
-#                          ContentHash built for the determinism test).
-# - 10:08:2026 - 01:58:00: JSON reader (serialization/Json) — tech-debt task 3.
-# - 10:08:2026 - 21:05:44: BinaryWriter/BinaryReader implementations
-#                          (Rule 7 container IO). Written by sim under an
-#                          explicit lead carve of this zone: the save path was
-#                          declaration-only, six files could not link against
-#                          it, and two authored round-trip tests were compiled
-#                          out. Two source lines below, nothing else changed.
-# - 28:08:2026 - 17:31:25: materials/ — РЕЕСТР ВЕЩЕСТВ (зона МАТЕРИАЛЫ,
-#   волна 3). Дом реестра — ядро, и это условие, а не предпочтение: до
-#   вещества обязаны дотягиваться world (рецепты домов), render (рисование),
-#   platform (бэкенд ставит uniform) и кузницы. Прототип волны 0 лежал в
-#   engine/render, куда world смотреть не имеет права, и потому имя вещества
-#   не могло приехать из данных вовсе.
 
 add_library(dfn_core STATIC
     ecs/sources/World.cpp

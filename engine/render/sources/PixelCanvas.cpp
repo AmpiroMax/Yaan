@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 17:16:40
-Last updated: 09:08:2026 - 23:32:07
 Module: engine/render
 File: engine/render/sources/PixelCanvas.cpp
 
@@ -19,11 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Every primitive clips; never trust caller coordinates.
-*/
-/*
-UPD:
-- 09:08:2026 - 17:16:40: Created together with the map screen.
-- 09:08:2026 - 23:32:07: clear_transparent() for the HUD layer.
 */
 
 #include "engine/render/sources/PixelCanvas.h"

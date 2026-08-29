@@ -1,6 +1,4 @@
 /*
-Created: 21:08:2026 - 00:40:00
-Last updated: 21:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/HouseGeom.cpp
 
@@ -20,10 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
 - ПО ФАЙЛУ НА АЛГОРИТМ (решение пользователя 21.08): модуль держит ОДИН
   алгоритм постройки; общие руки — в HouseMeshDetail.h.
-*/
-/*
-UPD:
-- 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -121,7 +115,6 @@ bool segments_cross(glm::vec2 p1, glm::vec2 p2, glm::vec2 q1, glm::vec2 q2) {
     return ((d1 > 0.0f) != (d2 > 0.0f)) && ((d3 > 0.0f) != (d4 > 0.0f));
 }
 
-
 } // namespace
 
 float polygon_area_2d(std::span<const glm::vec2> poly) {
@@ -134,7 +127,6 @@ float polygon_area_2d(std::span<const glm::vec2> poly) {
     }
     return acc * 0.5f;
 }
-
 
 /// Ось, заведомо не параллельная данной. Выбор ДЕТЕРМИНИРОВАН и не зависит от
 /// того, откуда смотрит камера: две сборки одного графа обязаны дать один меш.
@@ -408,6 +400,5 @@ std::vector<glm::vec2> clip_contour_to_rect(std::span<const glm::vec2> poly,
          [&](glm::vec2 a, glm::vec2 b) { return at_y(a, b, hi.y); });
     return in;
 }
-
 
 } // namespace dfn::world

@@ -1,14 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:16:00
-Last updated: 14:08:2026 - 16:59:44
--->
-<!--
-UPD:
-- 09:08:2026 - 00:16:00: Stage-1 state: interface only, no backends yet.
-- 09:08:2026 - 00:50:00: Stage 2 — glfw + null backends implemented.
-- 14:08:2026 - 16:59:44: Added text_input() — per-frame Unicode codepoint stream
-  for live text entry (tool B28 chat overlay); GLFW char callback, null empty.
--->
 
 # engine/platform/input
 

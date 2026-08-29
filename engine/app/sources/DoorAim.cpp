@@ -1,6 +1,4 @@
 /*
-Created: 27:08:2026 - 21:01:25
-Last updated: 27:08:2026 - 21:01:25
 Module: engine/app
 File: engine/app/sources/DoorAim.cpp
 
@@ -14,10 +12,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Зона lead владеет этим файлом.
-*/
-/*
-UPD:
-- 27:08:2026 - 21:01:25: Создан вместе с заголовком.
 */
 
 #include "engine/app/sources/DoorAim.h"

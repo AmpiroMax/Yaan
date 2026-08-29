@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 12:06:10
-Last updated: 19:08:2026 - 01:20:45
 Module: engine/editor
 File: engine/editor/sources/EditorToolsBuiltin.h
 
@@ -39,19 +37,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The tool's settings are drawn by the tool. Do not add a second control for
   the same state anywhere else — that is the defect this file replaced.
-*/
-/*
-UPD:
-- 18:08:2026 - 12:06:10: Созданы пять инструментов по IEditorTool. Посадка стала
-  отдельным инструментом со своим хозяином (заказ/разбор 18.08).
-- 18:08:2026 - 13:08:07: СЧЁТЧИК ПОСЛЕДНЕГО МАЗКА ВЕРНУЛСЯ на экран — в настройки самой
-  кисти, через ToolWorld::last_dab. Он ушёл вместе с панелью кисти, которую
-  перепись инструментов оставила без единого вызова, а он полезен ровно в тот
-  момент, когда кисть кажется сломанной: «узлов 0» отличает прицел за
-  подгруженным кольцом от кисти, наведённой не туда.
-- 18:08:2026 - 19:44:10: Инструмент выбора знает постройку: house_target — якорь или ось под лучом.
-- 18:08:2026 - 20:26:30: Инструмент выбора берёт любой элемент, не только прямую.
-- 19:08:2026 - 01:20:45: У SelectTool своя проволока постройки.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 11:08:2026 - 15:12:44
-Last updated: 11:08:2026 - 15:12:44
 Module: engine/world
 File: engine/world/sources/WorldgenOutcrop.h
 
@@ -36,10 +34,6 @@ AI Agents Notice (must follow):
   confines each candidate to the middle half of its cell so a sample is reached
   only by its 3x3 neighbourhood, and the expensive curvature test runs only for
   cells whose disc actually covers the sample.
-*/
-/*
-UPD:
-- 11:08:2026 - 15:12:44: Created — §10.5 B2.
 */
 
 #pragma once

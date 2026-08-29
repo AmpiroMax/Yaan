@@ -1,6 +1,4 @@
 """
-Created: 28:08:2026 - 12:00:00
-Last updated: 28:08:2026 - 16:10:00
 Module: tools/quality
 File: tools/quality/measure_surface.py
 
@@ -78,13 +76,6 @@ AI Agents Notice (must follow):
   после каждой волны веществ, и до тех пор он — довод в отчёте, а не
   умолчание прибора.
 """
-# UPD:
-# - 28:08:2026 - 12:00:00: Черновик ресёрчера (записка №3): таблица двенадцати
-#   участков нашего кадра и эталона, метод ДЕТАЛЬ/энтропия/цветность.
-# - 28:08:2026 - 16:10:00: Переведён в штатный прибор волной фаски: разбор
-#   ключей вместо вшитого списка работ, К4 из геометрии (отчёт
-#   dfn_bevel_check), К5 и К6, ветвь гладких веществ по расхождению Р1,
-#   --self-test с контрольными руками, рукав в ctest.
 
 import math
 import os
@@ -112,16 +103,13 @@ GLOSS_HILIGHT = 1.8
 GLOSS_CHROMA = 0.35
 GLOSS_CLIPPED = 0.02
 
-
 def luminance(px):
     return 0.2126 * px[0] + 0.7152 * px[1] + 0.0722 * px[2]
-
 
 def crop(rgb, w, h, frame):
     x0, y0, x1, y1 = frame
     return [[rgb[y][x] for x in range(int(x0 * w), int(x1 * w))]
             for y in range(int(y0 * h), int(y1 * h))]
-
 
 def stats(patch):
     """Пять величин участка: среднее, СКО, ДЕТАЛЬ, энтропия, цветность."""
@@ -147,7 +135,6 @@ def stats(patch):
     return {"mean": mean, "sd": sd, "detail": detail, "entropy": ent,
             "colours": uniq * 1000.0 / n, "px": n, "lum": flat}
 
-
 def gloss_stats(patch):
     """Три замера блика — ветвь К1 для гладких веществ (расхождение Р1)."""
     lum = sorted(luminance(p) for row in patch for p in row)
@@ -169,10 +156,8 @@ def gloss_stats(patch):
     return {"hilight": hilight, "chroma_ratio": c_bright / max(c_body, 1e-6),
             "clipped": clipped}
 
-
 def verdict(ok):
     return "ЗЕЛЁНЫЙ" if ok else "КРАСНЫЙ"
-
 
 def measure(frame_path, patches, gloss, pairs, contacts, k4_report):
     w, h, rgb = png.load(frame_path)
@@ -238,7 +223,6 @@ def measure(frame_path, patches, gloss, pairs, contacts, k4_report):
               f"{verdict(ok)}")
     return got
 
-
 # ---------------------------------------------------------------------------
 # КОНТРОЛЬНЫЕ РУКИ (правило 30). Фикстуры рисуются здесь же, а не лежат
 # файлами: участок, который обязан провалить К1, — это ровная заливка, и
@@ -278,7 +262,6 @@ def synth(kind, size=140, seed=1):
                 raise SystemExit(f"нет фикстуры {kind}")
         out.append(row)
     return out
-
 
 def self_test():
     bad = []
@@ -359,7 +342,6 @@ def self_test():
     print("[поверхность] все контрольные руки сошлись")
     return 0
 
-
 def main():
     args = sys.argv[1:]
     if "--self-test" in args:
@@ -402,7 +384,6 @@ def main():
         print(f"[поверхность] НЕ СОШЛИСЬ: {', '.join(missed)}")
         return 1
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

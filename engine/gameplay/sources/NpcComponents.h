@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
 Module: engine/gameplay
 File: engine/gameplay/sources/NpcComponents.h
 
@@ -38,11 +36,6 @@ AI Agents Notice (must follow):
   types from Ids.h.
 - Propose any component needed by render/core to the lead instead of adding a
   cross-zone type here (Rule 25).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 NPC components (voice timbre,
-                         schedule state).
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 03:13:00
-Last updated: 13:08:2026 - 18:59:13
 Module: tests
 File: tests/render/CloudModelTests.cpp
 
@@ -18,26 +16,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. GPU-free.
-*/
-/*
-UPD:
-- 10:08:2026 - 03:13:00: Initial tests with the cloud pass.
-- 10:08:2026 - 10:45:06: The COVERAGE FIELD's distribution tests (Rule 31),
-  each shipping the pre-remap field as the control it must reject.
-- 11:08:2026 - 14:43:44: THE 3-D FIELD (R3.1): uniformity, cover-means-coverage, and the
-  control that the 2-D mean/SD FAIL in 3-D — which is why the second pair of
-  constants exists at all. Plus the assertion that the field actually varies
-  with HEIGHT, since not varying with height is what made the band's
-  silhouette single-valued and produced the mushroom caps.
-- 12:08:2026 - 22:45:00: R3.3 — the LOD's own distribution (Rule 31 one level down: the
-  first pass asserted the field at FULL resolution and left the LOD
-  unasserted, and the LOD moves the distribution). Three cases, each with
-  the shipped-until-now form as the control it rejects: the surviving
-  spread is predicted (SD of the recovered z is 1.000 at every rate, the
-  control collapses BY the residual), cover means coverage at every rate,
-  and the outer convergence fires on the residual instead of on
-  cells-per-pixel (alpha SD at 0.60 cells/px 0.000 -> 0.466).
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #include "engine/render/sources/CloudModel.h"

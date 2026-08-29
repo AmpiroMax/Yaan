@@ -1,29 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:18:26
-Last updated: 28:08:2026 - 15:30:00
--->
-<!--
-UPD:
-- 09:08:2026 - 00:18:26: Stage-1 state: interface only, no backends yet.
-- 09:08:2026 - 01:02:15: Stage 2 — null backend implemented
-  (CreateNullAudio.h); miniaudio backend remains stage 3.
-- 10:08:2026 - 02:27:07: Audio bring-up (landscape stage, в12): miniaudio
-  backend implemented (0.11.22, FetchContent GIT_SHALLOW); placeholder sound
-  generator in tools/. set_bus_reverb is a DOCUMENTED v1 no-op.
-- 28:08:2026 - 15:30:00: ХОЗЯИН СТАЛ ТОЧКОЙ (заказ владельца 28.08). Снят
-  безысточниковый ветер; шелест идёт от крон, вода — от русла; заведены
-  окклюзия (ma_lpf_node + луч Jolt) и реверб шины (ma_delay_node), из-за чего
-  set_bus_reverb перестал быть пустышкой.
-- 27:08:2026 - 21:09:48: ПРАВИЛО ПРИВЯЗКИ ЗВУКА К ХОЗЯИНУ (заказ владельца
-  28.08: «звук должен быть привязан к чему-то конкретному»). Ветер пережил
-  закрытие карты, потому что его хозяином было приложение, а звучал он про мир.
-  Заведена шина world под шиной sfx, правило записано разделом выше.
-- 27:08:2026 - 20:21:01: Ogg Vorbis (stb_vorbis from the pinned miniaudio
-  checkout), music layers are no longer spatialized, and the FULL-DECODE
-  ruling for music is written down with its measured price. Two of the three
-  defects named in docs/reports/music-research.html §8 are closed; streaming
-  (defect #1) is deliberately still open and now says so out loud.
--->
 
 # engine/platform/audio
 

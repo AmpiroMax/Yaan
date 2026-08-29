@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 12:31:04
-Last updated: 18:08:2026 - 12:31:04
 Module: tests
 File: tests/core/HeightLatticeTests.cpp
 
@@ -31,14 +29,6 @@ AI Agents Notice (must follow):
 - Every acceptance in this file has a control that must FAIL (Rule 30). The
   control is not a reverted constant — it is the same instrument pointed at a
   deliberately coarsened lattice, so it runs on every green build.
-*/
-/*
-UPD:
-- 18:08:2026 - 12:31:04: Создан вместе с переходом HEIGHTMAP_STEP 2.0 -> 1.0.
-  Рукава на это свойство НЕ БЫЛО: сшивку соседей, равенство дальнего и ближнего
-  уровня и согласие рисуемого с твёрдым проверки закрывали, а вопрос «сколько
-  рельефа наша земля ВЫДУМЫВАЕТ» не мерил никто — при том, что до этой правки
-  выдумано было 74.8 % узлов рисуемой поверхности.
 */
 
 #include "engine/core/config/sources/Constants.h"

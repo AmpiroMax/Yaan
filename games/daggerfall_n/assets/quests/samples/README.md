@@ -1,13 +1,3 @@
-<!--
-Created: 09:08:2026 - 19:00:00
-Last updated: 09:08:2026 - 19:00:00
--->
-<!--
-UPD:
-- 09:08:2026 - 19:00:00: Created parser test fixtures for core's JSON reader:
-  one deeply nested quest, one dialogue graph, a world_flags fragment, a
-  number-typing fixture, and three one-defect-each invalid files.
--->
 
 # Parser fixtures — story → core
 

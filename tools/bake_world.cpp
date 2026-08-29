@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 20:47:52
-Last updated: 14:08:2026 - 20:47:52
 Module: tools
 File: tools/bake_world.cpp
 
@@ -26,10 +24,6 @@ AI Agents Notice (must follow):
   baker that quietly baked the shipping extent when asked for a 2x2 test world
   would hand back a file that loads, looks plausible and is not what was asked
   for — and it would be found days later, by somebody measuring something else.
-*/
-/*
-UPD:
-- 14:08:2026 - 20:47:52: Created — the generator's first offline caller.
 */
 
 #include "engine/world/sources/LayoutLoad.h"

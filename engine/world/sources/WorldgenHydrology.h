@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 10:08:2026 - 01:48:11
 Module: engine/world
 File: engine/world/sources/WorldgenHydrology.h
 
@@ -30,14 +28,6 @@ AI Agents Notice (must follow):
   never increase downstream, are CONSTANT across any standing body, and the
   drawn level of a pond equals the swum level by construction. Enforced by
   construction, asserted in build, guarded by test.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — P2 hydrology (trace, ponds, carve, fords,
-  lake; distance field for dist_to_water).
-- 09:08:2026 - 13:12:19: Stage 3b amendments: derived ford_stations (§3.1 step 6); §3.3 bed/mud cap documented on build_hydrology.
-- 09:08:2026 - 14:41:26: Frame-05 bed fix: pond_planes (drawable primitives for surviving ponds) so every water-covered sample has a body render can draw.
-- 10:08:2026 - 01:48:11: The pond becomes a flat reach of the river (grill в23, §3.1 amendment): Pond::level = min(spill saddle, river entry level), Pond::spill_level added as the control-test record; the lake obeys the same entry rule (§3.2 extension).
 */
 
 #pragma once

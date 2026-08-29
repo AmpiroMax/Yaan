@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 10:39:07
-Last updated: 10:08:2026 - 10:39:07
 Module: engine/world
 File: engine/world/sources/WorldgenErosion.cpp
 
@@ -18,11 +16,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Rule 13.1: single-threaded, fixed droplet order, fixed accumulation order.
 - Rule 24: derived below from the transport equations, not vendored.
-*/
-/*
-UPD:
-- 10:08:2026 - 10:39:07: Created — LF-8 pass with the OFF control on the same
-  entry point.
 */
 
 #include "engine/world/sources/WorldgenErosion.h"

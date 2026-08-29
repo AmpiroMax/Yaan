@@ -1,6 +1,4 @@
 <!--
-Created: 23:08:2026 - 20:06:40
-Last updated: 23:08:2026 - 20:06:40
 Module: docs/plans
 File: docs/plans/CITIES_12.md
 
@@ -11,10 +9,6 @@ Responsibility:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Паспорт города — данные конвейера gen_city; не менять без волны согласования.
--->
-<!--
-UPD:
-- 23:08:2026 - 20:06:40: Создан из отчёта cities-style (12 паспортов + общий каталог 429 + рамка «что такое деталь»).
 -->
 
 # ЭПОХА 12 БОЛЬШИХ ГОРОДОВ — паспорта

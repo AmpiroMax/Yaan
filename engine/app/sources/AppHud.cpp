@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:35:04
-Last updated: 27:08:2026 - 14:00:00
 Module: engine/app
 File: engine/app/sources/AppHud.cpp
 
@@ -10,16 +8,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
-*/
-/*
-UPD:
-- 18:08:2026 - 17:35:04: Создан вместе с заголовком — 238 строк сборки кадра из
-  App::run().
-- 27:08:2026 - 14:00:00: Подсказка прицела рисуется испечённой антиквой (UiFont.h),
-  а отступ от низа стал долей кадра: холст интерфейса вырос до 1920×1080
-  (UI_CANVAS_W), и прежние 40 пикселей из одиннадцатой части кадра стали
-  тридцатой. Запасная ветка на блочный шрифт оставлена и не мертва: подсказка
-  «Войти», которой не видно, неотличима от двери, которая не работает.
 */
 
 #include "engine/app/sources/AppHud.h"

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 27:08:2026 - 11:44:00
-# Last updated: 27:08:2026 - 11:44:00
 # Module: tools
 # File: tools/heraldry/dfo.py
 #
@@ -45,11 +43,6 @@
 #   КАЖДОМ чтении и отказывает файлу целиком при расхождении.
 # - Секция HOUS входит в хэш, ТОЛЬКО если непуста (иначе переверсировались бы
 #   все 2500+ файлов полок).
-#
-# UPD:
-# - 27:08:2026 - 11:44:00: Создан — питонья запись .dfo для генератора 3D-герба
-#   (заказ владельца 27.08).
-#
 """The .dfo object container in Python: same bytes as ObjectRegistry.cpp."""
 
 import struct
@@ -61,12 +54,10 @@ FNV1A64_OFFSET_BASIS = 14695981039346656037
 FNV1A64_PRIME = 1099511628211
 MASK64 = (1 << 64) - 1
 
-
 def _tag(text: str) -> int:
     """make_tag('D','F','N','O') — четыре ASCII в u32, младший байт первый."""
     a, b, c, d = text.encode("ascii")
     return a | (b << 8) | (c << 16) | (d << 24)
-
 
 OBJECT_MAGIC = _tag("DFNO")
 OBJECT_FORMAT_VERSION = 3
@@ -78,7 +69,6 @@ SEC_BARK, SEC_HOUS = _tag("BARK"), _tag("HOUS")
 # Порядок потоков в файле И в хэше. Один список на оба, чтобы они не разошлись.
 STREAM_ORDER = (("wood", SEC_WOOD), ("cards", SEC_CARD),
                 ("ground", SEC_GRND), ("bark", SEC_BARK))
-
 
 class Fnv1a64:
     """Потоковая FNV-1a 64. update_u64 скармливает 8 байт little-endian."""
@@ -97,7 +87,6 @@ class Fnv1a64:
 
     def digest(self) -> int:
         return self.state
-
 
 class Mesh:
     """Поток .dfo: вершины (pos, normal, uv, colour) и индексы треугольников.
@@ -131,12 +120,10 @@ class Mesh:
         buf[:, 8] = self.colors
         return buf.astype("<u4").tobytes()
 
-
 def pack_color(rgb) -> int:
     """Линейный 0..1 -> 0xAABBGGRR, как render::pack() (альфа всегда 255)."""
     r, g, b = (int(round(max(0.0, min(1.0, c)) * 255.0)) for c in rgb)
     return (0xFF << 24) | (b << 16) | (g << 8) | r
-
 
 class RegistryObject:
     def __init__(self, name: str = "", kind: str = "", source: str = "") -> None:
@@ -146,7 +133,6 @@ class RegistryObject:
         self.ground = Mesh()
         self.bark = Mesh()
         self.house = []  # (surface, tone, emissive, Mesh)
-
 
 def _hash_stream(hasher: Fnv1a64, mesh: Mesh) -> None:
     """Как hash_stream в ObjectRegistry.cpp: БИТЫ float, не значения."""
@@ -159,7 +145,6 @@ def _hash_stream(hasher: Fnv1a64, mesh: Mesh) -> None:
     hasher.update_u64(int(mesh.indices.size))
     for index in mesh.indices.tolist():
         hasher.update_u64(index)
-
 
 def content_hash(obj: RegistryObject) -> int:
     hasher = Fnv1a64()
@@ -174,14 +159,12 @@ def content_hash(obj: RegistryObject) -> int:
             _hash_stream(hasher, mesh)
     return hasher.digest()
 
-
 def content_hash_v1(obj: RegistryObject) -> int:
     """Личность формата v1: БЕЗ потока bark. Версия — обещание о том, как читать."""
     hasher = Fnv1a64()
     for attr in ("wood", "cards", "ground"):
         _hash_stream(hasher, getattr(obj, attr))
     return hasher.digest()
-
 
 class _Writer:
     def __init__(self) -> None:
@@ -211,13 +194,11 @@ class _Writer:
         raw = text.encode("utf-8")
         self.buf += struct.pack("<I", len(raw)) + raw
 
-
 def _write_stream_body(writer: _Writer, mesh: Mesh) -> None:
     writer.u32(len(mesh))
     writer.buf += mesh.vertex_bytes()
     writer.u32(int(mesh.indices.size))
     writer.buf += mesh.indices.astype("<u4").tobytes()
-
 
 def serialize(obj: RegistryObject, container_version: int = OBJECT_FORMAT_VERSION) -> bytes:
     """container_version переопределяется ТОЛЬКО сверкой (--verify): чтобы
@@ -246,7 +227,6 @@ def serialize(obj: RegistryObject, container_version: int = OBJECT_FORMAT_VERSIO
         writer.end_section()
     return bytes(writer.buf)
 
-
 def write_object(obj: RegistryObject, path: str) -> None:
     """Пишет .dfo атомарно (временный файл рядом + переименование)."""
     import os
@@ -256,7 +236,6 @@ def write_object(obj: RegistryObject, path: str) -> None:
     with open(tmp, "wb") as handle:
         handle.write(serialize(obj))
     os.replace(tmp, path)
-
 
 class _Reader:
     def __init__(self, data: bytes) -> None:
@@ -283,7 +262,6 @@ class _Reader:
         self.pos += length
         return text
 
-
 def _read_stream(reader: _Reader) -> Mesh:
     mesh = Mesh()
     count = reader.u32()
@@ -299,7 +277,6 @@ def _read_stream(reader: _Reader) -> Mesh:
                                  offset=reader.pos).copy()
     reader.pos += index_count * 4
     return mesh
-
 
 def read_object(path: str):
     """Читает .dfo и СВЕРЯЕТ хэш, как это делает движок. None при отказе."""
@@ -338,7 +315,6 @@ def read_object(path: str):
     obj.content_hash = computed
     return obj
 
-
 def _verify(paths) -> int:
     """ДВУСТОРОННЯЯ СВЕРКА С ЧУЖИМИ БАЙТАМИ (см. шапку). Возврат — код выхода."""
     bad = 0
@@ -364,7 +340,6 @@ def _verify(paths) -> int:
                      sum(getattr(obj, a).triangle_count for a, _t in STREAM_ORDER),
                      path))
     return 1 if bad else 0
-
 
 if __name__ == "__main__":
     import glob

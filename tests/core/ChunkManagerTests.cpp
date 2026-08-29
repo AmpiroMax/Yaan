@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 10:08:2026 - 02:29:54
 Module: tests
 File: tests/core/ChunkManagerTests.cpp
 
@@ -15,16 +13,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — initial suite.
-- 09:08:2026 - 11:05:22: Stage 3b — worldgen v2 spawns site entities: baseline
-  captured before streaming; new cases for site component attachment,
-  surfacefield/scatter/water_bodies accessors.
-- 09:08:2026 - 14:41:26: Frame-05 bed fix: water_bodies().lakes is now lake + pond planes (was exactly 1); all planes checked for positive extent.
-- 09:08:2026 - 18:19:09: Streaming budget: residency cases now drive updates to settled via Fixture::settle (a ring no longer fills in one update); new case pins the per-update cap, the focus chunk being admitted first (including after a teleport), and that nothing starves.
-- 10:08:2026 - 02:29:54: surface_class_at test — sampled-field agreement inside residency, declines outside (sim's footstep query).
 */
 
 #include "engine/core/components/sources/Components.h"

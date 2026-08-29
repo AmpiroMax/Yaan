@@ -1,12 +1,3 @@
-<!--
-Created: 10:08:2026 - 01:54:36
-Last updated: 10:08:2026 - 01:54:36
--->
-<!--
-UPD:
-- 10:08:2026 - 01:54:36: Initial humanoid rig contract (15 bones, frozen), stride-phase
-  seam with sim recorded, mesh id table 34..48 (pending render's ack), mirror math.
--->
 
 # HUMANOID RIG — the contract (character zone)
 

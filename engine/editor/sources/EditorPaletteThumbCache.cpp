@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 01:00:57
-Last updated: 18:08:2026 - 01:00:57
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteThumbCache.cpp
 
@@ -24,10 +22,6 @@ AI Agents Notice (must follow):
 - A NAME THAT CANNOT BE DRAWN IS GIVEN UP ON, not retried for ever. Without the
   cap one missing mesh eats a budget slot every frame and the parts behind it
   are never drawn — a whole menu held hostage by one bad row.
-*/
-/*
-UPD:
-- 18:08:2026 - 01:00:57: Создан вместе с EditorPaletteThumb.h.
 */
 
 #include "engine/editor/sources/EditorPaletteThumb.h"

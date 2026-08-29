@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:00:00
-Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/Materials.h
 
@@ -30,48 +28,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Tune values HERE, not in shaders and not in the backend (Rule 14 spirit).
-*/
-/*
-UPD:
-- 09:08:2026 - 11:00:00: Stage 3 — initial look-dev environment.
-- 09:08:2026 - 11:57:20: Stage 3b — rock slope band now derived from the
-  design constants SLOPE_GRASS_MAX/SLOPE_ROCK_MIN (1 - cos conversion; the
-  flat-worldgen placeholder band is gone); water edge margin for per-body
-  water meshes.
-- 09:08:2026 - 14:11:37: Sun lowered to afternoon height for readable dynamic
-  shadows (в1). The app's day/night cycle (в2) overrides all of sun/ambient/
-  fog/sky per frame via RenderSystem::environment(); these remain the defaults.
-- 09:08:2026 - 21:12:00: LOOKDEV_SHADOW_CASTER_KEEP_M — the radius that keeps
-  off-screen shadow casters alive once frustum culling exists.
-- 10:08:2026 - 21:13:39: THE SPLAT TABLE. splat_weights_of(VoxelMaterial) plus the
-  SurfaceClass overload through core's voxel_material_of(), and pack_splat().
-  BLEND_CLASS_ROCK_W moves here from TerrainMesher.cpp: it has two consumers
-  now, so it stopped belonging to one of them (Rule 35). No `default:` in the
-  switch, deliberately -- a new material must break the build rather than
-  render as grass, which is how the blend class was lost. Value 0.5 preserved
-  unchanged and marked unverified; changing it inside a structural fix would
-  have made both unmeasurable.
-- 10:08:2026 - 21:25:38: The measurement moves OUT of the agent conversation and
-  next to the constant it is about. 0.375% of ground pixels, 46.8% of the
-  blend band changed by exactly nothing, and the unverified voxel-normal
-  premise that makes those a floor. A finding that lives only in a message
-  does not survive the session, and the next agent to look at
-  BLEND_CLASS_ROCK_W is the one who needs it -- it is a deletion candidate,
-  and the note says what has to be measured BEFORE deleting it.
-- 10:08:2026 - 21:35:12: The unverified premise is now measured (core, ff11f04).
-  The flatter-normals hypothesis is REFUTED -- extraction adds scatter, not
-  bias. The 0.375% aggregate survives (measured 0.365%) but the model under it
-  was wrong: 12.8% of blend vertices fall BELOW rock_slope_start, where this
-  constant is the only source of rock. Note now separates the two quantities
-  that were being swapped, and records that the pixel-space question is still
-  open (Rule 41) and is render's.
-- 22:08:2026 - 15:40:00: LOOKDEV_ATLAS_CELL_PX 128 -> 512 — земля была 6.25 см/тексель против
-  3.9 мм у стен; узор не меняется (поля нормированы), цена 4 МБ на атлас.
-- 22:08:2026 - 18:40:00: LOOKDEV_SHADOW_CASTER_KEEP_M 320 -> 160 — зеркало
-  теневого полуохвата поехало вместе с ним (мягкие тени, BgfxRendererImpl.h);
-  на 320 отсечение потоков построек не отвергало ничего на карте 256 м.
-- 23:08:2026 - 00:30:00: make_default_environment отдаёт PATH_TILES_PER_M в окружение —
-  без зеркала в бэкенде (на зеркале 320/160 эта волна уже обожглась).
 */
 
 #pragma once

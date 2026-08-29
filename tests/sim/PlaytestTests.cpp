@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 19:48:10
 Module: tests (sim zone)
 File: tests/sim/PlaytestTests.cpp
 
@@ -22,15 +20,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:23:05: Created with playtest v1.
-- 10:08:2026 - 19:48:10: The unbound-sampler subcase asserted
-  `worst_slip_m == 0.0`, which a run with PERFECT feet also satisfies -- it
-  could not tell a skipped check from a passed one, the exact confusion it
-  exists to forbid (Rule 38). Now asserts the outcome: the run is MARKED as
-  not measured. Drag control re-verified against the new absolute bound.
 */
 
 #include <doctest/doctest.h>

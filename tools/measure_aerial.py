@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 11:08:2026 - 13:32:12
-Last updated: 12:08:2026 - 23:14:00
 Module: tools
 File: tools/measure_aerial.py
 
@@ -56,53 +54,6 @@ AI Agents Notice (must follow):
 - The rock filter drops sky-blue and grass-green pixels inside the box, so the
   box only has to bound the landform, not trace it. It does NOT drop pixels for
   being pale: that is exactly the signal under test.
-
-UPD:
-- 11:08:2026 - 13:32:12: Created for R1 (aerial perspective) — the before arm measured the
-  same crag at 250/500/900 m and the numbers came back identical, which is the
-  finding rather than a calibration problem.
-- 11:08:2026 - 13:42:29: `separation` demoted, `standout` added. The strong-haze arm broke the
-  first version in the way a metric is supposed to break — visibly.
-- 11:08:2026 - 13:54:50: `ground` mode added for the lowland claim. It is a SECOND
-  instrument and not a second box for the first one: an instrument aimed at a
-  ridge does not accept a claim about a valley (Rule 41).
-- 11:08:2026 - 13:56:11: H1 (contour) and H2 (bands) modes for design's §10.9
-  propositions. H1 reports its MINIMUM and H2 reports the HEM PAIR FIRST,
-  because both propositions are about the weakest place and a mean would pass
-  exactly the failure each was written to catch.
-- 11:08:2026 - 14:03:07: contour edges now come from a CONTROL arm, not from each
-  arm's own colours. Same defect as the first `standout`, in a new
-  costume, caught the same way — by an arm whose answer was absurd.
-- 11:08:2026 - 14:05:38: band ROWS also come from the control arm, and the strip is
-  smoothed over 7 rows. Unsmoothed and self-detected, the mode found the
-  splat's dither and reported 0.05 steps for a no-haze control whose
-  bands are plainly visible — the third appearance of one defect: an
-  instrument that locates its subject by the property under test.
-- 11:08:2026 - 14:19:06: `profile` mode for R2.
-- 11:08:2026 - 14:21:34: `profile` REWRITTEN to measure against its own control, because
-  the first version ran the strip off the summit into sky and the CONTROL
-  passed. Fourth instance of the file's own rule. The difference profile is
-  immune: sky is identical in both arms and subtracts away, leaving the
-  layer's bump — zero at the hem, a maximum partway up, zero above.
-- 11:08:2026 - 14:35:17: `runs` mode for R3 — columns carrying two or more separate runs of
-  cloud. A silhouette that is a single-valued function of azimuth scores
-  exactly zero by construction, so this tells a skyline from a bank.
-- 11:08:2026 - 14:37:49: `runs` mask switched from BRIGHTNESS to NEUTRALITY, after the
-  brightness version called 80 % of the box cloud in BOTH arms — the pale
-  horizon sky is brighter than a cumulus base. Measured: cumulus come back
-  at b-r = 0, sky and the thin sheet at +11..+66.
-- 12:08:2026 - 22:45:00: `structure` mode LANDED (it lived only in a session scratchpad):
-  per-row mean and SD of the CLOUD-ONLY DIFFERENCE image. The first sky
-  instrument here that Rule 47 has nothing to bite — it needs no mask at
-  all, because everything that is not cloud is bit-identical in the two
-  arms and subtracts to zero — and it is zero-dose-safe by construction,
-  which the mode prints when it happens.
-- 12:08:2026 - 23:14:00: `decks` mode for R3.2 — a cloud deck is located by its ARM
-  DIFFERENCE (the same frame with exactly that deck dropped), never by
-  brightness, so Rule 47 has nothing to bite; the mode reports how much of the
-  box each deck owns, how disjoint the sets are, and — for the front deck — the
-  luma of pixels it owns against pixels it does not, which is the "holes show
-  brighter sky" claim stated as something a frame can fail.
 """
 
 import sys
@@ -114,10 +65,8 @@ from archive_frame import read_png  # noqa: E402
 # The palette pass's own weights (fs_upscale.sc / DFN_LUMA_WEIGHTS).
 LUMA_W = (0.30, 0.59, 0.11)
 
-
 def luma(r, g, b):
     return LUMA_W[0] * r + LUMA_W[1] * g + LUMA_W[2] * b
-
 
 def is_sky(r, g, b):
     # Sky and its haze are the only strongly blue-dominant thing in an outdoor
@@ -125,10 +74,8 @@ def is_sky(r, g, b):
     # shooting the arms with DFN_CLOUD=0.
     return b > r + 18 and b > g + 8
 
-
 def is_grass(r, g, b):
     return g > r + 18 and g > b + 18
-
 
 def box_pixels(w, h, ch, px, box):
     x0, y0, x1, y1 = box
@@ -138,7 +85,6 @@ def box_pixels(w, h, ch, px, box):
             i = row + x * ch
             yield px[i], px[i + 1], px[i + 2]
 
-
 def stats(values):
     n = len(values)
     if n == 0:
@@ -146,7 +92,6 @@ def stats(values):
     m = sum(values) / n
     var = sum((v - m) ** 2 for v in values) / n
     return m, var ** 0.5
-
 
 def measure(path, rock_box, sky_box):
     w, h, ch, px = read_png(path)
@@ -192,8 +137,6 @@ def measure(path, rock_box, sky_box):
         "rock_chroma": cm,
     }
 
-
-
 def measure_ground(path, near_box, far_box):
     """THE LOWLAND, WHICH IS A DIFFERENT CLAIM AND THEREFORE A DIFFERENT
     INSTRUMENT (Rule 41). `standout` asks how a RIDGE separates from the sky it
@@ -230,12 +173,9 @@ def measure_ground(path, near_box, far_box):
         "depth_chroma": near_c - far_c,
     }
 
-
-
 # Design's ruler (LANDSCAPE §10.9, NUMBERS PALETTE_SHADE_STEP_REF 0.0784), in
 # the 0..255 luma units this file measures in. H1 wants 2 steps, H2 wants 1.
 SHADE_STEP = 0.0784 * 255.0
-
 
 def find_edges(path, box):
     """Row of the silhouette's top edge per column, by colour classification.
@@ -255,7 +195,6 @@ def find_edges(path, box):
                 edges[x] = y
                 break
     return edges
-
 
 def measure_contour(path, box, edge_source=None):
     """H1 — SILHOUETTE AGAINST SKY, AND IT IS A MINIMUM, NOT A MEAN.
@@ -307,7 +246,6 @@ def measure_contour(path, box, edge_source=None):
         "steps_median": deltas[n // 2] / SHADE_STEP,
     }
 
-
 def _row_profile(path, box, smooth=7):
     """Row-mean luma of a strip, hem (bottom) first, lightly smoothed.
 
@@ -331,7 +269,6 @@ def _row_profile(path, box, smooth=7):
         b = min(len(rows), k + smooth // 2 + 1)
         out.append((rows[k][0], sum(r[1] for r in rows[a:b]) / (b - a)))
     return out
-
 
 def measure_structure(on_path, off_path, box):
     """Per-row mean and SD of the CLOUD-ONLY DIFFERENCE image (R3).
@@ -371,7 +308,6 @@ def measure_structure(on_path, off_path, box):
         rows.append({"row": y, "mean": m, "sd": sd, "px": len(vals)})
     return rows
 
-
 def _box_luma(path, box):
     w, h, ch, px = read_png(path)
     x0, y0, x1, y1 = box
@@ -381,7 +317,6 @@ def _box_luma(path, box):
             i = (y * w + x) * ch
             out.append(luma(px[i], px[i + 1], px[i + 2]))
     return out
-
 
 def measure_decks(full_path, arm_paths, box, thresh=1.0):
     """Locate each cloud deck by the ARM DIFFERENCE, never by brightness (R3.2).
@@ -426,7 +361,6 @@ def measure_decks(full_path, arm_paths, box, thresh=1.0):
             overlaps.append((i, j, both / max(1, either)))
     return arms, overlaps, n
 
-
 def find_band_rows(path, box, min_prominence=4.0):
     """Rows of the riser/bench extrema, hem first. CONTROL ARM ONLY.
 
@@ -443,7 +377,6 @@ def find_band_rows(path, box, min_prominence=4.0):
             if not ext or abs(prof[k][1] - ext[-1][1]) >= min_prominence:
                 ext.append(prof[k])
     return [r for r, _ in ext]
-
 
 def measure_bands(path, box, band_rows):
     """H2 — RISER/BENCH RHYTHM, READ FROM THE HEM UP.
@@ -464,13 +397,11 @@ def measure_bands(path, box, band_rows):
                       "steps": d / SHADE_STEP})
     return pairs
 
-
 def parse_box(s):
     v = [int(t) for t in s.split(",")]
     if len(v) != 4:
         raise SystemExit(f"box needs x0,y0,x1,y1 — got {s!r}")
     return tuple(v)
-
 
 def main(argv):
     if len(argv) > 1 and argv[1] == "contour":
@@ -675,7 +606,6 @@ def main(argv):
           f"  L(sky) {m['sky_luma']:7.2f}")
     print(f"  [secondary] separation {m['separation']:7.2f}  "
           f"texture sd(L) {m['texture']:6.2f}  chroma {m['rock_chroma']:6.2f}")
-
 
 if __name__ == "__main__":
     main(sys.argv)

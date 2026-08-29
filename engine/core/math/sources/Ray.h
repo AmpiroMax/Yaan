@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 00:16:55
 Module: engine/core/math
 File: engine/core/math/sources/Ray.h
 
@@ -18,10 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - `direction` is unit length by contract; constructors/factories normalize.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — POD Ray.
 */
 
 #pragma once

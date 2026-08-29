@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 13:21:37
-Last updated: 17:08:2026 - 15:46:07
 Module: engine/render
 File: engine/render/sources/PartForgeRoofs.cpp
 
@@ -27,17 +25,6 @@ AI Agents Notice (must follow):
   overlap is what keeps daylight out of the seam.
 - A slope's pitch is BAKED IN (rise over run): a Placement carries yaw and
   nothing else, so a roof a composer had to tilt is a roof nobody can place.
-*/
-/*
-UPD:
-- 17:08:2026 - 13:21:37: make_roof перенесён дословно и расширен покрытиями
-  тёс/черепица/дёрн; добавлены вальма (вариант полувальмы) и дымник.
-- 17:08:2026 - 14:29:43: material_of получил wear — ряд атласа несёт износ, и обрешётка под
-  соломой должна стареть вместе с покрытием, а не оставаться свежей.
-- 17:08:2026 - 15:46:07: текстурность стала свойством ДЕТАЛИ (kit_textured_default() — одно
-  определение умолчания). Была процессная дверь, читаемая внутри кузницы, и
-  тест текстурного потока не мог её попросить: он проверял умолчание и
-  покраснел в день, когда умолчание сменилось. Полка байт в байт прежняя.
 */
 
 #include "engine/render/sources/PartForgeDetail.h"

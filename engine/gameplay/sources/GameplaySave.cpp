@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 10:08:2026 - 21:07:24
 Module: engine/gameplay
 File: engine/gameplay/sources/GameplaySave.cpp
 
@@ -21,16 +19,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Fields are written explicitly in a fixed order (Rule 7). Changing the order
   or meaning requires a version bump plus migration in the reader.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial implementation.
-- 10:08:2026 - 21:07:24: register_gameplay_save_sections moved to
-  GameplaySaveRegistration.cpp. It was the only reference in this file to
-  world::SaveDeltaCodec, which has no implementation yet, so every consumer of
-  a SECTION was dragging a missing codec symbol into its link — that is what
-  kept the two authored round-trip tests unlinkable even after the Binary IO
-  landed. The sections themselves are unchanged.
 */
 
 #include "engine/gameplay/sources/GameplaySave.h"

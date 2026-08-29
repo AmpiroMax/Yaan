@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:49:27
-Last updated: 09:08:2026 - 23:49:27
 Module: tests
 File: tests/core/CoarseLodTests.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
 - Rule 30: the seam case ships with the two builders it exists to REJECT (a
   continuous-field sampler and a per-node quantization range), and both are run
   and required to FAIL. A green seam test with no control is a description.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:49:27: Created with the LOD streaming half.
 */
 
 #include "engine/core/config/sources/Constants.h"

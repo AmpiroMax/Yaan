@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 27:08:2026 - 11:57:52
 Module: tests
 File: tests/sim/NullBackendTests.cpp
 
@@ -20,14 +18,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - These tests ARE the null contracts; change them only with the interface docs.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial null backend contract suite.
-- 09:08:2026 - 15:08:24: Added the zero-mask rejection case; existing physics
-                         cases now set explicit layers (the default-layer
-                         mistake is now rejected by contract).
-- 27:08:2026 - 11:57:52: контракт null для sphere_cast — промах, как у луча.
 */
 
 #include <doctest/doctest.h>

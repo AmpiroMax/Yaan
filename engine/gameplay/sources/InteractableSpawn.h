@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:59:13
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractableSpawn.h
 
@@ -48,30 +46,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do not add a second spawn path; the loader and the app both call this.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial interactable spawning.
-- 13:08:2026 - 17:20:00: PROPS BECOME VISIBLE (ui's find: all three demo props
-  drew as nothing while the whole hover chain worked around them). RenderMesh +
-  PreviousTransform + LocalBounds, and Transform.scale becomes `half_extents`
-  so the drawn mesh and the ray box are the same cube. `mesh_asset` defaults to
-  the verb's placeholder rather than to the "draw nothing" sentinel.
-- 13:08:2026 - 18:15:00: InteractableBodies + reap_interactable_bodies. The ray
-  box handle was DISCARDED at spawn, so no prop's box could ever be destroyed:
-  taking an item left an invisible ray target standing where it had been, and
-  every drop added another for the length of the session.
-- 13:08:2026 - 18:25:00: InteractableMotion + update_interactable_motion — the
-  VISIBLE half of a verb. `Openable::open` and `Usable::used` were booleans
-  nothing read: press, state changed, screen identical. The pose lives apart
-  from the verb's boolean because the boolean is saved game state and a pose is
-  not; and the ray box moves with the leaf, or the drawn door and the touchable
-  door are two different objects.
-- 13:08:2026 - 18:55:00: InteractableDesc::mesh_model_half_extents — the scale
-  is `half_extents / mesh_model_half_extents`, so "the drawn prop IS the ray
-  box" survives a mesh this zone did not author. The default is the unit cube
-  the placeholders use, so nothing about them changes.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
 */
 
 #pragma once

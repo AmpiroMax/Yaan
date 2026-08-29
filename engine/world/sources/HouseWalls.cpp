@@ -1,6 +1,4 @@
 /*
-Created: 21:08:2026 - 00:40:00
-Last updated: 28:08:2026 - 14:05:00
 Module: engine/world
 File: engine/world/sources/HouseWalls.cpp
 
@@ -22,25 +20,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
 - ПО ФАЙЛУ НА АЛГОРИТМ (решение пользователя 21.08): модуль держит ОДИН
   алгоритм постройки; общие руки — в HouseMeshDetail.h.
-*/
-/*
-UPD:
-- 21:08:2026 - 00:40:00: Вырезан из HouseMesh.cpp (1942 строки, девять алгоритмов в одном файле).
-- 21:08:2026 - 01:50:00: build_weathering: подтёки под проёмами и трещины-зигзаги по износу; косметика без коллайдера; трещины не висят в проёмах.
-- 21:08:2026 - 02:45:00: Подтёки только на камне/штукатурке (на досках — «узор обоев»); трещины поверх кладки, 2-4 на пролёт.
-- 22:08:2026 - 23:00:32: фаза плитки у досок обшивки (uv_shift через push_wall_slab): доски-клоны фасада получили разные волокна, дрожь той же course_jitter, что пол и кладка.
-- 23:08:2026 - 02:49:00: профиль обшивки: чередование выноса досок 4 мм по колонне (b.column) — шов тенью, перенос образца build_courses.
-- 28:08:2026 - 11:22:00: ЛИСТ ОКНА ПОМЕЧЕН (mb.pane) И ПРОЁМ ЗАПИСАН
-  (mesh.windows) — свет из окна. Геометрия не сдвинута ни на бит: та же
-  призма, тот же материал 8, те же координаты; добавлены признак части и
-  запись в список апертур, который читает печка видимости.
-- 28:08:2026 - 14:05:00: РЯДЫ КЛАДКИ ФАСКИ НЕ НОСЯТ (BevelHold на всю руку
-  build_courses; HOUSE_BEVEL_COURSES и цена — HouseMesh.h). Кусок ряда ложится
-  В ПОВЕРХНОСТЬ: тыл в плите, бока у соседей, низ под верхним рядом — свободен
-  только обвод лица, а на нём уже есть шов, перевязка и дрожь глубины. Замер:
-  фаска на кладке стоит 2.55 млн треугольников Вайтрана из 4.53 млн всей
-  прибавки. Рама проёма и наличники — ТЕЛА и фаску получают: возврат ширины
-  стоит на выходе из руки, не в конце цикла.
 */
 
 #include "engine/world/sources/HouseMeshDetail.h"
@@ -84,7 +63,6 @@ static void push_wall_slab(MeshBuilder& mb, HouseMesh& mesh, ElementId owner,
     const std::uint32_t tris[6] = {0, 1, 2, 0, 2, 3};
     push_prism(mb, loop, tris, face_n * thickness, tex_deg, mesh, owner, uv_shift);
 }
-
 
 } // namespace
 
@@ -518,7 +496,6 @@ static void build_opening_trim(const Element& e, const ElementParams& p,
     }
 }
 
-
 } // namespace
 
 /// ПОДТЁКИ И ТРЕЩИНЫ ИЗНОСА (EXTERIOR_CATALOG.md: потёки — под
@@ -667,6 +644,5 @@ void build_chain_surface(const Element& e, const ElementParams& p, std::span<con
         build_weathering(e, p, a, dir, seg_len, face_n, half, holes, mb, mesh);
     }
 }
-
 
 } // namespace dfn::world

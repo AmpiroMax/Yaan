@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:00:00
-Last updated: 13:08:2026 - 18:40:00
 Module: tests
 File: tests/core/VoxelTests.cpp
 
@@ -19,31 +17,6 @@ AI Agents Notice (must follow):
 - The fidelity test is the contract that lets the swap ship without a visual
   regression. Do not relax its tolerance to make a change pass — if the
   surface moved, the change is wrong.
-*/
-/*
-UPD:
-- 09:08:2026 - 16:00:00: Created — representation-swap suite.
-- 09:08:2026 - 16:47:51: P7 acceptance: tunnel enclosed/walkable/climbing, voxel field holds overhangs and ceiling geometry a heightfield cannot, Backbarrow is a buried reachable room.
-- 09:08:2026 - 17:36:42: §6.2: carved dungeon entrances are derived from their mouth, facing out, standing on the carved floor.
-- 09:08:2026 - 17:45:08: §6.2: standing stones present and within their height band at every entrance; no vegetation inside the exclusion ring.
-- 09:08:2026 - 18:58:01: Regression: every entrance walks out without the ground ahead rising above head height; mounds fall from their crown (dome, not plateau); no scatter instance floats or sinks by more than 0.3 m anywhere in the testbed.
-- 09:08:2026 - 19:41:55: Tolerances re-derived for a 115 m crag: worst voxel deviation bounded by the cell diagonal on near-vertical faces (2.5x voxel, mean still ~2 cm), and the tunnel's standable allowance widened because the ascent now climbs 41 m instead of 18 in a similar footprint so its legs stack closer.
-- 09:08:2026 - 21:37:57: Heightfield-vs-voxel check restated for §2.8 cliffs: every vertex must lie on the heightfield within the terrain's own relief across one voxel cell, UNLESS it is a carve surface (a tunnel wall is not describable as a height per column). Checked per vertex rather than on the global max, which is strictly stronger — the old flat 2.5 m bound let one cliff vertex mask every other error. Measured: 76195 verts, 127 exceedances, all 127 on carves, zero unexplained.
-- 10:08:2026 - 02:18:26: Barrow mouth split into its own EXPECTED-FAIL case (design ruling §7.0a; trigger-expiry = the §2.8.2 couloir work, owner design; should_fail announces the day it opens). The room/burial assertions stay guarding in the plain case.
-- 10:08:2026 - 20:46:11: Both three-arg build_voxel_volume calls documented (sim's
-  catch): the omitted fourth argument is the DERIVED entrance adits, so the
-  determinism case is sound because the omission cancels on both sides, and the
-  P7 case measures the LAYOUT's tunnel rather than the shipped field.
-- 10:08:2026 - 21:06:20: Rule 39 regression for the surface-class hop, with
-  the control the rule prescribes — the PRE-FIX projection copied out verbatim,
-  asserted to agree with the fixed one on all four classes the suite already
-  exercised and to disagree on exactly the fifth. That asymmetry is the finding:
-  the drift was unreachable from any test of the well-trodden classes. Also
-  replaced `mat <= Dirt` with a named-enumerator check; that bound was a fact
-  about declaration order in an APPEND-ONLY enum and went red on the append.
-- 11:08:2026 - 15:15:55: props-sit-on-the-ground restated for §10.5 B1: a boulder is DUG IN, so the invariant is one-sided -- never floating, never deeper than BOULDER_BURIAL_FRAC_MAX of its own extent.
-- 13:08:2026 - 17:05:00: РЕГРЕССИЯ §6.3 (зона dungeon): тьма как ФУНКЦИЯ МЕСТА, проверенная в той самой точке, которой спрашивает игра — НА полу. Существующий случай про тоннель задаёт тот же вопрос о вхождении, но в p.y+1.7 и p.y-0.5, то есть ОТСТУПАЕТ от плоскости, на которой стоит боевой запрос, и потому не мог увидеть особенность: ambient_darkness переключалась 0.000↔1.000 ЗА ОДИН КАДР, 13 раз за проход, под 18 м породы. Три проверки, каждая падает на функции до правки: пол и колено не расходятся (граница не сингулярна), соседние станции не меняются быстрее собственного склона рампы (склон, а не выключатель), и станция, до которой от обоих порталов больше DEPTH_MIN+рампа при реальной толще над головой, — полная тьма. Разбор: docs/FINDING_DUNGEON_DARK.md.
-- 13:08:2026 - 18:40:00: Регрессия §6.3 дополнена свойством пользователя: НЕТ тьмы там, где потолок коридора стоит в дневном свете (открытая траншея). Хрупкая проверка «глубоко, значит темно» через толщу над ПОЛОМ снята — под правилом крыши она утверждала неверное; вместо неё проверяется, что тоннель всё-таки где-то доходит до полной черноты, иначе три остальные проверки прошли бы на сборке, которая просто никогда не темнеет.
 */
 
 #include "engine/core/config/sources/Constants.h"

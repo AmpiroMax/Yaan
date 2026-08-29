@@ -1,6 +1,4 @@
 /*
-Created: 11:08:2026 - 14:23:03
-Last updated: 13:08:2026 - 00:40:00
 Module: tests/core
 File: tests/core/GroundReliefTests.cpp
 
@@ -29,71 +27,6 @@ AI Agents Notice (must follow):
   trustworthy: nobody composed it to make an "after" look better. Re-deriving
   it from a fresh search in a later commit would let the ground move under the
   number.
-*/
-/*
-UPD:
-- 11:08:2026 - 14:23:03: Created — §10.1's floor gets its first consumer.
-- 12:08:2026 - 23:35:00: THE WAVELENGTH SWEEP, and it refutes the prediction this
-  file was carrying: shortening GROUND_MESO_WAVELENGTH's top moves pointwise
-  slope monotonically and moves ground-hiding NOT AT ALL (63-77 %, no trend,
-  never above what the approved band already gives; A1 p5 stays 0 at every
-  wavelength). The table and the reason are in the test body where the wrong
-  prediction used to be.
-- 13:08:2026 - 16:35:00: THE DRAWN ARM, and it changed a conclusion the same
-  hour it landed. Every reading is now taken on the 2 m heightmap the world is
-  actually built from as well as on the continuous field, because the two
-  disagree: at a 0.35 m terrace step the continuous field reads p5 = 3 (a pass)
-  and the drawn ground reads p5 = 0. A form finer than a few samples exists in
-  the field and not in the world. Plus the per-column dump (a percentile hides
-  the shape of its own tail — the failing columns are a contiguous SECTOR, not
-  scattered bad luck), the population census over the world's flattest legal
-  standpoints (one standpoint's p5 can be bought by 64 lucky rays), and the σ
-  ceiling read in the same run as the count.
-- 13:08:2026 - 16:52:00: WALKABILITY, and the instrument was replaced rather
-  than re-floored: a count of cells crossing PLAYER_MAX_SLOPE cannot separate a
-  wall the pass built from ground the pass nudged that was already at the limit
-  (every arm tipped the same knife-edge cell), so the quantity was wrong. The
-  gate is CONNECTIVITY over the 2 m lattice the world is collided on, with a
-  positive control showing the instrument moves when driven.
-- 13:08:2026 - 17:05:00: The anisotropy ruler diagnostic — the same structure
-  tensor read at four arms on ONE world, because §2.1's probe samples with a
-  +-6 m arm on a 12 m lattice and the forms sit at a 15-24 m pitch, which is at
-  or past Nyquist.
-- 13:08:2026 - 17:20:00: The regularity measure (gap CV between draws) with the
-  band it resolves stated before the number — 2 m to 120 m against a subject at
-  12-40 m — and read against the pass's own washboard arm.
-- 13:08:2026 - 17:32:00: The gap-CV comparison is REPORTED and no longer gated:
-  it reads 0.679 against 0.718 at the shipped pitch and 0.573 against 0.567 at
-  the previous one, i.e. the arms are indistinguishable and the sign is speckle.
-  The spacing was never regular, so no assertion on it can separate the corduroy
-  from the fix — the discriminating-power test met a third time in one day.
-- 13:08:2026 - 17:54:00: Pockets BY DISTANCE, and it moved the diagnosis on
-  sight: the near band was the assumed problem and is in fact the richest
-  (5-15 m carries 55 pockets over 64 columns), while 35-45 m carries ONE. The
-  deficit is a band where this standpoint's own ground turns and starts rising,
-  and rising ground below the eye cannot hide anything whatever is laid on it.
-  The forms-off control reads 0/2/2/2/0/16 — i.e. essentially every pocket in
-  the frame is made by this pass.
-- 13:08:2026 - 18:04:00: The surface-class census — a pass that steepens banks
-  repaints them (§4 paints Rock above SLOPE_ROCK_MIN), which lands on another
-  zone's material work, so it should arrive as a number and not as a surprise in
-  a frame. Measured small: rock 0.87 % -> 0.99 % of legal open ground.
-- 13:08:2026 - 18:19:00: Three seeds, each at its OWN flattest legal standpoint,
-  because every number in this file until now was seed 1 — the world the pass
-  was built against and the world every frame was shot in. Forms off reads p5 0
-  and median 0-1 on all three; with the forms, median 2-3. The family is not a
-  property of one draw of the dice.
-- 13:08:2026 - 18:21:00: The ground UNDERFOOT (5 m disc), because §10.1 reads a
-  20 m disc and §10.1.3's band starts at 5 m — every other number in this file
-  is about ground the player is looking AT, and nothing measured the ground he
-  stands ON. It reads 0.034 m median with the forms off, i.e. a table, and
-  0.179 m with them; the flattest tenth goes 0.017 -> 0.050 m.
-- 13:08:2026 - 18:32:00: CONNECTIVITY across the same three seeds, because
-  occlusion is what the player judges with his eyes and connectivity is what he
-  would judge with his FEET — the one quantity where being wrong is felt rather
-  than seen, and it had only ever been read on seed 1. On all three worlds the
-  formed ground is at least as reachable as the unformed.
-- 13:08:2026 - 00:40:00: the draw-spacing and bank-direction case now opens DFN_DRAW_DEPTH=1 for its own duration. It measures the RETIRED comb, so without the door it measured an empty field and tripped its own vacuity guard -- correctly. Kept running because it documents the rejected sample.
 */
 
 #include "engine/core/config/sources/Constants.h"
@@ -167,9 +100,6 @@ TEST_CASE("§10.1 the A1 standpoint is legal, unauthored, ungraded ground") {
     // nothing.
     CHECK(world::relief_floor_binds(ctx, A1_STANDPOINT));
 }
-
-
-
 
 // --- §10.4 THE MID-FIELD CENSUS, ESTABLISHED IN THE GENERATOR ------------------
 //

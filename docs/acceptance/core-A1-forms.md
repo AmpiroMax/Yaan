@@ -1,30 +1,3 @@
-<!--
-Created: 13:08:2026 - 16:52:00
-Last updated: 13:08:2026 - 18:40:00
--->
-<!--
-UPD:
-- 13:08:2026 - 16:52:00: Created — the recipe and the numbers for the first
-  non-zero GROUND_OCCLUSION_COUNT this project has read.
-- 13:08:2026 - 17:06:00: The grain question — the anisotropy ratio measured at
-  four rulers on one world, plus the frame at the pitch the probe scores worst.
-- 13:08:2026 - 17:34:00: THE SHIPPED PAIR IS NOW `+f2` (aa55c1c): the approved
-  18 m draw pitch, the wander, the ending talwegs and the angled tributaries.
-  The `+f1` pair stays as the first-light state — the frame in which this
-  contract first read anything but zero.
-- 13:08:2026 - 17:56:00: The PLAIN pair — eye height on flat open ground away
-  from the tree line, which is the viewpoint the complaint is made from — plus
-  the pocket-by-distance histogram that moved the diagnosis.
-- 13:08:2026 - 18:16:00: The bot walked it. 90 s of jogging over formed ground
-  against the same 90 s with the forms off, plus the generation cost.
-- 13:08:2026 - 18:30:00: THE CONTRACT IS MET. Draw pitch 14 m approved; A1 reads
-  p5 3 against a floor of 3. Shipped pairs are `+f3` and `+p2` (9888746).
-- 13:08:2026 - 18:38:00: The four-minute soak across water margins, corridors
-  and the massif hem, and connectivity on two seeds nobody tuned this on.
-- 13:08:2026 - 18:40:00: ...and the three open items written down here rather
-  than left in a message: BR-5's proposed floor, the ungated band under 5 m, and
-  the draws' lack of connectivity to a drainage.
--->
 
 # A1 — THE GROUND GETS FORMS (§10.1.3 F7)
 
@@ -181,7 +154,6 @@ reading rises.** Under either explanation — aliasing, or a genuine loss of fin
 scale gradient coherence — the property §2.1 names is untouched at the scale it
 names it. Handed to design as evidence; the row and its instrument are theirs.
 
-
 ---
 
 # THE PLAIN — the viewpoint the complaint is actually made from
@@ -231,7 +203,6 @@ Two things fall out of it and neither was the expected one:
 And the control line is worth reading on its own: with the forms off, the frame
 contains **20 pockets in total and 16 of them are at the horizon** (55–60 m).
 Essentially every break in the shipped frame is made by this pass.
-
 
 ---
 

@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 14:46:25
-Last updated: 17:08:2026 - 15:58:02
 Module: tools
 File: tools/forge_signs.cpp
 
@@ -46,14 +44,6 @@ AI Agents Notice (must follow):
   compared before this tool reports success.
 - NO USER-FACING STRING IN THIS FILE. Every word a player sees comes out of the
   input file.
-*/
-/*
-UPD:
-- 17:08:2026 - 14:46:25: Создан — работа 4 заказа 17.08 (таблички; текст приходит файлом).
-- 17:08:2026 - 14:55:07: Разбор .signs уехал в библиотеку (read_signs_file) — печь приложения
-  не может заглянуть в инструмент, а второй разбор разошёлся бы с этим.
-- 17:08:2026 - 15:58:02: Несколько .signs за один прогон: индекс описывает ВСЮ полку, и печь
-  в два захода оставляла бы индекс, называющий только второй файл.
 */
 
 #include "engine/render/sources/ObjectRegistry.h"

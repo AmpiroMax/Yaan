@@ -1,12 +1,7 @@
-Created: 25:08:2026 - 02:33:32
-Last updated: 25:08:2026 - 02:33:32
 
 ARCHIVED ARTEFACT of the lore session's worldmap pipeline. Copied verbatim
 from the lore session's scratchpad; the body below is theirs and is not
 edited here. See docs/design/WORLD_MAP.md 9.11.
-
-UPD:
-- 25:08:2026 - 02:33:32: Archived into the repo unchanged (the scratchpad is session-lived).
 
 ==============================================================================
 
@@ -205,7 +200,6 @@ Seremarch, Sedgewend and two more), and §11 there recommends building Farness f
 between "the world" (this atlas) and "the six example maps" (regional, and the acceptance
 set for the importer) is undecided and belongs to mapstory + mapdesign, not to this scratch.
 
-
 ==========================================================================
 ITERATION 2 — iter2/ ; iteration 1 (everything above) was REJECTED
 ==========================================================================
@@ -247,7 +241,6 @@ WHAT IS STILL NOT MET
  * the 15-25 degree tilt is carried by the mountain axis only. An 18 degree tilt of a
    full-width east-west feature on a 1920x1600 canvas eats 45% of the map height and
    evicts the climate bands, which FMG computes from v and which are not ours to move.
-
 
 ==========================================================================
 ITERATION 3 — iter3/ ; iteration 2 was APPROVED ON STYLE, this is its heir
@@ -335,7 +328,6 @@ WHAT ITERATION 3 STILL DOES NOT DO
  * a NEW open question this iteration raises: the Great Ice is ~32% of the land and belongs
    to nobody. Whether an atlas should show a third of itself as uninhabited is a design
    decision for mapstory, not one this scratch should make.
-
 
 ==========================================================================
 ITERATION 4 — iter4/ ; iteration 3 was ACCEPTED WITH ONE CORRECTION
@@ -448,7 +440,6 @@ WHAT ITERATION 4 STILL DOES NOT DO
    DFN_ORIGIN marker is placed. Everything the iteration-1 README argues about the two
    regimes stands unchanged.
 
-
 ==========================================================================
 ITERATION 5 — iter5/ ; THE FINAL MAP. Iteration 4 variant 2 was APPROVED
 ==========================================================================
@@ -534,7 +525,6 @@ WHAT ITERATION 5 DOES NOT DO
  * this is still an ATLAS-regime map: ~56 km cells against the REGION regime's 300-693 m,
    so per WORLD_MAP.md §9.3 an importer must reject it, and no DFN_ORIGIN marker is
    placed. Everything iteration 1's README argues about the two regimes stands.
-
 
 ==========================================================================
 ITERATION 6 — iter6/ ; THE FINAL MAP. One geometric edit: THE VOLKHONA

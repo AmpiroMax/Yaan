@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 01:00:57
-Last updated: 18:08:2026 - 01:00:57
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteThumb.cpp
 
@@ -22,10 +20,6 @@ AI Agents Notice (must follow):
   flora's cards are not; a back-facing card culled here would leave a hole in
   the crown, and a card lit by its back would be black. Facing the normal at the
   camera costs one dot product and removes both.
-*/
-/*
-UPD:
-- 18:08:2026 - 01:00:57: Создан вместе с EditorPaletteThumb.h.
 */
 
 #include "engine/editor/sources/EditorPaletteThumb.h"

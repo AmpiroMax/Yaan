@@ -1,12 +1,3 @@
-<!--
-Created: 09:08:2026 - 15:41:46
-Last updated: 09:08:2026 - 15:45:44
--->
-<!--
-UPD:
-- 09:08:2026 - 15:41:46: Spike report — voxel terrain architecture evaluation with measured numbers from a throwaway prototype; recommendation, migration order and cost. Authored by core at the lead's direction (docs/design is design's zone; this file is a core deliverable for lead review).
-- 09:08:2026 - 15:45:44: §7 split: full migration (7.1) vs the named OPTION "3D IN ONE STAGE" (7.2) — scope/cut/debts/acceptance tables, so the crunch variant is legible without re-deriving it. Lead's request; spike otherwise accepted and committed (bf3530f), Stage 1 on hold until scheduled.
--->
 
 # VOXEL_ARCHITECTURE.md — spike report and recommendation
 

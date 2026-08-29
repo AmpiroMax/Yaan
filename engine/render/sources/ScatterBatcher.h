@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:57:20
-Last updated: 14:08:2026 - 19:34:00
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.h
 
@@ -31,14 +29,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure function of its inputs — deterministic, GPU-free, unit-tested.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:57:20: Stage 3b — initial scatter batching.
-- 09:08:2026 - 20:21:13: Second stream: ScatterBatches::foliage (alpha-cutout
-  leaf cards). EDITED BY THE FLORA AGENT under an explicit lead-granted Rule 25
-  exception while render's zone was unowned; wiring only, no material change.
-- 14:08:2026 - 19:34:00: FloraLod у выпечки — параметр, плюс flora_lod_for_distance и flora_lod_forced (рез ведущего). Уровень есть параметр ВЫПЕЧКИ, а не отрисовки, потому что партия — один слитый меш: выбирать покадрово значило бы покадрово сливать заново.
 */
 
 #pragma once

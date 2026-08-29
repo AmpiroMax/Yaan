@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 18:08:2026 - 11:50:28
 Module: engine/platform/input
 File: engine/platform/input/sources/glfw/GlfwInput.cpp
 
@@ -20,31 +18,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The Key enum is append-only; extend to_glfw_key in the same order.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation (raw mouse motion
-  when captured, scroll via callback, snapshot edge detection).
-- 14:08:2026 - 16:59:44: Added the GLFW char callback feeding text_accum_, the
-  per-frame text snapshot in update(), text_input() accessor, and the
-  DFN_TEXT_INPUT_LOG=1 stderr door-probe.
-- 18:08:2026 - 00:24:58: ПОВТОРНЫЙ ЗАПРОС ЗАХВАТА БОЛЬШЕ НЕ СОБЫТИЕ, и это та
-  самая поломка, из-за которой камера редактора не поворачивалась ВОВСЕ.
-  set_cursor_captured сбрасывал have_prev_pos_ на КАЖДЫЙ вызов. Для СМЕНЫ
-  режима это верно: захват телепортирует курсор, и первая разность после
-  телепорта — мусор. Но App держит захват УТВЕРЖДЕНИЕМ, а не событием: пока
-  человек в редакторе, он просит захват каждым кадром. Признак «предыдущее
-  положение известно» не доживал ни до одного кадра, update() честно отдавал
-  ноль, и камера получала нулевое смещение всегда.
-  ПОЧЕМУ ЭТО ЖИЛО ТРИ ЗАХОДА: все автоматические прогоны идут через двери, а
-  двери зовут unattended_run() и захват НЕ ЗАПРАШИВАЮТ ни разу. Значит любой
-  наш прибор — и мой собственный, заведённый часом раньше, — мерил здоровую
-  руку. Отказ был доступен ровно одному наблюдателю: человеку за игрой.
-  Теперь на него есть tests/platform/CursorCaptureTests.cpp — единственный
-  рукав в дереве с НАСТОЯЩИМ окном GLFW; рука двигает курсор сама через
-  glfwSetCursorPos. Три руки: захват один раз — 39 кадров со смещением из 40;
-  захват каждым кадром до правки — 0 из 40; после правки — 39 из 40.
-- 18:08:2026 - 11:50:28: сброс признака решает capture_request_resets_delta() из IInput.h (одно определение).
 */
 
 #include "engine/platform/input/sources/glfw/GlfwInput.h"

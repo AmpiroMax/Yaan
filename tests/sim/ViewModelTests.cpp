@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:34:38
-Last updated: 09:08:2026 - 22:44:47
 Module: tests
 File: tests/sim/ViewModelTests.cpp
 
@@ -20,13 +18,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Each case names the implementation it exists to reject.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:34:38: Created with the visible hands and inventory screen.
-- 09:08:2026 - 22:40:04: Flame at the torch head, not the grip.
-- 09:08:2026 - 22:44:47: Drop cases (world spawn, quest refusal, the hand
-                         emptying) and the rotation's new home.
 */
 
 #include <doctest/doctest.h>
@@ -313,7 +304,6 @@ TEST_CASE("inventory screen: selection clamps and the preview pitch is limited")
           doctest::Approx(static_cast<float>(config::CAMERA_PITCH_LIMIT)));
 }
 
-
 TEST_CASE("inventory screen: the mouse turns the item only while it is open") {
     World world;
     gameplay::ItemDatabase items;
@@ -361,7 +351,6 @@ TEST_CASE("inventory screen: the mouse turns the item only while it is open") {
     CHECK(screen.preview_yaw != doctest::Approx(0.0f));
     CHECK(world.get<gameplay::PlayerState>(owner)->yaw == doctest::Approx(yaw_before));
 }
-
 
 TEST_CASE("drop: the item leaves the bag and appears in the world at the hand") {
     World world;

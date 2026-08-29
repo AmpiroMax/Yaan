@@ -1,11 +1,3 @@
-<!--
-Created: 09:08:2026 - 14:03:03
-Last updated: 09:08:2026 - 14:03:03
--->
-<!--
-UPD:
-- 09:08:2026 - 14:03:03: Created narrative-design research pass: actionable rules for main-quest pacing, doom-hero arcs, faction/ally design, quest branching, hybrid quest generation, dark tone.
--->
 
 # Narrative Design Research — Actionable Rules
 

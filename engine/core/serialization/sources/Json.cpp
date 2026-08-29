@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:58:00
-Last updated: 10:08:2026 - 01:58:00
 Module: engine/core/serialization
 File: engine/core/serialization/sources/Json.cpp
 
@@ -21,10 +19,6 @@ AI Agents Notice (must follow):
 - Determinism: member order is file order; the writer emits stored order and
   shortest round-trip doubles. No locale-dependent parsing (std::from_chars /
   to_chars only — never strtod/sprintf, which read the C locale).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:58:00: Created — tech-debt wave task 3.
 */
 
 #include "engine/core/serialization/sources/Json.h"

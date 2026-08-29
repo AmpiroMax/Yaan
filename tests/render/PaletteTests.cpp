@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:12:00
-Last updated: 09:08:2026 - 23:52:26
 Module: tests
 File: tests/render/PaletteTests.cpp
 
@@ -17,13 +15,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:12:00: Stage 3 — initial tests.
-- 09:08:2026 - 23:52:26: Conifer-family measurements, each with the PRE-conifer
-  palette as its control: pine/rock separation in shade steps, the three needle
-  tones landing on three adjacent entries, unequal ramp depths summing to 64.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxPalette.h"

@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 21:00:14
-Last updated: 17:08:2026 - 21:00:14
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteAxes.cpp
 
@@ -44,10 +42,6 @@ AI Agents Notice (must follow):
   of the kit's design and would go stale the first time the kit grew.
 - A REPAIRED AXIS MUST REACH THE PANEL. repaired_axes() is not diagnostics: a
   choice silently replaced sends the builder away with the wrong part.
-*/
-/*
-UPD:
-- 17:08:2026 - 21:00:14: Создан — выбор по семейству и свойствам (заказ пользователя 17.08, п.4).
 */
 
 #include "engine/editor/sources/EditorPalette.h"

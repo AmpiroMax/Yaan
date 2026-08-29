@@ -1,13 +1,3 @@
-<!--
-Created: 10:08:2026 - 02:23:05
-Last updated: 10:08:2026 - 02:23:05
--->
-<!--
-UPD:
-- 10:08:2026 - 02:23:05: v1 spec (user request: «продумайте систему
-  автономного play testing»). Bot driver + runtime invariants + artifacts +
-  gate; controls per Rule 30; roadmap for the two checks v1 cannot do honestly.
--->
 
 # Autonomous playtest — spec (`engine/gameplay/docs/PLAYTEST.md`)
 

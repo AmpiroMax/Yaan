@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 21:21:55
-Last updated: 10:08:2026 - 21:21:55
 Module: tests
 File: tests/sim/SaveDeltaTests.cpp
 
@@ -25,10 +23,6 @@ AI Agents Notice (must follow):
 - Zone note: the codec is engine/world (core's zone); sim implemented it under a
   lead carve, so its suite lives here. Move to tests/core/ when core takes it
   back — the assertions carry over unchanged.
-*/
-/*
-UPD:
-- 10:08:2026 - 21:21:55: Created with the SaveDeltaCodec implementation.
 */
 
 #include <doctest/doctest.h>

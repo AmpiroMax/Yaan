@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 27:08:2026 - 11:57:24
 Module: tests
 File: tests/sim/JoltPhysicsTests.cpp
 
@@ -22,36 +20,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Never include Jolt headers here; the public contract must be enough.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial Jolt backend suite.
-- 09:08:2026 - 01:02:15: Added the real-ChunkManager heightfield smoke test
-  (core's suggestion: catches decode/contract drift between zones early).
-- 09:08:2026 - 15:08:24: Added the zero-mask rejection case per body kind
-  (regression guard for the fall-through-the-world bug, app fix 37f1e1c).
-- 09:08:2026 - 18:56:32: Added the crosshair-targeting case: a real ray against
-  a real interactable body, proving user_data -> EntityId and the reach limit.
-- 10:08:2026 - 21:24:32: THE DRAWN GROUND AND THE SOLID GROUND. Added the
-  cross-zone diagonal case: render's mesh and Jolt's collision mesh split every
-  quad on the same diagonal, measured on REAL generated terrain. The pre-existing
-  terrain coverage used a flat chunk, on which the two splits are identically
-  equal — so it could not have failed. That flat-chunk blindness is now its own
-  executable case rather than a remark.
-- 13:08:2026 - 18:30:00: The spawn desc uses designated initialisers; see the
-  note in InteractionTests.cpp on why a positional aggregate is a trap.
-- 18:08:2026 - 12:06:09: допуск шахматного случая 1.0e-4 -> 2.5e-4 от рельефа. Это НЕ подгонка
-  под результат: погрешность попадания луча растёт вместе с крутизной, которую
-  задаёт решётка, и этот случай нарочно делает её предельной. Две ИЗМЕРЕННЫЕ
-  точки — шаг 2 м даёт 0.00106 м (5.3e-5 рельефа), шаг 1 м даёт 0.00214 м
-  (1.07e-4), отношение 2.02, ровно удвоение уклона. Порог поставлен выше обеих
-  и на четыре порядка ниже 20 м, которые меряет контроль на другой диагонали,
-  поэтому спутать его с настоящим разъездом нельзя. Приёмка на НАСТОЯЩЕЙ земле
-  (0.001 м) не тронута.
-- 27:08:2026 - 11:57:24: sphere_cast — свёрнутый объём у бэкенда Jolt.
-  Разделяющая половина случая: точка мимо края стены, где ЛУЧ чист, а сфера
-  попадает; плюс контроль «дальше радиуса не видит никто», маска и
-  перекрытие на старте.
 */
 
 #include <doctest/doctest.h>
@@ -468,7 +436,6 @@ namespace {
 }
 
 } // namespace
-
 
 namespace {
 

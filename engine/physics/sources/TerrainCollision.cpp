@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 16:51:22
 Module: engine/physics
 File: engine/physics/sources/TerrainCollision.cpp
 
@@ -20,11 +18,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep the decode identical to HeightFieldView::height_at (frozen contract).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial implementation.
-- 09:08:2026 - 16:51:22: Added create_terrain_mesh_body (voxel terrain).
 */
 
 #include "engine/physics/sources/TerrainCollision.h"

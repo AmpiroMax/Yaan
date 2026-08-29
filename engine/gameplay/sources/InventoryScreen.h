@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:27:49
-Last updated: 09:08:2026 - 22:27:49
 Module: engine/gameplay
 File: engine/gameplay/sources/InventoryScreen.h
 
@@ -43,11 +41,6 @@ AI Agents Notice (must follow):
 - Plain data (Rule 8). No literal user-facing strings (Rule 5). No layout
   numbers here — pixels are render's, and a margin in this file would be a
   second place where the screen is designed.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:27:49: Created — the Skyrim-style inventory the user asked
-                         for: names on one side, a turnable item on the other.
 */
 
 #pragma once

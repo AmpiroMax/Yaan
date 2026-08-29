@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 00:45:08
 # File: engine/physics/CMakeLists.txt
 #
 # Responsibility:
@@ -15,9 +13,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. This layer never includes backend
 #   headers — IPhysics only.
-#
-# UPD:
-# - 09:08:2026 - 00:45:08: Stage 2 — collision layers + terrain conversion.
 
 add_library(dfn_physics STATIC
     sources/TerrainCollision.cpp)

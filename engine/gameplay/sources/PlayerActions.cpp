@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:29:52
-Last updated: 13:08:2026 - 18:25:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlayerActions.cpp
 
@@ -19,20 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Every latch read here is cleared here, whether or not the action succeeded:
   an unspent press is a press that fires again next tick.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:29:52: Created.
-- 09:08:2026 - 22:40:04: Inventory navigation and equip while the screen is open.
-- 09:08:2026 - 22:44:47: Drop (Q) spawns a real loose prop at the hand;
-                         quest items refused loudly; preview rotation
-                         moved here so it survives the world pause.
-- 13:08:2026 - 18:15:00: Reaps the ray boxes of props that have been taken —
-                         see InteractableSpawn.h. Placed at the END of the pass
-                         and not inside interact(), because destruction is
-                         deferred and a reap there would never find anything.
-- 13:08:2026 - 18:25:00: Advances the visible half of a verb
-                         (update_interactable_motion) before the reap.
 */
 
 #include "engine/gameplay/sources/PlayerActions.h"

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:21:30
-Last updated: 09:08:2026 - 22:44:47
 Module: engine/gameplay
 File: engine/gameplay/sources/ViewModel.h
 
@@ -47,11 +45,6 @@ AI Agents Notice (must follow):
 - Call update_view_model AFTER player_post_step in the tick: it reads the
   CameraPose that post_step writes, and a stale eye pose puts the hand a tick
   behind the view, which reads as the hand lagging when you turn.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:21:30: Created — visible hands (user request: "рук нет").
-- 09:08:2026 - 22:44:47: hand_anchor_position() exposed for dropping.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 10:08:2026 - 21:17:56
 Module: engine/core/serialization
 File: engine/core/serialization/sources/BinaryWriter.h
 
@@ -23,17 +21,6 @@ AI Agents Notice (must follow):
 - Rule 7 is absolute: every multi-byte value goes through the explicit
   little-endian write_* calls; adding a "write raw struct" method is a violation.
 - STAGE 1 CONTRACT: declarations only; bodies arrive in stage 2.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — section writer per Rule 7 (Q49).
-- 10:08:2026 - 21:17:56: ok() added (lead-approved contract change, made
-  while implementing the bodies). The class had no way to report that it had
-  been misused, so the implementation's failure latch had to ride a sentinel
-  value inside open_section_length_offset_ — a private member silently carrying
-  a second meaning, which is the shape of half the defects found in this repo.
-  Rule 26 protects a contract from casual change, not from one that turned out
-  to be incomplete, and "the writer cannot tell you it failed" is incomplete.
 */
 
 #pragma once

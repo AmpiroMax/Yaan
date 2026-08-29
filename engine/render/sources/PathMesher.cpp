@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 12:11:29
-Last updated: 10:08:2026 - 12:11:29
 Module: engine/render
 File: engine/render/sources/PathMesher.cpp
 
@@ -20,10 +18,6 @@ AI Agents Notice (must follow):
 - Pure and deterministic: no GPU, no ECS, no clock, no RNG.
 - Never re-derive the wear curve here or in the shader — call core's
   math::path_wear_profile. See the header.
-*/
-/*
-UPD:
-- 10:08:2026 - 12:11:29: Created.
 */
 
 #include "engine/render/sources/PathMesher.h"

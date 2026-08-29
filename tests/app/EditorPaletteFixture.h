@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 21:03:54
-Last updated: 17:08:2026 - 21:03:54
 Module: tests/app
 File: tests/app/EditorPaletteFixture.h
 
@@ -21,10 +19,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - AN ARM THAT SKIPS ON AN UNBAKED SHELF PROVES NOTHING. Anything held only by
   the real kit needs a companion that runs on the toy one.
-*/
-/*
-UPD:
-- 17:08:2026 - 21:03:54: Выделен из EditorPaletteTests.cpp при разрезе по правилу 21.
 */
 
 #pragma once

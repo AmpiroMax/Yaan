@@ -1,17 +1,3 @@
-<!--
-Created: 09:08:2026 - 00:06:00
-Last updated: 09:08:2026 - 14:21:00
--->
-<!--
-UPD:
-- 09:08:2026 - 00:06:00: Created agent entry point (adapted from Quicky Engine).
-- 09:08:2026 - 10:42:00: Added the design (landscape) agent to the team table.
-- 09:08:2026 - 13:48:00: Added the story (narrative) team lead per the
-                         feature-requests grill (в7-в10): content + quest data
-                         zone; quest runtime code stays with sim.
-- 09:08:2026 - 14:21:00: story quest-content path ruled to assets/ (Rules 5-6
-                         layout), not data/.
--->
 
 # AI Agent Instructions — Daggerfall N
 

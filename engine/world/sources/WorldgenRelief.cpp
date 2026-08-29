@@ -1,6 +1,4 @@
 /*
-Created: 11:08:2026 - 14:31:10
-Last updated: 13:08:2026 - 00:40:00
 Module: engine/world
 File: engine/world/sources/WorldgenRelief.cpp
 
@@ -18,18 +16,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic and position-based: no chunk state, no neighbour queries, so
   chunk borders agree without communication (Rule 13.1).
-*/
-/*
-UPD:
-- 11:08:2026 - 14:31:10: Created.
-- 12:08:2026 - 23:38:00: DFN_MESO_LAMBDA_MAX — the wavelength sweep door
-  (measurement only). The result is in tests/core/GroundReliefTests.cpp and it
-  is negative: shorter waves buy slope and buy no ground-hiding, so the top of
-  GROUND_MESO_WAVELENGTH should NOT be lowered for F7's sake. The door stays
-  because the next person will have the same idea.
-- 13:08:2026 - 16:35:00: ground_relief() is now (meso + micro) * mask read off
-  ground_relief_tiers() — one definition of the mask, one of each tier.
-- 13:08:2026 - 00:40:00: DFN_MESO_SCALE / DFN_MICRO_SCALE sweep doors (measurement only, exact no-ops at 1.0). They exist to APPORTION the 8-20 m band between the passes that fill it before any is changed: draws 56.5 %, this tier 39.6 %, terraces 3.8 %, macro landform 0.0 % -- and that last figure redirected the work, because it says the landform is not the problem.
 */
 
 #include "engine/world/sources/WorldgenRelief.h"
@@ -70,7 +56,6 @@ float tier_scale(const char* name) {
     }
     return 1.0f;
 }
-
 
 /// THE WAVELENGTH SWEEP DOOR (measurement only, never a shipping path — the
 /// same standing as DFN_MESO_ISO below and DFN_NO_RELIEF further down).
@@ -175,7 +160,6 @@ float ground_meso_relief(uint64_t seed, glm::vec2 world) {
     // than the middle third of it.
     return amp * 0.5f * (2.0f * meso_cdf_u(meso_field(seed, world)) - 1.0f);
 }
-
 
 float relief_mask(const TestbedLayout& layout, glm::vec2 world, float dist_to_water) {
     // --- The shore mask (§2.7's ruling) --------------------------------------

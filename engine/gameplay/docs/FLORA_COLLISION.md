@@ -1,13 +1,3 @@
-<!--
-Created: 13:08:2026 - 16:50:00
-Last updated: 13:08:2026 - 16:50:00
--->
-<!--
-UPD:
-- 13:08:2026 - 16:50:00: Created — the design, the budget and the acceptance
-  recipe for making trees, brush and downed wood physical (user: «деревья — не
-  объекты физики… кусты, поваленные деревья пропускают героя»).
--->
 
 # Flora collision — the world you cannot walk through
 

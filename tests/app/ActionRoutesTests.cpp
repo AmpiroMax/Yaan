@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 16:59:18
-Last updated: 19:08:2026 - 02:05:30
 Module: tests/app
 File: tests/app/ActionRoutesTests.cpp
 
@@ -31,11 +29,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
-*/
-/*
-UPD:
-- 18:08:2026 - 16:59:18: Создан. Слой 1 разбора App.cpp: рукав на таблицу диспетчеризации.
-- 19:08:2026 - 02:05:30: Определения обработчиков ищутся по AppInput.cpp И AppHouse.cpp (ровно одно на оба); прогулка и метки case — только в AppInput.
 */
 
 #include <doctest/doctest.h>

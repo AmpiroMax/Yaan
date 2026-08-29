@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 13:08:07
-Last updated: 18:08:2026 - 20:26:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolPath.cpp
 
@@ -19,11 +17,6 @@ AI Agents Notice (must follow):
   мир, — это второе место, которое обязано помнить про перепечку канала и про
   пометку чанков, а забыть его можно ровно один раз.
 - ВСЕ ВИДИМЫЕ СТРОКИ ЧЕРЕЗ EditorUi::tr (правило 5).
-*/
-/*
-UPD:
-- 18:08:2026 - 13:08:07: Создан вместе с EditorToolPath.h.
-- 18:08:2026 - 20:26:30: За пределом дальности инструмент прячет свою картинку сам.
 */
 
 #include "engine/editor/sources/EditorToolPath.h"

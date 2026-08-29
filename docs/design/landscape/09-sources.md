@@ -1,11 +1,3 @@
-<!--
-Created: 12:08:2026 - 22:57:02
-Last updated: 12:08:2026 - 22:57:02
--->
-<!--
-UPD:
-- 12:08:2026 - 22:57:02: Выделен из docs/design/LANDSCAPE.md (9786 строк против FILE_HARD_LIMIT 800): §9. Чистый перенос — ни одна строка тела не изменена, ни один номер секции не изменён; адреса вида «LANDSCAPE.md §X» продолжают действовать, таблица § → файл живёт в docs/design/LANDSCAPE.md.
--->
 
 ## 9. Sources
 
@@ -38,5 +30,4 @@ redistribution, biome lookup, blue-noise scatter, determinism checklist).
 - The Level Design Book — [Landscape](https://book.leveldesignbook.com/process/blockout/massing/landscape)
   (walkable slopes, bowls/ridges vocabulary, water curves, trees as walls,
   rain-shadow reasoning)
-
 

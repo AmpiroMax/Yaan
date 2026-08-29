@@ -1,17 +1,3 @@
-<!--
-Created: 13:08:2026 - 18:05:00
-Last updated: 13:08:2026 - 18:05:00
--->
-<!--
-UPD:
-- 13:08:2026 - 18:05:00: Created. The white treeline is the AIR — haze plus the R2
-  mist band — and nothing about it is foliage-specific. Overturns two earlier
-  diagnoses with same-frame control arms: flora's "not haze, the hue survives"
-  (g-b is the insensitive statistic; b/r reads 1.035 against the leaf's 0.54)
-  and this zone's own 12.08 entry blaming alpha-to-coverage (worth a tenth of
-  it). No code changed: the levers are two NUMBERS constants owned by the lead,
-  and they are handed up with numbers rather than retuned here.
--->
 
 # THE WHITE TREELINE IS THE AIR
 

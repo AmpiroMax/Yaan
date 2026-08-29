@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 16:00:00
-Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/VoxelVolume.cpp
 
@@ -22,27 +20,6 @@ AI Agents Notice (must follow):
   let the voxel surface drift from the heightfield the rest of the engine
   still queries).
 - Deterministic: fixed loop order, integer quantization, no rng.
-*/
-/*
-UPD:
-- 09:08:2026 - 16:00:00: Created — volume construction for the 3D stage.
-- 09:08:2026 - 16:30:44: Representation swap: volume built from the chunk's own heightmap; border nodes emulate the NEIGHBOUR's heightmap (quantized 2 m lattice + bilinear) rather than sampling the continuous field, which disagreed by up to 0.30 m mid-cell and showed as a seam.
-- 09:08:2026 - 16:47:51: P7: slab extended to reach carved volumes (they sit below the surface band), per-column band widened over carves, CSG subtraction d = max(terrain, -carve).
-- 09:08:2026 - 17:36:42: §6.2: derived corridors included in the band widening and the CSG subtraction.
-- 09:08:2026 - 19:55:17: Stripes fix: column_surface/column_skin populated during the band pass.
-- 10:08:2026 - 21:05:31: The class -> material projection moved OUT of this
-  file into math::voxel_material_of (VoxelField.h), and the `default:` is gone
-  with it. The default was not a tidiness point: it killed -Wswitch on this
-  switch, so SurfaceClass::GrassRockBlend fell into the Grass arm without a
-  warning and the voxel terrain drew 26136 of 1183258 vertices (2.21%, seed-1
-  testbed) with rock weight 0.0 where the heightfield mesher drew 0.5. One
-  function, called by both zones, is the only thing that makes two copies the
-  same; a comment saying they are the same is not (Rule 39).
-- 18:08:2026 - 12:06:09: Шаг карты высот 2.0 -> 1.0 м (заказ 18.08). КОДА НЕ ТРОГАЛ —
-  и height_at_node, и border_node_height уже считали через STEP_M. Правил
-  КОММЕНТАРИИ, и это не уборка: они утверждали «билинейка по 2-метровой карте»
-  как устройство, а теперь веса ровно нулевые и узел берёт свой отсчёт. Записал
-  ЗАМЕР того, что этот файл выдумывал до правки: 74.8 % узлов и до 6.57 м.
 */
 
 #include "engine/world/sources/VoxelVolume.h"

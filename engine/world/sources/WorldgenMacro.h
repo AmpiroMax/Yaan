@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 14:08:2026 - 20:30:18
 Module: engine/world
 File: engine/world/sources/WorldgenMacro.h
 
@@ -24,37 +22,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - DETERMINISM (Rule 13.1): keep this a pure function of (seed, layout, world).
   No caches, no chunk state. All numeric knobs from dfn::config or the layout.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — P1 macro v2 (fBm + redistribution + stamps).
-- 09:08:2026 - 13:12:19: Stage 3b amendments: L0_AIM_ABOVE_PEAK shared by C1 validation and P5 sight wedges.
-- 09:08:2026 - 13:28:27: P1 anisotropy retune: STREAM_HILL_AXIS for the landform-anisotropy axis field (§2.1).
-- 09:08:2026 - 14:03:23: Micro-relief batch: path_groove_depth exposed (corridor trails carved 15 cm, ford-safe by pipeline order); STREAM_SCATTER_CURB.
-- 09:08:2026 - 17:45:08: §6.2: STREAM_SCATTER_MARKER for entrance standing stones.
-- 09:08:2026 - 21:37:57: Banded massif streams: STREAM_MASSIF_PROFILE/LOBE/BAND/RISER; bearing_field/bearing_ridged gain a band index that decorrelates successive contour bands within one stream.
-- 09:08:2026 - 21:37:57: STREAM_MASSIF_MICRO / STREAM_MASSIF_MICRO_AMP for bench micro-relief; polygon_radius replaces the circle-sampled lobe field.
-- 10:08:2026 - 02:59:28: Stand selector (§8): macro_height branches to the forest stand's field when layout.stand == Forest (testbed path untouched); STREAM_FOREST_* / STREAM_EROSION / STREAM_PATHS / STREAM_FINDS / STREAM_SCATTER_FLOOR stream ids; ground_micro_relief exposed (one §2.7 octave, two consumers — Rule 32).
-- 10:08:2026 - 11:51:23: STREAM_SCATTER_EDGE (§5.11 rich-edge rows).
-- 10:08:2026 - 20:20:20: §5.12 / LF-4 breaks_massif_apron(): the apron rule,
-  derived. Scoped by the massif's OWN stamp rather than by a distance literal,
-  because the ruling's sentence read globally excludes every tree within ~670 m
-  of a standpoint (measured) — a tree in front of your face obscures a mountain
-  too. The radius is an OUTPUT: 162 m at seed 1's tightest bearing.
-- 11:08:2026 - 15:15:55: streams for the §2.7 meso octave, §10.5 B1 boulders and B2 outcrops; aniso_octave_sample published so every octave that must share the land's grain samples it the same way.
-- 12:08:2026 - 22:50:00: STREAM_GREAT_OAK (GIANT_OAKS §2 site search).
-- 13:08:2026 - 16:35:00: aniso_octave_sample() takes the along-axis STRETCH as
-  a parameter (0 = HILL_ANISOTROPY, the §2.1 grain) so §10.1.3's draws can run
-  an order of magnitude longer than a ridgelet through the SAME axis lattice
-  rather than through a second copy of it; STREAM_TERRACE_* / STREAM_DRAW_*.
-- 13:08:2026 - 17:28:00: aniso_octave_sample() takes a THETA OFFSET, so a
-  tributary can be read off the same axis lattice at a bearing instead of lying
-  parallel to its trunk; STREAM_DRAW_WANDER / _THRESHOLD / _BEARING.
-- 13:08:2026 - 17:54:00: STREAM_DRAW_CUTBANK.
-- 13:08:2026 - 18:04:00: STREAM_TERRACE_SLUMP.
-- 14:08:2026 - 20:30:18: regional_massif() published: §2.5's LR as a derived stamp rather than a
-  layout row, so classify_surface can ask where its rockline is from a layout
-  alone. massif_height's shape seed documented at the call site that needs it.
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 11:08:2026 - 15:18:52
 Module: tests
 File: tests/character/BodyTests.cpp
 
@@ -17,18 +15,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Expectations derive from dfn::config constants, never literal duplicates.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial suite.
-- 10:08:2026 - 20:00:23: A gait held past any transition renders as that gait — steady state at 0.1 s and at an hour, with the 0.286 speed-derived lean as the control.
-- 10:08:2026 - 20:06:45: The assertion owed to sim since PLAYER_EYE_FORWARD landed: the eye stays behind its own drawn face (3.5 mm of margin today), asserted against the head MESH rather than a re-derived formula.
-- 10:08:2026 - 20:13:01: Feet-before-chest, measured against the drawn meshes and the real frustum; its control is the live lean defect (a8), not a synthetic case.
-- 10:08:2026 - 20:25:17: the reel renders the same gear the live body does, with the other gear's weight as the control.
-- 10:08:2026 - 20:31:38: feet-before-chest INVERTED together with its control, now that sim's consumer makes the eye ride the lean: the order holds at every gear and the fixed eye is the case that must fail.
-- 10:08:2026 - 20:41:06: holding a gear is a real act now (spawn, step ticks, arrive), so the steady-state qualifier stops being vacuous; plus the anti-lurch outcome test with the step function as its control.
-- 10:08:2026 - 21:34:24: Rule 40 sweep — every epsilon on a difference (eased-weight residual, eye-offset arrival, mirror identities) replaced by explicit absolute bounds sized against MEASURED residuals, each at least 20x the residual so it cannot go red on correct code.
-- 11:08:2026 - 15:18:52: hold_gear() seeds BodyDrive::gear_weight (the ease's integrator), not the published run_weight: run_weight is now gait_fade(speed) * gear_weight and is rewritten every tick, so seeding it would have left every 'arrive from the furthest gear' case starting from zero and quietly not crossing the transition it exists to cross. docs/FINDING_CROUCH_AND_ALT_LEAN.md.
 */
 
 #include <doctest/doctest.h>

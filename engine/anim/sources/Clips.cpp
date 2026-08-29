@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 28:08:2026 - 11:16:40
 Module: engine/anim
 File: engine/anim/sources/Clips.cpp
 
@@ -17,18 +15,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - The foot-plant/bob minima MUST stay on FOOTFALL_PHASE_LEFT/RIGHT; ClipTests
   enforce it against the generated names with an offset control (Rule 30).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial implementation (gait keyed to sim's phases).
-- 10:08:2026 - 12:10:00: The stance knee no longer hyperextends (was 33.4 deg) and the foot rolls over the toe instead - the forefoot rocker, 22.4 deg at full swing.
-- 10:08:2026 - 20:00:23: The wave's wag moved off the ELBOW (a hinge deleted it, so the wave never waved); flex's forearm rolls likewise; gait_run_weight authored per gear instead of interpolated across the rows.
-- 10:08:2026 - 20:22:44: eye_lean_offset() — the eye rides the trunk's lean (sim's request; both zones derived it independently and agree to the millimetre); the head counter-pitch is named HEAD_STABILIZE now that it has a second reader.
-- 10:08:2026 - 21:34:24: THIGH_SWING_MAX_SIN now READS its NUMBERS row. The row landed 19:26:40 and this file kept a private 0.55, so the row had zero readers in the engine and zero in the suite — a row that guards nothing while looking like it guards something.
-- 10:08:2026 - 22:25:12: THE CROUCHED EYE IS WHERE THE SKULL IS. eye_pitch_offset() extracted (one two-rotation derivation, two callers: the run lean and the crouch hunch); crouch_pelvis_drop() is now the ONE copy of the squat depth, read by apply_crouch and by the camera's producer; the crouch hunch finally counter-pitches the head (HEAD_STABILIZE), which it never did.
-- 28:08:2026 - 11:16:40: HEAD_STABILIZE уехал в Clips.h (пятый читатель —
-  наклон сидящего в Posture.cpp — живёт в другом файле). Ни одного числа не
-  изменено; значение то же 0.6.
 */
 
 #include "engine/anim/sources/Clips.h"

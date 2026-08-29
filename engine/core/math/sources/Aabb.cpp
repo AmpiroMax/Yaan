@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 00:42:03
 Module: engine/core/math
 File: engine/core/math/sources/Aabb.cpp
 
@@ -16,10 +14,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — implementation.
 */
 
 #include "engine/core/math/sources/Aabb.h"

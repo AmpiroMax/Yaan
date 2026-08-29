@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 14:11:37
-Last updated: 22:08:2026 - 13:45:06
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/shaders/dfn_shadow.sh
 
@@ -23,39 +21,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - u_lightMtx / u_shadowParams packing is a contract with
   BgfxRenderer.cpp::update_shadow — change both together or not at all.
-*/
-/*
-UPD:
-- 09:08:2026 - 14:11:37: Dynamic sun shadows (feature-requests batch item 3).
-- 12:08:2026 - 23:08:22: u_shadowParams.x IS NOW A DOSE, not a flag, so that
-  DFN_SUN_SHADOW=0 is a true zero-dose control arm (Rule 48). At dose 1 the
-  result is bit-identical to the flag version — mix(1.0, s, 1.0) == s — and
-  the caster pass still runs at dose 0, so the ONLY thing that changes between
-  the arms is the shadow term itself and everything else subtracts away (Rule
-  47's structural cure). Two claims need exactly this arm and neither could be
-  settled without it: R6b (the dapple is five times short of the reference, and
-  its absolute number is unusable without a shadow-off control) and the user's
-  two standing complaints about shadows, which live BETWEEN frames.
-- 13:08:2026 - 16:10:00: THE NEAR CASCADE (s_shadowMapNear / u_lightMtxNear /
-  u_shadowParams.w). R6b's dose arms proved the defect is BANDWIDTH and not
-  amount: the far map's 0.156 m texel is 2-3x coarser than the leaf mask's own
-  texel, so the canopy reaches the ground through a 0.31 m low-pass and only
-  the blob survives — which is why our shadow's contribution RISES with block
-  size (+0.034 at 8 px, +0.402 at 40 px) while reference 03's dapple FALLS.
-  The near map is 0.0195 m and is consulted FIRST, never blended with the far
-  one: blending would put the 0.31 m low-pass straight back on top of it.
-- 22:08:2026 - 13:45:06: THE SOFT EDGE — 3x3 PCF around the winning tap,
-  spacing u_shadowSoft.x texels (owner decision, overturning в1: "тени резкие
-  меня давно бесят, надо сделать нормальные тени"). Each tap was already
-  hardware-bilinear-compared, so nine taps make a smooth ~(2 x spread + 1)
-  texel ramp, not nine staircases. The spread is denominated in texels OF THE
-  MAP BEING SAMPLED (far: u_shadowSoft.y uv/texel, near: u_shadowSoft.z), so
-  the near cascade keeps its 8x finer grain — a world-constant penumbra would
-  blur the near map back to the far map's cutoff, undoing R6b. Paired with
-  SHADOW_HALF_EXTENT_M 320 -> 160 (see BgfxRendererImpl.h): the kernel widens
-  the map's low-pass, the finer texel pays for it, thin casters keep their
-  contract. At u_shadowSoft.x = 0 the single-tap path runs unchanged —
-  DFN_SHADOW_SOFT=0 is the в1 control arm out of the same binary.
 */
 
 #ifndef DFN_SHADOW_SH

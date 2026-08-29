@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 09:08:2026 - 00:45:08
 Module: engine/platform/anim
 File: engine/platform/anim/sources/null/NullAnim.cpp
 
@@ -18,10 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Semantics here are contract (IAnim.h notes); keep them in sync.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial null backend implementation.
 */
 
 #include "engine/platform/anim/sources/null/CreateNullAnim.h"

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 18:56:32
 Module: engine/gameplay
 File: engine/gameplay/sources/Inventory.h
 
@@ -38,11 +36,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Plain data (Rule 8). Never bypass these functions to edit stacks directly —
   the events and quest-item rules live here.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial inventory contract (interaction stage);
-                         has_item/shortfall semantics agreed with story.
 */
 
 #pragma once

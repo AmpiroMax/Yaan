@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 24:08:2026 - 00:20:00
-Last updated: 27:08:2026 - 01:25:00
 Module: tools
 File: tools/make_interior_pilot.py
 
@@ -35,18 +33,6 @@ AI Agents Notice (must follow):
   обратным поворотом. Сочинённая заново раскладка была бы вторым ответом на
   вопрос «что стоит в этом доме» (правило 39).
 """
-# UPD:
-# - 24:08:2026 - 00:20:00: Создан (И15 волна А, шаг 5: пилот-дом).
-# - 27:08:2026 - 01:25:00: ВЫПУСК ПИЛОТА СНЯТ ВОЛНОЙ Б, скрипт оставлен. Свод И15
-#   называл переезд interior=/[portal] из копии в боевой Вайтран пунктом 6
-#   волны Б, и он исполнен: у самого Вайтрана теперь 23 локации, а
-#   assets/scenes/wr-int.scene и assets/scenes/int/whiterun/x100z84.scene из
-#   дерева убраны (карта wr-int.map исчезла раньше, при переезде карт в
-#   assets/maps/cities). Отрицательное плечо приёмки переехало на боевой
-#   город. ЗАПУСКАТЬ ЭТОТ СКРИПТ БОЛЬШЕ НЕ НАДО: он выпустит копию, которая
-#   разойдётся с городом при первом же его перевыпуске, и положит в
-#   assets/scenes/int/whiterun файл, который стадия 14а генератора снесёт как
-#   осиротевший. Оставлен как запись того, КАК был снят пилот (правило 24).
 
 import math
 import os
@@ -64,7 +50,6 @@ DFH_PORTAL = "assets/houses/city-house-s-portal.dfh"
 # скажет вслух, что дома там нет.
 TARGET_XZ = (99.983, 83.773)
 TARGET_TOL_M = 0.5
-
 
 def blocks(text):
     """Разбор .scene на (заголовок, [(ключ, значение), ...], сырой текст)."""
@@ -87,18 +72,15 @@ def blocks(text):
     out.append((cur_name, cur_keys, cur_lines))
     return out
 
-
 def kv(keys, name, default=None):
     for k, v in keys:
         if k == name:
             return v
     return default
 
-
 def vec3(s):
     a = s.split()
     return (float(a[0]), float(a[1]), float(a[2]))
-
 
 def to_local(world, origin, yaw):
     """Мировая точка -> местная. Обратный к w = pos + R(yaw)*l, где
@@ -106,7 +88,6 @@ def to_local(world, origin, yaw):
     c, s = math.cos(yaw), math.sin(yaw)
     d = (world[0] - origin[0], world[1] - origin[1], world[2] - origin[2])
     return (d[0] * c - d[2] * s, d[1], d[0] * s + d[2] * c)
-
 
 def main():
     if not os.path.exists(CITY):
@@ -306,7 +287,6 @@ def main():
     print("копия города:   %s" % PILOT_SCENE)
     print("паспорт карты:  %s" % PILOT_MAP)
     print("дверь в мире:   %.3f %.3f %.3f" % door_world)
-
 
 if __name__ == "__main__":
     main()

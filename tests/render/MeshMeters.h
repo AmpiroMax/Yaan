@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 13:23:29
-Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/MeshMeters.h
 
@@ -21,16 +19,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - These are TEST instruments. Production code that needs closedness talks to
   engine/world's check_panel_solid or the shell instrument, not to this.
-*/
-/*
-UPD:
-- 17:08:2026 - 13:23:29: Вынос измерителей из PartForgeJointTests.cpp (второй
-  потребитель — тесты крыш).
-- 17:08:2026 - 14:29:43: solid_of(RegistryObject) — геометрия детали лежит в bark, если она
-  текстурная, и в wood, если нет; форма при этом ОДНА И ТА ЖЕ, а спрашивают
-  измерители про форму. Один вопрос в одном месте: иначе каждый из двух
-  десятков вызовов решает сам, и в день, когда набор стал текстурным, все они
-  прочитали пустой меш и отчитались «дефектов нет».
 */
 
 #pragma once

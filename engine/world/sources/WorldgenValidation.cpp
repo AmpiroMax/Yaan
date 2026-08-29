@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:05:22
-Last updated: 18:08:2026 - 12:06:09
 Module: engine/world
 File: engine/world/sources/WorldgenValidation.cpp
 
@@ -18,22 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic sampling grids only — validation must agree across runs.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:05:22: Stage 3b — implementation.
-- 09:08:2026 - 13:12:19: Stage 3b amendments: C1 raycast against terrain + canopy with LANDMARK_CLEARANCE_FACTOR (tangent comparison); max_corridor_water_depth.
-- 09:08:2026 - 15:18:34: Castle validation: the castle mass enters the C1 occlusion heightfield like canopy and its footprint is excluded from standpoints; hierarchy + access invariants implemented on the same raycast machinery.
-- 09:08:2026 - 15:31:04: Rule C2-testbed implemented on the R4 subtended-angle machinery: apparent SIZE (object height / distance, not the elevation angle of its top — that conflated size with ground elevation, and R4 now uses the corrected measure too), §1.5 readability gate (sub-8 px specks cannot crowd), R1 body-backing exemption, L0 exempt, composite POIs once; widest-coequal-group via a sorted sliding window.
-- 09:08:2026 - 15:36:59: Large-mass guard implemented over the same grouping (filter to large members, then widest coequal window); PX_PER_RAD factored out of the readability threshold.
-- 09:08:2026 - 19:13:01: C1 CORRECTNESS FIX: the landmark's own body is no longer counted as an occluder of itself. The aim point is peak + L0_AIM_ABOVE_PEAK (fixed) while LANDMARK_CLEARANCE_FACTOR multiplies against terrain essentially at peak height, so near-summit ground out-angled the summit once 0.2*(peak - eye) exceeded the aim margin — above a ~60 m peak the test returned 0.000 for EVERY standpoint regardless of the world, and below it the measure was biased down. Seed 1 C1 was 0.621 measured, is 0.776 true. This invalidated the recorded 'raising the peak lowers clearance' finding, which was an artifact of this bug rather than a property of landmarks.
-- 11:08:2026 - 15:15:55: §10.1's detrended bumpiness probe and the standpoint search, which ranks by TREND and never by the sigma it reports. relief_floor_binds' exemption list aligned to WorldgenRelief's masks -- where they disagreed the floor was being read on ground the generator was told to keep flat.
-- 12:08:2026 - 22:55:00: canopy_height_at(ctx, ...) — the C1 raycast now sees the
-  great oak, which stands in a gap in the forest mask; PX_PER_RAD reads
-  WorldgenPlacement's one definition (it had two in this zone).
-- 18:08:2026 - 12:06:09: проверка проходимости обзорной точки зовёт terrain_slope вместо
-  собственной копии центральной разности с голым `d = 2.0f`. Тот же прибор, что
-  красит землю, теперь и судит, можно ли по ней идти.
 */
 
 #include "engine/world/sources/WorldgenValidation.h"

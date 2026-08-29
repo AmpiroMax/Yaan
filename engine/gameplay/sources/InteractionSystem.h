@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 09:08:2026 - 22:44:47
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractionSystem.h
 
@@ -44,12 +42,6 @@ AI Agents Notice (must follow):
 - Systems stay stateless (Rule 9): interfaces are parameters, nothing stored.
 - Never mutate interactable state outside interact(); the events and the
   quest-item rules depend on this being the only path.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial four-verb interaction system.
-- 09:08:2026 - 22:44:47: InteractionFailure::Undroppable (quest items refuse to
-                         be dropped; story's protection, now reachable).
 */
 
 #pragma once

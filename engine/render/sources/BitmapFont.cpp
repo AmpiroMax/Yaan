@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:32:07
-Last updated: 27:08:2026 - 15:10:00
 Module: engine/render
 File: engine/render/sources/BitmapFont.cpp
 
@@ -23,12 +21,6 @@ AI Agents Notice (must follow):
 - Cyrillic letters whose shape IS the Latin letter (А В Е К М Н О Р С Т Х,
   а е о р с у х) are ALIASES, not copies of the art. Two drawings of the same
   shape drift; one drawing cannot.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:32:07: Created.
-- 27:08:2026 - 15:10:00: целый множитель пикселя у draw_text/text_width_px; тень
-  смещается на множитель. При scale == 1 — прежний вывод бит-в-бит.
 */
 
 #include "engine/render/sources/BitmapFont.h"

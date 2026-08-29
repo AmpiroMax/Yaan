@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 28:08:2026 - 21:05:00
-# Last updated: 28:08:2026 - 21:05:00
 # File: tools/dfo_read.py
 #
 # Responsibility:
@@ -31,9 +29,6 @@
 # - ФОРМАТ ЗДЕСЬ — КОПИЯ, И ЭТО ЕЁ ЕДИНСТВЕННЫЙ РИСК. Если .dfo сменит
 #   раскладку, эта читалка обязана отказать ВСЛУХ, а не прочитать мусор:
 #   поэтому проверяется магия, версия контейнера и длина каждой секции.
-#
-# UPD:
-# - 28:08:2026 - 21:05:00: Создан — волна ярусов флоры.
 
 import os
 import re
@@ -46,7 +41,6 @@ _STREAMS = (b"WOOD", b"CARD", b"GRND", b"BARK")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-
 def _constant(name, default):
     """Читает число из engine/core/config/sources/Constants.h (Rule 14)."""
     path = os.path.join(ROOT, "engine", "core", "config", "sources", "Constants.h")
@@ -57,9 +51,7 @@ def _constant(name, default):
         return default
     return float(m.group(1)) if m else default
 
-
 PLAYER_STEP_HEIGHT = _constant("PLAYER_STEP_HEIGHT", 0.35)
-
 
 class Stream:
     __slots__ = ("verts", "tris", "lo", "hi")
@@ -69,7 +61,6 @@ class Stream:
         self.tris = tris
         self.lo = lo      # (x, y, z) минимум
         self.hi = hi      # (x, y, z) максимум
-
 
 class Object:
     __slots__ = ("name", "kind", "source", "streams", "house_tris", "house_verts",
@@ -135,9 +126,7 @@ class Object:
             return 0.0
         return max(abs(lo[0]), abs(hi[0]), abs(lo[2]), abs(hi[2]))
 
-
 _STREAM_NAMES = ("WOOD", "CARD", "GRND", "BARK")
-
 
 def _read_stream_body(buf, off):
     (vcount,) = struct.unpack_from("<I", buf, off)
@@ -163,12 +152,10 @@ def _read_stream_body(buf, off):
     off += 4 + icount * 4
     return Stream(vcount, icount // 3, tuple(lo), tuple(hi)), off
 
-
 def _read_string(buf, off):
     (n,) = struct.unpack_from("<I", buf, off)
     off += 4
     return buf[off:off + n].decode("utf-8"), off + n
-
 
 def read_dfo(path):
     with open(path, "rb") as f:
@@ -213,7 +200,6 @@ def read_dfo(path):
         off = body + blen
     return obj
 
-
 def shelf(dirs):
     """Читает полки в порядке следования: первое попадание побеждает."""
     out = {}
@@ -228,7 +214,6 @@ def shelf(dirs):
                 continue
             out[name] = read_dfo(os.path.join(d, fn))
     return out
-
 
 if __name__ == "__main__":
     import sys

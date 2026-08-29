@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 23:08:2026 - 00:25:12
 Module: engine/render
 File: engine/render/sources/TerrainMesher.cpp
 
@@ -19,35 +17,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic pure function; covered by tests/render/TerrainMesherTests.cpp.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 09:08:2026 - 11:01:00: Stage 3 — vertex alpha now carries the grass<->dirt
-  "dryness" mottling (world-space value noise, continuous across chunks);
-  slope tint thresholds aligned with the shader splat band (Materials.h).
-- 09:08:2026 - 11:57:20: Stage 3b — vertex RGB re-purposed to splat weights
-  (R sand / G rock / B water-bed) from core's SurfaceFieldView; the old
-  height-band tint is gone (fs_terrain owns the palette now).
-- 09:08:2026 - 14:11:37: Splat fix (design ruling, feature-requests batch): the
-  render-side "dryness" dirt mottling is REMOVED — it painted large red-brown
-  washes over ground core classifies as Grass (04_hamlet_approach probe:
-  whole sightline Grass, yet the frame read as a 60+ m brown flat). LANDSCAPE
-  §4 has no dirt material (dirt/path is a FUTURE road pass); the splat now
-  keys off core's surface_class ONLY. Vertex alpha is reserved (255).
-- 09:08:2026 - 22:01:04: World-referenced UVs + border skirts (LOD).
-- 10:08:2026 - 01:47:53: Clip rectangle (options.clip_*): cells wholly inside
-  the chunk-streamed rect are skipped and skirts follow the emitted region's
-  whole boundary. The no-clip path is untouched and bit-identical.
-- 10:08:2026 - 21:13:39: Rule 39 fix, render half. The private switch over
-  SurfaceClass and the private pack_weights() are gone; both come from
-  Materials.h now, shared with VoxelMesher. Behaviour-preserving on all five
-  classes (verified row by row against both old tables before landing).
-- 17:08:2026 - 11:53:47: то же для heightfield-пути.
-- 17:08:2026 - 11:54:29: то же для heightfield-пути.
-- 23:08:2026 - 00:30:00: class_at (последний накрывший мазок выигрывает) и упаковка класса
-- 23:08:2026 - 00:25:12: тело PathClassField::covered — та же геометрия, что class_at, но с усадкой внутрь.
-  при заданном поле; без поля — прежние 8 бит бит-в-бит.
 */
 
 #include "engine/render/sources/TerrainMesher.h"
@@ -114,7 +83,6 @@ bool PathClassField::covered(glm::vec2 xz, float shrink_m) const {
     }
     return false;
 }
-
 
 namespace {
 

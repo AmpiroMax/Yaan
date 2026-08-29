@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:08
-Last updated: 27:08:2026 - 12:02:02
 Module: tests
 File: tests/sim/PlayerMovementTests.cpp
 
@@ -20,25 +18,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Expectations derive from dfn::config constants, never literal duplicates.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:08: Stage 2 — initial movement test suite.
-- 09:08:2026 - 15:08:24: Rig sets explicit collision layers (zero masks are
-                         now rejected by the IPhysics contract).
-- 09:08:2026 - 17:08:40: Run input now sprints (DEBUG_SPRINT_MULTIPLIER).
-- 09:08:2026 - 22:18:17: Jump, crouch and swim (v1 movement). Every case ships
-                         a control: the jump latch is checked against a sampled
-                         reading, crouch speed against standing speed, and the
-                         swim hysteresis against the one-threshold design it
-                         exists to reject.
-- 10:08:2026 - 22:39:13: The crouch case no longer asserts the camera arrives at CROUCH_EYE_HEIGHT — it asserts the eye follows the FERRIED crouch offset (character's carve; the old assertion was faithful to a camera sitting inside the body's chest). Control: halve the ferried drop and the eye must halve with it, which a camera holding a constant of its own cannot do.
-- 13:08:2026 - 18:25:00: RecordingPhysics forwards set_body_transform (the
-                         interface gained it for the swinging door leaf).
-- 18:08:2026 - 00:24:58: FakeInput отвечает на новый пункт контракта IInput (place_cursor).
-- 27:08:2026 - 12:02:02: Двойник RecordingPhysics переправляет sphere_cast во
-  внутренний null: у IPhysics появился свёрнутый объём, и двойник обязан
-  оставаться полной реализацией контракта, а не почти полной.
 */
 
 #include <doctest/doctest.h>

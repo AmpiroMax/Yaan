@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 19:22:41
-Last updated: 14:08:2026 - 00:14:00
 Module: engine/render
 File: engine/render/sources/FloraSpecies.h
 
@@ -24,59 +22,6 @@ AI Agents Notice (must follow):
   §5/§6 dimensions in ProcMesh (Rule 5: real content moves to data files later).
 - FLORA ZONE (flora agent). Boundary agreed with render 09:08:2026: these files
   are flora's; ProcMesh/ScatterBatcher stay render's.
-*/
-/*
-UPD:
-- 09:08:2026 - 19:22:41: Created — catalog per LANDSCAPE §5.7-§5.10.
-- 09:08:2026 - 20:21:13: Leaf-card vocabulary: FoliageShape::Card, the
-  per-species atlas tone/shape bands and card proportions, has_leaf_cards().
-- 10:08:2026 - 01:59:06: Dead-wood vocabulary for the §5.10 forest floor:
-  SnagPale (the snag's second MATERIAL, not a second shape), stub/root-plate/
-  moss fields on SpeciesParams.
-- 10:08:2026 - 02:49:15: Design's acceptance asks: MOSS_TONE_B and the
-  GRASS_BAND_REFERENCE proxy — every moss tone asserted a readable step below
-  the grass band.
-- 12:08:2026 - 00:20:00: GreatOak, CrownEnvelope::GreatCrown, the crown
-  allometry / width-jitter fields, the fractal-grower parameter block, the
-  climbing-furniture counts, and flora_control_arm().
-- 12:08:2026 - 00:45:00: card_scrap_floor() — the card legibility floor becomes
-  a FUNCTION so that there cannot be two of it. There were three (emitter,
-  emitter's re-check, suite), they diverged, and the great oak emitted zero
-  cards with the suite green.
-- 13:08:2026 - 16:20:00: flora_envelope_arm() -- the zero-dose door for the
-  crown's CONSTRUCTION alone (DFN_FLORA_CROWN=1), separate from
-  flora_control_arm() because a control binds only the measurements in which it
-  itself moves (Rule 48).
-- 13:08:2026 - 19:55:00: flora_shyness_arm() -- a THIRD zero-dose door
-  (DFN_FLORA_SHY=0), for crown shyness alone. DFN_FLORA_CROWN reverts how the
-  crown is BUILT, so a pair taken across it would answer two questions at once
-  and the canopy-overlap number is about one of them (Rule 48).
-- 13:08:2026 - 21:00:00: species_weber() — the Weber & Penn row for a species.
-  A SECOND table on purpose: SpeciesParams says what a species IS to every
-  consumer, this says what one GENERATOR needs, and mixing the two is what made
-  the old growers' parameters so hard to tell from the species itself.
-- 13:08:2026 - 19:56:00: flora_far_lod_arm() -- a FOURTH zero-dose door, for
-  the far level of detail alone (DFN_FLORA_FARLOD=1 restores the ladder of this
-  morning). Same reason as the other three, Rule 48: a control binds only the
-  measurements in which it itself moves.
-- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
-  this session's own UPD entries above were written AHEAD of the wall clock (one
-  said 22:00 for work committed at 20:24) and are corrected against the commit
-  times. Recorded rather than done silently -- a record whose stamps are
-  invented cannot be put in order afterwards, and the entries it would mislead
-  are this zone's own.
-- 13:08:2026 - 21:50:00: SpeciesParams::crown_plasticity -- how much of its
-  open-grown WIDTH a species gives up in a closed stand, and it is a SPECIES
-  property because the user said so before the literature did: a conifer holds
-  one radius whatever crowds it, a broadleaf spreads in the open and folds up in
-  a crowd. Was a literal 0.38 in ProcFlora applied to every species alike.
-- 13:08:2026 - 23:27:00: flora_united_bole_arm() — the dose door for the
-  united bole (DFN_FLORA_ONEBOLE=0 restores the invisible-trunk growth). Same
-  Rule 48 shape as the other doors: one door, one moved quantity.
-- 13:08:2026 - 23:45:00: flora_pack_arm() — дверь листовых «пачек»
-  (DFN_FLORA_PACKS=0 — нулевая рука: конфетти 36-40×0.22-0.25 как было).
-- 14:08:2026 - 00:14:00: flora_trunk_arc_arm() — дверь дуги стволов
-  (DFN_FLORA_TRUNKARC=1 — старая складывающаяся дуга).
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 01:53:17
 Module: engine/gameplay
 File: engine/gameplay/sources/StepFeel.cpp
 
@@ -19,10 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Every tuning number is a NUMBERS row (Rule 14) — no literals beyond curve
   shape fractions documented in the header contract.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Created for the landscape stage (шаг как событие).
 */
 
 #include "engine/gameplay/sources/StepFeel.h"

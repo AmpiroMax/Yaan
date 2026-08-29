@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 20:06:10
-Last updated: 13:08:2026 - 17:41:00
 Module: tests
 File: tests/core/FindOcclusionTests.cpp
 
@@ -28,35 +26,6 @@ AI Agents Notice (must follow):
 - The SHIPPING instrument (engine/world) cannot see render — DAG siblings,
   Rule 1 — so OccluderGeometry is a required input with no defaults. When the
   NUMBERS.md rows land, this file changes and the instrument does not.
-*/
-/*
-UPD:
-- 10:08:2026 - 20:06:10: Created — BR-5's ray-vs-disc acceptance with its
-  bare-terrain control and a per-distance aggregation that has no way to pool.
-- 10:08:2026 - 20:13:53: The siting claim is a DIFFERENCE, never a ratio. The
-  measured bare-terrain control is EXACTLY 0.0000 at 40 m, so a ratio has no
-  denominator there and no threshold on it could separate working siting from
-  broken siting (Rule 30: the quantity is wrong, not the threshold). The ring
-  the ratio cannot express is where the scatter does its largest work.
-- 10:08:2026 - 20:24:58: Oak disc radius corrected from species_trunk_radius()
-  0.986 m to 0.65 m (flora's measurement of the built mesh): the accessor
-  returns the ROOT FLARE at y=0, and this ray never leaves the 0.3-1.7 m band
-  where the bole is 0.62-0.65 m. Every ring moved DOWN -- 0.4167/0.6250/0.7083
-  to 0.3333/0.5417/0.6250 -- i.e. the correction went against this
-  instrument's own result, which is the direction a flattering error moves when
-  it is fixed. The near ring's failure is now larger, not smaller.
-- 11:08:2026 - 15:15:55: build_scatter's new context-taking signature.
-- 13:08:2026 - 17:41:00: BR-5's siting claim, THIRD FORM, and the first two died
-  of the same disease one level in: a RATIO whose denominator went to 0.0000,
-  then a DIFFERENCE whose base moved when §10.1.3's forms made the ground hide
-  things. It is now the share of the openness THE GROUND LEFT that the scatter
-  closes — invariant to within 0.017 across two worlds whose bare-ground
-  occlusion differs by up to 0.25, which is the evidence that neither earlier
-  form was ever measuring the scatter. The bare-terrain control is RETIRED with
-  a headstone rather than weakened: it fired exactly as its author said it would
-  and its premise ("bare ground hides nothing") was true only while the ground
-  was flat. And the near ring's known-open pin is FLIPPED — the ground closed it
-  without a find moving.
 */
 
 #include "engine/core/config/sources/Constants.h"

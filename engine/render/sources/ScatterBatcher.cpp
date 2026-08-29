@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:57:20
-Last updated: 14:08:2026 - 19:34:00
 Module: engine/render
 File: engine/render/sources/ScatterBatcher.cpp
 
@@ -18,60 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Deterministic pure function; covered by ScatterBatcherTests.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:57:20: Stage 3b — initial implementation.
-- 09:08:2026 - 19:46:00: Flora generator integrated: trees build per-instance
-  geometry via build_flora_mesh (variant by position, shape from
-  analyse_neighbourhood), appended at scale 1.0 because maturity is
-  already inside the mesh, and with NO ground sink now that they have a
-  root flare. species_radius updated to flora's measured envelopes.
-- 09:08:2026 - 19:54:00: birch footprint 2.4 -> 3.1 m (flora's crown fix gave
-  the birch a real 6.1 m crown; the old radius was measured off a bald tree).
-- 09:08:2026 - 20:21:13: Trees bake into TWO streams via flora's append_flora
-  (opaque wood + alpha-cutout leaf cards). EDITED BY THE FLORA AGENT under an
-  explicit lead-granted Rule 25 exception while render's zone was unowned;
-  wiring only, no material or shader change.
-- 09:08:2026 - 22:27:17: GROUND_SINK_FRAC now reads config::SCATTER_GROUND_SINK_FRAC
-  (lead landed the row on sim's request): render draws the sink and sim builds
-  collision from the same triangles, so the two cannot hold separate copies.
-- 10:08:2026 - 01:47:53: species_radius TABLE DELETED — the tile bounding
-  circle is measured over the baked vertices instead. The table under-covered
-  what was actually drawn (stone 0.5 tabled vs ~0.78 built, birch 3.1 vs
-  ~4.94), which is a pop-in bug, and a table that must agree with a mesh will
-  disagree again; a measured radius cannot. Old values kept in the test suite
-  as the failing control (Rule 30).
-- 10:08:2026 - 12:12:40: routing asks flora_owns() instead of a hand-written three-tree
-  predicate — that predicate is why §5.10's floor and §5.11's edge set drew as
-  bare earth while every suite was green.
-- 13:08:2026 - 20:10:00: DFN_FLORA_FORCE_LOD -- a verification hook at the one
-  line that selects a flora LOD, added by the FLORA agent under an explicit
-  lead-granted Rule 25 cut (render notified; the file's 09.08 entry records the
-  same arrangement). NO SHIPPING BEHAVIOUR CHANGES: the default is still
-  FloraLod::Full, byte for byte.
-  WHY IT EXISTS. This line passes Full unconditionally and always has, so
-  Reduced and Silhouette have never been drawn -- across the engine FloraLod
-  appears outside flora's files exactly twice and both are Full. The hook makes
-  the ladder's effect answerable BY A FRAME before any selection machinery is
-  written, and the answer it gave is why no machinery was written: forcing the
-  whole scatter to the far LOD moves the treeline's composition by nothing.
-  Measured with the MATERIAL door (DFN_FLORA_ONLY), not a value threshold:
-      wood coverage of the band   Full 72.1 %   far LOD 73.1 %
-      card coverage of the band   Full 41.0 %   far LOD 41.0 %
-  Cutting 60 % of every tree's branch segments does not thin the stand at all,
-  because coverage is a UNION OVER DEPTH: at 6 m spacing there are dozens of
-  trunk rows in any line of sight, so branches removed from one tree only
-  uncover the tree behind it. A union of many sparse sets saturates.
-  The far LOD remains worth wiring for COST -- 579 triangles against 1000, on
-  13446 trees -- and that is render's call, not this hook's.
-- 13:08:2026 - 20:55:00: STAMP CORRECTION ONLY, no code and no content change:
-  this session's own UPD entries above were written AHEAD of the wall clock (one
-  said 22:00 for work committed at 20:24) and are corrected against the commit
-  times. Recorded rather than done silently -- a record whose stamps are
-  invented cannot be put in order afterwards, and the entries it would mislead
-  are this zone's own.
-- 14:08:2026 - 19:34:00: build_scatter_batches принимает FloraLod, и DFN_FLORA_FORCE_LOD из ЗАТЫЧКИ стала КОНТРОЛЬНОЙ РУКОЙ: раньше она подменяла отсутствующий выбор, теперь перекрывает настоящий, то есть меряет банду против «весь мир одним уровнем» из одного бинарника (правило 47). Сюда же переехал сам выбор полосы flora_lod_for_distance — он чистая функция и должен проверяться без рендера, окна и мира (тест в ScatterBatcherTests.cpp ходит по краю полосы туда и обратно и требует РОВНО двух смен уровня).
 */
 
 #include "engine/render/sources/ScatterBatcher.h"
@@ -192,7 +136,6 @@ FloraLod flora_lod_for_distance(float distance_m, FloraLod current) {
     }
     return FloraLod::Full;
 }
-
 
 bool flora_lod_forced() {
     static const bool forced = [] {

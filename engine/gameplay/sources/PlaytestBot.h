@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 02:23:05
-Last updated: 22:08:2026 - 14:30:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PlaytestBot.h
 
@@ -37,55 +35,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Controls ship with the checker (Rule 30): see tests/sim/PlaytestTests.cpp —
   a deliberately broken run MUST produce incidents.
-*/
-/*
-UPD:
-- 10:08:2026 - 02:23:05: v1 per PLAYTEST.md.
-- 10:08:2026 - 12:08:26: FOOT SLIP invariant (the instrument the movement
-                         ruling asked for): a planted foot must not travel.
-                         Slip is a MOTION artifact, so no still frame can show
-                         it. Feet arrive through a callback seam (unbound =
-                         skipped, never silently passing); bound by character.
-                         Bot also picks its gear through the same modifiers a
-                         player's keys set.
-- 10:08:2026 - 12:13:41: FootSample semantics pinned with character: SOLE not
-                         ankle (the forefoot rocker walks the ankle forward
-                         while the sole is still planted, and this check is
-                         horizontal), and stance runs to TOE-OFF so both feet
-                         overlap in double support.
-- 10:08:2026 - 19:48:10: Ground-contact counters (airborne/grounded ticks,
-                         landings = dip retriggers, worst landing dip) and the
-                         two foot-slip WITNESS counters. The witness counters
-                         exist because worst_foot_slip_mm == 0 was printed by
-                         every playtest run so far while the rig seam was
-                         unbound -- bit-identical to a perfect pass.
-- 10:08:2026 - 20:14:16: UNDEDUPED frame trace. The incident log cannot
-                         answer "how many frames did the stall span" -- it
-                         dedupes on a 120-tick cooldown and the survivor is not
-                         the worst frame, so it under-reported a 779 ms event
-                         as 346 ms and I passed that understatement to render.
-- 10:08:2026 - 20:32:57: CORRECTION (Rule 16/17). The stamp on the entry
-                         above was written 22 minutes AHEAD of the clock I had
-                         just read; it now reads the true 20:26:56. Recorded as
-                         an appended entry rather than a silent edit, because
-                         UPD blocks are this project's only cross-zone ordering
-                         record, so a forward stamp REORDERS history rather
-                         than merely misdating a file (character2's catch,
-                         independent of my own).
-- 13:08:2026 - 18:00:00: THE BOT PRESSES THE VERB, and the world is counted
-                         around it. No automated run had ever pressed one, so
-                         "the prompt appears and nothing happens" could not be
-                         reproduced without a human at the keyboard.
-- 13:08:2026 - 18:10:00: The census counts TRANSITIONS as well as endpoints —
-                         a toggling door is invisible to endpoints, and the
-                         first version of it said so in a way that read as "the
-                         verb never fires" (see the field note).
-- 13:08:2026 - 18:35:00: glance_seconds — the bot's look-down sweep, without
-                         which it can only find props at chest height.
-- 20:08:2026 - 17:30:00: PlaytestConfig.arrive_m — точность прибытия для маршрутов сквозь проёмы.
-- 22:08:2026 - 14:30:00: PlaytestConfig.glance_scale — масштаб обзорной
-  развёртки взгляда вниз; 0 = ровный взгляд операторской ленты (кадры вида
-  города прогонов приёмки), 1 = штатное качание до ~26°.
 */
 
 #pragma once

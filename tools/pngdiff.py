@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """
-Created: 10:08:2026 - 21:16:52
-Last updated: 10:08:2026 - 21:16:52
 Module: tools
 File: tools/pngdiff.py
 
@@ -63,26 +61,12 @@ Usage:
   различающихся пикселей больше порога (или максимальный канальный перепад
   больше --max-channel). Без порога — как было: печать и ноль.
 """
-"""
-UPD:
-- 28:08:2026 - 18:45:00: ПОРОГ И ПРИГОВОР (--threshold/--max-channel) и пара файлов,
-  а не только пара каталогов. Печатать долю и оставлять читателю решать, много
-  это или мало, — значит не иметь критерия вовсе: величина, на которой стоит
-  порог, сама является измерением (правило 30). Ограничение про тур снято по
-  измерению, а не по вере: рецепт проверки назван прямо в шапке.
-- 10:08:2026 - 21:16:52: Created. Committed out of a scratchpad at the lead's instruction: an
-  instrument living in a scratchpad is one the next agent rebuilds slightly
-  differently, which is Rule 39 aimed at tooling. The tour-determinism
-  limitation is recorded in the header rather than in a message, because the
-  number it invalidates is the number someone will want to quote.
-"""
 
 import argparse
 import os
 import struct
 import sys
 import zlib
-
 
 def read_png(path):
     with open(path, "rb") as f:
@@ -145,7 +129,6 @@ def read_png(path):
             rgb[3 * i:3 * i + 3] = palette[3 * idx:3 * idx + 3]
         return w, h, 3, bytes(rgb)
     return w, h, nch, bytes(out)
-
 
 def diff_dirs(da, db, threshold=None, max_channel=None):
     # ДВА ФАЙЛА — ТОЖЕ ПАРА. Приёмка кадра города сравнивает именно файлы, и
@@ -212,7 +195,6 @@ def diff_dirs(da, db, threshold=None, max_channel=None):
               f"перепад {gmax} при пороге "
               f"{'—' if max_channel is None else max_channel}")
     return 1 if bad else 0
-
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()

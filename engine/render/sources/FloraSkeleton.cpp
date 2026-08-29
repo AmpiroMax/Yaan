@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:12:44
-Last updated: 13:08:2026 - 23:50:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.cpp
 
@@ -23,52 +21,6 @@ AI Agents Notice (must follow):
 - DO NOT add a path that places foliage without a node index. The whole reason
   this file exists is that the previous crown was scattered through a volume
   and the user rejected it (flora_algorithms.md §0.1).
-*/
-/*
-UPD:
-- 09:08:2026 - 23:12:44: Created.
-- 12:08:2026 - 00:20:00: THE CROWN GAINED AN AXIS AND A THIRD GROWER.
-  (a) CrownVolume::axis — the envelope follows the top of a LEANING bole
-  instead of standing over the roots, which is what let the lean band open from
-  0.12 rad to the 15-25 deg the reference frames actually show.
-  (b) The Sphere profile became BOTTOM-HEAVY (widest at u~0.38, not 0.5): the
-  user's «листва должна быть пониже» is a statement about where the crown's
-  MASS sits, and moving the widest ring down answers it without touching the
-  clearance floor that keeps the wood walkable.
-  (c) fractal_skeleton() — the great oak's recursive grower.
-- 12:08:2026 - 00:24:00: CrownVolume::axis honoured in attractor sampling and
-  in the growth clip; the Sphere profile made bottom-heavy (widest ring at 0.42
-  of the crown span, not 0.50) with its minimum radius raised to 0.42 so the
-  narrowed apex does not starve — measured, the first draft pinched the top and
-  the tree topped out at 0.39 of its own height; and fractal_skeleton(), the
-  great oak's recursive grower.
-- 12:08:2026 - 00:36:00: fractal_skeleton clamps every node into the bounding
-  cylinder (see the header entry: the wood was reaching twice the declared
-  height).
-- 13:08:2026 - 16:20:00: gather_shoot_anchors() -- foliage sites ON the wood,
-  weighted to the outer end of every shoot, every tip carrying one. And the
-  majors now leave the seeded bole over `major_base_drop` metres of it rather
-  than from its last node.
-- 13:08:2026 - 19:45:00: The shyness veto in fractal_skeleton, with the wobble
-  that keeps a channel from being a razor cut.
-- 13:08:2026 - 22:00:00: TIPS MAY NOT TAKE THE WHOLE LEAF BUDGET. Every branch
-  end gets a mass, but the tip COUNT rises with the node budget while the leaf
-  budget does not, so past a certain skeleton size the tips exhaust it and the
-  long low shoots that carry the BOTTOM of the crown get nothing. Measured when
-  TREE_TRI_BUDGET_MAX went 700 -> 1300: the wood did not move a centimetre and
-  the lowest foliage rose 7.77 m -> 13.24 m on a birch. Tips are capped at half
-  the budget and subsampled by stride above it.
-- 13:08:2026 - 23:50:00: gather_shoot_anchors gates on DISTANCE TO THE BRANCH
-  TIP over that branch's own length (two passes: dist_to_tip backward, branch_len
-  forward), not on the node's radius. THE LEVER WAS MEASURED ACROSS ITS RANGE ON
-  THE FRAME AND IT MOVES THE TARGET THE WRONG WAY: span 1.00 gives wood 28.8 % /
-  leaf 18.6 %, span 0.30 gives 30.1 % / 15.4 %. Restricting leaf to the outer
-  third THINS the crown, because the mass budget is fixed and the same masses
-  pack into fewer places. Ships at 1.0, i.e. no restriction.
-  AND THE FIRST SWEEP OF IT WAS A DUD, recorded because it is the day's own
-  mistake again: flat from 1.0 to 0.20, because the radius gate excluded every
-  inboard shoot BEFORE this gate saw it. Two gates on one quantity, and the one
-  under test sat downstream of the one that decides.
 */
 
 #include "engine/render/sources/FloraSkeleton.h"

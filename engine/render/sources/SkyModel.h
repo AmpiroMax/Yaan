@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:58:10
-Last updated: 14:08:2026 - 18:30:20
 Module: engine/render
 File: engine/render/sources/SkyModel.h
 
@@ -36,45 +34,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep this pure: no GPU, no ECS, no clock reads. Inputs are fractions.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:58:10: Created for the day/night stage (в1/в2): sun/moon
-  geometry, phase-derived moon direction, dawn/dusk palette, stars.
-- 12:08:2026 - 23:52:00: TWO MOONS (W9) — the orbital half. MoonElements / masser() / secunda() /
-  moon_state_at(): elongation from the WORLD CLOCK through each moon's own
-  synodic period (so the pair cannot share one number the way the shipped model
-  forced), inclination about a RETROGRADE node line, the equation of centre, and
-  the apparent radius that swings with it. Every constant is an existing NUMBERS
-  row from a block that had had no consumer for two days. NOT DONE AND NOT MINE:
-  RenderEnvironment carries ONE moon, so the second cannot reach the shader
-  until the lead lands the fields (Rule 26).
-- 13:08:2026 - 19:40:00: THE MOON IS OFF THE SUN'S ARC AND ONTO ITS OWN, and the orbital
-  half is AWAKE: apply_sky_time now drives the shipped moon through
-  moon_state_at(masser()). The user's complaint verbatim: «луна двигается за
-  солнцем, почти одинаково, хотя её траектория должна отличаться». It did:
-  moon_direction_at put the moon on arc_direction — the SAME curve the sun
-  rides, offset in time — so the two could never differ in SHAPE, only in
-  phase. Replaced by hour angle + declination at OBSERVER_LATITUDE (the user
-  set the latitude himself: «55-60 градусах»), which is the one model in which
-  a body's arc is a function of its DECLINATION and therefore changes from
-  night to night. apply_sky_time gains `elapsed_days` (defaulted, so no caller
-  breaks) because the node regression is the one term that is not periodic in
-  the synodic month.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
-- 13:08:2026 - 19:11:13: FLAME_INTENSITY_SWING / FLAME_WARMTH_SWING arrive here from
-  RenderSystemResources.cpp: the carried light's colour is a band now, and the
-  band's width belongs beside the colour it is a band around.
-- 13:08:2026 - 23:47:28: POINT_LIGHT_DISSOLVE_WINDOW_M (zone dungeon, under the
-  lead's cut on this file) — the width over which the budget-edge point light
-  fades to zero, so a flame crossing the "nearest eight" boundary ramps rather
-  than pops. Answers the user's «свет мигает, иногда снова в глазах темнеет».
-  Provisional 2.0 m pending the flicker-pass measurement; DFN_LIGHT_DISSOLVE=0
-  is the control arm (hard cutoff).
-- 14:08:2026 - 18:30:20: Приземлено ведущим за оборвавшуюся зону. Значение остаётся
-  2.0 м, но читать его как «мигание вылечено» нельзя: на текущем содержимом окно
-  не взводится (в радиусе ≤4 факелов при бюджете 8), то есть сегодня оно инертно
-  и снимает разрыв на будущее. Обоснование — в UPD RenderSystemResources.cpp.
 */
 
 #pragma once

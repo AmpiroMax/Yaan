@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:15:56
-Last updated: 10:08:2026 - 01:52:38
 Module: engine/core/components
 File: engine/core/components/sources/Components.h
 
@@ -36,22 +34,6 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do not add components here yourself — propose to the lead (Rule 25).
-*/
-/*
-UPD:
-- 09:08:2026 - 00:15:56: Initial shared component set approved from render's
-                         stage-1 proposal (Transform pair, CameraPose pair,
-                         RenderMesh, LocalBounds).
-- 09:08:2026 - 00:29:27: Added HoverTarget world-resource (sim's Q11 design:
-- 09:08:2026 - 18:58:05: HoverTarget gains verb + prompt_key (sim's diff,
-- 09:08:2026 - 19:19:01: CarriedLight (sim's diff, lead-authored per Rule 26;
-                         agreed sim<->render). Torch light that casts shadows.
-                         lead-authored per Rule 26; agreed sim<->render).
-                         gameplay raycasts and writes, render reads). Stage-1
-                         sync: CameraPose ACKed by sim; LocalBounds stays raw
-                         min/max; RenderMesh ids settled as registry-assigned
-                         dense ids, not truncated hashes.
-- 10:08:2026 - 01:52:38: CameraPose/PreviousCameraPose gain fov_scale (sim request, speed-coupled FOV; default 1.0 keeps behaviour).
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
 Module: engine/gameplay
 File: engine/gameplay/sources/Stats.h
 
@@ -36,11 +34,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Never hardcode stat ranges, growth rates, or thresholds here (Rule 14).
 - Enum reordering breaks saves (indices are serialized); append only.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 contract (attributes, placeholder
-                         skills, use-based progression hooks).
 */
 
 #pragma once

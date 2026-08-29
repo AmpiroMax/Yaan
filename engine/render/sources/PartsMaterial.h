@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 16:55:00
-Last updated: 28:08:2026 - 16:55:00
 Module: engine/render
 File: engine/render/sources/PartsMaterial.h
 
@@ -42,14 +40,6 @@ AI Agents Notice (must follow):
   тест (parts_sheet_matches_atlas). Разошедшийся порядок перекрасил бы всю
   полку молча — ровно та ловушка, о которой предупреждает ProcTexture.h про
   ординалы PathClass.
-*/
-/*
-UPD:
-- 28:08:2026 - 16:55:00: Создан — волна 3 зоны МАТЕРИАЛЫ. Заменил собой
-  engine/render/sources/MaterialRegistry.{h,cpp} прототипа: тот держал ЗАПИСИ
-  о веществе в C++ рядом с рисовальщиком, куда engine/world смотреть не имеет
-  права. Записи уехали в данные (assets/materials/yaan.dfmat), здесь остался
-  перевод ординала в имя и обратно.
 */
 
 #pragma once

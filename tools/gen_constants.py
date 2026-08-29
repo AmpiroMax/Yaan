@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 09:08:2026 - 00:35:09
-# Last updated: 09:08:2026 - 00:35:09
 # File: tools/gen_constants.py
 #
 # Responsibility:
@@ -23,10 +21,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
 # - Never hand-edit the generated header; change docs/NUMBERS.md instead.
-#
-# UPD:
-# - 09:08:2026 - 00:35:09: Created generator per the core agent's confirmed
-#                          contract (stage-1 sync).
 
 from __future__ import annotations
 
@@ -40,13 +34,11 @@ DIM_RE = re.compile(r"^(?P<a>\d+(?:\.\d+)?)[x×](?P<b>\d+(?:\.\d+)?)$")
 FRAC_RE = re.compile(r"^(?P<n>\d+(?:\.\d+)?)/(?P<d>\d+(?:\.\d+)?)$")
 NUM_RE = re.compile(r"^(?P<v>-?\d+(?:\.\d+)?)$")
 
-
 def fmt(value: float) -> tuple[str, str]:
     """Return (c++ type, literal) — int64_t for whole values, double otherwise."""
     if float(value) == int(float(value)) and "." not in str(value):
         return "std::int64_t", str(int(float(value)))
     return "double", repr(float(value))
-
 
 def parse_rows(md: str):
     consts: list[tuple[str, str, str]] = []  # (name, type, literal)
@@ -81,7 +73,6 @@ def parse_rows(md: str):
         else:
             skipped.append(f"{name} (value: {raw!r})")
     return consts, skipped
-
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="NUMBERS.md -> Constants.h generator")
@@ -126,7 +117,6 @@ def main() -> int:
     print(f"gen_constants: {len(seen)} constants -> {out}"
           + (f" ({len(skipped)} skipped)" if skipped else ""))
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

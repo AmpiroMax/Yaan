@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:13:38
-Last updated: 17:08:2026 - 21:04:27
 Module: engine/editor
 File: engine/editor/sources/EditorPalette.h
 
@@ -51,24 +49,6 @@ AI Agents Notice (must follow):
   never laid out by guess. The shelf-wide test asserts zero refusals, so a kit
   change that renames a family goes red in CI rather than mislabelling a row.
 - User-facing text is a localization KEY here, never a string (Rule 5).
-*/
-/*
-UPD:
-- 17:08:2026 - 19:13:38: Создан — модель меню объектов: разбор имени на фасеты, фильтр, фасетные счётчики, избранное/недавние/слоты по карте, сохранение.
-- 17:08:2026 - 19:22:54: Переезд в engine/editor. ARCHITECTURE.md разрешает Dear ImGui
-  ТОЛЬКО в engine/editor, а слой editor не имеет права включать engine/app
-  (LAYERS в tools/dag_check.py) — значит панель и её модель обязаны жить
-  по одну сторону, и эта сторона — editor. Ни строки логики не тронуто.
-- 17:08:2026 - 19:37:50: index_of() — двоичный поиск по имени. Полосы избранного и недавних
-  разрешают дюжину имён КАЖДЫЙ кадр, а это тридцать тысяч сравнений строк на
-  кадр при 2411 строках ради двух рядов миниатюр.
-- 17:08:2026 - 20:58:32: PartFacets::width_m — ширина марша. Отдельным полем, потому что лестница
-  объявляет её внутри тройки, которая не коробка, и потому что она НЕ имеет права
-  попасть в span_m: 1.5 м ширины, названные размахом 4.6-метрового марша, это ложь
-  там, где молчание всего лишь пробел.
-- 17:08:2026 - 21:04:27: PartAxis, AxisValue и семейный выбор — оси выводятся С ПОЛКИ, а не
-  объявляются; плюс first_of_family() для семейной сетки (восемнадцать плиток —
-  восемнадцать проходов по 2411 строкам на кадр без него).
 */
 
 #pragma once

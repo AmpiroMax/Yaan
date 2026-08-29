@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 21:02:39
-Last updated: 17:08:2026 - 21:02:39
 Module: engine/editor
 File: engine/editor/sources/EditorPaletteFamily.cpp
 
@@ -30,10 +28,6 @@ AI Agents Notice (must follow):
   strand a builder who wants tile more than he wants that wear; clicking it
   moves the other axis and tells him. A wall the builder cannot argue with is
   worse than one that explains itself.
-*/
-/*
-UPD:
-- 17:08:2026 - 21:02:39: Создан — семейная сетка, оси-свойства и крупный предпросмотр (заказ 17.08, п.4).
 */
 
 #include "engine/editor/sources/EditorPaletteView.h"

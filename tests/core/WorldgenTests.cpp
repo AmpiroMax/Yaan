@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:42:03
-Last updated: 09:08:2026 - 11:05:22
 Module: tests
 File: tests/core/WorldgenTests.cpp
 
@@ -18,13 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - This suite guards Rule 13.1 from the first worldgen commit. Never weaken it.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:42:03: Stage 2 — initial determinism suite.
-- 09:08:2026 - 11:05:22: Stage 3b — hash covers v2 outputs (surface arrays,
-  entities, scatter); edge stitching re-pinned at the 64 m shared range
-  (hash values changed with worldgen v2 — expected, structure unchanged).
 */
 
 #include "engine/core/config/sources/Constants.h"

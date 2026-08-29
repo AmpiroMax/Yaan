@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 12:06:30
-Last updated: 18:08:2026 - 20:26:30
 Module: engine/editor
 File: engine/editor/sources/EditorToolsGround.cpp
 
@@ -19,15 +17,6 @@ AI Agents Notice (must follow):
 - THE BRUSH BELONGS TO THE TOOL. Do not reintroduce a shared TerrainBrush with
   a mode: two tools that can set each other's state is exactly the drift the
   audit measured.
-*/
-/*
-UPD:
-- 18:08:2026 - 12:06:30: Создан — кисть высоты, кисть поверхности и посадка как ТРИ
-  инструмента с собственными настройками. Посадка перестала быть Shift-щелчком
-  внутри чужого обработчика.
-- 18:08:2026 - 13:08:07: draw_last_dab — числа последнего мазка в настройках обеих кистей
-  (счётчик вернулся из удалённой панели кисти).
-- 18:08:2026 - 20:26:30: То же для кисти и посадки.
 */
 
 #include "engine/editor/sources/EditorToolsBuiltin.h"

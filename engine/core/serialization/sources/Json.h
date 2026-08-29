@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:58:00
-Last updated: 10:08:2026 - 01:58:00
 Module: engine/core/serialization
 File: engine/core/serialization/sources/Json.h
 
@@ -30,10 +28,6 @@ AI Agents Notice (must follow):
   (JSON_MAX_DEPTH) so corrupt input fails soft instead of overflowing the
   stack (same doctrine as BinaryReader).
 - Error strings are developer-facing only (Rule 5 exemption).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:58:00: Created — tech-debt wave task 3 (grill в23 item г).
 */
 
 #pragma once

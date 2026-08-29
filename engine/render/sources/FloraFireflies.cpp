@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 09:48:46
-Last updated: 17:08:2026 - 11:34:48
 Module: engine/render
 File: engine/render/sources/FloraFireflies.cpp
 
@@ -16,11 +14,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - ДЕТЕРМИНИЗМ: hash-шум от (seed, особь, квант времени); никакого rand().
-*/
-/*
-UPD:
-- 17:08:2026 - 09:48:46: Created — см. заголовок.
-- 17:08:2026 - 11:34:48: Огонёк круглый: восьмиугольный веер, яркое ядро + тёмная кромка (радиальный градиент) — «не квадратными, а круглыми, чуть ярче, меньше».
 */
 
 #include "engine/render/sources/FloraFireflies.h"

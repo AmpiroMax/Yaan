@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 #
-# Created: 09:08:2026 - 00:06:00
-# Last updated: 09:08:2026 - 00:06:00
 # File: tools/install_hooks.sh
 #
 # Responsibility:
@@ -13,9 +11,6 @@
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
-#
-# UPD:
-# - 09:08:2026 - 00:06:00: Created installer copying tools/hooks/* into .git/hooks.
 
 set -euo pipefail
 

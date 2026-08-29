@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 16:20:00
-Last updated: 13:08:2026 - 16:55:00
 Module: tests
 File: tests/sim/FloraCollisionTests.cpp
 
@@ -27,21 +25,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Every expected dimension is DERIVED FROM THE DRAWN MESH here too. A
   hand-written radius would restate whatever the code does and prove nothing.
-*/
-/*
-UPD:
-- 13:08:2026 - 16:20:00: Created with solid trunks, drag brush and the log
-                         step-height watershed.
-- 13:08:2026 - 16:40:00: The great oak's whole bole (treads included) is solid
-                         to its crown base, and the case says so. The stair
-                         itself is NOT walkable and that is measured, not
-                         guessed -- see the case's note.
-- 13:08:2026 - 16:45:00: The chunk-seam case for the drag query's chunk filter:
-                         a shrub rooted at a border still reaches the walker on
-                         the far side of it.
-- 13:08:2026 - 16:55:00: The "built once" case: a propless chunk must not
-                         rebuild its geometry every tick waiting for a body it
-                         will never get.
 */
 
 #include <doctest/doctest.h>

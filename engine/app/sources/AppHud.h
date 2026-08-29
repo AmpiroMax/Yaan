@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:35:04
-Last updated: 18:08:2026 - 17:35:04
 Module: engine/app
 File: engine/app/sources/AppHud.h
 
@@ -36,13 +34,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone editor owns this file.
-*/
-/*
-UPD:
-- 18:08:2026 - 17:35:04: Создан. Слой 3 разбора App.cpp (docs/PLAN_APP_DECOMPOSITION.md):
-  сборка кадра оверлеев уехала из run() сюда, вместе с решением о том, ЧТО
-  говорит подпись под прицелом. Половина этого блока и раньше жила в модулях —
-  но собиралась в файле, который держит окно, и потому наложения ловил человек.
 */
 
 #pragma once

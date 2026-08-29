@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 17:50:55
-Last updated: 18:08:2026 - 17:50:55
 Module: engine/world
 File: engine/world/sources/HouseRegister.cpp
 
@@ -9,10 +7,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 18:08:2026 - 17:50:55: Создан вместе с заголовком.
 */
 
 #include "engine/world/sources/HouseRegister.h"

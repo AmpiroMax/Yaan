@@ -1,7 +1,5 @@
 #!/usr/bin/env python3.11
 """
-Created: 13:08:2026 - 20:10:00
-Last updated: 13:08:2026 - 20:10:00
 Module: tools
 File: tools/measure_terrain_stats.py
 
@@ -26,13 +24,6 @@ AI Agents Notice (must follow):
 - Never upsample a patch to match a finer one: an upsampled patch invents the
   band you are about to measure. resample() refuses to.
 """
-"""
-UPD:
-- 13:08:2026 - 20:10:00: Created -- the instrument behind
-  docs/design/TERRAIN_REFERENCE.md. Seven square kilometres of real 1 m lidar,
-  put on our own 2 m grid and read with our own probes.
-"""
-
 
 # --- part 1: fetching real ground ------------------------------------------
 import json
@@ -55,10 +46,8 @@ os.makedirs(CACHE, exist_ok=True)
 os.makedirs(OURS, exist_ok=True)
 R = 6378137.0
 
-
 def merc(lat, lon):
     return R * math.radians(lon), R * math.log(math.tan(math.pi / 4 + math.radians(lat) / 2))
-
 
 def fetch(name, lat, lon, side_m=1024, res_m=1.0):
     path = os.path.join(CACHE, f"3dep_{name}_{int(side_m)}m_{res_m:g}.tif")
@@ -82,7 +71,6 @@ def fetch(name, lat, lon, side_m=1024, res_m=1.0):
     a = np.array(Image.open(path)).astype(np.float64)
     return a, res_m
 
-
 SITES = {
     # name: (lat, lon, what it is)
     "iowa_farmland":     (41.55, -93.90, "rolling Iowa cropland — the flat open field, worked"),
@@ -93,7 +81,6 @@ SITES = {
     "willamette_valley": (44.60, -123.20, "Willamette valley floor — flat bottom under hills"),
     "shenandoah_ridge":  (38.65, -78.40, "Blue Ridge — long parallel ridges, the REAL corduroy control"),
 }
-
 
 def fetch_all(side=1024.0, res=1.0):
     """Download every site in SITES and write the index the study reads."""
@@ -109,7 +96,6 @@ def fetch_all(side=1024.0, res=1.0):
             print(f"{name}: FAILED {e}", file=sys.stderr, flush=True)
     json.dump(ok, open(os.path.join(CACHE, "3dep_index.json"), "w"), indent=1)
 
-
 # --- part 2: the instruments -----------------------------------------------
 import glob
 import json
@@ -122,12 +108,10 @@ from PIL import Image
 
 GRID = 2.0  # the common ruler, metres
 
-
 def load_f32(path):
     a = np.fromfile(path, dtype=np.float32).astype(np.float64)
     n = int(round(math.sqrt(a.size)))
     return a.reshape(n, n)
-
 
 def resample(h, res_in, res_out):
     """Box-average down to res_out (never up: an upsampled patch invents band)."""
@@ -139,14 +123,12 @@ def resample(h, res_in, res_out):
     n = (h.shape[0] // f) * f
     return h[:n, :n].reshape(n // f, f, n // f, f).mean(axis=(1, 3)), res_in * f
 
-
 def detrend_plane(h):
     ny, nx = h.shape
     yy, xx = np.mgrid[0:ny, 0:nx]
     A = np.column_stack([xx.ravel(), yy.ravel(), np.ones(xx.size)])
     c, *_ = np.linalg.lstsq(A, h.ravel(), rcond=None)
     return h - (A @ c).reshape(ny, nx)
-
 
 def grad(h, res, arm_m):
     k = max(1, int(round(arm_m / res)))
@@ -156,7 +138,6 @@ def grad(h, res, arm_m):
     ny = min(gx.shape[0], gz.shape[0])
     nx = min(gx.shape[1], gz.shape[1])
     return gx[:ny, :nx], gz[:ny, :nx], arm
-
 
 def axial_spread(gx, gz, res, win_m):
     mag = np.hypot(gx, gz)
@@ -176,7 +157,6 @@ def axial_spread(gx, gz, res, win_m):
             out.append(1.0 - math.hypot(cx[j:j + k, i:i + k].sum(),
                                         cz[j:j + k, i:i + k].sum()) / ww)
     return float(np.median(out)) if out else float("nan")
-
 
 def spec(h, res):
     n = min(h.shape)
@@ -203,11 +183,9 @@ def spec(h, res):
     lam[1:] = L / np.arange(1, kmax + 1)
     return P, kr, th, rad, lam, kmax, L
 
-
 def band_k(lam, kmax, lo_m, hi_m):
     k = np.arange(1, kmax + 1)
     return k[(lam[1:kmax + 1] >= lo_m) & (lam[1:kmax + 1] <= hi_m)]
-
 
 def analyse(h, res_in, name, what=""):
     h, res = resample(h, res_in, GRID)
@@ -263,11 +241,9 @@ def analyse(h, res_in, name, what=""):
                              for k in range(1, min(kmax, 200)) if np.isfinite(rad[k])]
     return out
 
-
 HDR = (f"{'patch':26s} {'ext':>5} {'relief':>7} {'sl50':>5} {'sl90':>6} "
        f"{'ax24':>5} {'ax48':>5} {'ax96':>5} {'ax192':>5} {'beta':>5} "
        f"{'E5-10':>6} {'E10-20':>6} {'E20-40':>6} {'D10-20':>6} {'D20-60':>6}")
-
 
 def line(a):
     return (f"{a['name']:26s} {a['extent_m']:5.0f} {a['relief_m']:7.1f} "
@@ -277,7 +253,6 @@ def line(a):
             f"{a['beta_40_400m']:5.2f} {a['excess_5_10m']:6.2f} "
             f"{a['excess_10_20m']:6.2f} {a['excess_20_40m']:6.2f} "
             f"{a['D_10_20m']:6.3f} {a['D_20_60m']:6.3f}")
-
 
 def main():
     fetch_all()
@@ -307,7 +282,6 @@ def main():
         print(line(a), flush=True)
     json.dump(res, open(os.path.join(CACHE, "study.json"), "w"), indent=1)
     print("\nwrote study.json")
-
 
 if __name__ == "__main__":
     main()

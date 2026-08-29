@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 14:12:02
 Module: engine/gameplay
 File: engine/gameplay/sources/Dialogue.h
 
@@ -48,16 +46,6 @@ AI Agents Notice (must follow):
 - NEVER add speaker/time-of-speech fields to DialogueLine (Q71).
 - Never change segment_content_hash() inputs, order, or algorithm after
   audio ships.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 contract (line/segment model,
-                         conditions, per-segment content hash).
-- 09:08:2026 - 14:12:02: Quest-grill sync (lead-blessed, story-ACKed):
-                         placeholder DialogueCondition/DialogueConditionOp
-                         replaced by the closed ConditionAtom set from
-                         Condition.h; segments and segment_content_hash
-                         untouched (audio naming stays frozen).
 */
 
 #pragma once

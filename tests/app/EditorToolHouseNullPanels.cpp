@@ -1,6 +1,4 @@
 /*
-Created: 18:08:2026 - 18:02:11
-Last updated: 18:08:2026 - 18:02:11
 Module: tests/app
 File: tests/app/EditorToolHouseNullPanels.cpp
 
@@ -32,10 +30,6 @@ AI Agents Notice (must follow):
   вычисление, оно обязано переехать в EditorToolHouse.cpp — иначе оно окажется
   ровно в том месте, до которого проверка не дотягивается, а этот файл написан
   затем, чтобы такого места не было.
-*/
-/*
-UPD:
-- 18:08:2026 - 18:02:11: Создан вместе с рукавом app_editor_house.
 */
 
 #include "engine/editor/sources/EditorToolHouse.h"

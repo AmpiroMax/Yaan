@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 18:08:2026 - 12:06:09
 Module: engine/core/math
 File: engine/core/math/sources/HeightField.h
 
@@ -22,20 +20,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - BOUNDARY CONTRACT agreed core<->render<->sim (Rule 26, stage 1); field set,
   layout and height formula are FROZEN for the stage — changes only via group sync.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — HeightFieldView agreed with render
-  (meshing) and sim (terrain collision); formula height = offset + raw * scale.
-- 18:08:2026 - 12:06:09: Решётка 2.0 м / 129 -> 1.0 м / 257 (заказ пользователя 18.08:
-  «землю надо хранить точно не 2х2 метра»). НИ ОДНО ПОЛЕ НЕ ДВИНУЛОСЬ — тип и
-  формула декодирования те же, поменялись только два числа, которые он и так
-  брал из NUMBERS.md; правка совместима по исходникам со всеми тремя зонами.
-  ЗАПИСЫВАЮ ПРИЧИНУ, потому что она не «мельче — красивее»: рисуемая земля уже
-  жила на метровой воксельной решётке, а хранилась на двухметровой, и разницу
-  дорисовывала билинейная интерполяция. Три четверти узлов рисуемой поверхности
-  были её выдумкой, худшая — 6.57 м мимо настоящей земли. Теперь узел и отсчёт
-  совпадают один в один, и интерполировать нечего.
 */
 
 #pragma once

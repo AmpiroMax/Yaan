@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 22:21:30
-Last updated: 13:08:2026 - 16:45:00
 Module: engine/gameplay
 File: engine/gameplay/sources/PropCollision.h
 
@@ -60,26 +58,6 @@ AI Agents Notice (must follow):
   hash map, so bodies are created in the same order on every run.
 - Never hardcode a placement number here; the drawn placement is authoritative
   and its constants come from NUMBERS via dfn::config.
-*/
-/*
-UPD:
-- 09:08:2026 - 22:21:30: Created — buildings and boulders become solid
-                         (user request: boulders physical and jumpable,
-                         buildings collided by geometry rather than a box).
-- 13:08:2026 - 16:20:00: TREES AND LOGS BECOME SOLID, BRUSH BECOMES DRAG (the
-                         user's complaint: «деревья — не объекты физики… кусты,
-                         поваленные деревья пропускают героя»). Boles and
-                         downed logs are appended to the same merged chunk body
-                         from their own drawn triangles; bushes and brushwood
-                         go into BrushField, which costs no bodies at all.
-- 13:08:2026 - 16:45:00: The drag query skips chunks the walker cannot be
-                         standing in (what BrushField::Chunk::coord is for):
-                         0.0014 -> 0.0006 ms, and, more to the point, the cost
-                         stops being linear in CHUNK_LOAD_RADIUS, which is a
-                         number somebody will raise. Counters now say how many
-                         PLANTS became solid and draggy — "one body per chunk"
-                         says nothing about how many trees are in it, and the
-                         trees are what the budget argument is about.
 */
 
 #pragma once

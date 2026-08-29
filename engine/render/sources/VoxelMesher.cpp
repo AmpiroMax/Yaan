@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 19:40:00
-Last updated: 23:08:2026 - 00:30:00
 Module: engine/render
 File: engine/render/sources/VoxelMesher.cpp
 
@@ -19,25 +17,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep the weight packing identical to TerrainMesher's: both feed the same
   shader, and a divergence would show as two different-looking terrains.
-*/
-/*
-UPD:
-- 09:08:2026 - 19:40:00: Created with the voxel render path.
-- 10:08:2026 - 21:13:39: Rule 39 fix, render half. GrassRockBlend was drawing as
-  plain grass (rock weight 0.0) while the heightfield path drew the same
-  ground at 0.5, on the same chunk-load branch. The private switch and
-  pack_voxel_weights() are gone; one table in Materials.h serves both meshers.
-  26136 of 1183258 voxel vertices on the seed-1 testbed (2.21%, core's
-  measurement) carried the material and drew wrong.
-- 17:08:2026 - 11:53:47: альфа вершины несёт износ тропы (255 = нет тропы, поэтому мир без сети
-  даёт байт-в-байт прежние меши). Берётся из поля чанка по x/z вершины: РИСУЕМАЯ
-  земля — это ЭТОТ меш, и тропа, нарисованная где-то ещё, была бы второй
-  поверхностью поверх него — ровно той лентой, которая висела.
-- 17:08:2026 - 11:54:29: альфа вершины несёт износ тропы (255 = нет тропы, поэтому мир без сети
-  даёт байт-в-байт прежние меши). Берётся из поля чанка по x/z вершины: РИСУЕМАЯ
-  земля — это ЭТОТ меш, и тропа, нарисованная где-то ещё, была бы второй
-  поверхностью поверх него — ровно той лентой, которая висела.
-- 23:08:2026 - 00:30:00: упаковка класса полотна при заданном поле.
 */
 
 #include "engine/render/sources/VoxelMesher.h"

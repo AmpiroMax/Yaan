@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 11:19:15
-Last updated: 10:08:2026 - 11:19:15
 Module: engine/core/math
 File: engine/core/math/sources/StandVantage.h
 
@@ -29,12 +27,6 @@ AI Agents Notice (must follow):
   evidence, so producers emit CONTROLS alongside claims (the flat-glade frame
   next to the swale-floor frame, the goal-visible station next to the
   goal-hidden one) and the consumer shoots the pair or neither.
-*/
-/*
-UPD:
-- 10:08:2026 - 11:19:15: Created — the §8.1 forest stand has to be
-  photographable before it can be accepted, and the tour's vantages were the
-  testbed's.
 */
 
 #pragma once

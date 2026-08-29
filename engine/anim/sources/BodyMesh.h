@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 01:56:45
 Module: engine/anim
 File: engine/anim/sources/BodyMesh.h
 
@@ -33,10 +31,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Head segment must stay a separate mesh: first person hides it (camera sits
   inside the skull).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial segment boxes.
 */
 
 #pragma once

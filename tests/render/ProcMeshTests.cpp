@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:57:20
-Last updated: 22:08:2026 - 13:45:06
 Module: tests
 File: tests/render/ProcMeshTests.cpp
 
@@ -18,17 +16,6 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:57:20: Stage 3b — initial tests.
-- 09:08:2026 - 22:29:52: Castle mass ids 8..12 — envelope fit, hollow ward
-  with a real gate opening, determinism, and the thin-caster merlon width.
-- 09:08:2026 - 22:36:47: the blessed-id range and build_site_mesh's switch
-  can no longer drift apart silently.
-- 22:08:2026 - 13:45:06: тонкий-кастер пересчитан под SHADOW_HALF_EXTENT_M
-  320 -> 160 (мягкие тени): тексель 0.078, контроль 0.25 м СРАБОТАЛ как и
-  задумывался и перевыведен в 0.12 м.
 */
 
 #include "engine/render/sources/ProcMesh.h"

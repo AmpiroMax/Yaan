@@ -1,5 +1,3 @@
-# Created: 13:08:2026 - 16:09:00
-# Last updated: 13:08:2026 - 16:09:00
 # Module: docs/acceptance
 # File: docs/acceptance/ui-ingame-restore.txt
 #
@@ -23,12 +21,6 @@
 # AI Agents Notice (must follow):
 # - Follow docs/ARCHITECTURE.md strictly. Do not edit the field values: the
 #   frames beside this file were rendered from exactly these numbers.
-#
-# UPD:
-# - 13:08:2026 - 16:09:00: Created with the UI inventory pair (zone ui).
-#
-# Daggerfall N state capture
-# Restore with: DFN_RESTORE=<this file> DFN_MENU=0 ./dfn_app
 captured_at = 13:08:2026 - 16:03:12
 build_commit = 4ad628b+dirty
 stand = 0

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:10:00
 Module: engine/gameplay
 File: engine/gameplay/sources/InteractionSystem.cpp
 
@@ -20,24 +18,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - offer_for() is the SINGLE source of verb resolution: the reticle and the key
   press must never disagree about what a target offers.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial implementation of the four verbs.
-- 13:08:2026 - 17:30:00: THE HOVER PROBE (DFN_HOVER_PROBE). "The prompt appears
-  when the prop is in front of you and not before" is a claim about a
-  TRANSITION, and no still frame can show a transition. One row per fixed tick:
-  eye, ray hit, distance, verb, prompt key. A tick that found nothing writes a
-  row saying so, because a gap and a zero read the same and only one of them is
-  information.
-- 13:08:2026 - 18:10:00: THE FIRST ENTITY A WORLD SPAWNS COULD NOT BE
-  INTERACTED WITH. `packed()` is `index << 32 | generation`, so entity {0,0}
-  packs to 0, and update_hover threw away every hit whose user_data was 0 as
-  "no entity". The ray found the prop, the hit was discarded, and no prompt
-  appeared however carefully you aimed. Surfaced by a probe where the torch
-  happened to be entity 0 and the geometrically identical lever beside it
-  hovered perfectly. The running game escapes it only because the app spawns
-  the player and the chunk entities first — luck, not design.
 */
 
 #include "engine/gameplay/sources/InteractionSystem.h"

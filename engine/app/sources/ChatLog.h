@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 16:43:03
-Last updated: 14:08:2026 - 19:14:02
 Module: engine/app
 File: engine/app/sources/ChatLog.h
 
@@ -45,20 +43,6 @@ Notes:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. LEAD-owned zone (Rule 25), app cut.
-*/
-/*
-UPD:
-- 14:08:2026 - 16:43:03: Created -- the chat box, its snapshot attachment, the
-  agent-self-doc format (O1) and the telemetry ring (item 3).
-- 14:08:2026 - 16:48:45: Realigned to docs/MAP_LAYOUT.md (lead's correction): the
-  chat is `<map>.chat.jsonl` beside the map, JSONL with the fixed fields
-  t/who/text/capture/trajectory -- NOT an invented `chat/` folder or a key=value
-  block. Added the stand->map bridge and JSON string escaping.
-- 14:08:2026 - 19:14:02: У TelemetrySample появился столбец `capture` — путь снимка,
-  сделанного в этот момент. Просьба пользователя была, чтобы скриншот попадал «к
-  чату ... и трейсам»: запись чата отвечает, ЧТО он просил посмотреть, а этот
-  столбец — то, чего чат сказать не может: ГДЕ В ПРОГУЛКЕ это случилось. Без него
-  трейс — стена чисел без ориентира, и кадр в ней не найти.
 */
 
 #pragma once

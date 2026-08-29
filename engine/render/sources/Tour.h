@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:00
-Last updated: 10:08:2026 - 22:54:58
 Module: engine/render
 File: engine/render/sources/Tour.h
 
@@ -38,48 +36,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Public contract, frozen for the stage (Rule 26): changes only via group sync.
 - Debug tooling: keep it out of simulation and render hot paths.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:00: Initial stage-1 contract (render zone).
-- 09:08:2026 - 00:45:00: Stage 2 — added internal_res_from_env (DFN_INTERNAL_RES
-  override for the 640x360 vs 320x180 user decision) and screenshot flush
-  phase state (bgfx captures asynchronously into the following frame).
-- 09:08:2026 - 10:29:00: default_steps(ground_height = 0.0f) — vantages are now
-  offset by the terrain height at the chunk center. Root cause of the
-  "vertically flipped image" report: the old absolute eye heights (ground
-  assumed at y=0) sat 14-22 m UNDER the generated surface (~24 m at the
-  center, seed 1), so frames showed the terrain underside above the horizon —
-  terrain on top, sky below. Render orientation itself was correct (frame 03
-  from y=60 proved it). Defaulted parameter, source-compatible; lead sync per
-  Rule 26 recorded via team channel 09:08:2026.
-- 09:08:2026 - 11:57:20: Stage 3b Tour v3 (lead-approved batch): additive
-  TourStep::ground_relative, begin(..., ground_at) lazy ground resolution
-  (far vantages' chunks are not resident at arm time), focus_position() so
-  the app can stream around the tour camera, testbed_steps() — the
-  LANDSCAPE §7.1 route (crag/river/lake/hamlet/forest/overview).
-- 09:08:2026 - 17:33:00: map_probe_steps() — the single-frame map screen
-  evidence route; testbed_steps() returns it when DFN_MAP is set.
-- 09:08:2026 - 18:44:00: thin_shadow_probe_steps() (DFN_SHADOW_PROBE).
-- 09:08:2026 - 23:32:07: font_probe_steps() (DFN_FONT_PROBE).
-- 09:08:2026 - 19:32:00: sky_probe_steps() (DFN_SKY_PROBE, hour via DFN_TIME).
-- 09:08:2026 - 21:20:00: massif_probe_steps() (DFN_MASSIF_PROBE=1|2) — design's
-  §7.1b verdict/rhythm vantages.
-- 09:08:2026 - 22:19:03: crag_acceptance_steps() (DFN_CRAG_PROBE=1) — the crag
-  from four bearings at 253 m and 300 m. The 600/717 m vantage everyone was
-  waiting on LOD for was sized for LR, the temple mountain, which exists in
-  NUMBERS and in the design doc and in no code path; the testbed's only real
-  landform is the crag, whose equivalent range is well inside streaming.
-- 10:08:2026 - 03:10:00: cloud_probe_steps() (DFN_CLOUD_PROBE=1) — the W4
-  acceptance pair: shadow-patterned valley + upwind cumulus horizon.
-- 10:08:2026 - 12:12:40: stand_steps()/vantage_steps() — the tour shoots whatever stand is
-  open, from the standpoints the stand publishes; DFN_VANTAGE filters, and
-  admits a claim's _control with it.
-- 10:08:2026 - 22:54:58: flora_probe_steps() (DFN_FLORA_PROBE=1|2) — the canopy-speckle
-  probe, declared here because it is the first route built to be shot TWICE:
-  DFN_FLORA_STEP slides the eye along its own forward vector and 0.05 m is one
-  120 fps frame at RUN_SPEED, which is the user's «при беге трясет» in a form a
-  pixel diff can read.
 */
 
 #pragma once

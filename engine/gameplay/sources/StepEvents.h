@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:53:17
-Last updated: 10:08:2026 - 01:53:17
 Module: engine/gameplay
 File: engine/gameplay/sources/StepEvents.h
 
@@ -35,10 +33,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Do not add a second publisher: the stride clock in PlayerState is THE step
   clock (Rule 35, state form; agreed with character 10:08:2026).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:53:17: Created for the landscape stage (шаг как событие).
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 27:08:2026 - 00:36:20
-Last updated: 27:08:2026 - 21:14:00
 Module: engine/app
 File: engine/app/sources/MenuArt.cpp
 
@@ -10,14 +8,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone app (lead) owns this file.
-*/
-/*
-UPD:
-- 27:08:2026 - 00:36:20: Создан вместе с заголовком.
-- 27:08:2026 - 21:14:00: Поле пылинок заменено ПОЛЕМ КОМЕТ (заказ владельца,
-  три правки из четырёх — плотнее, цвета студии, вверх со шлейфом и с жизнью).
-  Устройство и все числа — в комментарии у Spark; заведена дверь фазы
-  DFN_MENU_SPARK_PHASE, без которой две руки замера снимали бы разные поля.
 */
 
 #include "engine/app/sources/MenuArt.h"

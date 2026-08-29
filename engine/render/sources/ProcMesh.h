@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 11:57:20
-Last updated: 13:08:2026 - 17:25:00
 Module: engine/render
 File: engine/render/sources/ProcMesh.h
 
@@ -38,32 +36,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Keep building pure and deterministic (fixed seeds); no GPU, no ECS access.
 - Mesh ids 1..12 are a cross-zone agreement — never renumber unilaterally.
-*/
-/*
-UPD:
-- 09:08:2026 - 11:57:20: Stage 3b — initial placeholder mesh catalog.
-- 09:08:2026 - 20:05:00: pack/tri/quad exposed for the flora agent's ProcFlora
-  (same directory, its own files) instead of being duplicated there.
-- 09:08:2026 - 22:33:38: CASTLE MASS, ids 8..12 (§6.1.3). Until now
-  build_site_mesh handled 1..7 and returned an EMPTY mesh above that, and the
-  ECS pass returns silently on a cache miss — so Harrowward existed as entities
-  and as a map marker and was INVISIBLE in the world. sim found it while
-  building prop collision from these same triangles, which means the castle
-  also had no collision: you walked through it. Ids 8..12 mirror
-  SiteComponents' envelopes exactly.
-- 09:08:2026 - 22:38:03: the RenderMesh id map is written down (site 1..12, world's growth
-  room 13..31, view model 32/33, items 64..127) — agreed with sim, because two
-  zones picking the same number is a bug nobody finds until it draws.
-- 10:08:2026 - 02:30:08: Id map: 34..49 blessed for the character zone's body
-  segments (registered via RenderSystem::register_mesh, never built here).
-- 13:08:2026 - 17:25:00: Id map: 50..63 blessed for sim's interactable
-  placeholders (50 door, 51 lever, 52 torch; 53..63 spare). COMMENT ONLY, by
-  the lead's carve — not one line of executable code in this zone changed.
-  Written down here because the range those props would naturally have taken,
-  64..127, is RESERVED for sim and simultaneously REFUSED by register_mesh, so
-  nothing has ever been uploaded into it — the same root as the view-model hand
-  that "drew as nothing". Reported to the lead as a separate finding; not fixed
-  here, because it is render's code and render's call.
 */
 
 #pragma once

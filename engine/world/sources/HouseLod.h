@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 18:29:43
-Last updated: 28:08:2026 - 18:29:43
 Module: engine/world
 File: engine/world/sources/HouseLod.h
 
@@ -31,10 +29,6 @@ AI Agents Notice (must follow):
 - ВЫБОР СТУПЕНИ — ЧИСТАЯ ФУНКЦИЯ (house_lod_for_distance), и проверяется она
   без рендера, окна и мира: гистерезис ловится только проходом по краю полосы
   туда и обратно.
-*/
-/*
-UPD:
-- 28:08:2026 - 18:29:43: Создан — волна LOD построек (И13).
 */
 
 #pragma once

@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:32:07
-Last updated: 27:08:2026 - 15:10:00
 Module: engine/render
 File: engine/render/sources/BitmapFont.h
 
@@ -46,15 +44,6 @@ AI Agents Notice (must follow):
 - If you add glyphs, add the codepoint to font_slot_for_codepoint AND to the
   table; FontTests asserts that every mappable codepoint has real art, so a
   half-done addition fails a test instead of shipping a block.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:32:07: Created. The project's first font (BOARD.md named it
-  the main bottleneck: four finished features blocked on one missing asset).
-- 27:08:2026 - 15:10:00: draw_text/text_width_px берут ЦЕЛЫЙ множитель пикселя.
-  Холст интерфейса вырос с 640 до 1920 (FullHD, 27.08), и всё, что рисуется
-  этим шрифтом 1:1, стало вчетверо мельче вчерашнего на том же экране. Довод
-  за целый множитель — у самого параметра.
 */
 
 #pragma once

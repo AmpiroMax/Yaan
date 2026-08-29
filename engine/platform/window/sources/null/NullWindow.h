@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 14:00:00
 Module: engine/platform/window
 File: engine/platform/window/sources/null/NullWindow.h
 
@@ -18,15 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Must stay dependency-free; behavior must satisfy every IWindow postcondition.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation.
-- 17:08:2026 - 16:27:55: полный экран — тихий отказ: нечего показывать, нечего разворачивать.
-- 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
-- 27:08:2026 - 14:00:00: set_size() принимается: у безголового окна
-  размер — единственное, что у него есть, и счётный прогон, попросивший другой
-  кадр, обязан его получить.
 */
 
 #pragma once

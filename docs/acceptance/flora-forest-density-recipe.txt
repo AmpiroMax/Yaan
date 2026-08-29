@@ -1,5 +1,3 @@
-# Created: 13:08:2026 - 19:36:00
-# Last updated: 13:08:2026 - 20:55:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-forest-density-recipe.txt
 #
@@ -24,29 +22,6 @@
 #   compile-time constant with no dose door, so the arms are two builds. What
 #   makes the pair a controlled comparison instead of two pictures is written
 #   out and was verified, not assumed.
-#
-# UPD:
-# - 13:08:2026 - 19:36:00: Created with the pair for the 5-7 m ruling.
-# - 13:08:2026 - 20:19:00: THE COLONNADE RUN TO GROUND. Four hypotheses tested
-#   by measurement and three refuted; the surviving explanation is arithmetic
-#   and needs no hypothesis. Three material frames archived
-#   (flora-colonnade-*-3353b17.png).
-# - 13:08:2026 - 20:20:00: TWO CLAIMS IN THE 19:35 SECTION CORRECTED IN PLACE,
-#   with the original text left visible so the correction can be checked rather
-#   than trusted: the "dark wood" column measured BRIGHTNESS and counted dark
-#   leaves as trunk; "the frame is what that looks like" about the LOD ladder is
-#   withdrawn (forcing the far LOD moves the band 72.1 -> 73.1 %); and "at this
-#   vantage every tree is at Reduced LOD" was assumed and is false -- nothing
-#   has ever drawn Reduced.
-# - 13:08:2026 - 20:49:00: THE AIR MEASURED AND THE THIRD LEVER REFUTED, and
-#   every number in this file re-taken with the CLOCKS PINNED
-#   (DFN_VISTIME + DFN_WIND_FREEZE) after the sky was found to have two clocks.
-#   Conclusions unchanged; the readings moved by 1-2 points and are restated.
-# - 13:08:2026 - 20:55:00: THE NINTH HYPOTHESIS NAMED WITH ITS INSTRUMENT for
-#   whoever picks this up next (LEAD's, not measured — say so). Plus: several UPD
-#   stamps in this file and in the flora sources were written AHEAD of the wall
-#   clock earlier this session and have been corrected against the commit times.
-#   A record whose stamps are invented is a record nobody can put in order.
 
 THE QUESTION
 
@@ -181,7 +156,6 @@ WHAT THESE FRAMES DO NOT CERTIFY
     bright at 400 m, hue surviving, identical in both flora arms). It is
     render's, it is not caused by spacing, and it is visible in both frames.
 
-
 ================================================================================
 THE COLONNADE, RUN TO GROUND (13.08.2026) — flora-colonnade-*-3353b17.png
 ================================================================================
@@ -274,7 +248,6 @@ ONE SENTENCE WORTH KEEPING, FROM THE FAR-LOD WORK RATHER THAN FROM THESE FRAMES
   "improved" by shrinking the crown; any far-LOD criterion written on it needs
   the built width asserted beside it or it will be met by making the tree small.
 
-
 ================================================================================
 THE AIR (13.08.2026) — THE THIRD LEVER, MEASURED AND REFUTED
 ================================================================================
@@ -343,7 +316,6 @@ view at 6 m spacing. Bringing that to 30 % would need a bole of 0.21 m — a
 sapling. The three levers named earlier reduce to one: d/s, the bole over the
 spacing. The picture IS the spacing, and what to do about that is the user's
 call, not ours.
-
 
 ================================================================================
 THE NINTH HYPOTHESIS — NAMED, NOT MEASURED (LEAD, 13.08.2026)

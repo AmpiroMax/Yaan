@@ -1,5 +1,4 @@
 #
-# Created: 27:08:2026 - 02:10:00
 # Module: tools
 # File: tools/gen_intro.py
 #
@@ -55,12 +54,6 @@
 # - ИСХОДНИК — ФАЙЛ БРЕНДА, А НЕ КОПИЯ ЕГО ФОРМЫ. Логотип не перерисовывается
 #   здесь кодом ни при каких обстоятельствах: assets/branding/README.txt —
 #   единственный владелец того, как выглядит знак студии.
-#
-# UPD:
-# - 27:08:2026 - 02:10:00: Создан — интро предзаписанным видео (заказ владельца
-#   27.08). До него заставка рисовалась в кадре (draw_studio_splash) и висела
-#   неподвижно, потому что часы меню стояли (см. UPD App.cpp того же дня).
-#
 import argparse
 import io
 import os
@@ -111,22 +104,18 @@ LOGO_BOX_FRACTION = 0.60
 SCALE_START = 0.965
 SCALE_PEAK = 1.000
 
-
 def smoothstep(x):
     x = max(0.0, min(1.0, x))
     return x * x * (3.0 - 2.0 * x)
-
 
 def ease_in(x):
     """Медленное начало, быстрый конец — «появляется ИЗ черноты», а не включается."""
     x = max(0.0, min(1.0, x))
     return x * x * x
 
-
 def ease_out(x):
     x = max(0.0, min(1.0, x))
     return 1.0 - (1.0 - x) ** 2.2
-
 
 def box_blur(img, radius):
     """Разделимое коробчатое размытие. Трижды подряд оно почти неотличимо от
@@ -146,7 +135,6 @@ def box_blur(img, radius):
         out = (cum[:, k:k + out.shape[1]] - cum[:, :out.shape[1]]) / k
     return out
 
-
 def load_logo_premultiplied():
     """Знак студии, снятый со своей подложки и умноженный на альфу.
 
@@ -162,7 +150,6 @@ def load_logo_premultiplied():
     dist = np.abs(rgb - ground).max(axis=2)
     alpha = np.clip(dist / KEY_TOLERANCE, 0.0, 1.0)
     return rgb * alpha[..., None], ground
-
 
 def envelope(t):
     """(яркость, сила глоу, масштаб) в момент t секунд."""
@@ -191,7 +178,6 @@ def envelope(t):
         # Глоу гаснет МЕДЛЕННЕЕ знака: последнее, что остаётся в кадре, — свет.
         return k, 0.55 * (1.0 - ease_out(min(1.0, x * 0.85))), SCALE_PEAK
     return 0.0, 0.0, SCALE_PEAK
-
 
 def render_frame(logo, width, height, t):
     brightness, glow_gain, scale = envelope(t)
@@ -227,7 +213,6 @@ def render_frame(logo, width, height, t):
     r2 = (yy[:, None] ** 2) * 0.75 + (xx[None, :] ** 2) * 0.55
     frame *= (1.0 - 0.22 * np.clip(r2, 0.0, 1.0))[..., None]
     return Image.fromarray(np.clip(frame, 0.0, 255.0).astype(np.uint8))
-
 
 def main():
     ap = argparse.ArgumentParser(description="печёт интро студии в .dfv")
@@ -269,7 +254,6 @@ def main():
     sys.stderr.write("gen_intro: %s — %.2f МБ, %d кадров, %.2f c\n"
                      % (args.out, total / (1024 * 1024), frames,
                         frames * FPS_DEN / FPS_NUM))
-
 
 if __name__ == "__main__":
     main()

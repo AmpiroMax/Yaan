@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:12:44
-Last updated: 13:08:2026 - 23:50:00
 Module: engine/render
 File: engine/render/sources/FloraSkeleton.h
 
@@ -28,43 +26,6 @@ AI Agents Notice (must follow):
   survives only if a node came within the kill distance of it. Anything that
   places foliage from a volume instead of from this skeleton reintroduces the
   defect the user rejected on 09.08.2026 — see flora_algorithms.md §0.1.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:12:44: Created — space colonization + whorls, replacing the
-  recursive branch generator and the envelope-scattered crown.
-- 12:08:2026 - 00:20:00: CrownVolume::axis (the crown follows a leaning bole)
-  and FractalParams / fractal_skeleton() -- the great oak's recursive grower,
-  the third growth model in this file.
-- 12:08:2026 - 00:36:00: FractalParams gains a bounding cylinder (top_y,
-  max_radius, axis). Measured: unclipped ramification grew a 46 m great oak's
-  wood to 90.8 m -- twice its declared height -- because every generation adds
-  its length to whatever the last one reached, and the species height band is a
-  cross-zone contract.
-- 13:08:2026 - 16:20:00: LEAVES GROW OUT OF BRANCHES (user, 13.08.2026:
-  «листья должны из веток расти»). gather_shoot_anchors() places every foliage
-  mass ON a branch segment with a bounded stand-off, and gather_foliage_anchors
-  is demoted to the zero-dose arm with a note on what it really did — its
-  cluster centres are cloud CENTROIDS, so they are on no branch, and the
-  attachment invariant this file declares was satisfied in name only (measured:
-  a Dale Oak's cards a mean 1.39 m and a worst 4.59 m from the nearest wood).
-  Plus FractalParams::major_base_drop -- the first-order limbs leave the bole
-  over a length of it instead of all from its tip (a wine glass).
-- 13:08:2026 - 19:45:00: FractalParams gains the shyness boundaries -- a shoot
-  that would cross one STOPS and carries its foliage at the stop. This is space
-  colonization's kill rule arriving in the other grower: suppression where the
-  space is taken is why shyness fell out of that algorithm for free, and it is
-  the property this file gave up when ramification replaced it. Plus the two
-  numbers that stop the rule degenerating: the wood stops one leaf-mass SHORT of
-  the channel (or the crown closes what the wood respected), and a crown floor,
-  without which a dense stand vetoes every limb on its first step and grows a
-  forest of foliage COLUMNS.
-- 13:08:2026 - 23:50:00: ShootFoliage::leaf_span_frac -- the outer fraction of
-  a branch that may carry leaf, measured ALONG THE BRANCH instead of through the
-  node radius that stood in for it. The proxy is what the frame caught: leaf on
-  the last twig of every branch and nothing inboard. MEASURED AND REFUTED as a
-  cure, see FloraSkeleton.cpp; the field stays because it measures the right
-  quantity, and it ships at 1.0, which is no restriction.
 */
 
 #pragma once

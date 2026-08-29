@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:47:53
-Last updated: 28:08:2026 - 11:14:50
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererImpl.h
 
@@ -26,91 +24,6 @@ AI Agents Notice (must follow):
   symbol from here, that is a contract question for the lead, not an include.
 - Constants that are look-dev values (SKY_COLOR_RGBA lives with the frame
   pass) are flagged on the NUMBERS.md migration list (Rule 14).
-*/
-/*
-UPD:
-- 10:08:2026 - 01:47:53: Created in the Rule 21 split of BgfxRenderer.cpp
-  (1424 lines against the 800 ceiling). All state and constants moved
-  verbatim; no behaviour change.
-- 10:08:2026 - 03:04:00: ENV_PARAM_VEC4S 33 -> 35 (cloud slots 33/34, the
-  W4 coverage-field state — change paired with dfn_env.sh per the contract).
-- 10:08:2026 - 20:01:43: SHADOW_CASTER_MIN_FADE — a dissolving draw was fully
-  present in the sun shadow map, so a terrain LOD cross-fade put two versions
-  of the same ground in it at once and the visible one landed in the other's
-  shadow.
-- 11:08:2026 - 13:38:39: ENV_PARAM_VEC4S 36 -> 37 (slot 36 = the AIR: HAZE_SCALE_LENGTH /
-  HAZE_HEIGHT_SCALE, aerial perspective / REFERENCE_FRAMES.md R1, same
-  generated-header route as the sun's body).
-- 10:08:2026 - 20:10:49: ENV_PARAM_VEC4S 35 -> 36 (slot 35 = the sun's body,
-  paired with dfn_env.sh per the layout contract).
-- 10:08:2026 - 23:24:48: Impl::internal_samples (MSAA sample count of the
-  internal target) and Impl::mipped_textures (cutout masks that carry a mip
-  chain). Both exist for the coverage-antialiasing fix; see
-  BgfxRenderer.cpp's internal-target block and docs/specs/render.md.
-- 11:08:2026 - 14:24:26: ENV_PARAM_VEC4S 37 -> 38 (slot 37 = the MIST BAND, R2).
-- 13:08:2026 - 16:10:00: THE NEAR CASCADE (SHADOW_NEAR_*), and the view ids
-  shifted by one to make room for it (VIEW_SHADOW_NEAR = 1, point shadows now
-  from 2). It is the remedy this file had already named for itself and R6b
-  finally sized: the far map's 0.156 m texel is 2-3x COARSER than the leaf
-  mask's own texel (0.047-0.086 m), so the map is a 0.31 m low-pass on the
-  canopy and passes only the blob. 4096 over 40 m = 0.0195 m fixes the
-  bandwidth, not the amount — the dose arms say the amount was never the
-  problem.
-- 13:08:2026 - 18:10:00: ENV_PARAM_VEC4S 38 -> 39 (slot 38 = THE FILL'S
-  DIRECTION) plus FILL_UP_DEFAULT / FILL_SUN_DEFAULT. Measured before it was
-  touched: a bole standing in its own canopy's shadow ran p90/p10 = 1.01x over
-  228 pixels — one colour — because dfn_surface_light's shadow half-space had no
-  surface normal in it at all. Paired with dfn_env.sh per the layout contract.
-- 13:08:2026 - 18:18:00: FILL_SUN_DEFAULT 0.25 -> 0.30 with the corrected fill
-  shape (see dfn_env.sh): the sun term is now the ONLY one a vertical bole can
-  use, the up term having been narrowed to undersides so it cannot dim a trunk.
-- 16:08:2026 - 22:07:38: ENV_PARAM_VEC4S 40 -> 41 (slot 40 = THE FOLIAGE EDGE
-  FADE band, lo/hi in |dot(N, V)|). Взят НОВЫЙ слот, а не свободная компонента
-  36.w/37.w вопреки заметке ниже: величины ДВЕ и они пара, а пара, разложенная
-  по двум чужим слотам («воздух» и «полоса тумана»), — это ровно то соседство,
-  которое через месяц никто не объяснит. Обе стороны контракта правятся здесь и
-  в dfn_env.sh одним заходом и сразу собираются.
-- 13:08:2026 - 18:52:00: ENV_PARAM_VEC4S 39 -> 40 (slot 39 = THE CLOUD DECK
-  ALTITUDES, R3.4). Raised in its OWN step, before any shader reads the slot:
-  a fragment shader that indexes past the declared array is undefined, and the
-  half of this contract that lives in dfn_env.sh is one line away from the half
-  that lives here. This file's own history shows the pattern (33->35, 35->36,
-  36->37, 37->38, 38->39) and today it was broken once already.
-- 13:08:2026 - 18:50:00: SHADOW_DIR_SNAP_RAD — the light DIRECTION now snaps to
-  an angular grid, which is the missing half of the texel snap this file has
-  had since day one. Measured with tools/measure_shadow_jitter.cpp, not on
-  frames: the grid slid 0.1720 texels per frame and stepped a whole 0.156 m
-  texel 11.5 times a second, against the sun's own 0.36 mm of shadow motion in
-  that time; now 0.0037 texels, median exactly zero, 0.1 events per second.
-- 13:08:2026 - 18:59:13: Состояние на момент, когда все восемь зон были остановлены случайным прерыванием. Дерево СОБИРАЕТСЯ; красными остаются пять тестов, каждый назван в сообщении коммита. Сохранено, чтобы работа зон не потерялась, а не потому, что она закончена.
-- 14:08:2026 - 16:35:53: В28 hooks state: MeshRes::tri_count, and the Impl block
-  for wireframe + frame stats + the centre pick (accumulated in submit, latched
-  in end_frame). wireframe_on() folds in the DFN_WIREFRAME door.
-- 15:08:2026 - 15:23:22: s_tex_aux (стадия 4) и нейтральная нормаль 1×1 — хранилище второго
-  материального листа дро (нормали коры, запрос зоны flora).
-- 17:08:2026 - 10:14:36: capture_fb + состояние чтения назад (VIEW_CAPTURE).
-- 17:08:2026 - 19:17:13: VIEW_IMGUI и VIEW_IMGUI_CAPTURE — слой интерфейса редактора поверх бэкбуфера и поверх capture_fb. Два вида, а не один: у них разные цели И вид bgfx несёт ОДНО преобразование на весь кадр, поэтому переиспользование VIEW_CAPTURE затёрло бы преобразование, под которым подавался upscale.
-- 18:08:2026 - 12:51:47: present_x/y/w/h — отведённый под мир прямоугольник, долями кадрового
-  буфера. Умолчание — весь экран; редактор ужимает его под свою полосу, чтобы
-  мир физически не заходил под интерфейс.
-- 22:08:2026 - 13:45:06: МЯГКИЕ ТЕНИ (решение владельца, отменяет в1 «жёсткие
-  пиксельные края идут стилю»): SHADOW_SOFT_SPREAD_TEXELS + u_shadow_soft —
-  3x3 PCF в dfn_shadow.sh, дверь дозы DFN_SHADOW_SOFT (0 = прежний одиночный
-  тап бит-в-бит). Парой к нему SHADOW_HALF_EXTENT_M 320 -> 160: это
-  ПРЕДУСЛОВИЕ, а не соседняя правка — ядро расширяет низкочастотный срез
-  карты, и на 0.156 м/тексель оно вернуло бы баг 09.08 «у берёзы тень только
-  от кроны»; вдвое мельче тексель ровно компенсирует расход ядра.
-- 22:08:2026 - 15:05:00: AMBIENT_OVERCAST_GAIN — пасмурность возвращает куполу
-  забранное у ключа (вывод из сохранения энергии в комментарии константы);
-  цена 160 м переписана честно: полоса 160..300 м без теней и без тумана —
-  предусловие городского пресета воздушной перспективы.
-- 23:08:2026 - 00:30:00: s_tex_path — сэмплер путевого атласа (стадия 5).
-- 23:08:2026 - 01:40:00: ENV_PARAM_VEC4S 41 -> 49 — слоты 41..48 коробки комнат светов (пара с dfn_env.sh).
-- 23:08:2026 - 06:30:00: u_ps_near — ближний exclude кубовой тени.
-- 22:08:2026 - 23:48:18: ENV_PARAM_VEC4S 49 -> 50 (слот 49 — маска троп, пара с dfn_env.sh); s_tex_path_mask (стадия 6).
-- 23:08:2026 - 02:47:15: ENV_PARAM_VEC4S 50 -> 51 (слот 50 — россыпь доз волны 23.08, пара с dfn_env.sh).
-- 23:08:2026 - 18:00:21: ENV_PARAM_VEC4S 51 -> 75 — хвост светов 8..15 (pos 51.., col 59.., room 67..; пара с dfn_env.sh).
-- 28:08:2026 - 11:14:50: поле u_mat_params — хендл uniform'а материала (зона МАТЕРИАЛЫ, 28.08).
 */
 
 #pragma once

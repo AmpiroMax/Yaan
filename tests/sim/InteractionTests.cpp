@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 18:56:32
-Last updated: 13:08:2026 - 18:25:00
 Module: tests
 File: tests/sim/InteractionTests.cpp
 
@@ -21,27 +19,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - has_item semantics here are contract with story: total count of an ItemId.
-*/
-/*
-UPD:
-- 09:08:2026 - 18:56:32: Initial four-verb + inventory + save suite; torch
-                         held/lit state.
-- 09:08:2026 - 20:28:17: Carried-light bridge case, pinning the hand
-                         offset above the feet (a "down from the origin"
-                         offset would bury the light).
-- 10:08:2026 - 21:06:27: UNBLOCKED. core's BinaryReader/BinaryWriter are
-                         implemented (sim, under a lead carve), so the two
-                         persistence cases below now LINK and RUN as authored —
-                         DFN_SIM_HAVE_BINARY_IO defaults to 1. Not one
-                         assertion in them was edited: they were written before
-                         the implementation existed and by a different pass,
-                         which is what makes them evidence rather than a
-                         restatement of the code.
-- 13:08:2026 - 18:25:00: The three spawn descs use DESIGNATED initialisers.
-  They were positional, so `InteractableDesc` gaining a field in the middle
-  (mesh_asset) silently re-aimed every argument after it -- the compiler caught
-  it this time only because the types happened to disagree. A positional
-  aggregate of nine fields is a trap that fires quietly the once it does not.
 */
 
 #include <doctest/doctest.h>

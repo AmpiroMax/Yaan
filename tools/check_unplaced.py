@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 22:08:2026 - 22:40:00
-# Last updated: 22:08:2026 - 22:40:00
 # File: tools/check_unplaced.py
 #
 # Responsibility:
@@ -29,11 +27,6 @@
 #   раскладки, а не в данных, и прибор его знать не может. Он обязан отделить
 #   «причина известна» от «проверь, почему» — и не притворяться, что знает
 #   больше.
-#
-# UPD:
-# - 22:08:2026 - 22:40:00: Создан. Заведён по одобрению архитектора после того,
-#   как разовый прогон нашёл три неразмещённых рецепта разного происхождения.
-#
 from __future__ import annotations
 
 import os
@@ -60,7 +53,6 @@ KNOWN = {
     "city-plaza20.dfh": "то же, что city-plaza12",
 }
 
-
 # ЗАКОННО НЕИСПОЛЬЗОВАННЫЕ ПО ОБРАЗЦУ ИМЕНИ. Семейство наклонных кусков — это
 # МЕНЮ: раскладка берёт ближайший к уклону участка, и часть уклонов не
 # понадобится по построению. Ругаться на них значит топить настоящие находки в
@@ -70,7 +62,6 @@ KNOWN_PATTERNS = [
      "запас семейства уклонов: раскладка берёт ближайший, остальные ждут"),
 ]
 
-
 def reason_for(name: str):
     if name in KNOWN:
         return KNOWN[name]
@@ -79,11 +70,9 @@ def reason_for(name: str):
             return why
     return None
 
-
 def placed_in(scene: str) -> set[str]:
     text = open(scene, encoding="utf-8").read()
     return set(re.findall(r"([A-Za-z0-9_-]+\.dfh)", text))
-
 
 def main(scene: str, houses: str) -> int:
     placed = placed_in(scene)
@@ -113,7 +102,6 @@ def main(scene: str, houses: str) -> int:
         for f in known:
             print(f"  {f}\n      {reason_for(f)}")
     return 0  # прибор СООБЩАЕТ, а не ругается
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1] if len(sys.argv) > 1

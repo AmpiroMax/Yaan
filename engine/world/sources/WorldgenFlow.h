@@ -1,6 +1,4 @@
 /*
-Created: 13:08:2026 - 21:50:00
-Last updated: 13:08:2026 - 21:50:00
 Module: engine/world
 File: engine/world/sources/WorldgenFlow.h
 
@@ -43,11 +41,6 @@ AI Agents Notice (must follow):
   chunk cannot compute it, and a chunk that tried would produce channels that
   stop at its own border. One grid per world, built at context build, read and
   interpolated by every chunk -- the same shape ErosionGrid already uses.
-*/
-/*
-UPD:
-- 13:08:2026 - 21:50:00: Created -- valleys where the water runs, replacing the
-  fixed-pitch comb.
 */
 
 #pragma once

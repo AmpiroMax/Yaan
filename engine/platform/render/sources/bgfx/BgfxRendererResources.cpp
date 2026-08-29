@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:47:53
-Last updated: 17:08:2026 - 19:17:13
 Module: engine/platform/render
 File: engine/platform/render/sources/bgfx/BgfxRendererResources.cpp
 
@@ -27,25 +25,6 @@ AI Agents Notice (must follow):
   returns BGFX_INVALID_HANDLE on pool exhaustion and destroying it in release
   walks off an array at shutdown. Every create is validated, every destroy
   guarded by bgfx::isValid.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:47:53: Created in the Rule 21 split of BgfxRenderer.cpp.
-  Handle bookkeeping moved verbatim; no behaviour change.
-- 10:08:2026 - 23:24:48: COVERAGE ANTIALIASING ON THE INTERNAL TARGET — the
-  user's oldest complaint («при беге трясет», «всё дергает и перерисовывается
-  очень рябью»). MSAA 4x on the internal colour+depth target (DFN_MSAA=0|2|4|8),
-  an alpha-weighted mip chain for cutout MASKS only, and
-  BGFX_STATE_BLEND_ALPHA_TO_COVERAGE on the cutout path. Measured, one 0.05 m
-  stride at RUN_SPEED, DFN_WIND_FREEZE=120, 640x360, palette off, control
-  0.000 %: near canopy 0.864 -> 0.621 %, treeline 0.094 -> 0.004 %. MSAA ALONE
-  IS WORTH ALMOST NOTHING (0.819 / 0.080) and MSAA 8x equals 4x to three
-  digits — the residual pixels are not partially covered, they are written or
-  discarded, so the fix had to reach the MASK. Details and the palette-on
-  numbers in docs/specs/render.md.
-- 14:08:2026 - 16:35:53: create_mesh records MeshRes::tri_count (index_count / 3)
-  for the В28 frame-stats and centre-pick hooks.
-- 17:08:2026 - 19:17:13: native_texture_handle — индекс bgfx по нашему TextureHandle, для моста ImGui. Ни владения, ни времени жизни: одно имя.
 */
 
 #include "engine/platform/render/sources/bgfx/BgfxRendererImpl.h"

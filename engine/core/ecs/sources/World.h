@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:16:55
-Last updated: 09:08:2026 - 21:37:57
 Module: engine/core/ecs
 File: engine/core/ecs/sources/World.h
 
@@ -24,16 +22,6 @@ AI Agents Notice (must follow):
   in a chunk load/unload is a violation.
 - Public surface frozen per stage-1 contract; template bodies live in-header
   (templates), non-template bodies in World.cpp.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:16:55: Stage 1 contract — Quicky ECS World plus batch
-  spawn/destroy, batch component attach, and the GroupId index for chunk
-  streaming (Q22, Rule 11); shape agreed with sim/render via Rule 26 messages.
-- 09:08:2026 - 00:42:03: Stage 2 — implemented. Private section: stage-1 pimpl
-  replaced by concrete members (template methods need member access in-header);
-  public surface unchanged.
-- 09:08:2026 - 21:37:57: add() documents the value categories it accepts (sim's report); the lvalue path is fixed in ComponentPool via a const-lvalue overload.
 */
 
 #pragma once

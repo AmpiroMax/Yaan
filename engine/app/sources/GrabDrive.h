@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 13:55:00
-Last updated: 28:08:2026 - 13:55:00
 Module: engine/app
 File: engine/app/sources/GrabDrive.h
 
@@ -38,11 +36,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Зона big-grab владеет этим файлом.
 - ЧИСЛА ЗДЕСЬ — НАСТРОЙКА ОЩУЩЕНИЯ, а не свод (правило 14 не нарушено: в
   NUMBERS.md они не поднимаются, пока о них не договорились две зоны).
-*/
-/*
-UPD:
-- 28:08:2026 - 13:55:00: Создан. Заказ владельца 28.08, пункт «зажав E,
-  поднимать объекты, держать».
 */
 
 #pragma once

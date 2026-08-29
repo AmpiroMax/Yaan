@@ -1,5 +1,3 @@
-# Created: 13:08:2026 - 23:33:00
-# Last updated: 14:08:2026 - 00:42:00
 # Module: docs/acceptance
 # File: docs/acceptance/flora-united-bole-recipe.txt
 #
@@ -20,16 +18,6 @@
 # AI Agents Notice (must follow):
 # - Follow docs/ARCHITECTURE.md strictly. Both arms are ONE binary; the door
 #   is DFN_FLORA_ONEBOLE (=0 restores the invisible-trunk growth).
-#
-# UPD:
-# - 13:08:2026 - 23:33:00: Created with the ea605cd pair and the close-up.
-# - 14:08:2026 - 00:04:00: THE LEAF-PACKS SHIPMENT (e562363) appended: the
-#   pair flora-leaf-packs-*-e562363.png and the new close-up. The «what these
-#   frames do not certify» clause of 23:33 is now half-answered: the crowns
-#   are masses. The bole arc (complaint 3) remains.
-# - 14:08:2026 - 00:42:00: THE TRUNK-ARC SHIPMENT (3877876) appended: the arc
-#   pair, the new close-up, and the treeline frame that NAMES the top
-#   residual (bare-leader antlers own the skyline).
 
 THE DEFECT, AS A NUMBER (probe: per level-1 branch base, distance from its
 start point to the drawn wood; 12 variants x 3 broadleaves, Full, one binary)
@@ -83,7 +71,6 @@ WHAT THESE FRAMES DO NOT CERTIFY
     crown got DEEPER (2.65 -> 4.21) and Reduced now lags it; re-measured with
     the cluster change, which moves both arms.
 
-
 ================================================================================
 THE LEAF PACKS + THE SIGN FLIP (14.08.2026) — flora-leaf-packs-*-e562363.png
 ================================================================================
@@ -115,7 +102,6 @@ WHAT THESE FRAMES DO NOT CERTIFY
     wind lean still stack one way (ProcFlora.cpp bend = sweep + lean).
   - The pack card still shows ONE leaf-blob mask; the multi-leaf «пачка»
     TEXTURE (internal value structure) is a separate, unstarted change.
-
 
 ================================================================================
 THE TRUNK ARC (14.08.2026) — flora-trunk-arc-*-3877876.png

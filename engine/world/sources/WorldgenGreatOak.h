@@ -1,6 +1,4 @@
 /*
-Created: 12:08:2026 - 22:45:00
-Last updated: 12:08:2026 - 22:45:00
 Module: engine/world
 File: engine/world/sources/WorldgenGreatOak.h
 
@@ -31,14 +29,6 @@ AI Agents Notice (must follow):
   same list or the clearing would have a seam down the middle of it.
 - NOTHING HERE IS A TUNABLE. If a number below wants to move, it moves in
   docs/NUMBERS.md or in the rule it is derived from (Rule 14/35).
-*/
-/*
-UPD:
-- 12:08:2026 - 22:45:00: Created. The clearing measured by flora
-  (docs/acceptance/flora-great-oak-clearing-ARM-669f1a7b.png: same giants, same
-  size, same haze, only the ordinary oaks removed -> they read at once) as a
-  placement pass, with the separation derived from the read distance rather
-  than assigned as a density.
 */
 
 #pragma once

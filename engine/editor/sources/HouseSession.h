@@ -1,6 +1,4 @@
 /*
-Created: 19:08:2026 - 01:52:00
-Last updated: 20:08:2026 - 23:59:00
 Module: engine/editor
 File: engine/editor/sources/HouseSession.h
 
@@ -23,13 +21,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - ВСЯ ПРАВКА ГРАФА — ЧЕРЕЗ mutate: правка мимо неё не попадёт ни в отмену, ни в
   версию геометрии, то есть ни в тело, ни в коллайдер.
-*/
-/*
-UPD:
-- 19:08:2026 - 01:52:00: Создан переносом из EditorToolHouse.h (перенос, не переписывание).
-- 19:08:2026 - 03:22:40: snap_on_axis — сетка на прямой: округлить, спроецировать обратно на ось.
-- 20:08:2026 - 00:02:30: draw_house_selection_panel принимает мир (крючки картинок); nullptr — слова.
-- 20:08:2026 - 23:59:00: draw_house_properties_panel — панель «Свойства».
 */
 #pragma once
 

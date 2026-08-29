@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 13:46:59
-Last updated: 17:08:2026 - 14:29:43
 Module: tests
 File: tests/render/PartForgeStairTests.cpp
 
@@ -26,13 +24,6 @@ AI Agents Notice (must follow):
 - Rule 30: the gentle flight IS the control of the run meter — the same
   instrument that reads ~1.0 on the steep flight must read ~2.0 there, or it
   is not measuring pitch at all.
-*/
-/*
-UPD:
-- 17:08:2026 - 13:46:59: Создан — волна крутых лестниц (подъём к проступи 1:1, 45°).
-- 17:08:2026 - 14:29:43: измерители смотрят в meshtest::solid_of(obj), а не в obj.wood — деталь
-  стала текстурной и её геометрия переехала в поток bark. Числа и пороги не
-  тронуты: та же геометрия, тот же вердикт.
 */
 
 #include "engine/core/config/sources/Constants.h"

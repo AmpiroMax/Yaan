@@ -1,6 +1,4 @@
 /*
-Created: 27:08:2026 - 03:06:00
-Last updated: 27:08:2026 - 12:02:02
 Module: engine/app
 File: engine/app/sources/UiFont.cpp
 
@@ -10,11 +8,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone app (lead) owns this file.
-*/
-/*
-UPD:
-- 27:08:2026 - 03:06:00: Создан вместе с заголовком.
-- 27:08:2026 - 12:02:02: Доля роли Accent (0.083) удалена вместе с самой ролью.
 */
 
 #include "engine/app/sources/UiFont.h"

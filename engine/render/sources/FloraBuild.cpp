@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 23:48:30
-Last updated: 23:08:2026 - 23:55:00
 Module: engine/render
 File: engine/render/sources/FloraBuild.cpp
 
@@ -24,56 +22,6 @@ AI Agents Notice (must follow):
   that actually REACHES (a card's corner), never on the notional element; and
   when a cluster does not fit, SHRINK it, never slide it to the axis. Both
   lessons are flora.md §3.7.
-*/
-/*
-UPD:
-- 09:08:2026 - 23:48:30: Split out of ProcFlora.cpp (Rule 21) with the
-  space-colonization rewrite. `cluster` renamed `blob_cluster`; the card sway
-  origin is now the skeleton ANCHOR node rather than the crown base, which is
-  possible for the first time because a cluster now knows what it hangs on.
-- 10:08:2026 - 20:15:51: CARD PLANE TILT is now a MIXTURE (в: «плоскости листвы... не
-  больше чем 5-10 градусов, сейчас они перпендикулярны»). One card per
-  cluster lies at 5-10 deg off the ground, the other two lean at 48-66 deg
-  instead of standing at 63.6-80.8. Mean plane tilt 72.7 -> 40.9 deg. The
-  minority is NOT a hedge: presented area at a level view is bought only by
-  steep planes, and all-flat measures 150 m2/tree against 229 for the build
-  the user already accepted (flora.md 3.8b).
-- 12:08:2026 - 00:20:00: Containment moved onto the crown AXIS in both places
-  that measure it (Rule 32: clip_to_envelope was moved and emit_cluster was
-  not, for one run). The card legibility floor re-expressed against the
-  species' own nominal cluster instead of against the crown radius, and taken
-  as the MINIMUM of the two forms -- as a straight swap it silently cost the
-  birch 65 % of its foliage. The old form was a latent bug that a 40 m crown
-  detonated: it dropped EVERY card on the great oak and the tree photographed
-  as a winter skeleton.
-- 12:08:2026 - 00:36:00: THE SCRAP FLOOR EXISTED IN TWO PLACES AND ONLY ONE WAS
-  RE-DERIVED, one screen apart, and the great oak measured ZERO CARDS on every
-  variant because of it -- passed the first gate at 8.4 m of half-width,
-  rejected by the second at 8.8 m, suite fully green, distant frame showing a
-  bare branch system towering over a live forest. Both sites now read one
-  `scrap_floor`. Rule 32 in the file whose own header states it.
-- 12:08:2026 - 00:45:00: Both floor checks call card_scrap_floor() instead of
-  restating it.
-- 13:08:2026 - 16:20:00: THE THIRD COPY OF THE CARD LEGIBILITY FLOOR (Rule 32).
-  The re-containment block still carried `0.18 * crown_r`, the retired form, one
-  screen below the two sites unified on 12.08. It cost the great oak its entire
-  crown a second time -- zero cards on every variant the moment its cluster
-  fraction went under 0.18 -- and it now calls card_scrap_floor() like the
-  others.
-- 13:08:2026 - 21:40:00: RADIAL VERTEX NORMALS on all wood, at the light
-  zone's request and at zero triangle cost. A flat-shaded five-sided prism gives
-  light at most two facets, so a trunk in shadow measured a luminance spread of
-  1.01x against lit ground's 3.26x — the user's «тёмные деревья, словно их нет,
-  как чёрное пятно» — and raising the shading term only produced two plateaus
-  with a seam. No lighting term can draw a cylinder on geometry that has none.
-  Per-face vertices are KEPT (this zone recolours whole faces); only the normals
-  changed, and the cone's taper tilts them.
-- 23:08:2026 - 23:55:00: Страховочный зажим тона карточки — на КОНЕЦ ЗЕЛЁНОЙ ПОЛОСЫ
-  (LEAF_ATLAS_GREEN_TONES-1), а не на последний ряд атласа. С пятью цветными
-  рядами «последний ряд» стал фиолетовым, и единственная строка, задача
-  которой — падать безопасно, падала бы в ФИОЛЕТОВУЮ ХВОЮ. Для достижимых
-  входов (unit() строго [0,1), полосы видов не выходят за 7) значение не
-  изменилось ни для одного вида — поэтому вид рассеиваемой флоры прежний.
 */
 
 #include "engine/render/sources/FloraBuild.h"

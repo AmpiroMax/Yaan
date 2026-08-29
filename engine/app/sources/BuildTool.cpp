@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 19:05:00
-Last updated: 18:08:2026 - 12:08:00
 Module: engine/app
 File: engine/app/sources/BuildTool.cpp
 
@@ -17,15 +15,6 @@ AI Agents Notice (must follow):
   rule the judge already applied; none of them decides anything on its own. If
   you catch yourself writing `if (too_close) return {false, ...}` here, the
   rule belongs in the judge.
-*/
-/*
-UPD:
-- 17:08:2026 - 19:05:00: Создан вместе с BuildTool.h.
-- 17:08:2026 - 19:20:04: StairSeat/StairHeadroom получили свои фразы. Без них призрак краснел БЕЗ
-  ПРИЧИНЫ ровно на лестницах; нашла зона меню объектов, не мой тест.
-- 18:08:2026 - 12:08:00: place_support_y — штабелирование. Раньше рука сажала призрак на
-  грунт безусловно, поэтому «поставить объект на объект» было невозможно ничем,
-  кроме случайного совпадения высот.
 */
 
 #include "engine/app/sources/BuildTool.h"

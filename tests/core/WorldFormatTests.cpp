@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 18:43:43
-Last updated: 18:08:2026 - 12:06:09
 Module: tests
 File: tests/core/WorldFormatTests.cpp
 
@@ -21,29 +19,6 @@ AI Agents Notice (must follow):
   player falls through, and it looks exactly like an empty chunk to every
   caller — which is why the reader must return nothing at all, and why
   weakening these checks to "it loaded something" is never a fix.
-*/
-/*
-UPD:
-- 14:08:2026 - 18:43:43: Created with the container's implementation (the
-  contract had been declaration-only since 09.08). Round trip is checked
-  against REAL generated chunks rather than hand-built ones: a hand-built chunk
-  would have empty voxel/scatter arrays, i.e. it would pass while proving
-  nothing about the very fields the baker exists to carry.
-- 14:08:2026 - 20:47:52: bake_world получил свои случаи: испечённый мир ПОЛЕ В ПОЛЕ равен
-  сгенерированному (файл, который просто грузится, не доказывает ничего — сторожим
-  выпечку, тихо разошедшуюся с миром, который меряют все тесты детерминированности),
-  две выпечки одного seed побитово равны, пустой пролёт отвергается вслух.
-- 14:08:2026 - 21:22:22: Случай на ЧТЕНИЕ испечённого через ChunkManager, и он контрольная рука,
-  а не дымовой тест: одни и те же параметры стримятся дважды в одном процессе —
-  из файла и из генератора, — и земля обязана выйти одинаковой. «Игра только
-  читает» верно ровно настолько, насколько чтение и генерация дают ОДИН мир.
-  Плюс отказ несуществующего файла: молчаливый откат на генерацию дал бы сборку,
-  работающую на скорости генерации и отчитывающуюся об открытии выпечки.
-- 18:08:2026 - 12:06:09: случай «мир, испечённый на другой решётке высот, отвергается, а не
-  читается криво». Дыра была настоящая: .dfw не хранит свою решётку, а читатели
-  ходят шагом HEIGHTMAP_RESOLUTION, поэтому старый файл грузился молча и
-  читался за концом вектора. Зелёная рука (тот же чанк как есть) стоит ПЕРЕД
-  красной, чтобы отказ нельзя было списать на сломанную оснастку.
 */
 
 #include "engine/core/config/sources/Constants.h"

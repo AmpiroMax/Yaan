@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:18:26
-Last updated: 09:08:2026 - 00:18:26
 Module: engine/platform/llm
 File: engine/platform/llm/interfaces/ILlm.h
 
@@ -50,11 +48,6 @@ AI Agents Notice (must follow):
 - Never call inference synchronously from the sim tick — the game must be
   fully playable with this entire subsystem nulled.
 - Contract frozen for stage 1 (Rule 26); changes only via group sync.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:18:26: Initial stage-1 contract (async completion, VRAM model
-                         selection, Q64 gate, scripted fallback).
 */
 
 #pragma once

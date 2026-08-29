@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 01:56:45
-Last updated: 10:08:2026 - 12:10:00
 Module: engine/anim
 File: engine/anim/sources/Pose.cpp
 
@@ -15,11 +13,6 @@ AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - FK is a single forward pass and depends on BONE_PARENT listing parents
   before children — preserve that if the enum ever grows.
-*/
-/*
-UPD:
-- 10:08:2026 - 01:56:45: Initial implementation.
-- 10:08:2026 - 12:10:00: FK applies rest_rotation and lifts the root by standing_hip_height; apply_joint_limits reduces hinges to one axis and clamps them.
 */
 
 #include "engine/anim/sources/Pose.h"

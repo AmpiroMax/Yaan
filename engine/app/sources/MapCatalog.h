@@ -1,6 +1,4 @@
 /*
-Created: 14:08:2026 - 16:50:36
-Last updated: 25:08:2026 - 12:56:00
 Module: engine/app
 File: engine/app/sources/MapCatalog.h
 
@@ -28,19 +26,6 @@ AI Agents Notice (must follow):
 - The .map manifest format is docs/MAP_LAYOUT.md's contract: read the keys it
   documents, ignore unknown keys (forward-compatible), never invent new ones
   here.
-*/
-/*
-UPD:
-- 14:08:2026 - 16:50:36: Created -- the map browser's catalog (categories ->
-                         .map manifests), per docs/MAP_LAYOUT.md.
-- 15:08:2026 - 01:04:30: MapManifest::objects — карта выбирает свою полку реестра (галерея
-  колосса живёт на своей карте, не тесня общую).
-- 16:08:2026 - 21:08:52: MapManifest::scene — карта называет свой файл композиции.
-- 16:08:2026 - 21:50:43: objects — список полок через ';', по порядку, побеждает первая.
-- 25:08:2026 - 12:56:00: Фиксированный список категорий снят — сканируются существующие папки,
-  пустые не листятся (код приведён к контракту MAP_LAYOUT.md от 14.08 «браузер сканирует то,
-  что ЕСТЬ»; владелец 25.08 увидел мёртвые слаги списка пустыми папками в меню). map_categories()
-  удалена; новая категория cities — боевые города (Вайтран, Житнов), демки houses/ сняты.
 */
 
 #pragma once

@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 #
-# Created: 27:08:2026 - 13:52:00
-# Last updated: 27:08:2026 - 13:52:00
 # Module: tools
 # File: tools/heraldry/__init__.py
 #
@@ -14,8 +12,4 @@
 #
 # AI Agents Notice (must follow):
 # - Follow docs/ARCHITECTURE.md strictly.
-#
-# UPD:
-# - 27:08:2026 - 13:52:00: Создан вместе с пакетом генератора 3D-герба.
-#
 """Offline heraldry baking: silhouette PNG to a relief 3D object."""

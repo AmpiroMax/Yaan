@@ -1,5 +1,4 @@
 #
-# Created: 27:08:2026 - 02:55:00
 # Module: tools
 # File: tools/bake_ui_font.py
 #
@@ -44,11 +43,6 @@
 # - Follow docs/ARCHITECTURE.md strictly.
 # - ЛЕСТНИЦА РАЗМЕРОВ — ЭТО КОНТРАКТ С РАНТАЙМОМ. Убрав ступень, вы не сделаете
 #   текст меньше — вы заставите рантайм взять СОСЕДНЮЮ, и раскладка поедет.
-#
-# UPD:
-# - 27:08:2026 - 02:55:00: Создан — переход интерфейса с блочного 5×8 на
-#   настоящую антикву (заказ владельца 27.08).
-#
 import argparse
 import os
 import sys
@@ -87,7 +81,6 @@ CODEPOINTS = (
 # ходят за край ячейки, но сосед, стоящий вплотную, всё равно даёт грязь на
 # любой будущей фильтрации, и один пиксель стоит меньше, чем расследование.
 PAD = 1
-
 
 def bake(size, codepoints):
     font = ImageFont.truetype(TTF, size)
@@ -150,7 +143,6 @@ def bake(size, codepoints):
         lines.append("g %d %d %d %d %d %d %d %d" % (cp, x, y, w, h, ox, oy, adv))
     return lines, os.path.getsize(png)
 
-
 def main():
     ap = argparse.ArgumentParser(description="печёт атлас шрифта интерфейса")
     ap.add_argument("--sizes", default=None, help="список кеглей через запятую")
@@ -178,7 +170,6 @@ def main():
         f.write("\n".join(out) + "\n")
     sys.stderr.write("bake_ui_font: %d ступеней, %d знаков, атласы %.2f МБ, %s\n"
                      % (len(sizes), len(CODEPOINTS), total / (1024 * 1024), fnt))
-
 
 if __name__ == "__main__":
     main()

@@ -1,16 +1,3 @@
-<!--
-Created: 10:08:2026 - 20:13:20
-Last updated: 10:08:2026 - 20:20:37
--->
-<!--
-UPD:
-- 10:08:2026 - 20:13:20: Recipe + measurements for the sun-disc pair (W9).
-- 10:08:2026 - 20:20:37: Second frame at a LOW SUN (elevation ~5°), because the
-  disc's colour and brightness are functions of elevation and one vantage
-  cannot cover that range (Rule 27). Carries the measured deviation: the warm
-  disc lands at luma 0.898, not the row's 1.00, because a saturated warm hue
-  clips red before its luma reaches 1.
--->
 
 # Acceptance: the sun gained a body (W9)
 

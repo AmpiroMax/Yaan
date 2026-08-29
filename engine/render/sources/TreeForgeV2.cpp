@@ -1,6 +1,4 @@
 /*
-Created: 28:08:2026 - 16:50:00
-Last updated: 28:08:2026 - 16:50:00
 Module: engine/render
 File: engine/render/sources/TreeForgeV2.cpp
 
@@ -18,11 +16,6 @@ AI Agents Notice (must follow):
 - Deterministic: every draw comes from the params' seed through one Rng.
 - NOTHING HERE MAY CALL INTO forge_tree() OR CHANGE IT. The first iteration is
   frozen by the owner's ruling of 28.08 until he says otherwise.
-*/
-/*
-UPD:
-- 28:08:2026 - 16:50:00: Создан — доли кроны, два габитуса, многоствольность,
-  наклон/изгиб с жёстким комлем, сухие обломки, листва рядов v2.
 */
 
 #include "engine/render/sources/TreeForgeV2.h"

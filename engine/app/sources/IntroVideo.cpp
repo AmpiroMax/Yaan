@@ -1,5 +1,4 @@
 /*
-Created: 27:08:2026 - 02:36:00
 Module: engine/app
 File: engine/app/sources/IntroVideo.cpp
 
@@ -9,10 +8,6 @@ Responsibility:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Zone app (lead) owns this file.
-*/
-/*
-UPD:
-- 27:08:2026 - 02:36:00: Создан вместе с заголовком.
 */
 
 #include "engine/app/sources/IntroVideo.h"

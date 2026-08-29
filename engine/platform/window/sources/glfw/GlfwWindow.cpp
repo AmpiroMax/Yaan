@@ -1,6 +1,4 @@
 /*
-Created: 09:08:2026 - 00:45:00
-Last updated: 27:08:2026 - 14:00:00
 Module: engine/platform/window
 File: engine/platform/window/sources/glfw/GlfwWindow.cpp
 
@@ -18,17 +16,6 @@ Dependencies:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - macOS is the tested path this stage; Windows branches compile-clean only.
-*/
-/*
-UPD:
-- 09:08:2026 - 00:45:00: Stage 2 — initial implementation (macOS Cocoa handle,
-  Win32 branch compiling-clean).
-- 17:08:2026 - 16:27:55: set_fullscreen — своя частота монитора, возврат в запомненную рамку.
-- 17:08:2026 - 19:17:13: content_size() через glfwGetWindowSize — GLFW сообщает позицию курсора именно в этих единицах.
-- 18:08:2026 - 00:24:58: focus() — реализация нового пункта контракта IWindow.
-- 27:08:2026 - 14:00:00: set_size(): в полном экране не делает ничего и
-  не запоминает просьбу; в оконном режиме обновляет и запомненную коробку,
-  иначе возврат из полного экрана прыгал бы в размер, выбранный полчаса назад.
 */
 
 #include "engine/platform/window/sources/glfw/GlfwWindow.h"

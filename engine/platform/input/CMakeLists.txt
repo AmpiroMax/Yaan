@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:00
-# Last updated: 09:08:2026 - 00:45:00
 # File: engine/platform/input/CMakeLists.txt
 #
 # Responsibility:
@@ -14,9 +12,6 @@
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. GLFW types never leak out of sources/.
-#
-# UPD:
-# - 09:08:2026 - 00:45:00: Stage 2 — glfw + null backends.
 
 add_library(dfn_platform_input STATIC
     sources/glfw/GlfwInput.cpp

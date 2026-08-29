@@ -1,6 +1,4 @@
 /*
-Created: 10:08:2026 - 10:44:13
-Last updated: 10:08:2026 - 11:37:17
 Module: engine/world
 File: engine/world/sources/WorldgenPaths.h
 
@@ -33,23 +31,6 @@ AI Agents Notice (must follow):
 - DETERMINISM (Rule 13.1): the whole network is a pure function of
   (seed, layout, height field). The A* uses a total order on ties (see the
   .cpp) because a heap that breaks ties by address is not reproducible.
-*/
-/*
-UPD:
-- 10:08:2026 - 10:44:13: Created — §8.1 path network: goal siting, slope-aware
-  cost routing, BR-1 as a term IN the cost field, class assignment, the
-  three-band wear field and the flatten delta.
-- 10:08:2026 - 11:11:16: PathClass ordinals declared a cross-zone contract (flora's
-  PathClassRichness maps positionally; siblings in the DAG, so a reorder is
-  silent). Pinned by test.
-- 10:08:2026 - 11:37:17: BR-1's acceptance STANDPOINTS, as a pair. The
-  measurement had no place to be photographed from, so a frame of it was a
-  frame of a forest. hidden_station is the run's station nearest
-  BR1_FRAME_RANGE_M (not its middle — the middle sat 400 m out, where the goal
-  covers three lines and the frame cannot fail either way) and visible_station
-  is the range-matched control. Also path_render_stations(): the network as
-  core/math primitives, because render is a DAG sibling and cannot see this
-  header at all.
 */
 
 #pragma once

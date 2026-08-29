@@ -1,5 +1,3 @@
-# Created: 16:08:2026 - 22:31:18
-# Last updated: 16:08:2026 - 22:31:18
 # Module: tools
 # File: tools/measure_bay_contrast.py
 #
@@ -28,15 +26,10 @@
 #   shown — this measures what the eye is shown, not linear light.
 # - The threshold does NOT live here. An instrument reports; the acceptance
 #   names its number and where it came from (both arms, Rule 45).
-#
-# UPD:
-# - 16:08:2026 - 22:31:18: Создан для второй половины жалобы про дырки (провал
-#   тёмного пролёта в раме); обе руки — из ОДНОГО кадра (правило 47).
 
 import sys
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
 from pngdiff import read_png  # noqa: E402
-
 
 def mean_luma(px, w, nch, rect):
     x0, y0, rw, rh = rect
@@ -50,7 +43,6 @@ def mean_luma(px, w, nch, rect):
             total += 0.30 * r + 0.59 * g + 0.11 * b
             n += 1
     return total / max(1, n)
-
 
 def main():
     if len(sys.argv) < 3:
@@ -73,7 +65,6 @@ def main():
         else:
             print(f"[bay] {name:<11} mean {m:7.2f}  ratio vs frame {m / fm:.3f}")
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

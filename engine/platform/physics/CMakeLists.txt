@@ -1,6 +1,4 @@
 #
-# Created: 09:08:2026 - 00:45:08
-# Last updated: 09:08:2026 - 00:45:08
 # File: engine/platform/physics/CMakeLists.txt
 #
 # Responsibility:
@@ -15,9 +13,6 @@
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly. Jolt types must never leak out of
 #   sources/jolt/ (interface + factory headers stay Jolt-free).
-#
-# UPD:
-# - 09:08:2026 - 00:45:08: Stage 2 — jolt + null backends, Jolt pinned v5.2.0.
 
 include(FetchContent)
 

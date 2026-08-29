@@ -1,6 +1,4 @@
 /*
-Created: 17:08:2026 - 14:43:34
-Last updated: 17:08:2026 - 15:00:28
 Module: engine/app
 File: engine/app/sources/AssetBake.cpp
 
@@ -18,14 +16,6 @@ AI Agents Notice (must follow):
   game bakes on first run and the shelf the tool bakes are the same shelf. A
   second catalogue here would drift, and the drift would show up as a house
   missing one part in one of the two paths.
-*/
-/*
-UPD:
-- 17:08:2026 - 14:43:34: Создан вместе с AssetBake.h.
-- 17:08:2026 - 15:00:28: печь табличек через render::read_signs_file — ТУ ЖЕ функцию, которую
-  зовёт dfn_signs (зона домов вынесла её из инструмента в библиотеку по этой
-  просьбе). Печёт ПЛОСКИМИ, как и весь каталог, пока лист набора не привязан:
-  текстурная табличка среди нетекстурных домов — не предпросмотр ничего.
 */
 
 #include "engine/app/sources/AssetBake.h"

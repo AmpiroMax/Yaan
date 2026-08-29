@@ -1,6 +1,4 @@
 #
-# Created: 17:08:2026 - 15:52:18
-# Last updated: 17:08:2026 - 17:35:16
 # Module: tools
 # File: tools/gen_showcase_signs.py
 #
@@ -39,15 +37,6 @@
 #   sample with yaw 0, which turns its lettered face toward the visitor.
 # - THE TEXT IS CONTENT (Rule 5): it lives in the scene, not here. This file
 #   may wrap a sentence onto two lines; it may not write one.
-#
-# UPD:
-# - 17:08:2026 - 15:52:18: Создан — вторая половина работы 5 заказа 17.08 (физические
-#   подписи образцов витрины вместо подписей только в note).
-# - 17:08:2026 - 17:35:16: Перевыпущены после правки образца «пологий скат»: на витрине
-#   стоял roof-thatch-12x8x4 (уклон 18.4 град), а подпись обещала 27. Заменён на
-#   8x8x4 = 26.6 град — то есть чинилась ДЕТАЛЬ под обещанное число, а не число
-#   под деталь: 27 назван в HOUSES.md как конструкция односкатной кровли.
-#
 
 import argparse
 import os
@@ -74,7 +63,6 @@ LINE_CHARS = 16
 # 1.6 m reads as "this one" and not "the row behind".
 STAND_OFF_M = 1.6
 
-
 def wrap(text, width=LINE_CHARS):
     """The sentence broken on WORD boundaries, never mid-word."""
     words = text.split()
@@ -89,7 +77,6 @@ def wrap(text, width=LINE_CHARS):
     if cur:
         lines.append(cur)
     return lines
-
 
 def read_samples():
     """Every [place] of the showcase that carries a note, with where it stands."""
@@ -109,7 +96,6 @@ def read_samples():
         sys.exit("[labels] в " + SCENE + " нет ни одного note — нечего подписывать")
     return out
 
-
 def label_name(sample):
     """Stable name for a sample's board: its ordinal in the scene.
 
@@ -118,10 +104,8 @@ def label_name(sample):
     and two boards may never collide on one file name."""
     return f"label-{sample['index']:02d}"
 
-
 def signs_text(samples):
-    stamp = "17:08:2026 - 17:35:16"
-    out = ["#", "# Created: " + stamp, "# Last updated: " + stamp,
+    out = ["#",
            "# Module: assets", "# File: assets/signs/showcase.signs",
            "#",
            "# Responsibility:",
@@ -137,12 +121,6 @@ def signs_text(samples):
            "# - СГЕНЕРИРОВАНО tools/gen_showcase_signs.py из note сцены — правки",
            "#   вносить в СЦЕНУ, иначе следующий прогон их сотрёт.",
            "#",
-           "# UPD:",
-           "# - 17:08:2026 - 15:52:18: Создан генератором из подписей витрины.",
-           f"# - {stamp}: Перевыпущены после правки образца «пологий скат»: на",
-           "#   витрине стоял roof-thatch-12x8x4 (уклон 18.4 град), а подпись",
-           "#   обещала 27. Заменён на 8x8x4 = 26.6 град — чинилась ДЕТАЛЬ под",
-           "#   обещанное число, а не число под деталь.",
            "#", ""]
     for s in samples:
         out += ["[sign]", f"name = {label_name(s)}", "shape = post",
@@ -150,7 +128,6 @@ def signs_text(samples):
         out += [f"line = {line}" for line in wrap(s["note"])]
         out.append("")
     return "\n".join(out) + "\n"
-
 
 def scene_block(samples):
     out = [SENTINEL,
@@ -164,7 +141,6 @@ def scene_block(samples):
                 "yaw = 0.000000", "scale = 1",
                 f"note = подпись образца: {s['object']}", ""]
     return "\n".join(out)
-
 
 def main():
     ap = argparse.ArgumentParser()
@@ -184,7 +160,6 @@ def main():
     with open(SCENE, "w") as f:
         f.write(body + block)
     print(f"[labels] {len(samples)} подписей -> {SIGNS} и в конец витрины")
-
 
 if __name__ == "__main__":
     main()

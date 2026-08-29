@@ -1,15 +1,3 @@
-<!--
-Created: 09:08:2026 - 14:16:35
-Last updated: 09:08:2026 - 14:16:35
--->
-<!--
-UPD:
-- 09:08:2026 - 14:16:35: Three main-arc pitches for the user's choice (grill
-  в16): The Debt of Harrowmere (dark = a compounding crime), The Kindly Dark
-  (dark = seduction of grief), The Unwriting (dark = the eater of names).
-  Synthesized from the plot-drafting pass + RESEARCH.md rules; Russian
-  summaries at the end. No pitch is canon until the user picks.
--->
 
 # PITCHES.md — Three Main-Arc Pitches
 
