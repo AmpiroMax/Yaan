@@ -1,0 +1,436 @@
+<!doctype html>
+<!--
+Module: docs/plans
+File: docs/plans/BACKLOG.html
+
+Responsibility:
+- Полный бэклог проекта в форме Jira: эпики → задачи → подзадачи, порядок —
+  сначала блокеры, потом крупное и важное. Источник — scratchpad генератор
+  координатора (data.py); правится данными, не руками в html.
+-->
+<html lang="ru"><head><meta charset="utf-8"><title>Бэклог Daggerfall N — эпики, задачи, подзадачи</title>
+<style>body{font:15px/1.45 -apple-system,Segoe UI,sans-serif;max-width:64em;margin:2em auto;padding:0 1em;color:#222;background:#fff}
+h1{font-size:1.5em}h2{margin-top:2em;padding:.3em .5em;background:#f1f1f1;border-left:5px solid #444}
+.why{color:#555;margin:.2em 0 1em;font-style:italic}
+.task{margin:.8em 0 .8em .5em;border:1px solid #ddd;border-radius:4px;padding:.5em .8em}
+.task h3{margin:0;font-size:1.05em} .key{font-family:Menlo,monospace;color:#666;font-size:.85em;margin-right:.5em}
+.badge{display:inline-block;color:#fff;border-radius:3px;padding:0 .4em;font-size:.8em;margin-left:.4em}
+.st{display:inline-block;border:1px solid #999;border-radius:3px;padding:0 .4em;font-size:.8em;margin-left:.4em;color:#444}
+ol{margin:.4em 0 .2em 1.2em} li{margin:.15em 0} .note{color:#555;font-size:.9em;margin-top:.3em}
+table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding:.2em .6em}
+</style></head><body>
+<h1>Бэклог проекта — эпики, задачи, подзадачи</h1>
+<p>Состояние на 29.08.2026. Порядок эпиков и задач: сначала блокеры, затем по важности и размеру. Ключи задач — по образцу Jira: <code>E4-2</code> — задача, <code>E4-2.3</code> — подзадача.</p>
+<p><b>Итого: 13 эпиков, 64 задач, 255 подзадач — 319 тикетов.</b></p>
+<table><tr><th>Эпик</th><th>Задач</th><th>Подзадач</th><th>Блокеров</th></tr>
+<tr><td><a href="#E13">E13. Решения владельца (открытые)</a></td><td>3</td><td>14</td><td>3</td></tr>
+<tr><td><a href="#E1">E1. Единый игровой объект и уровни детализации</a></td><td>3</td><td>17</td><td>3</td></tr>
+<tr><td><a href="#E2">E2. Порядок в инструментах и репозитории</a></td><td>10</td><td>26</td><td>2</td></tr>
+<tr><td><a href="#E3">E3. Человек как мера: пропорции, персонажи, анимации, бой</a></td><td>7</td><td>33</td><td>1</td></tr>
+<tr><td><a href="#E4">E4. Небо, облака, погода, свет</a></td><td>6</td><td>19</td><td>0</td></tr>
+<tr><td><a href="#E5">E5. Материалы и текстуры</a></td><td>3</td><td>12</td><td>0</td></tr>
+<tr><td><a href="#E6">E6. Рельеф провинции и большой мир</a></td><td>9</td><td>47</td><td>1</td></tr>
+<tr><td><a href="#E7">E7. Флора и биомы</a></td><td>4</td><td>13</td><td>0</td></tr>
+<tr><td><a href="#E8">E8. Звук: Steam Audio и мир источников</a></td><td>2</td><td>12</td><td>0</td></tr>
+<tr><td><a href="#E9">E9. Музыка</a></td><td>3</td><td>12</td><td>0</td></tr>
+<tr><td><a href="#E10">E10. Убранство, предметы, книги</a></td><td>3</td><td>8</td><td>0</td></tr>
+<tr><td><a href="#E11">E11. Меню, интерфейс, сохранения, загрузка</a></td><td>4</td><td>12</td><td>0</td></tr>
+<tr><td><a href="#E12">E12. Лор, сюжет, квесты, RPG</a></td><td>7</td><td>30</td><td>0</td></tr>
+</table>
+<h2 id="E13">E13. Решения владельца (открытые)</h2><p class="why">Не работа, а решения; каждое блокирует задачу выше.</p>
+<div class="task"><h3><span class="key">E13-1</span>Решения по канону и сюжету<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E13-1.1</span>Голос героя: немой протагонист или озвученные реплики → открывает MQ4 (E12-1)</li>
+<li><span class="key">E13-1.2</span>Магия в глазах мира: обыденна или подозрительна → открывает фракции и школы магии (E12-4)</li>
+<li><span class="key">E13-1.3</span>Выбор питча угрозы мира (А/Б/В «Стирание»)</li>
+<li><span class="key">E13-1.4</span>Имена 12 городов — вето (на атласе до сих пор английские) → открывает E6-6</li>
+<li><span class="key">E13-1.5</span>Длительность суток (в13), луна как источник теней (в14) → открывает E4-4; титул на заставке (в15)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E13-2</span>Решения по миру и городам<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E13-2.1</span>Что за дверью штольни/хранилища/ледника: декорация / интерьер / эпоха подземелий</li>
+<li><span class="key">E13-2.2</span>Подъёмники и клети — нужна ли механика движущихся платформ</li>
+<li><span class="key">E13-2.3</span>Порядок стройки: Житнов → юг → снег → гора… или сразу Кроунхавен</li>
+<li><span class="key">E13-2.4</span>Озеро/остров вместо каньона в одном паспорте</li>
+<li><span class="key">E13-2.5</span>Все ли 12 городов жилые (~1000 НПС)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E13-3</span>Решения по технике<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E13-3.1</span>Разрешить уборку: билд-каталоги и бинарники docs → открывает E2-3, E2-4</li>
+<li><span class="key">E13-3.2</span>Материалы В1/В2 → открывает E5-1</li>
+<li><span class="key">E13-3.3</span>Физика §10 → открывает E10-3</li>
+<li><span class="key">E13-3.4</span>Заказ по лошади: какие окраски, поведение → открывает E3-7</li>
+</ol></div>
+<h2 id="E1">E1. Единый игровой объект и уровни детализации</h2><p class="why">Блокер всего: без общего класса объекта LOD, физика, материалы и анимации делаются четырьмя разными способами (дом, утварь, дерево, персонаж).</p>
+<div class="task"><h3><span class="key">E1-1</span>Базовый класс игрового объекта GameObject<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E1-1.1</span>Спроектировать интерфейс: трансформ, тело физики, материал/текстуры, набор LOD, анимационный скелет, звуковые эмиттеры</li>
+<li><span class="key">E1-1.2</span>Формат .dfo v5: секции LOD0..LODn, MTRL, PHYS, ANIM, SND в одном файле</li>
+<li><span class="key">E1-1.3</span>Миграция утвари на GameObject (35 тел полки + 28 чертежей furn-*.dfh вне реестра)</li>
+<li><span class="key">E1-1.4</span>Миграция домов (HouseMesh/HouseLod) на GameObject</li>
+<li><span class="key">E1-1.5</span>Миграция деревьев/кустов/плит ковра на GameObject со снятием процедурного пути рантайма (стенды Testbed/Forest/OneTree → объекты) — один конвейер</li>
+<li><span class="key">E1-1.6</span>Капсула игрока и будущие персонажи — наследники того же класса</li>
+<li><span class="key">E1-1.7</span>Тесты: один объект проходит физику/рендер/LOD через общий интерфейс</li>
+</ol><div class="note">Ядро эпохи; всё ниже опирается на него.</div></div>
+<div class="task"><h3><span class="key">E1-2</span>LOD: минимум 4 уровня у каждого объекта<span class="badge" style="background:#b22">Блокер</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E1-2.1</span>Правило выбора уровня по угловому размеру на FullHD (одна лестница для всех классов объектов), гистерезис</li>
+<li><span class="key">E1-2.2</span>Кузница LOD1–LOD3 для утвари (упрощение мешей, децимация)</li>
+<li><span class="key">E1-2.3</span>Импостор/билборд как LOD3 для деревьев и домов (октаэдральный или 8-ракурсный атлас)</li>
+<li><span class="key">E1-2.4</span>Деревья: LOD1–LOD2 крон (карточки крупнее, меньше листьев)</li>
+<li><span class="key">E1-2.5</span>Бюджет треугольников на кадр и счётчик в телеметрии</li>
+<li><span class="key">E1-2.6</span>Прибор: кадр на 30/60/120/250 м без «хлопков» переключения (порог различий пикселей)</li>
+</ol><div class="note">Сейчас: дома — выпечка без выбора; деревья — два уровня («-far»); утварь — один.</div></div>
+<div class="task"><h3><span class="key">E1-3</span>Импортёр внешних ассетов (glTF → .dfo)<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E1-3.1</span>Читатель glTF 2.0 (меши, UV, нормали, материалы PBR, скелет, анимации)</li>
+<li><span class="key">E1-3.2</span>Импорт скелета и клипов в формат engine/anim</li>
+<li><span class="key">E1-3.3</span>Инструмент tools/import_gltf: запись .dfo v5 (E1-1), проверка масштаба (метры) и ориентации; приёмка — эталонная модель проходит физику/LOD/анимацию после конвертации</li>
+<li><span class="key">E1-3.4</span>Правило внешних ассетов: меши, текстуры, сэмплы — только CC0/референс; реестр источников и лицензий, проверка в хуке</li>
+</ol><div class="note">Позволяет брать референсные модели из интернета и делать свои похожие.</div></div>
+<h2 id="E2">E2. Порядок в инструментах и репозитории</h2><p class="why">Блокер по производительности команды: баги инструментов и мусор съедают время; без единого автомата режимов игра/редактор будут расходиться дальше.</p>
+<div class="task"><h3><span class="key">E2-1</span>Единый автомат режимов Menu/Playing/Editor/Pause<span class="badge" style="background:#b22">Блокер</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E2-1.1</span>Одна таблица «режим → видимость ImGui, захват курсора, HUD, пауза симуляции, аудио/музыкальная шина» — путь пользователя = путь агента, без дверей DFN_*</li>
+<li><span class="key">E2-1.2</span>Единственная функция apply_mode(), вызываемая любым переходом (меню, клавиша, дверь DFN_EDITOR, пауза)</li>
+<li><span class="key">E2-1.3</span>Тест: каждый переход из каждого режима даёт ожидаемое состояние (таблица переходов в ctest)</li>
+<li><span class="key">E2-1.4</span>Убрать разрозненные set_visible/захваты из App.cpp/Menu.cpp/AppInput.cpp</li>
+</ol><div class="note">Панель редактора гасла навсегда (исправлено 29.08 точечно); нужно системно.</div></div>
+<div class="task"><h3><span class="key">E2-2</span>Один рельеф для глаза и для тела<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E2-2.1</span>Меш рельефа и меш коллизии режут квад по разным диагоналям — расхождение до 18,56 м; один алгоритм и тест на рельефном чанке</li>
+<li><span class="key">E2-2.2</span>GrassRockBlend: два расходящихся shadow copy (0.5 на heightfield, 0.0 на вокселе) — один источник</li>
+</ol><div class="note">Провалы под землю и невидимые стены ломают всю приёмку проходимости.</div></div>
+<div class="task"><h3><span class="key">E2-3</span>Уборка билдов<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E2-3.1</span>Удалить 34 каталога build_* (~20 ГБ), оставить build_lead и build_ci</li>
+<li><span class="key">E2-3.2</span>Правило: билд волны — в scratchpad агента, не в репозитории; .gitignore и проверка в хуке</li>
+<li><span class="key">E2-3.3</span>Скрипт tools/sweep_builds.sh с отчётом что удалено</li>
+</ol><div class="note">Ждёт подтверждения владельца на удаление.</div></div>
+<div class="task"><h3><span class="key">E2-4</span>Вынос бинарников из docs<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E2-4.1</span>Перенести png/jpg/mp3/pdf/log (1,3 ГБ) в artifacts/ вне git или в LFS</li>
+<li><span class="key">E2-4.2</span>В отчётах оставить ссылки; проверка в хуке: в docs только текстовые форматы</li>
+</ol></div>
+<div class="task"><h3><span class="key">E2-5</span>Приборы приёмки мерят игровой опыт<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E2-5.1</span>Прибор сравнения кадра с референсом: ROI-маска, метрики (SSIM, гистограмма, силуэт), пороги в приёмке — общий для неба, деревьев, материалов</li>
+<li><span class="key">E2-5.2</span>Стабилизировать sim_tunnel_walk (краснеет под нагрузкой) и вернуть в штатный прогон</li>
+</ol><div class="note">Замечание владельца: лестницы «зелёные» по геометрии, но непроходимы.</div></div>
+<div class="task"><h3><span class="key">E2-6</span>Приборы интерьеров и лестниц в ctest<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E2-6.1</span>Приёмка проходимости — одна: судья геометрии (щели, висящие ступени, уклон, проступь, просвет по пандусу) + бот-капсула по всем ~130 локациям и улицам, оба в ctest</li>
+<li><span class="key">E2-6.2</span>169 находок судьи (12 «не дойти», 150 «выше пола на 0,06») — в ноль</li>
+<li><span class="key">E2-6.3</span>Марш = лестница: правило генератора (уклон, проступь, подступёнок, перила, площадки, headroom) + перевыпуск всех существующих маршей (42 старых по 26,6°)</li>
+</ol><div class="note">Порядок доводки аудита 28.08 п.1–4.</div></div>
+<div class="task"><h3><span class="key">E2-7</span>Время загрузки — блокер стриминга<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E2-7.1</span>Загрузка Вайтрана 19,6 с, из них 96 % upload_house_mesh — кэш выпечки, фоновая загрузка</li>
+<li><span class="key">E2-7.2</span>Jolt MeshShape ~68 мс на чанк (813 мс на первые 12) — coarse extraction и сборка вне потока кадра</li>
+<li><span class="key">E2-7.3</span>Телеметрия: CPU/RAM/диск, разбивка кадра по этапам, профиль; регресс-прибор на время входа в локацию (холодный кэш AO 108–114 мс)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E2-8</span>Отладочные двери DFN_* — инвентаризация<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E2-8.1</span>Список 112 дверей с назначением и владельцем в docs/DOSES.md, генерируемый из кода</li>
+<li><span class="key">E2-8.2</span>Удалить мёртвые; свести дозы приёмок к одному префиксу</li>
+</ol></div>
+<div class="task"><h3><span class="key">E2-9</span>Разрезать крупные файлы<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E2-9.1</span>App.cpp (6099) → AppLoop/AppModes/AppFerry</li>
+<li><span class="key">E2-9.2</span>gen_city.py (8660) → пакет tools/cities/ с модулями по стадиям</li>
+<li><span class="key">E2-9.3</span>forge_houses.cpp (4695) → по типам деталей; TestbedLayout (441 строка карты одной игры) — из библиотеки в games/</li>
+</ol></div>
+<div class="task"><h3><span class="key">E2-10</span>Долги аудита кода (CODE_AUDIT, 10.08)<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E2-10.1</span>Проверки вместо дисциплины, все в CI: DAG слоёв в CMake (ARCHITECTURE L107), правило 40 (.epsilon на разностях — 34 нарушения), один core-хэш вместо 18 самописных</li>
+<li><span class="key">E2-10.2</span>ARCHITECTURE.md ↔ дерево: 6 расхождений (engine/editor, ozz/llama, games/, владельцы anim) — привести; обновить снимок аудита</li>
+</ol></div>
+<h2 id="E3">E3. Человек как мера: пропорции, персонажи, анимации, бой</h2><p class="why">Крупный эпик; пропорции — блокер для убранства, дверей и всех персонажей.</p>
+<div class="task"><h3><span class="key">E3-1</span>Канон пропорций человека<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E3-1.1</span>Исследование: 7,5–8 голов, размах рук, длина ног, ширина плеч — источники (Лумис, антропометрия) в docs/design/HUMAN_SCALE.md</li>
+<li><span class="key">E3-1.2</span>Из канона вывести размеры: двери 2,0–2,1×0,85 м, сиденье 0,45 м, стол 0,75 м, кровать 2,0×0,9 м, ступень 0,17/0,29 м, потолок ≥2,4 м</li>
+<li><span class="key">E3-1.3</span>Пересчитать капсулу игрока, высоту глаз, радиус</li>
+<li><span class="key">E3-1.4</span>Прибор проверки размеров по канону; перепечка — одной волной вместе с материалами (E5-1)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E3-2</span>Модель персонажа и скелет<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E3-2.1</span>Референс-ресёрч: скелеты Skyrim/Gothic, риг humanoid (glTF), число костей</li>
+<li><span class="key">E3-2.2</span>Своя модель человека по канону (низкополигональная + LOD ×4)</li>
+<li><span class="key">E3-2.3</span>Скиннинг в рендере (матрицы костей в шейдере) вместо 15 жёстких коробок на кость; интеграция IAnim/ozz</li>
+<li><span class="key">E3-2.4</span>Пальцы и лицевые кости</li>
+<li><span class="key">E3-2.5</span>NPC-риг на шесть типажей; CharacterController для НПС в физике</li>
+<li><span class="key">E3-2.6</span>Одежда/броня как сменные части на одном скелете</li>
+</ol></div>
+<div class="task"><h3><span class="key">E3-3</span>Анимации движения<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E3-3.1</span>Ретаргет импортированных клипов (E1-3) на наш скелет</li>
+<li><span class="key">E3-3.2</span>Локомоция: стоять/идти/бежать/поворот/прыжок/падение, blend по скорости</li>
+<li><span class="key">E3-3.3</span>Сидеть/лежать — перевести на скелетные клипы (сейчас позы): опора рукой, фазы лежания в клипе</li>
+<li><span class="key">E3-3.4</span>Взаимодействия: открыть дверь, взять предмет, сесть на лошадь</li>
+<li><span class="key">E3-3.5</span>Инверсная кинематика ног по рельефу и лестницам</li>
+</ol></div>
+<div class="task"><h3><span class="key">E3-4</span>Боевая система<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E3-4.1</span>Ресёрч боёвки Skyrim/Gothic: стойки, удары, блок, стамина, хитбоксы</li>
+<li><span class="key">E3-4.2</span>Оружие как объект в руке (меч, топор, лук), хитбоксы на костях</li>
+<li><span class="key">E3-4.3</span>Анимации боя: удар лёгкий/тяжёлый, блок, отскок, получение урона, смерть</li>
+<li><span class="key">E3-4.4</span>Здоровье/стамина/урон, HUD боя</li>
+<li><span class="key">E3-4.5</span>Камера боя первое/третье лицо, лок на цель</li>
+<li><span class="key">E3-4.6</span>Ощущение удара: хит-стоп, отдача, эффект и звук попадания; приёмка боя на стенде</li>
+</ol></div>
+<div class="task"><h3><span class="key">E3-5</span>НПС<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E3-5.1</span>Спавн по паспорту города: жители, торговцы, стража</li>
+<li><span class="key">E3-5.2</span>Поведение: расписание дня (дом → работа → таверна), навигация по улицам (navmesh)</li>
+<li><span class="key">E3-5.3</span>Диалог: реплики из лора, интерфейс диалога в стиле меню</li>
+<li><span class="key">E3-5.4</span>Реакция на игрока: приветствие, тревога, торговля</li>
+<li><span class="key">E3-5.5</span>Бюджет НПС: LOD ×4 для персонажей, стриминг и упрощённый ИИ вдали (до ~1000 жителей на город)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E3-6</span>Мобы и монстры<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E3-6.1</span>Первая волна: 6–8 существ из канона бестиария (E12-2) по биомам</li>
+<li><span class="key">E3-6.2</span>Модели и скелеты (собственные, по референсам), LOD ×4</li>
+<li><span class="key">E3-6.3</span>ИИ: патруль, преследование, атака, бегство; спавн-зоны по биомам</li>
+<li><span class="key">E3-6.4</span>Анимации боя и смерти монстров, добыча/лут</li>
+</ol></div>
+<div class="task"><h3><span class="key">E3-7</span>Лошадь<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E3-7.1</span>Модель и скелет лошади (одна модель, окраски текстурами)</li>
+<li><span class="key">E3-7.2</span>Посадка/спешивание, езда (скорость, повороты, рельеф), камера</li>
+<li><span class="key">E3-7.3</span>Анимации: шаг/рысь/галоп/стоять (звук копыт — E8-2)</li>
+</ol><div class="note">Детали заказа владельца не известны — уточнить.</div></div>
+<h2 id="E4">E4. Небо, облака, погода, свет</h2><p class="why">Сверхважная по владельцу; прошлые заходы результата не дали (плоское небо, серые облака без объёма).</p>
+<div class="task"><h3><span class="key">E4-1</span>Купол неба с атмосферным рассеянием<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E4-1.1</span>Тонмаппинг и экспозиция зафиксированы первыми (иначе прибор мерит тонмаппинг, а не небо); ресёрч и выбор модели: Hosek-Wilkie / Bruneton (предвычисленные LUT)</li>
+<li><span class="key">E4-1.2</span>Реализация: голубое небо, градиент к горизонту, солнце с ореолом, ощущение купола (корректная проекция, дальний план)</li>
+<li><span class="key">E4-1.3</span>Восход/закат: цвет по высоте солнца из той же модели; луна и звёзды ночью</li>
+<li><span class="key">E4-1.4</span>Набор референс-фото неба и пороги для прибора сравнения (E2-5)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E4-2</span>Объёмные облака<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E4-2.1</span>Ресёрч: Nubis (Horizon Zero Dawn), Perlin-Worley шум, рэймарш с самозатенением и просветом</li>
+<li><span class="key">E4-2.2</span>Реализация облачного слоя с освещением от солнца и бликом (silver lining)</li>
+<li><span class="key">E4-2.3</span>Производительность: полурешение, реконструкция кадра, бюджет ≤3 мс на FullHD</li>
+<li><span class="key">E4-2.4</span>Тени облаков на земле</li>
+</ol></div>
+<div class="task"><h3><span class="key">E4-3</span>Погода и переменная облачность<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E4-3.1</span>Параметры: покрытие, плотность, высота; поле ветра (направление/сила) — общий источник для крон, травы, облаков, дыма; состояния ясно/облачно/тучи/дождь/снег</li>
+<li><span class="key">E4-3.2</span>Смена состояний по времени с плавными переходами; иногда облаков нет вовсе</li>
+<li><span class="key">E4-3.3</span>Дождь/снег как частицы; след на поверхностях — через слои материалов (E5-3)</li>
+<li><span class="key">E4-3.4</span>Туман по расстоянию и по высоте (долины утром)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E4-4</span>Тени и ночь<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E4-4.1</span>Каскадные тени от солнца</li>
+<li><span class="key">E4-4.2</span>Луна как источник теней и вторая луна — следствие решения в13/в14 (E13-1)</li>
+<li><span class="key">E4-4.3</span>Цикл суток по решению в13; ночное освещение улиц (факелы, окна)</li>
+</ol><div class="note">BOARD: «свет/тени не начаты вовсе — крупнейший неиспользованный рычаг».</div></div>
+<div class="task"><h3><span class="key">E4-5</span>Блики и отражения<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E4-5.1</span>Solar specular на воде и глянцевых материалах из той же модели неба</li>
+<li><span class="key">E4-5.2</span>Отражение неба в воде (planar/SSR по бюджету)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E4-6</span>Интерьерный свет<span class="badge" style="background:#27a">Средний</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E4-6.1</span>Свет из окон и очага по модели неба (сейчас гейт интерьера настроен вручную)</li>
+<li><span class="key">E4-6.2</span>Свечи/факелы как источники с мерцанием; тени от них по бюджету</li>
+</ol><div class="note">В домах было «слишком темно» — частично поправлено.</div></div>
+<h2 id="E5">E5. Материалы и текстуры</h2><p class="why">Блокер убранства (по владельцу) и основа для снега/зимы; волны 1–4 сданы на 70 %.</p>
+<div class="task"><h3><span class="key">E5-1</span>Завершить систему материалов<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E5-1.1</span>Цепочка мипов у плиток набора (гейт на включение DFN_MAT_SHEET по умолчанию)</li>
+<li><span class="key">E5-1.2</span>Глянец по решению В2 (E13-3): реализовать выбранный вариант</li>
+<li><span class="key">E5-1.3</span>Перевыпуск всей геометрии одним прогоном: дома из блоков материалов (кладка, брус, штукатурка, черепица), утварь и проёмы по канону пропорций (E3-1)</li>
+<li><span class="key">E5-1.4</span>Материалы для персонажей/одежды/монстров (кожа, лица, руки, ткань, металл) — снять PLACEHOLDER-цвета сегментов</li>
+<li><span class="key">E5-1.5</span>Приёмка К1–К6 на каждом новом классе объектов</li>
+</ol></div>
+<div class="task"><h3><span class="key">E5-2</span>Текстуры по референсам<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E5-2.1</span>Ресёрч: как сделаны текстуры Skyrim (тайлы 1–2 м, normal/roughness), открытые библиотеки (ambientCG, Poly Haven CC0)</li>
+<li><span class="key">E5-2.2</span>Конвейер импорта PBR (albedo/normal/roughness/AO) с сопоставлением реестру yaan.dfmat — для тайлов и для материалов импортированных мешей</li>
+<li><span class="key">E5-2.3</span>Замена процедурных плиток набора на импортированные там, где К1 не проходит</li>
+</ol></div>
+<div class="task"><h3><span class="key">E5-3</span>Снег и сезонные слои материалов<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E5-3.1</span>Слой снега поверх любого материала по нормали/высоте/укрытию (верхние грани белые)</li>
+<li><span class="key">E5-3.2</span>Заснеженность крон и веток: отдельная текстура листвы или эффект по нормали</li>
+<li><span class="key">E5-3.3</span>Зимние текстуры земли, лёд на воде, наледь на дорогах</li>
+<li><span class="key">E5-3.4</span>Мокрые поверхности после дождя (roughness/darkening)</li>
+</ol><div class="note">Связь с E4 погода и E7 биомы.</div></div>
+<h2 id="E6">E6. Рельеф провинции и большой мир</h2><p class="why">Крупнейший эпик; зависит от E1 (объекты/LOD), E2 (инструменты), E7 (биомы с лороведом).</p>
+<div class="task"><h3><span class="key">E6-1</span>Зона со своей землёй<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E6-1.1</span>Постройка/комплекс приходит с картой высот своей площадки</li>
+<li><span class="key">E6-1.2</span>Рельеф принимает площадку: террасирование, откосы, подпорные стенки, плавная стыковка по краю</li>
+<li><span class="key">E6-1.3</span>Фундаменты и ступени к двери всегда касаются земли (правило «дома на фундаментах»)</li>
+<li><span class="key">E6-1.4</span>Инструмент: поставить зону в редакторе, увидеть стыковку, откатить</li>
+</ol><div class="note">Требование владельца 29.08: «не просто здания ставились, а зона со своей землёй».</div></div>
+<div class="task"><h3><span class="key">E6-2</span>Импорт атласа FMG в рельеф<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E6-2.1</span>Масштаб и проекция: провинция Яан ≈ Скайрим (6,9×5,4 км, 37 км²), размер чанка, разрешение высот</li>
+<li><span class="key">E6-2.2</span>Импорт карты высот и масок (вода, биомы, дороги) из атласа в чанки</li>
+<li><span class="key">E6-2.3</span>Прибор: непрерывность высот на границах чанков</li>
+<li><span class="key">E6-2.4</span>Ревизия мировых констант: каждое число выведено из атласа/канона с паспортом в NUMBERS (WORLD_EXTENT_CHUNKS 8→провинция, MASSIF_CLIFF_BAND, WORLDGEN_SEA_LEVEL, POI_TRAVEL_TIME под WALK_SPEED 1.8); прибор на плейсхолдеры</li>
+</ol></div>
+<div class="task"><h3><span class="key">E6-3</span>Инструменты рельефа в редакторе<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E6-3.1</span>Кисти: поднять/опустить/выровнять/сгладить/шум; радиус и сила</li>
+<li><span class="key">E6-3.2</span>Покраска биомов/материалов земли кистью</li>
+<li><span class="key">E6-3.3</span>Отмена/повтор; сохранение как дельта рельефа</li>
+</ol></div>
+<div class="task"><h3><span class="key">E6-4</span>Дороги и реки как объекты рельефа<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E6-4.1</span>Дорога: сплайн, полотно вжимается в землю, обочины, покрытие по типу (тракт/тропа/мощёная)</li>
+<li><span class="key">E6-4.2</span>Поиск пути между городами с ценой уклона; автоматическая трассировка по атласу</li>
+<li><span class="key">E6-4.3</span>Река: русло, берега, течение, броды, мосты</li>
+<li><span class="key">E6-4.4</span>Стык дороги с планом города и приёмка ботом по всем дорогам (E2-6)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E6-5</span>Стриминг мира<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E6-5.1</span>Кольца загрузки чанков и объектов по расстоянию; выгрузка</li>
+<li><span class="key">E6-5.2</span>Фоновая загрузка в потоке, без «хлопков» кадра</li>
+<li><span class="key">E6-5.3</span>Дальний план: крупная сетка рельефа + импосторы городов и лесов (силуэт, стены, крыши), подгрузка по приближению</li>
+<li><span class="key">E6-5.4</span>Бюджет памяти и телеметрия стриминга</li>
+<li><span class="key">E6-5.5</span>Стриминг городов и построек (сейчас сцена читается целиком через load_scene_houses); радиусы ChunkStreamingParams с паспортом в NUMBERS</li>
+</ol></div>
+<div class="task"><h3><span class="key">E6-6</span>Размещение 12 городов на атласе<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E6-6.1</span>Посадка паспортов на атлас (координаты, ориентация к дорогам/воде), пропорция пятна провинции по атласу</li>
+<li><span class="key">E6-6.2</span>Применить E6-1 к городу: план города несёт высоты своей территории, провинция подгоняется под него</li>
+<li><span class="key">E6-6.3</span>Дороги между городами, указатели, мосты; сшивка ландшафта (И14) — бесшовный мир вместо 12 карт</li>
+<li><span class="key">E6-6.4</span>Снять барьер ключа пакетирования −256…1792 м (город дальше схлопывается в один меш)</li>
+<li><span class="key">E6-6.5</span>Правило посада для всех городов: посадка не «слишком ровная», без пустот по 3 дома (крит Житнова)</li>
+<li><span class="key">E6-6.6</span>Деревни-шаблоны (218): паспорт-шаблон, 3 типа деревни, генератор посадки вдоль дорог</li>
+<li><span class="key">E6-6.7</span>Локации-ориентиры вне городов: Храмовая гора (Семь Тысяч Ступеней, ~2600 м у Harrowmere) — канон, построить</li>
+</ol></div>
+<div class="task"><h3><span class="key">E6-7</span>Паспорта и чертежи городов 1–12<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E6-7.1</span>Общий: лор-ревью каждого паспорта у лороведа до стройки (сделано: Курганлы)</li>
+<li><span class="key">E6-7.2</span>Общий: §7 паспортов — замер четырьмя числами вместо оценки после второй кузни</li>
+<li><span class="key">E6-7.3</span>Каменный Брод — ревью, паспорт tools/cities, чертёж gen_*_plan.py</li>
+<li><span class="key">E6-7.4</span>Айзенберг — ревью, чертёж; решение §4.2 (парапет 1,2 м или стена 4–12 м); порталы штолен</li>
+<li><span class="key">E6-7.5</span>Тузлань — ревью; паспорт под 4 состояния карты (мир/осада/победа/оккупация) и флаг дуба с цепью</li>
+<li><span class="key">E6-7.6</span>Вышеборг — ревью; решение владельца по стенке витков (а/б/в)</li>
+<li><span class="key">E6-7.7</span>Цольбург — ревью, чертёж</li>
+<li><span class="key">E6-7.8</span>Дуброво — ревью, чертёж; ручка флоры «собор» (пустой ярус стволов)</li>
+<li><span class="key">E6-7.9</span>Мшаны — ревью, чертёж</li>
+<li><span class="key">E6-7.10</span>Раймхолд — ревью, чертёж; снег как покрытие (E5-3)</li>
+<li><span class="key">E6-7.11</span>Кёпрюкая — ревью, чертёж; яма-тюрьма через интерьеры</li>
+<li><span class="key">E6-7.12</span>Кроунхавен — лорная канва имён районов/каналов, доля гранитного берега, 23 моста, Бронзовый всадник; ждёт воды и дальнего LOD</li>
+<li><span class="key">E6-7.13</span>Курганлы этап 2 — паспорт tools/cities/kurganly.py и чертёж; наружная лестница на кровлю (судья +0,45 м); интерьеры; лор-детали (кошмы, кизяк, кибитки, колодец-журавль, варденский столб, конный рынок); состояние «военный лагерь»</li>
+<li><span class="key">E6-7.14</span>Замок Харроувард: интерьеры (зал, двор, архив, солар) — блокируют акт 1 (E12-1)</li>
+</ol><div class="note">10 из 12 городов не имеют ни паспорта в tools/cities, ни чертежа.</div></div>
+<div class="task"><h3><span class="key">E6-8</span>Перевыпустить Житнов по общим правилам<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E6-8.1</span>Прогон правил: фундаменты (E6-1), марши (E2-6), свет и проходимость интерьеров (E10-1) — одним перевыпуском</li>
+<li><span class="key">E6-8.2</span>Интерьеры этапа 2</li>
+<li><span class="key">E6-8.3</span>Приёмка проходимости (E2-6) зелёная по всему городу</li>
+</ol><div class="note">Точечные починки лестниц/крылец не делаются — только правилами.</div></div>
+<div class="task"><h3><span class="key">E6-9</span>Вода в мире<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E6-9.1</span>Уровень моря/озёр по атласу, эндорейные карты</li>
+<li><span class="key">E6-9.2</span>Поверхность воды: волны, прозрачность, берег (отражение — E4-5)</li>
+<li><span class="key">E6-9.3</span>Коллайдер воды, плавание, течение рек (E6-4)</li>
+</ol></div>
+<h2 id="E7">E7. Флора и биомы</h2><p class="why">Зависит от E1 (объектный конвейер, LOD ×4) и лороведа (правила биомов).</p>
+<div class="task"><h3><span class="key">E7-1</span>Паспорта биомов с лороведом<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E7-1.1</span>Список биомов провинции (лес, полесье, степь, горы, болото, побережье, зима/высокогорье)</li>
+<li><span class="key">E7-1.2</span>Для каждого: растительность по ярусам, почва, климат, сезон, звуки</li>
+<li><span class="key">E7-1.3</span>Маска биомов на атласе; переходы между биомами</li>
+<li><span class="key">E7-1.4</span>Правила рассева по биому: плотность, кластеры, маски исключения у дорог/полей/построек — переход «паспорт → сцена» (flora_sow)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E7-2</span>Деревья и кусты по референсам (Skyrim/Gothic 3)<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E7-2.1</span>Ресёрч с поиском: как сделаны деревья Skyrim (SpeedTree, карточки листвы, атласы), открытые модели (CC0) как референс</li>
+<li><span class="key">E7-2.2</span>Импорт 2–3 референсных моделей через glTF, замер: силуэт, плотность кроны, карточки</li>
+<li><span class="key">E7-2.3</span>Свои деревья по замерам: дуб, сосна, ель, берёза, ольха, ива — по 3 возраста</li>
+<li><span class="key">E7-2.4</span>Кусты и подрост по тому же методу</li>
+<li><span class="key">E7-2.5</span>Набор референсов деревьев и пороги (силуэт, плотность, цвет) для прибора сравнения (E2-5) — не «по памяти»</li>
+</ol><div class="note">Владелец: текущие v2 — «прямоугольные деревья и кусты».</div></div>
+<div class="task"><h3><span class="key">E7-3</span>Трава, ковёр, цветы<span class="badge" style="background:#27a">Средний</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E7-3.1</span>Дальность ковра до 100 м (плиты как GameObject — E1-1)</li>
+<li><span class="key">E7-3.2</span>Цветы/грибы/камни по биому</li>
+<li><span class="key">E7-3.3</span>Взаимодействие: трава приминается под игроком/лошадью</li>
+</ol></div>
+<div class="task"><h3><span class="key">E7-4</span>Ветер и движение листвы<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E7-4.1</span>Вершинная анимация крон и травы по полю ветра погоды (E4-3)</li>
+</ol></div>
+<h2 id="E8">E8. Звук: Steam Audio и мир источников</h2><p class="why">Требование владельца: Steam Audio 4.8.1, огибание объектов — очень важно.</p>
+<div class="task"><h3><span class="key">E8-1</span>Интеграция Steam Audio 4.8.1<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E8-1.1</span>Подключить библиотеку (third_party, CMake), лицензия Apache-2.0</li>
+<li><span class="key">E8-1.2</span>Заменить путь пространственного звука miniaudio → Steam Audio (HRTF, distance attenuation)</li>
+<li><span class="key">E8-1.3</span>Геометрия сцены для окклюзии/дифракции: дома, рельеф, деревья как акустические меши (снимает хак кармана −1000 м)</li>
+<li><span class="key">E8-1.4</span>Дифракция (огибание) и transmission через стены; проверка «источник за углом слышен глухо, но слышен»</li>
+<li><span class="key">E8-1.5</span>Реверберация по помещению: параметры от комнаты (объём, материалы), baked или realtime по бюджету</li>
+<li><span class="key">E8-1.6</span>Прибор: замер спектра/уровня в 6 позициях вокруг препятствия против ожидаемой кривой</li>
+</ol></div>
+<div class="task"><h3><span class="key">E8-2</span>Источники мира<span class="badge" style="background:#27a">Средний</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E8-2.1</span>Шестая ось материала «звук удара» в реестре (первой: без неё шаги и удары неисполнимы)</li>
+<li><span class="key">E8-2.2</span>Все эмиттеры на объектах (кроны, вода, очаг, кузня, ветер в проёмах) через GameObject.SND</li>
+<li><span class="key">E8-2.3</span>Шаги/копыта/прыжок/приземление по материалу земли/пола — реальные записи вместо синтеза</li>
+<li><span class="key">E8-2.4</span>Звуки утвари при физике (удар, падение, волочение) по веществу</li>
+<li><span class="key">E8-2.5</span>Погода: дождь/ветер/гром привязаны к состоянию неба (E4)</li>
+<li><span class="key">E8-2.6</span>Недостающие источники: птицы по биому/времени, толпа, телеги, огонь очага, кузня; генератор эмиттеров для карт без композиции</li>
+</ol></div>
+<h2 id="E9">E9. Музыка</h2><p class="why">Кодом (pretty_midi → fluidsynth/sfizz); заглавная тема одобрена 27.08.</p>
+<div class="task"><h3><span class="key">E9-1</span>Заглавная тема — довести<span class="badge" style="background:#27a">Средний</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E9-1.1</span>Финальный микс/мастер темы (без хора), сравнение с референс-треком по расстоянию, не по метрикам</li>
+<li><span class="key">E9-1.2</span>Варианты: короткая версия для загрузки, длинная для меню, без-барабанная для интро</li>
+</ol></div>
+<div class="task"><h3><span class="key">E9-2</span>Музыкальная система в игре<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E9-2.1</span>Треки: город, explore (4 слоя), таверна, ночь; калибровка громкостей в игре</li>
+<li><span class="key">E9-2.2</span>Стриминг музыки (MA_SOUND_FLAG_STREAM, правка контракта IAudio, групповая синхронизация) — без него слои = 370 МБ резидентно</li>
+<li><span class="key">E9-2.3</span>Автомат состояний музыки: слои исследование/город/интерьер/бой/ночь, переходы по состоянию игрока, бой вытесняет всё, гистерезис 5–10 с, cooldown тишины, запрет повтора, стингеры с дакингом −6 дБ</li>
+<li><span class="key">E9-2.4</span>Loop-points в реестре треков (сейчас только «луп = конец файла»)</li>
+<li><span class="key">E9-2.5</span>Темы городов по школам (степь, горы, лес) — по 1 мотиву на паспорт с лороведом</li>
+<li><span class="key">E9-2.6</span>Микшер: шины sfx/music/voice/ambient, дакинг; аудит шин voice/ambient</li>
+</ol></div>
+<div class="task"><h3><span class="key">E9-3</span>Инструменты и библиотека<span class="badge" style="background:#777">Низкий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E9-3.1</span>Библиотека sfz/SoundFont инструментов провинции (лютня, гусли, рог, барабан)</li>
+<li><span class="key">E9-3.2</span>Скрипт рендера всех треков из MIDI одной командой, версии в artifacts/</li>
+<li><span class="key">E9-3.3</span>Этап 1 пайплайна: MuseScore_General .sf2 и EchoThief IR; этап 2 VPO 3.3 + sfizz_render (риск: sfizz заархивирован 21.06.2026 — выбрать замену); этап 3 SuperCollider/Csound — решить нужен ли</li>
+<li><span class="key">E9-3.4</span>README для tools/music с состоянием пайплайна</li>
+</ol></div>
+<h2 id="E10">E10. Убранство, предметы, книги</h2><p class="why">После E3 (пропорции) и E5 (материалы).</p>
+<div class="task"><h3><span class="key">E10-1</span>Расстановка комнат по стилю Skyrim<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E10-1.1</span>Инструмент расстановки в редакторе: привязка к полу/стене/столу, поворот, копирование</li>
+<li><span class="key">E10-1.2</span>Наборы «комната»: спальня, кухня, таверна, кузница, лавка — по скринам Skyrim</li>
+<li><span class="key">E10-1.3</span>Автозаполнение интерьера по паспорту дома (профессия, достаток); правила генератора: свет второго этажа (69 из 107 локаций без [light]), проходимость убранства и точки входа (9 непроходимых), параметр side элемента</li>
+</ol></div>
+<div class="task"><h3><span class="key">E10-2</span>Книги и письмо<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E10-2.1</span>Объект «книга/свиток/записка» с текстом из лора; чтение на экране в стиле меню</li>
+<li><span class="key">E10-2.2</span>Формат текста книг (markdown → шрифт PT Serif), библиотека лороведа</li>
+<li><span class="key">E10-2.3</span>Полки и хранение в домах</li>
+</ol></div>
+<div class="task"><h3><span class="key">E10-3</span>Физика предметов — хвосты<span class="badge" style="background:#777">Низкий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E10-3.1</span>Исполнить §10 после решения (E13-3): стулья, сила толчка, заполнение → в кузницу</li>
+<li><span class="key">E10-3.2</span>Звук и частицы при ударах (E8)</li>
+</ol><div class="note">Владелец принял основное.</div></div>
+<h2 id="E11">E11. Меню, интерфейс, сохранения, загрузка</h2><p class="why">Оболочка игры; частично сделана (меню, интро, настройки).</p>
+<div class="task"><h3><span class="key">E11-1</span>Сохранения<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E11-1.1</span>Подключить GameplaySave/SaveDelta к приложению первой (сейчас ни одной ссылки в engine/app; «Continue» в меню — заглушка)</li>
+<li><span class="key">E11-1.2</span>Формат сохранения: позиция, время суток, погода/небо (E4-3), дельты сцены (SaveDelta), инвентарь, состояние НПС, квесты/журнал (E12)</li>
+<li><span class="key">E11-1.3</span>Слоты и автосохранение; быстрое сохранение/загрузка клавишей</li>
+<li><span class="key">E11-1.4</span>Совместимость версий: миграции с первого дня, сохранение неизвестных секций (контракт SaveDelta.h)</li>
+<li><span class="key">E11-1.5</span>Состояние предметов (поднятые/сложенные) и world_flags в сейв</li>
+<li><span class="key">E11-1.6</span>Прогон-приёмка: «вышел — зашёл — стою там же»</li>
+</ol></div>
+<div class="task"><h3><span class="key">E11-2</span>Экран загрузки и статистика<span class="badge" style="background:#27a">Средний</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E11-2.1</span>Прогресс по стадиям (чанки, объекты, звук), подсказки из лора вместо служебных строк</li>
+<li><span class="key">E11-2.2</span>Загрузка в фоне без блокировки меню</li>
+</ol></div>
+<div class="task"><h3><span class="key">E11-3</span>Настройки графики<span class="badge" style="background:#27a">Средний</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E11-3.1</span>Пресеты low/medium/high/ultra, синхронизация игра↔меню для всех параметров (тени, облака, дальность LOD, трава)</li>
+<li><span class="key">E11-3.2</span>Настройки звука: шины, HRTF вкл/выкл, устройство вывода</li>
+</ol></div>
+<div class="task"><h3><span class="key">E11-4</span>HUD и инвентарь<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E11-4.1</span>Инвентарь предметов (E10), экипировка (E3), компас и маркеры</li>
+<li><span class="key">E11-4.2</span>Стиль Skyrim: минимальный HUD, исчезающий вне боя</li>
+</ol></div>
+<h2 id="E12">E12. Лор, сюжет, квесты, RPG</h2><p class="why">С лороведом (daggerfall-n-47); канон нужен раньше стройки городов, монстров и боя.</p>
+<div class="task"><h3><span class="key">E12-1</span>Сюжет: акты и линии<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E12-1.1</span>Акты 2–3 — написать; фазы войны привязать к границам актов</li>
+<li><span class="key">E12-1.2</span>География акта 2 (речной город, престол собрания лордов)</li>
+<li><span class="key">E12-1.3</span>Weave C — династическая смута из «давления» в сюжет</li>
+<li><span class="key">E12-1.4</span>Проверка правила узнаваемости пластов (без прямых имён и анаграмм) на первом написанном квесте</li>
+</ol></div>
+<div class="task"><h3><span class="key">E12-2</span>Бестиарий (канон)<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E12-2.1</span>Славянский центр: леший, водяной, русалки, кикимора, домовой, банник, упыри, Вий</li>
+<li><span class="key">E12-2.2</span>Север: курганные мертвецы, туманные девы, подменыши, двойник, призрак-чиновник</li>
+<li><span class="key">E12-2.3</span>Запад: кобольды рудников, чёрный пёс перевала; Юг: духи курганов, нечисть войны, «хозяин пролива»</li>
+<li><span class="key">E12-2.4</span>2–3 бродячих существа на все пояса; Чудище Лесное — повадки и квестовые крючки</li>
+<li><span class="key">E12-2.5</span>Система задабривания/уговора нечисти (этап 2)</li>
+</ol><div class="note">Модели и ИИ — в E3-6.</div></div>
+<div class="task"><h3><span class="key">E12-3</span>Квестовая система (движок)<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E12-3.1</span>Регистрация квестов, стадии, условия (атомы, триггер-объём entered_location), инстанциатор шаблонов</li>
+<li><span class="key">E12-3.2</span>Журнал и маркеры квестов читают world_flags из сохранения (E11-1)</li>
+<li><span class="key">E12-3.3</span>Формат хранения квеста (файл/схема) и его миграция в сохранении; ответы на 5 вопросов QUEST_FORMAT §8 к sim</li>
+<li><span class="key">E12-3.4</span>Пилот: 3 квеста в Вайтране по лору</li>
+</ol></div>
+<div class="task"><h3><span class="key">E12-4</span>RPG-механики<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
+<li><span class="key">E12-4.1</span>Свод вердиктов: области 5–19 из 19 (проведены 1–4)</li>
+<li><span class="key">E12-4.2</span>Школы магии, мана (лорное имя), наговоры «слово+жертва»</li>
+<li><span class="key">E12-4.3</span>Список навыков — утвердить; характеристики, опыт, прокачка — движковый носитель</li>
+<li><span class="key">E12-4.4</span>Экономика: торговля, цены по городам; расписка как центральный предмет мира</li>
+<li><span class="key">E12-4.5</span>Гриллинг геймдизайна на играбельном каркасе (бой в19, наполнение мира, данжи, день/ночь)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E12-5</span>Квесты четырёх литературных пластов<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E12-5.1</span>Гоголь: авторский Вий — трёхночный квест в степной церкви</li>
+<li><span class="key">E12-5.2</span>Достоевский: городские психологические квесты столицы (двойники, ростовщики, следователь)</li>
+<li><span class="key">E12-5.3</span>Пушкин: светлые шаблонные квесты деревень центра</li>
+<li><span class="key">E12-5.4</span>Толстой: сет-пис главного сражения южной войны (квест-выбор)</li>
+<li><span class="key">E12-5.5</span>Цольбург: крысиный дудочник; Кроунхавен: квестовая канва обхода 23 мостов и Бронзового всадника (геометрия — E6-7)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E12-6</span>Локализация и голос<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E12-6.1</span>10 голосов (7м+3ж) и 20–30 общих реплик типовых НПС</li>
+<li><span class="key">E12-6.2</span>Выбор оффлайн-синтеза речи (владелец ресёрчит сам, Q76)</li>
+<li><span class="key">E12-6.3</span>Тексты книг и записок как ресурс лороведа (E10-2)</li>
+</ol></div>
+<div class="task"><h3><span class="key">E12-7</span>Данные карт мира<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
+<li><span class="key">E12-7.1</span>JSON-сайдкары шести карт story (Aldfell, Sedgewend, Farness, Seremarch, Thornsound, Vaelmere)</li>
+<li><span class="key">E12-7.2</span>Словарь ландформ: LF-9/10/11 — решение design; формат: пустые реки, эндорейная карта</li>
+<li><span class="key">E12-7.3</span>PORT STATUS: механизм вывода из FMG; декларации сайдкара (солёность озера, каньон) — в данные</li>
+<li><span class="key">E12-7.4</span>Спорные территории атласа (острова Эгероса) — расписать</li>
+</ol></div>
+</body></html>
