@@ -1,6 +1,6 @@
 /*
 Created: 09:08:2026 - 00:45:00
-Last updated: 28:08:2026 - 19:30:00
+Last updated: 29:08:2026 - 15:57:06
 Module: engine/app
 File: engine/app/sources/App.cpp
 
@@ -805,6 +805,9 @@ UPD:
   дальней земли, рою и стреле камеры (раньше её получал только тур), и доза
   DFN_CAPTURE_AFTER_FRAMES начинает счёт от ГОТОВНОСТИ МИРА, а не от запуска —
   часы при этом стоят, пока затвор ждёт. Дверь контроля DFN_UNPIN.
+- 29:08:2026 - 15:57:06: Панель редактора гасла навсегда: пустой ImGui-кадр меню
+                         затирал set_visible(true) той же кнопки «Редактор»;
+                         после пустого кадра видимость = право строить.
 */
 
 #include "engine/app/sources/App.h"
@@ -4228,6 +4231,11 @@ int App::run() {
             editor_ui_.set_visible(false);
             editor_ui_.begin_frame(*input_, *window_, 0.0f);
             editor_ui_.end_frame();
+            // Если в ЭТОМ же кадре меню отдало право строить (кнопка
+            // «Редактор» или «Продолжить» в сессии), пустой кадр выше не
+            // должен унести видимость с собой: следующий кадр уже не меню,
+            // и включить панели больше некому. Видимость = право строить.
+            if (mode_ != AppMode::Menu) editor_ui_.set_visible(editor_session_);
             draw_menu(render_system_.hud(), menu_);
             render_system_.set_hud_visible(true);
 
