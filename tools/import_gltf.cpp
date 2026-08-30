@@ -442,15 +442,44 @@ void apply_pre_transform(skel::Skeleton& skeleton, SkinMesh& skin,
         v.position = glm::vec3{pre * glm::vec4{v.position, 1.0f}};
         v.normal = glm::normalize(pre_rot * v.normal);
     }
+    // THE CLIPS CARRY THE ROOT'S FRAME TOO, AND THE ROTATION HALF OF THAT WAS
+    // MISSING UNTIL 31.08. A clip exported from Blender keys EVERY joint,
+    // root included, and a keyed rotation REPLACES the bind rotation this
+    // function just rotated (skel::sample_clip: bind first, keys over it). So
+    // the yaw baked into the bind pose survived exactly as long as nobody
+    // played a clip: the rest pose faced -Z, and the moment Idle_Loop started
+    // the figure spun back to the +Z its author had left it facing.
+    //
+    // Measured on HumanBase: the root's authored rotation is (-90 deg about X)
+    // — the file's own Z-UP node — and `pre` is a further 180 deg about Y from
+    // `--yaw 180`. The bind pose composed both; the clip re-asserted the first
+    // alone, which is precisely a body walking backwards. The owner reported
+    // it as "повёрнут задом наперёд" and it is the same defect the header
+    // above warns about for translations, one path over.
+    const glm::quat pre_q = [&] {
+        glm::mat3 basis{pre};
+        for (int c = 0; c < 3; ++c) {
+            const float len = glm::length(basis[c]);
+            basis[c] = len > 1e-8f ? basis[c] / len : basis[c];
+        }
+        return glm::normalize(glm::quat_cast(basis));
+    }();
     for (skel::AnimClip& c : clips) {
         for (skel::AnimChannel& ch : c.channels) {
-            if (ch.path != skel::AnimPath::Translation
-                || ch.joint >= skeleton.joints.size()
+            if (ch.joint >= skeleton.joints.size()
                 || skeleton.joints[ch.joint].parent >= 0) {
                 continue;
             }
-            for (glm::vec4& v : ch.values) {
-                v = glm::vec4{glm::vec3{pre * glm::vec4{glm::vec3{v}, 1.0f}}, v.w};
+            if (ch.path == skel::AnimPath::Translation) {
+                for (glm::vec4& v : ch.values) {
+                    v = glm::vec4{glm::vec3{pre * glm::vec4{glm::vec3{v}, 1.0f}}, v.w};
+                }
+            } else if (ch.path == skel::AnimPath::Rotation) {
+                for (glm::vec4& v : ch.values) {
+                    const glm::quat q = glm::normalize(pre_q
+                                                       * glm::quat{v.w, v.x, v.y, v.z});
+                    v = glm::vec4{q.x, q.y, q.z, q.w};
+                }
             }
         }
     }

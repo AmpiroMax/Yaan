@@ -83,3 +83,37 @@ mirror plane (point + horizontal normal) and applies the local mirror.
   slopes/stairs is a recorded later item (grill в24 notes stairs explicitly).
 - No fingers, no face bones. Faces are a later character-zone stage and will
   extend the enum at the end, not reshape it.
+
+## Contact points and grounding (locomotion-fix wave, 31.08)
+
+The fifteen bones still have no toe, and the acceptance number the character zone
+is judged by — how far the planted foot slides — is about a point that is ON the
+ground. Two things follow, and both live in `ClipPlayer.h` rather than in the
+enum, because neither adds a bone:
+
+- **A foot's CONTACT POINTS are its rig joint plus whatever the IMPORTED skeleton
+  hangs off it.** On HumanBase that is `DEF-foot.L → DEF-toe.L`; on a Skyrim
+  skeleton it is `NPC L Foot → NPC L Toe0`. This is a rule about the imported
+  hierarchy, not a name table, and it is what lets a fifteen-bone rig measure a
+  fifty-three-joint model's ball-of-foot contact. Measuring the ANKLE instead is
+  fair for a walk and wrong for a run: a running foot lands on the ball, and on
+  this asset the jog's ankle never came within 2.6 cm of its own standing height
+  while its toe was on the ground.
+- **"The foot is down" is measured against that joint's height in OUR REST POSE,**
+  not against its own lowest sample in the clip. Every joint has a minimum in
+  every clip, including clips where it never approaches the ground.
+
+**Grounding is a property of a clip AT A STRIDE SCALE, measured once.** Scaling a
+leg's swing to cover sim's ground also changes how far the leg REACHES, so a
+shrunk stride straightens the knee and the pelvis must ride higher. The lift that
+puts the deepest contact of the cycle exactly on the ground is stored per scale
+(`ClipEntry::ground_curve`) and added to the ROOT joint's translation in the
+frame. It is a constant over the cycle on purpose: a per-frame clamp would delete
+the flight phase of a run. The jump triple and the seat are excluded by name — a
+body that is supposed to leave the ground may not be pulled back onto it.
+
+**Still not foot IK.** There is no per-foot ground raycast and no two-link knee
+solve, so on a slope or a stair the pair of feet is still level with each other.
+What this adds is the seam such a solver needs: a vertical root correction derived
+from a MEASUREMENT, with the measurement currently coming from the clip's own
+cycle instead of from the world.

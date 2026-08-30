@@ -98,7 +98,7 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     triangles_ = obj->skin.indices.size() / 3;
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
     sample_.assign(skeleton_.size(), anim::JointLocal{});
-    library_ = anim::build_clip_library(skeleton_, binding_, clips_);
+    library_ = anim::build_clip_library(rig, skeleton_, binding_, clips_);
     ready_ = true;
     std::fprintf(stderr,
                  "[character] \"%s\": %zu joints (%u of %u rig bones bound), "

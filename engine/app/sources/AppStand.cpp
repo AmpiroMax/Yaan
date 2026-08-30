@@ -21,24 +21,39 @@ AI Agents Notice (must follow):
 namespace dfn::app {
 namespace {
 
-/// THE AZIMUTH CONVENTION, measured and not guessed: `orbit_yaw` 0 puts the
-/// camera IN FRONT of the figure, 180 directly BEHIND it. The first version of
-/// this table had it the other way round and shot a "front" pose of a man's
-/// back — visible only because the frame was looked at.
+/// THE AZIMUTH CONVENTION: `orbit_yaw` 0 is the third-person boom's home,
+/// which is BEHIND the figure; 180 puts the camera in front of it, looking at
+/// its face.
+///
+/// THIS TABLE HAD IT THE OTHER WAY ROUND UNTIL 31.08, AND THE FRAME AGREED
+/// WITH IT, which is the part worth reading twice. The previous wave did look
+/// at the frame — its own comment says so — and saw a face at azimuth 0, so it
+/// wrote down "0 is the front". What it was actually looking at was a model
+/// turned 180 degrees by a bug in the importer (the yaw baked into the bind
+/// pose was not carried into the clips' root ROTATION channels, so the moment
+/// a clip played the figure spun to face the way its author left it). Two
+/// wrongs made a right-looking screenshot: the camera stood behind a man who
+/// was walking backwards, and the picture showed a face.
+///
+/// So fixing the model alone would have turned every acceptance frame of this
+/// wave into a photograph of a back. Both halves move together, and the pair
+/// is why the acceptance for item 1 is not "the model faces -Z" — that is a
+/// unit test — but "the FRONT camera sees a FACE while the figure walks
+/// TOWARD it", which is a claim about the two of them at once.
 constexpr StandCamera CAMERAS[STAND_CAMERA_COUNT] = {
     // 1. FRONT. Reads proportions and where the arms hang; the pose a
     //    character sheet is drawn from.
-    {0.0f, -6.0f, 3.4f, 0.75f, "front"},
+    {180.0f, -6.0f, 3.4f, 0.75f, "front"},
     // 2. PROFILE. THE GAIT CAMERA: stride length, knee flexion and the trunk's
     //    lean are all fore-and-aft quantities and are invisible head-on.
-    {90.0f, -4.0f, 3.6f, 0.80f, "profile"},
+    {270.0f, -4.0f, 3.6f, 0.80f, "profile"},
     // 3. THREE-QUARTER. The compromise the eye is used to: silhouette plus
     //    depth. It is what the wave's before/after pair is shot on, because a
     //    procedural gait and a bought clip differ in BOTH.
-    {45.0f, -8.0f, 3.4f, 0.80f, "three-quarter"},
+    {225.0f, -8.0f, 3.4f, 0.80f, "three-quarter"},
     // 4. CLOSE. Head and shoulders: the camera that shows the skinning seam at
     //    the neck and what the clothing palette actually looks like.
-    {25.0f, 6.0f, 2.4f, 0.90f, "close"},
+    {205.0f, 6.0f, 2.4f, 0.90f, "close"},
 };
 
 /// One phase of the queue: when it starts, what the hands are doing.
