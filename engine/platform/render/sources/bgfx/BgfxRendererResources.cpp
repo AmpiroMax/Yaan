@@ -136,6 +136,60 @@ MeshHandle BgfxRenderer::create_mesh(std::span<const Vertex> vertices,
     return MeshHandle{id};
 }
 
+MeshHandle BgfxRenderer::create_skinned_mesh(std::span<const SkinnedVertex> vertices,
+                                             std::span<const uint32_t> indices) {
+    Impl& im = *impl_;
+    if (!im.initialized || vertices.empty() || indices.empty()) {
+        return {};
+    }
+    const bgfx::Memory* vmem = bgfx::copy(
+        vertices.data(), static_cast<uint32_t>(vertices.size_bytes()));
+    const bgfx::Memory* imem = bgfx::copy(
+        indices.data(), static_cast<uint32_t>(indices.size_bytes()));
+    Impl::MeshRes res{
+        bgfx::createVertexBuffer(vmem, im.skinned_layout),
+        bgfx::createIndexBuffer(imem, BGFX_BUFFER_INDEX32),
+        glm::vec3(0.0f),
+        0.0f,
+    };
+    // THE SPHERE IS THE BIND POSE'S, AND THAT IS A KNOWN LOOSENESS, NAMED HERE
+    // RATHER THAN DISCOVERED LATER. Culling, the pick ray and both shadow
+    // culls read this sphere through `transform`; a posed body reaches outside
+    // its bind-pose sphere (an arm raised over the head is the easy case), so
+    // the radius is padded by half again. Padding is the SAFE direction for
+    // every one of those consumers -- a slightly too big sphere costs a draw,
+    // a slightly too small one deletes a limb from a shadow.
+    {
+        glm::vec3 lo = vertices[0].position;
+        glm::vec3 hi = lo;
+        for (const SkinnedVertex& v : vertices) {
+            lo = glm::min(lo, v.position);
+            hi = glm::max(hi, v.position);
+        }
+        res.center = (lo + hi) * 0.5f;
+        res.radius = glm::length(hi - res.center) * 1.5f;
+    }
+    res.tri_count = static_cast<uint32_t>(indices.size() / 3);
+    if (!bgfx::isValid(res.vb) || !bgfx::isValid(res.ib)) {
+        if (bgfx::isValid(res.vb)) {
+            bgfx::destroy(res.vb);
+        }
+        if (bgfx::isValid(res.ib)) {
+            bgfx::destroy(res.ib);
+        }
+        std::fprintf(stderr, "[render] skinned mesh upload FAILED (bgfx handle "
+                             "pool exhausted); it draws NOTHING\n");
+        return {};
+    }
+    const uint32_t id = im.next_id++;
+    im.meshes.emplace(id, res);
+    im.skinned_meshes.insert(id);
+    ++im.meshes_created;
+    im.peak_meshes = std::max(im.peak_meshes,
+                              static_cast<uint32_t>(im.meshes.size()));
+    return MeshHandle{id};
+}
+
 void BgfxRenderer::destroy_mesh(MeshHandle mesh) {
     Impl& im = *impl_;
     const auto it = im.meshes.find(mesh.id);
@@ -151,6 +205,7 @@ void BgfxRenderer::destroy_mesh(MeshHandle mesh) {
             bgfx::destroy(it->second.ib);
         }
         im.meshes.erase(it);
+        im.skinned_meshes.erase(mesh.id);
         ++im.meshes_destroyed;
     }
 }

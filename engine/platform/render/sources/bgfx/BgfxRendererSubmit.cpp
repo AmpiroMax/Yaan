@@ -55,6 +55,23 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         return;
     }
     const bool is_transparent = im.transparent.contains(program.id);
+    // SKINNING RIDES THE SAME SUBMIT (see Impl::pending_palette). `bind_bones`
+    // is called before EVERY bgfx::submit below because bgfx consumes pending
+    // uniforms with the draw: a palette set once would reach the scene pass
+    // and leave the shadow pass wearing whatever the previous draw left.
+    const bool is_skinned = im.skinned_meshes.contains(mesh.id);
+    const auto bind_bones = [&im, is_skinned]() {
+        if (!is_skinned || !bgfx::isValid(im.u_bones)) {
+            return;
+        }
+        const glm::mat4* data = im.pending_palette != nullptr
+                                    ? im.pending_palette
+                                    : im.identity_palette.data();
+        const uint32_t count = im.pending_palette != nullptr
+                                   ? im.pending_palette_count
+                                   : 1u;
+        bgfx::setUniform(im.u_bones, glm::value_ptr(*data), count);
+    };
 
     // Shadow caster pass (в1): every opaque submit also renders depth into the
     // sun's shadow view — terrain, trees, houses, scatter all cast. Skipped
@@ -104,6 +121,9 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         // leaves move. Everything else keeps the cheap depth-only program, so
         // only foliage pays for the discard.
         bgfx::ProgramHandle caster = im.shadow_program;
+        if (is_skinned && bgfx::isValid(im.shadow_skinned_program)) {
+            caster = im.shadow_skinned_program;
+        }
         if (is_cutout && bgfx::isValid(im.shadow_cutout_program)) {
             caster = im.shadow_cutout_program;
             const auto shadow_tex = im.textures.find(texture.id);
@@ -113,6 +133,7 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
                                      | BGFX_SAMPLER_MIP_POINT);
             }
         }
+        bind_bones();
         bgfx::setTransform(glm::value_ptr(transform));
         bgfx::setVertexBuffer(0, mesh_it->second.vb);
         bgfx::setIndexBuffer(mesh_it->second.ib);
@@ -145,6 +166,7 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
                                              | BGFX_SAMPLER_MIP_POINT);
                     }
                 }
+                bind_bones();
                 bgfx::setTransform(glm::value_ptr(transform));
                 bgfx::setVertexBuffer(0, mesh_it->second.vb);
                 bgfx::setIndexBuffer(mesh_it->second.ib);
@@ -175,7 +197,13 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         }
         return on;
     }();
-    if (im.shadow_light_count > 0 && !is_transparent && !is_cutout
+    // SKINNED CASTERS ARE SKIPPED IN THE CARRIED-LIGHT CUBES, and it is a NAMED
+    // GAP, not an oversight: `point_shadow` has no skinned variant this wave,
+    // so a body drawn there would cast its BIND pose -- a standing statue's
+    // shadow following a walking man around a torch, which is worse than the
+    // body casting nothing into torchlight. The sun map, which is what an
+    // outdoor acceptance frame is about, DOES get the posed caster above.
+    if (im.shadow_light_count > 0 && !is_transparent && !is_cutout && !is_skinned
         && (params_in.casts_in_point_shadows || lod_point_cast)) {
         const glm::vec3 wcenter = world_center;
         const float wradius = world_radius;
@@ -415,6 +443,7 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     if (is_cutout && im.internal_samples > 1 && params[0] > 1.5f) {
         state |= BGFX_STATE_BLEND_ALPHA_TO_COVERAGE;
     }
+    bind_bones();
     bgfx::setState(state);
     bgfx::submit(VIEW_SCENE, prog_it->second);
 
@@ -451,6 +480,35 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
             }
         }
     }
+}
+
+void BgfxRenderer::submit_skinned(MeshHandle mesh, ProgramHandle program,
+                                  const glm::mat4& transform,
+                                  std::span<const glm::mat4> bone_palette,
+                                  TextureHandle texture, const DrawParams& params) {
+    Impl& im = *impl_;
+    // A PALETTE TOO LONG IS REFUSED, NOT TRUNCATED (IRenderer's contract says
+    // so and this is where it is kept). Truncating collapses every bone past
+    // the limit onto the model origin, which draws a body with its legs folded
+    // into its navel -- it looks like a modelling error, so the report goes to
+    // the wrong person and the real cause (a skeleton that outgrew the palette)
+    // is never named.
+    if (bone_palette.size() > MAX_BONE_PALETTE) {
+        static bool warned = false;
+        if (!warned) {
+            warned = true;
+            std::fprintf(stderr,
+                         "[render] skinned draw with %zu bones > MAX_BONE_PALETTE "
+                         "(%u) -- DROPPED. Split the mesh into two draws.\n",
+                         bone_palette.size(), MAX_BONE_PALETTE);
+        }
+        return;
+    }
+    im.pending_palette = bone_palette.empty() ? nullptr : bone_palette.data();
+    im.pending_palette_count = static_cast<uint32_t>(bone_palette.size());
+    submit(mesh, program, transform, texture, params);
+    im.pending_palette = nullptr;
+    im.pending_palette_count = 0;
 }
 
 } // namespace dfn::platform

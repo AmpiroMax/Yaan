@@ -23,8 +23,10 @@ Notes:
 - Deliberately thin: materials, culling, batching, lighting and the camera live in
   engine/render on top of this. The backend owns the low-res internal target and
   the integer upscale (Q9); consumers never see it.
-- Skinned meshes (ozz skinning matrices) are a stage-3 extension; the contract will
-  gain create_skinned_mesh + submit overload at the next sync, not ad-hoc.
+- Skinned meshes: the stage-3 extension LANDED (character wave, 30.08) as
+  create_skinned_mesh + submit_skinned + SkinnedVertex. Additive only -- every
+  existing signature is byte-for-byte what it was, so a call site that knows
+  nothing about bones is unchanged (Rule 26 allows growth, not reshaping).
 - Null backend: all methods succeed, handles are valid-but-inert, save_screenshot
   writes nothing and returns false.
 
@@ -72,6 +74,32 @@ struct Vertex {
     glm::vec2 uv;         // 0..1
     uint32_t color_rgba;  // 0xAABBGGRR packed, white = 0xFFFFFFFF
 };
+
+/// SKINNED vertex layout (stage-3 extension, character wave 30.08). A SECOND
+/// layout rather than four more fields on `Vertex`, and the reason is written
+/// into `Vertex` itself: terrain, water, paths, houses and flora all pay for
+/// every byte added there, and none of them has a bone.
+///
+/// `joints` index the DRAW'S bone palette (see submit_skinned), not any global
+/// bone table: a palette is per-draw by construction, so a mesh split across
+/// two draws re-indexes into two palettes and neither knows about the other.
+/// `weights` sum to 1 -- the importer normalises them, because a vertex whose
+/// weights sum to 0.97 shrinks toward the model origin, which reads as a
+/// dented mesh rather than as a bad file.
+struct SkinnedVertex {
+    glm::vec3 position;   // meters, BIND-pose model space
+    glm::vec3 normal;     // unit, bind pose
+    glm::vec2 uv;         // 0..1
+    uint32_t color_rgba;  // 0xAABBGGRR packed, white = 0xFFFFFFFF
+    uint8_t joints[4];    // palette slots
+    float weights[4];     // sum 1
+};
+
+/// The palette ceiling one draw may carry. 64 mat4 = 4 KiB of uniform data,
+/// which is the size every desktop backend guarantees; a humanoid with fingers
+/// and a face fits inside it, and a skeleton that does not is split into draws
+/// rather than silently truncated.
+inline constexpr uint32_t MAX_BONE_PALETTE = 64;
 
 struct RendererInitParams {
     void* native_window_handle = nullptr; // backend-specific (from IWindow)
@@ -410,6 +438,13 @@ public:
                                                  std::span<const uint32_t> indices) = 0;
     virtual void destroy_mesh(MeshHandle mesh) = 0;
 
+    // SKINNED mesh (stage-3 extension, character wave 30.08 -- the sync this
+    // header's Notes promised). Returns a handle destroyed by the same
+    // destroy_mesh: a skinned mesh is a mesh, and giving it its own destructor
+    // would be two lifetimes for one resource.
+    [[nodiscard]] virtual MeshHandle create_skinned_mesh(
+        std::span<const SkinnedVertex> vertices, std::span<const uint32_t> indices) = 0;
+
     [[nodiscard]] virtual TextureHandle create_texture(uint32_t width, uint32_t height,
                                                        TextureFormat format,
                                                        std::span<const uint8_t> pixels) = 0;
@@ -431,6 +466,28 @@ public:
     void submit(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
                 TextureHandle texture = {}) {
         submit(mesh, program, transform, texture, DrawParams{});
+    }
+
+    // SKINNED submission: same draw, plus the bone palette this draw's vertex
+    // indices refer to. `transform` still places the model in the world, so a
+    // palette is authored in MODEL space and the two compose exactly as they
+    // do for a rigid mesh -- which is what lets culling, picking and the
+    // shadow passes keep reading `transform` and know nothing about bones.
+    //
+    // `bone_palette` holds skinning matrices (posed bone in model space x the
+    // joint's inverse bind), at most MAX_BONE_PALETTE of them; a longer span
+    // is REFUSED (the draw is dropped, loudly) rather than truncated, because
+    // a truncated palette collapses the tail of the skeleton onto the origin
+    // and reads as a modelling error. An EMPTY palette is the bind pose.
+    virtual void submit_skinned(MeshHandle mesh, ProgramHandle program,
+                                const glm::mat4& transform,
+                                std::span<const glm::mat4> bone_palette,
+                                TextureHandle texture, const DrawParams& params) = 0;
+    void submit_skinned(MeshHandle mesh, ProgramHandle program,
+                        const glm::mat4& transform,
+                        std::span<const glm::mat4> bone_palette,
+                        TextureHandle texture = {}) {
+        submit_skinned(mesh, program, transform, bone_palette, texture, DrawParams{});
     }
 
     // Immediate debug line in world space, lives one frame. No-op in release builds.

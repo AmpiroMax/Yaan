@@ -407,6 +407,11 @@ struct BgfxRenderer::Impl {
     uint32_t internal_samples = 1;
 
     bgfx::VertexLayout mesh_layout;
+    /// The SkinnedVertex layout (character wave, 30.08). A second layout, not
+    /// an extended first one: every terrain, water, path and flora vertex in
+    /// the world would otherwise carry eight bytes of bone data it has no use
+    /// for (see IRenderer::SkinnedVertex for the argument in full).
+    bgfx::VertexLayout skinned_layout;
     bgfx::VertexLayout debug_layout;
     bgfx::VertexLayout upscale_layout;
 
@@ -430,6 +435,15 @@ struct BgfxRenderer::Impl {
     /// know whether this draw supplied one.
     bgfx::TextureHandle neutral_normal = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_params = BGFX_INVALID_HANDLE;
+    /// THE BONE PALETTE of the skinned draw in flight: MAX_BONE_PALETTE mat4.
+    /// Set per draw, like u_params and for the same reason; bgfx uniforms are
+    /// sticky, so a skinned draw that supplied no palette would otherwise wear
+    /// the previous body's pose.
+    bgfx::UniformHandle u_bones = BGFX_INVALID_HANDLE;
+    /// Identity, MAX_BONE_PALETTE times: what an empty palette binds. A mesh
+    /// then draws its BIND pose, which is a readable answer; the alternative
+    /// (whatever was in the uniform) is not an answer at all.
+    std::vector<glm::mat4> identity_palette;
     /// ОТРАЖАТЕЛЬНАЯ ПОЛОВИНА МАТЕРИАЛА, ПО ДРО (зона МАТЕРИАЛЫ, 28.08):
     /// x шероховатость, y металличность, zw свободны под следующие поля
     /// материала (эмиссия поверхности, повтор плитки). Свой uniform, а не
@@ -450,6 +464,7 @@ struct BgfxRenderer::Impl {
     bgfx::TextureHandle shadow_map = BGFX_INVALID_HANDLE;
     bgfx::FrameBufferHandle shadow_fb = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle shadow_program = BGFX_INVALID_HANDLE;
+    bgfx::ProgramHandle shadow_skinned_program = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle shadow_cutout_program = BGFX_INVALID_HANDLE;
     std::unordered_map<uint32_t, bool> cutout; // program id -> alpha cutout
     // Texture ids that carry a mip chain (cutout masks only — see
@@ -522,6 +537,19 @@ struct BgfxRenderer::Impl {
         uint32_t tri_count = 0;
     };
     std::unordered_map<uint32_t, MeshRes> meshes;
+    /// Which mesh ids were uploaded with the SKINNED layout. Kept as a set
+    /// rather than a flag on MeshRes so `destroy_mesh` stays one code path:
+    /// a skinned mesh is a mesh, exactly as the contract says.
+    std::unordered_set<uint32_t> skinned_meshes;
+    /// THE PALETTE OF THE DRAW IN FLIGHT, and it is deliberately a parameter
+    /// smuggled through a member rather than a second copy of submit().
+    /// submit() is 300 lines of caster culls, pick maths and frame stats that
+    /// a skinned body must get IDENTICALLY -- a duplicate would drift the day
+    /// someone fixes one of them. Lives for exactly one call: set by
+    /// submit_skinned immediately before it calls submit, cleared immediately
+    /// after, never read anywhere else.
+    const glm::mat4* pending_palette = nullptr;
+    uint32_t pending_palette_count = 0;
     // GPU BUFFER BUDGET. bgfx hands out at most BGFX_MESH_HANDLE_BUDGET
     // (4096) vertex-buffer handles and the same number of index buffers; past
     // that createVertexBuffer returns BGFX_INVALID_HANDLE. Counted here because

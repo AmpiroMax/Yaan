@@ -34,6 +34,7 @@ void NullRenderer::resize(uint32_t, uint32_t) {}
 
 void NullRenderer::begin_frame(const glm::mat4&, const glm::mat4&) {
     frame_submits_ = 0;
+    skinned_submits_ = 0;
 }
 
 void NullRenderer::end_frame() {}
@@ -43,6 +44,14 @@ void NullRenderer::set_environment(const RenderEnvironment&) {
 }
 
 MeshHandle NullRenderer::create_mesh(std::span<const Vertex>, std::span<const uint32_t>) {
+    ++live_meshes_;
+    return MeshHandle{next_id_++};
+}
+
+MeshHandle NullRenderer::create_skinned_mesh(std::span<const SkinnedVertex>,
+                                             std::span<const uint32_t>) {
+    // A skinned mesh IS a mesh here as it is in the contract: same counter,
+    // same destroy_mesh. Rule 3 -- valid but inert, never a stub that fails.
     ++live_meshes_;
     return MeshHandle{next_id_++};
 }
@@ -75,6 +84,14 @@ void NullRenderer::submit(MeshHandle, ProgramHandle, const glm::mat4&, TextureHa
                           const DrawParams&) {
     // DrawParams accepted and ignored: a headless run has no pixels to dither.
     ++frame_submits_;
+}
+
+void NullRenderer::submit_skinned(MeshHandle, ProgramHandle, const glm::mat4&,
+                                  std::span<const glm::mat4> bone_palette, TextureHandle,
+                                  const DrawParams&) {
+    ++frame_submits_;
+    ++skinned_submits_;
+    last_palette_bones_ = static_cast<uint32_t>(bone_palette.size());
 }
 
 void NullRenderer::debug_line(const glm::vec3&, const glm::vec3&, uint32_t) {}

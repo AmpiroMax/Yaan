@@ -39,6 +39,8 @@ public:
     [[nodiscard]] MeshHandle create_mesh(std::span<const Vertex> vertices,
                                          std::span<const uint32_t> indices) override;
     void destroy_mesh(MeshHandle mesh) override;
+    [[nodiscard]] MeshHandle create_skinned_mesh(std::span<const SkinnedVertex> vertices,
+                                                 std::span<const uint32_t> indices) override;
 
     [[nodiscard]] TextureHandle create_texture(uint32_t width, uint32_t height,
                                                TextureFormat format,
@@ -51,6 +53,10 @@ public:
     using IRenderer::submit;
     void submit(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
                 TextureHandle texture, const DrawParams& params) override;
+    using IRenderer::submit_skinned;
+    void submit_skinned(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
+                        std::span<const glm::mat4> bone_palette, TextureHandle texture,
+                        const DrawParams& params) override;
     void debug_line(const glm::vec3& from, const glm::vec3& to,
                     uint32_t color_rgba) override;
 
@@ -70,12 +76,20 @@ public:
     [[nodiscard]] uint32_t live_meshes() const { return live_meshes_; }
     [[nodiscard]] uint32_t live_textures() const { return live_textures_; }
     [[nodiscard]] uint32_t frame_submits() const { return frame_submits_; }
+    /// How many bones the LAST skinned submit carried. A headless run cannot
+    /// look at pixels, so this is the only thing a test can ask about a
+    /// palette -- and it is exactly the thing that goes wrong (an empty
+    /// palette draws a bind-pose statue and looks like "skinning is broken").
+    [[nodiscard]] uint32_t last_palette_bones() const { return last_palette_bones_; }
+    [[nodiscard]] uint32_t skinned_submits() const { return skinned_submits_; }
 
 private:
     uint32_t next_id_ = 1; // shared counter; 0 stays the invalid id
     uint32_t live_meshes_ = 0;
     uint32_t live_textures_ = 0;
     uint32_t frame_submits_ = 0;
+    uint32_t skinned_submits_ = 0;
+    uint32_t last_palette_bones_ = 0;
     RenderFrameStats frame_stats_{}; // always zero (Rule 3: inert but valid)
     RenderPick pick_{};              // always "no hit"
 };

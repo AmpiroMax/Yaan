@@ -58,6 +58,7 @@ function(dfn_compile_shader name type profile platform suffix)
                 "${DFN_SHADER_SRC_DIR}/dfn_ground.sh"
                 "${DFN_SHADER_SRC_DIR}/dfn_shadow.sh"
                 "${DFN_SHADER_SRC_DIR}/dfn_pointshadow.sh"
+                "${DFN_SHADER_SRC_DIR}/dfn_skin.sh"
         COMMENT "shaderc ${name} (${profile})"
         VERBATIM)
     set_property(GLOBAL APPEND PROPERTY DFN_SHADER_OUTPUTS "${out}")
@@ -65,7 +66,8 @@ endfunction()
 
 if(APPLE)
     foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water vs_shadow
-                   vs_foliage vs_shadow_cutout vs_point_shadow vs_imgui)
+                   vs_foliage vs_shadow_cutout vs_point_shadow vs_imgui
+                   vs_skinned vs_shadow_skinned)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
     foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop

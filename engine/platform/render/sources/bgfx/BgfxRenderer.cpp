@@ -59,6 +59,8 @@ AI Agents Notice (must follow):
 #include <fs_foliage_mtl.h>
 #include <vs_shadow_cutout_mtl.h>
 #include <fs_shadow_cutout_mtl.h>
+#include <vs_skinned_mtl.h>
+#include <vs_shadow_skinned_mtl.h>
 #include <vs_point_shadow_mtl.h>
 #include <fs_point_shadow_mtl.h>
 #endif
@@ -111,8 +113,17 @@ const ProgramSource PROGRAM_TABLE[] = {
     // the logical-name -> state convention is for.
     {"overlay", {vs_unlit_mtl, sizeof(vs_unlit_mtl)},
                 {fs_unlit_mtl, sizeof(fs_unlit_mtl)}},
+    // "skinned" shares the PROP fragment stage the same way "prop" shares the
+    // terrain vertex stage: a skinned body is lit, shadowed and fogged by the
+    // very code that lights the world, so it cannot drift away from it.
+    {"skinned", {vs_skinned_mtl, sizeof(vs_skinned_mtl)},
+                {fs_prop_mtl, sizeof(fs_prop_mtl)}},
     // Backend-internal depth-only pass for the sun shadow map.
     {"shadow",  {vs_shadow_mtl, sizeof(vs_shadow_mtl)},
+                {fs_shadow_mtl, sizeof(fs_shadow_mtl)}},
+    // ...and its skinned twin: the plain caster reads a_position as the BIND
+    // pose, so without this a walking body casts a standing shadow.
+    {"shadow_skinned", {vs_shadow_skinned_mtl, sizeof(vs_shadow_skinned_mtl)},
                 {fs_shadow_mtl, sizeof(fs_shadow_mtl)}},
     // Backend-internal caster pass for the carried lights' cube faces (writes
     // linear distance, not depth — see dfn_pointshadow.sh).
@@ -127,7 +138,7 @@ const ProgramSource PROGRAM_TABLE[] = {
     {"foliage", {}, {}}, {"shadow_cutout", {}, {}},
     {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}}, {"prop", {}, {}},
     {"overlay", {}, {}}, {"shadow", {}, {}}, {"point_shadow", {}, {}},
-    {"path", {}, {}},
+    {"path", {}, {}}, {"skinned", {}, {}}, {"shadow_skinned", {}, {}},
 };
 #endif
 
@@ -211,6 +222,18 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
         .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
         .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
         .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+        .end();
+    // SKINNED layout: the rigid layout plus palette slots and weights. Indices
+    // are Uint8 UNNORMALISED (the shader reads them as integers 0..63) and the
+    // four weights are floats -- the same shape ozz, glTF and every engine's
+    // skinning path uses, so an importer never has to quantise.
+    im.skinned_layout.begin()
+        .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Normal, 3, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::TexCoord0, 2, bgfx::AttribType::Float)
+        .add(bgfx::Attrib::Color0, 4, bgfx::AttribType::Uint8, true)
+        .add(bgfx::Attrib::Indices, 4, bgfx::AttribType::Uint8, false, false)
+        .add(bgfx::Attrib::Weight, 4, bgfx::AttribType::Float)
         .end();
     im.debug_layout.begin()
         .add(bgfx::Attrib::Position, 3, bgfx::AttribType::Float)
@@ -306,6 +329,9 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
             bgfx::copy(flat, sizeof(flat)));
     }
     im.u_params = bgfx::createUniform("u_params", bgfx::UniformType::Vec4);
+    im.u_bones = bgfx::createUniform("u_bones", bgfx::UniformType::Mat4,
+                                     MAX_BONE_PALETTE);
+    im.identity_palette.assign(MAX_BONE_PALETTE, glm::mat4{1.0f});
     im.u_mat_params =
         bgfx::createUniform("u_matParams", bgfx::UniformType::Vec4);
     im.u_env_params =
@@ -364,6 +390,7 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
         }
         im.shadow_program = im.make_program("shadow");
         im.shadow_cutout_program = im.make_program("shadow_cutout");
+        im.shadow_skinned_program = im.make_program("shadow_skinned");
         im.s_shadow_map =
             bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
         im.u_light_mtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
@@ -473,6 +500,8 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.sky_program)) bgfx::destroy(im.sky_program);
     if (bgfx::isValid(im.shadow_program)) bgfx::destroy(im.shadow_program);
     if (bgfx::isValid(im.shadow_cutout_program)) bgfx::destroy(im.shadow_cutout_program);
+    if (bgfx::isValid(im.shadow_skinned_program)) bgfx::destroy(im.shadow_skinned_program);
+    if (bgfx::isValid(im.u_bones)) bgfx::destroy(im.u_bones);
     if (bgfx::isValid(im.shadow_fb)) bgfx::destroy(im.shadow_fb);
     if (bgfx::isValid(im.shadow_map)) bgfx::destroy(im.shadow_map);
     if (bgfx::isValid(im.shadow_fb_near)) bgfx::destroy(im.shadow_fb_near);

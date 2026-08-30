@@ -52,6 +52,8 @@ public:
     [[nodiscard]] MeshHandle create_mesh(std::span<const Vertex> vertices,
                                          std::span<const uint32_t> indices) override;
     void destroy_mesh(MeshHandle mesh) override;
+    [[nodiscard]] MeshHandle create_skinned_mesh(std::span<const SkinnedVertex> vertices,
+                                                 std::span<const uint32_t> indices) override;
 
     [[nodiscard]] TextureHandle create_texture(uint32_t width, uint32_t height,
                                                TextureFormat format,
@@ -67,6 +69,10 @@ public:
     using IRenderer::submit;
     void submit(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
                 TextureHandle texture, const DrawParams& params) override;
+    using IRenderer::submit_skinned;
+    void submit_skinned(MeshHandle mesh, ProgramHandle program, const glm::mat4& transform,
+                        std::span<const glm::mat4> bone_palette, TextureHandle texture,
+                        const DrawParams& params) override;
     void debug_line(const glm::vec3& from, const glm::vec3& to,
                     uint32_t color_rgba) override;
 
