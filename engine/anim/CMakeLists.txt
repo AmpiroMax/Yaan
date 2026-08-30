@@ -20,6 +20,8 @@ add_library(dfn_anim STATIC
     sources/Clips.cpp
     sources/Posture.cpp
     sources/BodyMesh.cpp
+    sources/BoneMap.cpp
+    sources/SkinnedBody.cpp
     sources/Body.cpp)
 
 target_link_libraries(dfn_anim PUBLIC dfn_headers dfn_core)
