@@ -182,9 +182,9 @@ SkinnedRigBinding bind_skinned_rig(const Rig& rig, const skel::Skeleton& skeleto
     return binding;
 }
 
-void rest_model_matrices(const Rig& rig, const skel::Skeleton& skeleton,
-                         const SkinnedRigBinding& binding, const LocalPose& pose,
-                         std::span<glm::mat4> out) {
+void pose_local_transforms(const Rig& rig, const skel::Skeleton& skeleton,
+                           const SkinnedRigBinding& binding, const LocalPose& pose,
+                           std::span<JointLocal> out) {
     const std::size_t n = std::min(skeleton.size(), out.size());
     if (n == 0) {
         return;
@@ -196,8 +196,11 @@ void rest_model_matrices(const Rig& rig, const skel::Skeleton& skeleton,
     LocalPose clamped = pose;
     apply_joint_limits(rig, clamped);
 
-    std::vector<glm::mat4> local(skeleton.size());
-    skel::skeleton_bind_local(skeleton, local);
+    for (std::size_t j = 0; j < n; ++j) {
+        out[j].translation = skeleton.joints[j].bind_translation;
+        out[j].rotation = skeleton.joints[j].bind_rotation;
+        out[j].scale = skeleton.joints[j].bind_scale;
+    }
 
     for (uint32_t b = 0; b < BONE_COUNT; ++b) {
         const int32_t ji = binding.names.joint[b];
@@ -209,12 +212,9 @@ void rest_model_matrices(const Rig& rig, const skel::Skeleton& skeleton,
         // The rest delta derived in the header, then the pose's own rotation
         // in the bone's own frame -- in that order, and the order is the whole
         // statement: first carry the joint into OUR rest, then bend it.
-        const glm::quat rot = glm::normalize(joint.bind_rotation
-                                             * binding.rest_delta[b]
-                                             * clamped.rotation[b]);
-        local[j] = glm::translate(glm::mat4{1.0f}, joint.bind_translation)
-                   * glm::mat4_cast(rot)
-                   * glm::scale(glm::mat4{1.0f}, joint.bind_scale);
+        out[j].rotation = glm::normalize(joint.bind_rotation
+                                         * binding.rest_delta[b]
+                                         * clamped.rotation[b]);
     }
     // THE PELVIS OFFSET IS A TRANSLATION OF THE WHOLE BODY, not a rotation, so
     // it rides on the bound pelvis joint's own local translation. Without it
@@ -223,9 +223,44 @@ void rest_model_matrices(const Rig& rig, const skel::Skeleton& skeleton,
     const int32_t pelvis = binding.names.joint[bone_index(Bone::Pelvis)];
     if (pelvis >= 0 && static_cast<std::size_t>(pelvis) < n) {
         const auto p = static_cast<std::size_t>(pelvis);
-        local[p] = glm::translate(glm::mat4{1.0f}, clamped.pelvis_offset) * local[p];
+        out[p].translation += clamped.pelvis_offset;
     }
-    skel::skeleton_model_matrices(skeleton, local, out);
+}
+
+void sample_palette(const skel::Skeleton& skeleton, std::span<const JointLocal> local,
+                    std::span<glm::mat4> out) {
+    const std::size_t n = std::min({skeleton.size(), local.size(), out.size()});
+    if (n == 0) {
+        return;
+    }
+    std::vector<glm::mat4> mats(skeleton.size());
+    for (std::size_t j = 0; j < n; ++j) {
+        mats[j] = glm::translate(glm::mat4{1.0f}, local[j].translation)
+                  * glm::mat4_cast(glm::normalize(local[j].rotation))
+                  * glm::scale(glm::mat4{1.0f}, local[j].scale);
+    }
+    skel::skeleton_model_matrices(skeleton, mats, mats);
+    for (std::size_t j = 0; j < n; ++j) {
+        out[j] = mats[j] * skeleton.joints[j].inverse_bind;
+    }
+}
+
+void rest_model_matrices(const Rig& rig, const skel::Skeleton& skeleton,
+                         const SkinnedRigBinding& binding, const LocalPose& pose,
+                         std::span<glm::mat4> out) {
+    const std::size_t n = std::min(skeleton.size(), out.size());
+    if (n == 0) {
+        return;
+    }
+    std::vector<JointLocal> local(skeleton.size());
+    pose_local_transforms(rig, skeleton, binding, pose, local);
+    std::vector<glm::mat4> mats(skeleton.size());
+    for (std::size_t j = 0; j < skeleton.size(); ++j) {
+        mats[j] = glm::translate(glm::mat4{1.0f}, local[j].translation)
+                  * glm::mat4_cast(glm::normalize(local[j].rotation))
+                  * glm::scale(glm::mat4{1.0f}, local[j].scale);
+    }
+    skel::skeleton_model_matrices(skeleton, mats, out);
 }
 
 void skinning_palette(const Rig& rig, const skel::Skeleton& skeleton,

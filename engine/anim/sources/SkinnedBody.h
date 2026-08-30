@@ -8,6 +8,8 @@ Responsibility:
   makes the procedural gait -- written for 15 boxes -- move a bought model.
 
 Key items:
+- JointLocal: one imported joint's local TRS -- the base a clip sample lays
+  under the rig's own pose.
 - SkinnedRigBinding: the naming bind plus the per-bone frame CORRECTION and
   the import scale check.
 - bind_skinned_rig(): built once per model, from rig + skeleton.
@@ -54,6 +56,16 @@ AI Agents Notice (must follow):
 
 namespace dfn::anim {
 
+/// ONE JOINT'S LOCAL TRANSFORM in the imported skeleton's own terms — the
+/// form skel::sample_clip produces and the form the palette below accepts as
+/// its BASE. It lives here, next to the retarget, because the retarget is the
+/// only thing that ever has to hold both this and a LocalPose at once.
+struct JointLocal {
+    glm::vec3 translation{0.0f};
+    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    glm::vec3 scale{1.0f};
+};
+
 struct SkinnedRigBinding {
     SkeletonBinding names;
     /// THE REST DELTA: the local rotation that carries the imported joint from
@@ -98,6 +110,28 @@ void skinning_palette(const Rig& rig, const skel::Skeleton& skeleton,
 void rest_model_matrices(const Rig& rig, const skel::Skeleton& skeleton,
                          const SkinnedRigBinding& binding, const LocalPose& pose,
                          std::span<glm::mat4> out);
+
+/// THE HALF OF rest_model_matrices THAT IS NOT FK: our pose written out as the
+/// imported skeleton's own LOCAL transforms. rest_model_matrices calls it and
+/// then runs FK, so there is exactly one copy of the composition
+/// `T_bind * (R_bind * rest_delta * ours) * S_bind` in the tree (Rule 35).
+///
+/// IT EXISTS BECAUSE A CLIP AND A POSE HAVE TO MEET SOMEWHERE. An imported
+/// clip already speaks in these locals; our procedural poses speak in
+/// LocalPose. Blending a bought walk with a crouch, or crossfading a clip into
+/// the procedural sit, means putting both into ONE currency first — and this
+/// is the currency, because it is the only one of the two that can express
+/// what a clip says about a joint no rig bone maps to.
+/// out.size() must be >= skeleton.size().
+void pose_local_transforms(const Rig& rig, const skel::Skeleton& skeleton,
+                           const SkinnedRigBinding& binding, const LocalPose& pose,
+                           std::span<JointLocal> out);
+
+/// FK + inverse binds for a set of locals, i.e. the palette for a pose that
+/// did NOT come through our rig. Same output as skinning_palette, one step
+/// earlier in the pipe.
+void sample_palette(const skel::Skeleton& skeleton, std::span<const JointLocal> local,
+                    std::span<glm::mat4> out);
 
 /// LINEAR BLEND SKINNING ON THE CPU, term for term what dfn_skin.sh does on
 /// the GPU. It exists so the shader has something to be WRONG AGAINST: a
