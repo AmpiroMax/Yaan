@@ -32,12 +32,15 @@ AI Agents Notice (must follow):
 #include <doctest/doctest.h>
 
 #include "engine/anim/sources/ClipPlayer.h"
+#include "engine/anim/sources/FootIk.h"
+#include "engine/anim/sources/PoseLayers.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
 #include <cmath>
 #include <filesystem>
+#include <string>
 #include <vector>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -59,7 +62,16 @@ constexpr const char* MODEL = "assets/objects/characters/HumanBase.dfo";
 
 struct Model {
     render::RegistryObject obj;
-    anim::Rig rig{};
+    /// THE RIG THE GAME SHIPS, built from the NUMBERS rows, and NOT a
+    /// default-constructed one.
+    ///
+    /// A `Rig{}` has zero proportions and identity rest rotations, so the
+    /// retarget carries the model into a T-POSE and calls it our rest pose:
+    /// measured, the hand then hangs 0.821 m from the pelvis centre instead of
+    /// 0.230, which is the very number item 3 of the owner's list is about.
+    /// Every measurement below is against the rest pose, so an unbuilt rig is
+    /// an instrument calibrated on a body nobody draws (Rule 47).
+    anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
     anim::SkinnedRigBinding binding;
     anim::ClipLibrary lib;
 };
@@ -411,18 +423,32 @@ TEST_CASE("foot_slide_under_the_threshold") {
         // The strict reading can only be larger than the drift, never smaller.
         CHECK(matched.path_per_step_m >= matched.worst_per_step_m - 1e-6f);
     }
-    // THE JOG IS A NAMED TAIL AND NOT A SILENT ONE. sim's 3 m/s is the one
-    // gear this asset has no clip near: Walk_Loop is drawn at 1.14 m/s and
-    // Jog_Fwd_Loop at 5.98, so the jog plays a run shrunk to 0.41 of its
-    // stride and its feet skim. The number is pinned here so the day somebody
-    // buys a jog clip, this line goes green and says so.
+    // THE JOG WAS A NAMED TAIL AND IS NOW A BLEND. sim's 3 m/s is the one gear
+    // this asset has no clip near — Walk_Loop is drawn at 1.14 m/s and
+    // Jog_Fwd_Loop at 5.98 — so the previous wave played a run shrunk to 0.41
+    // of its stride, and its feet skimmed 0.274 m per step. The library now
+    // blends the two at the weight whose MEASURED cycle covers what sim asks
+    // for, which leaves the stride scale at 1.01: nothing is bent.
+    const anim::ClipEntry& jog_entry = m.lib[anim::ClipRole::Jog];
+    REQUIRE(jog_entry.mixed());
     const anim::FootSlide jog =
         anim::measure_foot_slide(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
                                  anim::ClipRole::Jog, step_length(config::JOG_SPEED),
                                  true, 96);
     CAPTURE(jog.worst_per_step_m);
+    CAPTURE(jog_entry.mix_weight);
+    CAPTURE(jog_entry.mix_solo_slide_m);
     CHECK(jog.cycle_travel_m == doctest::Approx(jog.demanded_m).epsilon(0.05));
-    CHECK(jog.worst_per_step_m < 0.30f); // a tail, at its measured size
+    CHECK(jog.worst_per_step_m < THRESHOLD_M);
+    // THE STRIDE IS NO LONGER BENT, which is the half of the fix the slide
+    // figure alone cannot show: a body sliding 3 cm on nearly straight legs
+    // and one sliding 3 cm on its own legs look nothing alike.
+    CHECK(anim::stride_scale_for(jog_entry, jog.demanded_m)
+          == doctest::Approx(1.0f).epsilon(0.15));
+    // THE CONTROL ARM: the clip the blend replaced, measured at the same gear.
+    // A blend that did not beat it by a wide margin would be an average of two
+    // animations bought for nothing.
+    CHECK(jog_entry.mix_solo_slide_m > CONTROL_RATIO * jog.worst_per_step_m);
 }
 
 TEST_CASE("the_model_faces_the_way_it_walks") {
@@ -501,75 +527,199 @@ TEST_CASE("the_model_faces_the_way_it_walks") {
     }
 }
 
+namespace {
+
+/// THE GROUND THE STAND HAS, as three functions of a point. They are the same
+/// three surfaces assets/maps/stands/character.scene puts under the figure —
+/// flat deck, the 15-degree skirt between its two terraces, and the canonical
+/// 0.18/0.28 flight — written here so the number is reproducible without a
+/// window. The frames are still shot on the stand; this is the instrument.
+using Ground = float (*)(const glm::vec3&);
+
+float flat_ground(const glm::vec3&) { return 0.0f; }
+
+/// The stand's skirt: about 15 degrees, rising the way the figure faces (-Z).
+float slope_ground(const glm::vec3& p) { return std::tan(0.262f) * (-p.z); }
+
+/// HUMAN_SCALE's canonical flight, 0.18 m rise on a 0.28 m going, AS THE BODY
+/// MEETS IT: the treads MINUS the ramp the capsule is already riding.
+///
+/// THIS SUBTRACTION IS THE WHOLE INSTRUMENT AND IT IS NOT A CONVENIENCE. The
+/// character controller collides with the flight's nosings, so what it stands
+/// on is the 33-degree ramp, not the treads; the root is therefore already at
+/// ramp height and each foot's own tread deviates from it by at most half a
+/// rise. Written WITHOUT the subtraction, the surface says the trailing foot
+/// of a 0.98 m stride is three treads — 0.54 m — below the leading one, which
+/// no leg can span and no staircase asks it to: that arrangement is not a
+/// figure climbing stairs, it is a figure standing in a stairwell wall.
+float stair_ground(const glm::vec3& p) {
+    constexpr float RISE = 0.18f;
+    constexpr float GOING = 0.28f;
+    const float forward = -p.z;
+    return RISE * std::floor(forward / GOING + 0.5f) - (RISE / GOING) * forward;
+}
+
+/// ONE NOSING, the case the order names in words: one foot on the tread and
+/// one on the tread below. A whole rise between the two feet, which a leg CAN
+/// span and which the root shift plus one knee is exactly the mechanism for.
+float step_edge_ground(const glm::vec3& p) { return -p.z >= 0.0f ? 0.18f : 0.0f; }
+
+} // namespace
+
 TEST_CASE("the_feet_stay_on_the_ground") {
     Model m;
     REQUIRE(load(m));
-    // WHAT THIS IS ABOUT (owner, 31.08: "ступни проходят сквозь землю").
-    // Scaling a leg's swing to cover sim's ground also changes how far the
-    // leg REACHES, and nothing was putting the body back on the floor
-    // afterwards: measured on the jog at the stride 3 m/s asks for, the
-    // lowest skinned vertex sat 0.157 m BELOW the grass.
+    // WHAT THIS IS ABOUT (owner, 31.08: "ступни проходят сквозь землю", and
+    // 31.08 again: "и на рельефе, и на лестнице"). The previous wave pressed
+    // the clip onto the FLAT floor its author drew it on, with one constant
+    // per stride scale. A stair tread and a hillside are not that floor, and
+    // no constant is: the ground has to be asked where it is, under each foot,
+    // every frame.
     REQUIRE(m.lib.contacts.valid());
-    // Both feet found a toe: the whole contact story rests on it.
-    CHECK(m.lib.contacts.side[0].count == 2);
+    CHECK(m.lib.contacts.side[0].count == 2); // both feet found a toe
     CHECK(m.lib.contacts.side[1].count == 2);
+    const anim::FootIkSetup setup =
+        anim::build_foot_ik(m.obj.skeleton, m.binding, m.lib.contacts);
+    REQUIRE(setup.valid());
+    CHECK(setup.toe[0] >= 0);
+    CHECK(setup.toe[1] >= 0);
 
     std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
-    std::vector<glm::mat4> palette(m.obj.skeleton.size());
+    std::vector<glm::mat4> local(m.obj.skeleton.size());
+    std::vector<glm::mat4> model(m.obj.skeleton.size());
+    const auto fk = [&] {
+        for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+            local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation)
+                       * glm::mat4_cast(glm::normalize(sample[j].rotation))
+                       * glm::scale(glm::mat4{1.0f}, sample[j].scale);
+        }
+        skel::skeleton_model_matrices(m.obj.skeleton, local, model);
+    };
+    // THE POSE AS THE FRAME DRAWS IT, not as a clip sample: the jog is a BLEND
+    // now and the arms carry a layer, so anything measured on a raw clip is
+    // measured on a body the renderer does not draw.
+    const auto pose_of = [&](anim::Gait gait, float speed, float phase) {
+        anim::BodyDrive drive;
+        drive.gait = gait;
+        drive.speed_mps = speed;
+        drive.step_length_m = step_length(speed);
+        drive.stride_phase = phase;
+        drive.grounded = true;
+        anim::ClipPlayback play;
+        anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
+        anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
+        REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
+                                      play, 1.0f, sample));
+    };
+    // WHAT A RAYCAST WOULD HAVE ANSWERED, from the pose itself: the app pushes
+    // a ray down under each contact point and this is the same query, run on a
+    // surface written in one line instead of loaded from a map.
+    const auto probe_with = [&](Ground g) {
+        fk();
+        anim::FootIkProbe probe;
+        probe.valid = true;
+        for (int i = 0; i < 2; ++i) {
+            const auto side = static_cast<std::size_t>(i);
+            probe.ankle_ground[side] =
+                g(glm::vec3{model[static_cast<std::size_t>(setup.ankle[side])][3]});
+            probe.toe_ground[side] =
+                g(glm::vec3{model[static_cast<std::size_t>(setup.toe[side])][3]});
+        }
+        return probe;
+    };
+
     struct Case {
-        anim::ClipRole role;
+        anim::Gait gait;
         float speed;
+        const char* label;
     };
-    const Case cases[] = {
-        {anim::ClipRole::Idle, 0.0f},
-        {anim::ClipRole::Walk, static_cast<float>(config::WALK_SPEED)},
-        {anim::ClipRole::Jog, static_cast<float>(config::JOG_SPEED)},
-        {anim::ClipRole::Sprint, static_cast<float>(config::RUN_SPEED)},
+    const Case gears[] = {
+        {anim::Gait::Walk, 0.0f, "idle"},
+        {anim::Gait::Walk, static_cast<float>(config::WALK_SPEED), "walk"},
+        {anim::Gait::Jog, static_cast<float>(config::JOG_SPEED), "jog"},
+        {anim::Gait::Run, static_cast<float>(config::RUN_SPEED), "run"},
     };
-    for (const Case& c : cases) {
-        CAPTURE(anim::role_name(c.role));
-        const anim::ClipEntry& e = m.lib[c.role];
-        REQUIRE(e.present());
-        const float want = 2.0f * step_length(c.speed);
-        const float scale = c.speed > 0.0f ? anim::stride_scale_for(e, want) : 1.0f;
-        const float lift = anim::ground_lift_for(e, scale);
-        float grounded = 1e9f;
-        float raw = 1e9f;
-        for (int k = 0; k < 24; ++k) {
-            anim::sample_clip_pose(m.obj.skeleton,
-                                   m.obj.clips[static_cast<std::size_t>(e.clip)],
-                                   e.duration_s * float(k) / 24.0f, sample);
-            anim::scale_sample_stride(m.binding, m.obj.skeleton, scale, sample);
-            anim::sample_palette(m.obj.skeleton, sample, palette);
-            for (const platform::SkinnedVertex& v : m.obj.skin.vertices) {
-                raw = std::min(raw, anim::cpu_skin_position(v, palette).y);
-            }
-            for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
-                if (m.obj.skeleton.joints[j].parent < 0) {
-                    sample[j].translation.y += lift;
-                }
-            }
-            anim::sample_palette(m.obj.skeleton, sample, palette);
-            for (const platform::SkinnedVertex& v : m.obj.skin.vertices) {
-                grounded = std::min(grounded, anim::cpu_skin_position(v, palette).y);
+    struct Surface {
+        Ground g;
+        const char* label;
+        float control_floor_m; ///< the control arm has to be at least this bad
+    };
+    const Surface surfaces[] = {
+        // FLAT IS NOT A CONTROL SURFACE and says so: the previous wave already
+        // closed it, so its "without IK" arm is legitimately near zero and a
+        // floor on it would be a threshold nothing can fail (Rule 45).
+        {flat_ground, "flat", 0.0f},
+        {slope_ground, "slope 15 deg", 0.03f},
+        {stair_ground, "canonical flight 0.18/0.28", 0.05f},
+        {step_edge_ground, "one nosing 0.18", 0.05f},
+    };
+    // NOT ONE CENTIMETRE UNDER THE GROUND, which is the order's number.
+    constexpr float PENETRATION_M = 0.01f;
+    for (const Surface& sfc : surfaces) {
+        CAPTURE(std::string(sfc.label));
+        float worst_fixed = 0.0f;
+        float worst_raw = 0.0f;
+        for (const Case& c : gears) {
+            CAPTURE(std::string(c.label));
+            for (int k = 0; k < 16; ++k) {
+                pose_of(c.gait, c.speed, float(k) / 16.0f);
+                const anim::FootIkProbe probe = probe_with(sfc.g);
+                // THE CONTROL ARM IS THE SAME FRAME WITH strength 0, taken
+                // first: the solve is a bit-for-bit no-op there, so the two
+                // arms differ by the solve and by nothing else (Rule 47).
+                const anim::FootIkPlan plan =
+                    anim::plan_foot_ik(m.obj.skeleton, setup, probe, sample);
+                worst_raw = std::max(
+                    worst_raw,
+                    anim::foot_penetration(m.obj.skeleton, setup, probe, plan, sample));
+                anim::apply_foot_ik(m.obj.skeleton, setup, probe, plan, 1.0f, sample);
+                worst_fixed = std::max(
+                    worst_fixed,
+                    anim::foot_penetration(m.obj.skeleton, setup, probe, plan, sample));
             }
         }
-        CAPTURE(lift);
-        CAPTURE(raw);
-        CAPTURE(grounded);
-        // NOT ONE CENTIMETRE UNDER THE FLOOR, which is the order's number.
-        CHECK(grounded > -0.01f);
-        // ...AND NOT HOVERING EITHER: a lift that simply raised everybody
-        // would pass the line above and draw a man walking on air.
-        CHECK(grounded < 0.05f);
+        CAPTURE(worst_raw);
+        CAPTURE(worst_fixed);
+        MESSAGE("penetration on " << std::string(sfc.label) << ": " << 100.0f * worst_fixed
+                                  << " cm with the solve, " << 100.0f * worst_raw
+                                  << " cm without");
+        CHECK(worst_fixed < PENETRATION_M);
+        if (sfc.control_floor_m > 0.0f) {
+            CHECK(worst_raw > sfc.control_floor_m);
+        }
     }
-    // THE CONTROL ARM: the jog WITHOUT its lift is the defect the owner
-    // reported, and it has to still be there when asked for. A grounding that
-    // is invisible in its own control arm is a grounding nobody can measure.
-    const anim::ClipEntry& jog = m.lib[anim::ClipRole::Jog];
-    const float jog_scale =
-        anim::stride_scale_for(jog, 2.0f * step_length(config::JOG_SPEED));
-    CHECK(anim::ground_lift_for(jog, jog_scale) > 0.10f);
+
+    // AND THE FIGURE DOES NOT GROW 18 CM ON THE GEAR CHANGE (owner, 31.08).
+    // The previous wave grounded the jog with a constant of 0.188 m, measured
+    // against the walk's 0.005: the body rose 18 cm over the 0.18 s crossfade.
+    // The blended jog needs 0.035, and the number checked here is the one an
+    // eye sees — the height of the PELVIS on flat ground, gear against gear.
+    const auto pelvis_y = [&](anim::Gait gait, float speed) {
+        float sum = 0.0f;
+        for (int k = 0; k < 16; ++k) {
+            pose_of(gait, speed, float(k) / 16.0f);
+            const anim::FootIkProbe probe = probe_with(flat_ground);
+            const anim::FootIkPlan plan =
+                anim::plan_foot_ik(m.obj.skeleton, setup, probe, sample);
+            anim::apply_foot_ik(m.obj.skeleton, setup, probe, plan, 1.0f, sample);
+            fk();
+            const int32_t pelvis = m.binding.names.joint[anim::bone_index(anim::Bone::Pelvis)];
+            sum += model[static_cast<std::size_t>(pelvis)][3][1];
+        }
+        return sum / 16.0f;
+    };
+    const float walk_y = pelvis_y(anim::Gait::Walk, static_cast<float>(config::WALK_SPEED));
+    const float jog_y = pelvis_y(anim::Gait::Jog, static_cast<float>(config::JOG_SPEED));
+    CAPTURE(walk_y);
+    CAPTURE(jog_y);
+    MESSAGE("pelvis walk " << walk_y << " m, jog " << jog_y << " m, difference "
+                           << 100.0f * std::abs(jog_y - walk_y) << " cm");
+    CHECK(std::abs(jog_y - walk_y) < 0.05f);
+    // THE CONTROL ARM: what the rejected solo jog would have asked for. It is
+    // kept on the entry precisely so this line can exist.
+    const anim::ClipEntry& jog_entry = m.lib[anim::ClipRole::Jog];
+    CAPTURE(jog_entry.mix_solo_lift_m);
+    CHECK(jog_entry.mix_solo_lift_m > 0.10f);
 }
 
 TEST_CASE("the_run_is_not_lopsided") {
@@ -649,4 +799,152 @@ TEST_CASE("the_run_is_not_lopsided") {
     }
     CAPTURE(sham);
     CHECK(sham > 2.0f * worst);
+}
+
+TEST_CASE("the_hands_hang_like_a_persons") {
+    Model m;
+    REQUIRE(load(m));
+    // WHAT THIS IS ABOUT (owner, 31.08: "всё время боевая стойка"). The
+    // previous wave proved the library picks NEUTRAL clips and that the
+    // retarget is not in the path at all, and measured the real cause: this
+    // asset's own idle holds the hand 0.403 m sideways from the pelvis centre
+    // — nearly the 0.398 of its own "sword ready" — while our rest pose holds
+    // it at 0.230, and the hand is sculpted into a fist in every clip.
+    //
+    // THE LAYER IS WHAT ANSWERS IT, and the number below is the order's band.
+    REQUIRE(m.lib.relax.valid());
+    CAPTURE(m.lib.relax.angle_rad * 57.29578f);
+    CAPTURE(m.lib.relax.target_m);
+    CAPTURE(m.lib.relax.reference_m);
+    // The target the solve aimed at IS our rest pose, read through the same
+    // retarget the frame uses. If this ever stops being ~0.23 the rig changed,
+    // and the band below stops meaning what it says.
+    CHECK(m.lib.relax.target_m == doctest::Approx(0.23f).epsilon(0.15));
+
+    std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
+    struct Case {
+        anim::ClipRole role;
+        const char* label;
+    };
+    for (const Case& c : {Case{anim::ClipRole::Idle, "idle"},
+                          Case{anim::ClipRole::Walk, "walk"}}) {
+        CAPTURE(std::string(c.label));
+        const anim::ClipEntry& e = m.lib[c.role];
+        REQUIRE(e.present());
+        anim::sample_clip_pose(m.obj.skeleton,
+                               m.obj.clips[static_cast<std::size_t>(e.clip)], 0.0f,
+                               sample);
+        // THE CONTROL ARM, TAKEN FIRST: the same frame with the layer at
+        // weight 0, which the layer guarantees is a bit-for-bit no-op. It is
+        // the pose the owner was looking at, and it has to still be wide.
+        const anim::HandSpread before =
+            anim::measure_hand_spread(m.obj.skeleton, m.binding, sample);
+        const float open_before =
+            anim::measure_hand_openness(m.obj.skeleton, m.lib.relax, sample);
+        anim::apply_arm_relax(m.obj.skeleton, m.lib.relax, 1.0f, sample);
+        const anim::HandSpread after =
+            anim::measure_hand_spread(m.obj.skeleton, m.binding, sample);
+        const float open_after =
+            anim::measure_hand_openness(m.obj.skeleton, m.lib.relax, sample);
+        CAPTURE(before.left);
+        CAPTURE(before.right);
+        CAPTURE(after.left);
+        CAPTURE(after.right);
+        // THE ARMS COME IN. Judged on the MEAN of the two hands and not on
+        // each: this asset swings its left arm wider than its right in every
+        // clip it has, and one angle for both sides deliberately leaves that
+        // asymmetry alone rather than baking a permanent lean into the body.
+        const float mean_before = 0.5f * (before.left + before.right);
+        const float mean_after = 0.5f * (after.left + after.right);
+        MESSAGE("hand spread " << mean_before << " -> " << mean_after
+                               << " m; hand openness " << open_before << " -> "
+                               << open_after << " m");
+        CHECK(mean_after < mean_before - 0.05f);
+        if (c.role == anim::ClipRole::Idle) {
+            // THE ORDER'S BAND, on the pose the complaint is about.
+            CHECK(mean_after > 0.20f);
+            CHECK(mean_after < 0.29f);
+            // ...AND THE CONTROL: the arm the wave started from was outside it.
+            CHECK(mean_before > 0.33f);
+        }
+        // THE FIST OPENS. A hand measured from its own wrist to its fingertips
+        // is longer open than closed, and the layer takes the fingers back to
+        // their BIND, which on this asset is an open hand.
+        CAPTURE(open_before);
+        CAPTURE(open_after);
+        CHECK(open_after > open_before + 0.02f);
+    }
+}
+
+TEST_CASE("a_drawn_weapon_is_an_upper_body_layer") {
+    Model m;
+    REQUIRE(load(m));
+    // WHAT THIS IS ABOUT (owner, 31.08, items 5-6): T puts a weapon in the
+    // hands. There is no weapon MODEL yet, so the whole of the visible change
+    // is the pose: the upper half takes the asset's guard, the legs keep
+    // walking, and the arm layer of item 3 comes off.
+    REQUIRE(m.lib.mask.valid());
+    // THE MASK IS THE MECHANISM, and a mask with an empty half would make
+    // every layered state look exactly like the unlayered one.
+    CAPTURE(m.lib.mask.count(anim::Branch::Upper));
+    CAPTURE(m.lib.mask.count(anim::Branch::Lower));
+    CHECK(m.lib.mask.count(anim::Branch::Upper) > 10);
+    CHECK(m.lib.mask.count(anim::Branch::Lower) >= 6); // thighs, shins, feet, toes
+    REQUIRE(m.lib.has(anim::ClipRole::WeaponIdle));
+    CHECK(m.obj.clips[static_cast<std::size_t>(m.lib[anim::ClipRole::WeaponIdle].clip)]
+              .name == "Sword_Idle");
+
+    const auto walk_pose = [&](bool drawn, std::span<anim::JointLocal> out) {
+        anim::BodyDrive drive;
+        drive.gait = anim::Gait::Walk;
+        drive.speed_mps = static_cast<float>(config::WALK_SPEED);
+        drive.step_length_m = step_length(static_cast<float>(config::WALK_SPEED));
+        drive.stride_phase = 0.25f;
+        drive.grounded = true;
+        drive.weapon_drawn = drawn;
+        anim::ClipPlayback play;
+        // Long enough for the 0.2 s crossfade to finish, so the two arms are
+        // the two STATES and not two points of one transition.
+        for (int i = 0; i < 30; ++i) {
+            anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
+        }
+        CHECK(play.weapon == doctest::Approx(drawn ? 1.0f : 0.0f));
+        REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
+                                      play, 1.0f, out));
+    };
+    std::vector<anim::JointLocal> sheathed(m.obj.skeleton.size());
+    std::vector<anim::JointLocal> drawn(m.obj.skeleton.size());
+    walk_pose(false, sheathed);
+    walk_pose(true, drawn);
+
+    // THE LEGS DO NOT MOVE. This is the claim the mask exists for, and it is
+    // the one a "the pose changed" check would pass without.
+    float worst_lower = 0.0f;
+    float worst_upper = 0.0f;
+    for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+        const float d =
+            1.0f - std::abs(glm::dot(glm::normalize(sheathed[j].rotation),
+                                     glm::normalize(drawn[j].rotation)));
+        if (m.lib.mask.at(j) == anim::Branch::Lower) {
+            worst_lower = std::max(worst_lower, d);
+        } else if (m.lib.mask.at(j) == anim::Branch::Upper) {
+            worst_upper = std::max(worst_upper, d);
+        }
+    }
+    CAPTURE(worst_lower);
+    CAPTURE(worst_upper);
+    CHECK(worst_lower < 1e-5f);
+    CHECK(worst_upper > 1e-3f); // the control: the upper half really did move
+
+    // AND THE GUARD IS A GUARD. Drawn, the hands come UP and OUT from where
+    // the relaxed layer put them — measured, not assumed, because "the pose
+    // changed" is also true of a body that shrugged.
+    const anim::HandSpread s_spread =
+        anim::measure_hand_spread(m.obj.skeleton, m.binding, sheathed);
+    const anim::HandSpread d_spread =
+        anim::measure_hand_spread(m.obj.skeleton, m.binding, drawn);
+    CAPTURE(s_spread.left);
+    CAPTURE(d_spread.left);
+    CHECK(0.5f * (d_spread.left + d_spread.right)
+          > 0.5f * (s_spread.left + s_spread.right) + 0.05f);
 }

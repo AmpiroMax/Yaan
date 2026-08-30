@@ -117,3 +117,70 @@ solve, so on a slope or a stair the pair of feet is still level with each other.
 What this adds is the seam such a solver needs: a vertical root correction derived
 from a MEASUREMENT, with the measurement currently coming from the clip's own
 cycle instead of from the world.
+
+## Layers, masks and hitboxes (wave "stance, weapon, feet, hitboxes", 31.08)
+
+**The fifteen bones did not change and will not change here.** Everything below
+adds READERS of the enum; the enum, its order and its parents are still the
+contract this document froze.
+
+**A skeleton has two halves, and the split is by DESCENT, not by name.**
+`PoseLayers.h` labels every imported joint `Lower` (descending from the joints
+`ThighL`/`ThighR` bound to), `Upper` (descending from `Torso`) or `Root` (the
+pelvis and the armature node). "Everything hanging off the joint our TORSO bone
+bound to" is the same sentence on a Rigify export and on a Skyrim NPC, which is
+why there is no per-asset name list. **The root follows the LOWER source
+always**: the root joint's translation is where the body stands, and a body
+cannot stand in two places. Measured on HumanBase: 43 upper joints, 8 lower,
+2 root, of 53.
+
+**A layer is PRE-MULTIPLIED in the parent's frame, never a replacement.** The
+arm-relax layer (item 3 of the owner's 31.08 list) turns the upper arms inward
+about the model's own +Z; the clip's arm swing survives underneath, which is
+the whole difference between a layer and a second pose. **The angle is SOLVED,
+not authored**: it is scanned until the hand lands where OUR REST POSE puts it,
+so it follows a model with longer arms instead of being a constant that stops
+being right. On HumanBase it comes out at 14.5 degrees.
+
+**Fingers relax toward their BIND, not toward an authored open hand.** The bind
+is the one pose every asset has; this one keys a closed fist in every clip
+including its idle.
+
+**Two grounds, and the frame uses the world's.** `FootIk.h` takes the height of
+the ground under each contact point (the app raycasts; anim is handed answers),
+shifts the ROOT to the LOWER planted foot and folds the difference out of the
+other knee with a two-bone solve, then pitches the ankle so the toe meets its
+own ground. **The stance weight is read off the POSE, not off the stride
+phase** — "is this frame's foot near the ground" is the same question for a
+walk, a run's flight phase, a jump and a crossfade between two clips whose
+plants do not coincide. **A foot rises by the WORSE of its two contacts**: at a
+stair's nosing the heel and the ball ask for heights 0.18 m apart, more than a
+0.11 m foot can span, and standing on the nosing with the heel up is what a
+person does.
+
+**`ClipEntry::ground_curve` is now a MEASUREMENT and not a drawing step.** The
+per-scale constant it holds still says how deep a clip sits at a stride scale,
+and the tests read it; nothing adds it to the root any more, because the foot
+solve above supplies the same shift from the world instead of from the clip's
+own flat floor. Two mechanisms moving the root would double-count.
+
+**A gear with no clip near it plays a BLEND of the two it has.** `ClipEntry`
+carries a second clip and a weight; the two are sampled with their PLANTS
+ALIGNED (each shifted by its own footfall phase) and blended before the stride
+scale is applied. The weight is solved, not chosen: it is the blend whose
+measured cycle travel equals what sim demands. On HumanBase the JOG takes
+Jog_Fwd_Loop blended 75 % into Walk_Loop and its stride scale lands at 1.01.
+
+**`ClipRole::WeaponIdle` is a LAYER, not a state.** `role_for_drive` never
+returns it; it is what the upper half wears over the legs' locomotion while
+`BodyDrive::weapon_drawn` is set, crossfaded over `WEAPON_CROSSFADE_S` (0.2 s).
+
+**Hitboxes are defined by TWO JOINTS, never by a bone plus an offset.**
+`Hitbox.h` gives each shape a `from`/`to` joint pair, a span of that line as a
+FRACTION, and half extents across it. "Half a thigh down the bone's -Y" is a
+statement about our axes; the imported skeleton has its own, and on a Rigify
+export they are not close. A line between two joints is the same line in every
+skeleton that has both. Sixteen shapes: a sphere for the skull, three boxes for
+the trunk (contiguous by construction — a gap would be a stripe no shot can
+hit), and one box per limb segment plus hands and feet. `BodyPart` is a
+CONTRACT the moment anything serialises it: extend at the END, never reorder.

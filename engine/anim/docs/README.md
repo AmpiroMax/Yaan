@@ -52,12 +52,27 @@ upgrade behind the same bone indices.
   `JOG_SPEED` landed between those two rows and jog silently began rendering
   as a walk leaning 0.286 toward run. Adding a gear here has to be a decision
   somebody writes down; a linear map acquires interior points by itself.
+- `PoseLayers.h` — `Branch`/`BranchMask`/`build_branch_mask()` (верх/низ по
+  ВЕТВЯМ скелета, а не по списку имён), `blend_masked()`, `ArmRelax` +
+  `calibrate_arm_relax()`/`apply_arm_relax()` (приведение плеч и расслабление
+  пальцев; УГОЛ РЕШАЕТСЯ по нашей позе покоя — 14.5° на HumanBase, а не
+  назначенные «10-12°»), `measure_hand_spread()`/`measure_hand_openness()` —
+  числа, в которых написана приёмка пункта 3.
+- `FootIk.h` — `FootIkSetup`/`build_foot_ik()`, `FootIkProbe` (что ответил мир,
+  в СОБСТВЕННОЙ системе тела), `FootIkPlan`/`plan_foot_ik()` (замер),
+  `apply_foot_ik()` (сдвиг корня к нижней стопе + двузвенник колена + тангаж
+  стопы), `foot_penetration()` (прибор приёмки). Луча здесь НЕТ: зона не видит
+  мира (правило 1), высоты грунта приходят аргументом от приложения.
+- `Hitbox.h` — `BodyPart` (КАНАЛ, а не подпись: 16 частей + None),
+  `HitboxSlot`/`HitboxSet`/`build_hitboxes(proportions)` (форма задаётся ПАРОЙ
+  СУСТАВОВ и долей отрезка между ними — единственная запись, переживающая
+  чужой скелет), `hitbox_pose()`, `hitbox_raycast()`, `hitbox_contains()`.
 - `BodyMesh.h` — `build_body_segment_mesh(bone, proportions)` (flat-shaded
   boxes, bone-space, `platform::Vertex`), `body_segment_mesh_id()` (= 34 +
   bone index; range 34..49 blessed in render's ProcMesh id map).
 - `Body.h` — components `BodyRig`, `BodyDrive` (app-ferried copy of sim's
-  stride phase/speed/GAIT/etc — never a second clock and never a re-derived
-  gear), `MirrorPuppet`; systems
+  stride phase/speed/GAIT/`weapon_drawn`/etc — never a second clock and never a
+  re-derived gear), `MirrorPuppet`; systems
   `spawn_body`, `spawn_mirror_puppet`, `note_landed`, `evaluate_body_pose`,
   `update_bodies` (fixed tick, after `player_post_step`), `body_root_for`.
 

@@ -113,6 +113,11 @@ constexpr RoleNames ROLE_NAMES[] = {
      {"Crouch_Fwd_Loop", "CrouchWalk", "Crouch_Walk", "Crouch_Walk_Loop"}},
     {ClipRole::Sit, "Sit",
      {"Sitting_Idle_Loop", "Sit_Idle_Loop", "Sitting", "Sit"}},
+    // THE WEAPON GUARD. Not "any clip with Sword in the name": Sword_Attack
+    // and Sword_Attack_RM are on this asset too, and a guard that swings is a
+    // body that attacks whenever it stands still.
+    {ClipRole::WeaponIdle, "WeaponIdle",
+     {"Sword_Idle", "Sword_Idle_Loop", "Combat_Idle_Loop", "Weapon_Idle"}},
 };
 static_assert(std::size(ROLE_NAMES) == CLIP_ROLE_COUNT,
               "every role needs a row in the name table");
@@ -366,13 +371,45 @@ struct ContactTrack {
     }
 };
 
+/// A GEAR'S POSE SOURCE: one clip, or two blended at a fixed weight with their
+/// PLANTS ALIGNED. Aligning the plants is the whole of the second half — two
+/// locomotion clips blended at equal clip time put a left footfall on top of a
+/// right one and produce a body that shuffles in place.
+struct MixSource {
+    const skel::AnimClip* a = nullptr;
+    float dur_a = 0.0f;
+    float plant_a = 0.0f;
+    const skel::AnimClip* b = nullptr;
+    float dur_b = 0.0f;
+    float plant_b = 0.0f;
+    float weight = 0.0f;
+    [[nodiscard]] bool blended() const { return b != nullptr && weight > 0.0f; }
+};
+
+/// The source at cycle phase `p`, where p is a fraction of clip A's own loop.
+/// Clip B is sampled at the instant its OWN plant is the same distance away.
+void sample_mix(const skel::Skeleton& skeleton, const MixSource& src, float p,
+                std::span<JointLocal> out, std::vector<JointLocal>& scratch) {
+    if (src.a == nullptr) {
+        return;
+    }
+    sample_clip_pose(skeleton, *src.a, wrap01(p) * src.dur_a, out);
+    if (!src.blended()) {
+        return;
+    }
+    scratch.assign(skeleton.size(), JointLocal{});
+    sample_clip_pose(skeleton, *src.b, wrap01(src.plant_b + p - src.plant_a) * src.dur_b,
+                     scratch);
+    blend_local(out.first(skeleton.size()), scratch, src.weight, out.first(skeleton.size()));
+}
+
 [[nodiscard]] ContactTrack track_contacts(const skel::Skeleton& skeleton,
                                           const SkinnedRigBinding& binding,
                                           const ContactSet& contacts,
-                                          const skel::AnimClip& clip, float duration_s,
-                                          float scale, uint32_t samples) {
+                                          const MixSource& src, float scale,
+                                          uint32_t samples) {
     ContactTrack track;
-    if (!contacts.valid() || duration_s <= 0.0f || samples < 4) {
+    if (!contacts.valid() || src.a == nullptr || src.dur_a <= 0.0f || samples < 4) {
         return track;
     }
     std::vector<int32_t> joints;
@@ -395,9 +432,10 @@ struct ContactTrack {
     }
     // The last entry REPEATS the first: every consumer below walks pairs, and
     // a plant that straddles the loop point is the normal case, not the edge.
+    std::vector<JointLocal> scratch;
     for (uint32_t k = 0; k <= samples; ++k) {
-        const float t = duration_s * float(k % samples) / float(samples);
-        sample_clip_pose(skeleton, clip, t, sample);
+        const float p = float(k % samples) / float(samples);
+        sample_mix(skeleton, src, p, sample, scratch);
         scale_sample_stride(binding, skeleton, scale, sample);
         for (std::size_t j = 0; j < skeleton.size(); ++j) {
             local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation)
@@ -631,6 +669,58 @@ float ground_lift_for(const ClipEntry& entry, float scale) {
     return glm::mix(entry.ground_curve[lo], entry.ground_curve[hi], u);
 }
 
+namespace {
+
+/// The pose source an entry describes: its clip, plus its blend partner when
+/// it has one. One place builds it, so the frame and every measurement below
+/// cannot disagree about what a gear plays (Rule 35).
+[[nodiscard]] MixSource mix_of(const ClipEntry& entry,
+                               std::span<const skel::AnimClip> clips) {
+    MixSource src;
+    if (!entry.present()) {
+        return src;
+    }
+    src.a = &clips[static_cast<std::size_t>(entry.clip)];
+    src.dur_a = entry.duration_s;
+    src.plant_a = entry.footfall_phase;
+    if (entry.mixed()) {
+        src.b = &clips[static_cast<std::size_t>(entry.mix_clip)];
+        src.dur_b = entry.mix_duration_s;
+        src.plant_b = entry.mix_footfall;
+        src.weight = entry.mix_weight;
+    }
+    return src;
+}
+
+/// EVERYTHING MEASUREMENT KNOWS ABOUT ONE POSE SOURCE: its native travel, the
+/// phase its left foot plants at, how still that plant is, and the two curves
+/// over the stride grid. Written into `entry` so a blended gear is measured by
+/// exactly the code a solo one is.
+void measure_travel(const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
+                    const ContactSet& contacts, const MixSource& src, ClipEntry& entry) {
+    const ContactTrack base =
+        track_contacts(skeleton, binding, contacts, src, 1.0f, MEASURE_SAMPLES);
+    const TravelFit native = fit_travel(base);
+    entry.cycle_m = native.travel_m;
+    entry.plant_residual_m = native.residual_m;
+    entry.duty = native.duty;
+    entry.footfall_phase = left_plant_phase(base);
+    entry.stride_valid = 0;
+    for (uint32_t i = 0; i < STRIDE_CURVE_POINTS; ++i) {
+        const float sc = stride_scale_at(i);
+        const ContactTrack t =
+            track_contacts(skeleton, binding, contacts, src, sc, MEASURE_SAMPLES);
+        const TravelFit f = fit_travel(t);
+        entry.stride_curve[i] = f.travel_m;
+        entry.ground_curve[i] = t.lift;
+        if (f.travel_m > 0.0f) {
+            entry.stride_valid |= 1u << i;
+        }
+    }
+}
+
+} // namespace
+
 ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                                const SkinnedRigBinding& binding,
                                std::span<const skel::AnimClip> clips) {
@@ -669,24 +759,7 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
             continue;
         }
         const skel::AnimClip& clip = clips[static_cast<std::size_t>(entry.clip)];
-        const ContactTrack base = track_contacts(skeleton, binding, lib.contacts, clip,
-                                                 entry.duration_s, 1.0f, MEASURE_SAMPLES);
-        const TravelFit native = fit_travel(base);
-        entry.cycle_m = native.travel_m;
-        entry.plant_residual_m = native.residual_m;
-        entry.duty = native.duty;
-        entry.footfall_phase = left_plant_phase(base);
-        for (uint32_t i = 0; i < STRIDE_CURVE_POINTS; ++i) {
-            const float sc = stride_scale_at(i);
-            const ContactTrack t = track_contacts(skeleton, binding, lib.contacts, clip,
-                                                  entry.duration_s, sc, MEASURE_SAMPLES);
-            const TravelFit f = fit_travel(t);
-            entry.stride_curve[i] = f.travel_m;
-            entry.ground_curve[i] = t.lift;
-            if (f.travel_m > 0.0f) {
-                entry.stride_valid |= 1u << i;
-            }
-        }
+        measure_travel(skeleton, binding, lib.contacts, mix_of(entry, clips), entry);
         // A CURVE THAT STOPS IS STILL A CURVE, but a curve that never started
         // is a clip whose feet this model cannot read, and that is said out
         // loud rather than drawn as a body sliding down a street.
@@ -811,6 +884,105 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
             lib.role[r].named_slide_m = named_slide[r];
         }
     }
+    // A GEAR WITH NO CLIP NEAR IT GETS A BLEND OF THE TWO IT HAS.
+    //
+    // The swap above answers "which single clip is this gear best served by".
+    // For 3 m/s on this asset the honest answer is NEITHER: the jog clip has
+    // to be shrunk to 0.42 (legs straighten, feet skim, and grounding it lifts
+    // the body 0.17 m — the "figure grows 18 cm on the gear change" the owner
+    // reported) and the walk clip has to be stretched to 1.84 (a stride nobody
+    // walks). Blending them at the weight whose MEASURED cycle equals the one
+    // sim asks for leaves the stride scale near 1: neither clip is bent, and
+    // the ground lift falls out with the bend.
+    //
+    // THE WEIGHT IS A ROOT, NOT A TASTE. It is solved by scanning, because the
+    // blend of two poses is not linear in the ground either pose covers, and
+    // the scan reports what it found rather than assuming monotonicity.
+    //
+    // AND IT ONLY HAPPENS WHEN THE SOLO CLIP IS ALREADY OUT OF ITS WINDOW.
+    // A gear whose own clip sits inside [SWAP_SCALE_MIN, SWAP_SCALE_MAX] is a
+    // gear being adjusted, and blending it would trade a clip somebody drew
+    // for an average of two.
+    constexpr uint32_t MIX_STEPS = 20;
+    for (const GearRow& g : gears) {
+        ClipEntry& entry = lib.role[role_index(g.role)];
+        if (!entry.present() || entry.duration_s <= 0.0f) {
+            continue;
+        }
+        const float step = static_cast<float>(config::STEP_LENGTH_BASE)
+                           + static_cast<float>(config::STEP_LENGTH_PER_MPS) * g.speed;
+        const float demanded = 2.0f * step;
+        const float solo_scale = stride_scale_for(entry, demanded);
+        if (solo_scale >= SWAP_SCALE_MIN && solo_scale <= SWAP_SCALE_MAX) {
+            continue;
+        }
+        const FootSlide solo = measure_foot_slide(skeleton, binding, clips, lib, g.role,
+                                                  step, true, MEASURE_SAMPLES);
+        const ClipEntry solo_entry = entry;
+        ClipEntry best = entry;
+        float best_err = std::numeric_limits<float>::max();
+        for (const ClipRole r : travelling) {
+            if (r == g.role || r == ClipRole::CrouchWalk || !lib.has(r)) {
+                continue;
+            }
+            const ClipEntry& partner = lib[r];
+            if (partner.clip == entry.clip || partner.duration_s <= 0.0f) {
+                continue;
+            }
+            for (uint32_t i = 1; i < MIX_STEPS; ++i) {
+                ClipEntry trial = solo_entry;
+                trial.mix_clip = partner.clip;
+                trial.mix_duration_s = partner.duration_s;
+                trial.mix_footfall = partner.footfall_phase;
+                trial.mix_weight = float(i) / float(MIX_STEPS);
+                measure_travel(skeleton, binding, lib.contacts, mix_of(trial, clips),
+                               trial);
+                if (trial.stride_valid == 0 || trial.cycle_m <= 0.0f) {
+                    continue;
+                }
+                const float err = std::abs(trial.cycle_m - demanded);
+                if (err < best_err) {
+                    best_err = err;
+                    best = trial;
+                }
+            }
+        }
+        if (!best.mixed()) {
+            continue;
+        }
+        entry = best;
+        const FootSlide mixed = measure_foot_slide(skeleton, binding, clips, lib, g.role,
+                                                   step, true, MEASURE_SAMPLES);
+        const float mixed_scale = stride_scale_for(entry, demanded);
+        // THE BLEND HAS TO EARN THE ROLE. If it does not plant better than the
+        // clip it replaced, the clip stays: a body that skates on an average
+        // of two animations is worse than one that skates on one.
+        if (mixed.worst_per_step_m >= solo.worst_per_step_m) {
+            entry = solo_entry;
+            std::fprintf(stderr,
+                         "[anim] gear %s: no blend beat the solo clip "
+                         "(%.3f m/step) — keeping it\n",
+                         role_name(g.role).data(),
+                         static_cast<double>(solo.worst_per_step_m));
+            continue;
+        }
+        entry.mix_solo_slide_m = solo.worst_per_step_m;
+        entry.mix_solo_lift_m = ground_lift_for(solo_entry, solo_scale);
+        std::fprintf(stderr,
+                     "[anim] gear %s has no clip near it: \"%s\" alone needs stride "
+                     "%.2f and slides %.3f m/step. Blended %.0f%% into \"%s\": stride "
+                     "%.2f, slide %.3f m/step, ground lift %.3f -> %.3f m\n",
+                     role_name(g.role).data(),
+                     clips[static_cast<std::size_t>(solo_entry.clip)].name.c_str(),
+                     static_cast<double>(solo_scale),
+                     static_cast<double>(solo.worst_per_step_m),
+                     static_cast<double>(100.0f * entry.mix_weight),
+                     clips[static_cast<std::size_t>(entry.mix_clip)].name.c_str(),
+                     static_cast<double>(mixed_scale),
+                     static_cast<double>(mixed.worst_per_step_m),
+                     static_cast<double>(entry.mix_solo_lift_m),
+                     static_cast<double>(ground_lift_for(entry, mixed_scale)));
+    }
     // THE STANDING ROLES STILL HAVE TO STAND ON THE GROUND, and they get ONE
     // lift, measured at scale 1 and written into every cell of the curve so
     // ground_lift_for needs no special case for them.
@@ -828,10 +1000,21 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         if (!entry.present() || entry.duration_s <= 0.0f) {
             continue;
         }
-        const skel::AnimClip& clip = clips[static_cast<std::size_t>(entry.clip)];
-        entry.ground_curve.fill(track_contacts(skeleton, binding, lib.contacts, clip,
-                                               entry.duration_s, 1.0f, MEASURE_SAMPLES)
+        entry.ground_curve.fill(track_contacts(skeleton, binding, lib.contacts,
+                                               mix_of(entry, clips), 1.0f,
+                                               MEASURE_SAMPLES)
                                     .lift);
+    }
+    // THE TWO LAYERS. The mask is pure structure and needs nothing measured;
+    // the arm layer is solved against the asset's OWN IDLE, because that is
+    // the pose the owner was looking at when he called it a combat stance.
+    lib.mask = build_branch_mask(skeleton, binding);
+    const ClipEntry& idle = lib[ClipRole::Idle];
+    if (idle.present()) {
+        std::vector<JointLocal> reference(skeleton.size());
+        sample_clip_pose(skeleton, clips[static_cast<std::size_t>(idle.clip)], 0.0f,
+                         reference);
+        lib.relax = calibrate_arm_relax(rig, skeleton, binding, reference);
     }
     return lib;
 }
@@ -896,6 +1079,28 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     play.prev_fade = play.fade;
     play.prev_stride = play.stride;
     play.prev_previous_stride = play.previous_stride;
+    play.prev_mix_time_s = play.mix_time_s;
+    play.prev_previous_mix_time_s = play.previous_mix_time_s;
+    play.prev_weapon = play.weapon;
+    play.prev_weapon_time_s = play.weapon_time_s;
+
+    // THE HANDS, EASED. The state is a flag on the drive and the picture is
+    // this float; the 0.2 s is WEAPON_CROSSFADE_S, which the order names.
+    const float want_weapon = drive.weapon_drawn ? 1.0f : 0.0f;
+    if (dt > 0.0f && WEAPON_CROSSFADE_S > 0.0f) {
+        const float move = dt / WEAPON_CROSSFADE_S;
+        play.weapon = play.weapon < want_weapon
+                          ? std::min(want_weapon, play.weapon + move)
+                          : std::max(want_weapon, play.weapon - move);
+    } else {
+        play.weapon = want_weapon;
+    }
+    const ClipEntry& guard_entry = lib[ClipRole::WeaponIdle];
+    if (guard_entry.present() && guard_entry.duration_s > 0.0f) {
+        play.weapon_time_s += dt;
+        play.weapon_time_s =
+            wrap01(play.weapon_time_s / guard_entry.duration_s) * guard_entry.duration_s;
+    }
 
     ClipRole want = role_for_drive(lib, drive);
     // THE JUMP TRIPLE is the one sequence a state cannot answer on its own:
@@ -940,6 +1145,10 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     play.stride = locomotion(play.role) ? stride_scale_for(cur, demanded) : 1.0f;
     if (locomotion(play.role)) {
         play.time_s = locomotion_time(cur, drive.stride_phase);
+        play.mix_time_s = cur.mixed() ? wrap01(drive.stride_phase - PHASE_LEFT
+                                               + cur.mix_footfall)
+                                            * cur.mix_duration_s
+                                      : 0.0f;
     } else if (cur.duration_s > 0.0f) {
         play.time_s += dt;
         play.time_s = one_shot(play.role) ? std::min(play.time_s, cur.duration_s)
@@ -951,6 +1160,10 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         if (locomotion(play.previous)) {
             play.previous_stride = stride_scale_for(prev, demanded);
             play.previous_time_s = locomotion_time(prev, drive.stride_phase);
+            play.previous_mix_time_s =
+                prev.mixed() ? wrap01(drive.stride_phase - PHASE_LEFT + prev.mix_footfall)
+                                   * prev.mix_duration_s
+                             : 0.0f;
         } else if (prev.duration_s > 0.0f) {
             play.previous_time_s += dt;
             play.previous_time_s =
@@ -967,6 +1180,10 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         play.prev_fade = play.fade;
         play.prev_stride = play.stride;
         play.prev_previous_stride = play.previous_stride;
+        play.prev_mix_time_s = play.mix_time_s;
+        play.prev_previous_mix_time_s = play.previous_mix_time_s;
+        play.prev_weapon = play.weapon;
+        play.prev_weapon_time_s = play.weapon_time_s;
         play.primed = true;
     }
 }
@@ -981,23 +1198,40 @@ namespace {
 /// Every root gets it, because an asset may bind more than one and a body
 /// half-lifted is worse than one not lifted at all.
 void role_frame(const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
-                const skel::AnimClip& clip, const ClipEntry& entry, float prev_t,
-                float t, float alpha, float stride, std::span<JointLocal> out) {
+                std::span<const skel::AnimClip> clips, const ClipEntry& entry,
+                float prev_t, float t, float prev_mix_t, float mix_t, float alpha,
+                float stride, std::span<JointLocal> out) {
     const float d = forward_delta(prev_t, t, entry.duration_s);
     float when = prev_t + alpha * d;
     if (entry.duration_s > 0.0f) {
         when = wrap01(when / entry.duration_s) * entry.duration_s;
     }
-    sample_clip_pose(skeleton, clip, when, out);
-    scale_sample_stride(binding, skeleton, stride, out);
-    const float lift = ground_lift_for(entry, stride);
-    if (std::abs(lift) > 1e-5f) {
-        for (std::size_t j = 0; j < skeleton.size() && j < out.size(); ++j) {
-            if (skeleton.joints[j].parent < 0) {
-                out[j].translation.y += lift;
-            }
+    sample_clip_pose(skeleton, clips[static_cast<std::size_t>(entry.clip)], when, out);
+    if (entry.mixed()) {
+        // THE PARTNER IS INTERPOLATED IN ITS OWN CLOCK. Deriving its instant
+        // from `when` would need the phase, and the frame does not have one:
+        // it sits between two ticks, and each tick is what knew where in the
+        // cycle it was.
+        const float dm = forward_delta(prev_mix_t, mix_t, entry.mix_duration_s);
+        float when_mix = prev_mix_t + alpha * dm;
+        if (entry.mix_duration_s > 0.0f) {
+            when_mix = wrap01(when_mix / entry.mix_duration_s) * entry.mix_duration_s;
         }
+        std::vector<JointLocal> partner(skeleton.size());
+        sample_clip_pose(skeleton, clips[static_cast<std::size_t>(entry.mix_clip)],
+                         when_mix, partner);
+        blend_local(out.first(skeleton.size()), partner, entry.mix_weight,
+                    out.first(skeleton.size()));
     }
+    scale_sample_stride(binding, skeleton, stride, out);
+    // THE GROUND LIFT IS NO LONGER APPLIED HERE, and its absence is the point.
+    // A constant per stride scale was the best a clip could do about ground it
+    // could not see: it grounded the body on the FLAT floor the clip was drawn
+    // on, and on a stair or a slope it was simply the wrong number. FootIk.h
+    // now supplies the shift per frame from a raycast under each foot, and two
+    // mechanisms both moving the root would double-count every centimetre.
+    // `ground_curve` stays a MEASUREMENT (how deep a clip sits at a scale) and
+    // is read by the library's log and by the tests; nothing draws with it.
 }
 
 } // namespace
@@ -1012,23 +1246,34 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     if (!cur.present() || out_sample.size() < n) {
         return false;
     }
-    role_frame(skeleton, binding, clips[static_cast<std::size_t>(cur.clip)], cur,
-               play.prev_time_s, play.time_s, a,
+    role_frame(skeleton, binding, clips, cur, play.prev_time_s, play.time_s,
+               play.prev_mix_time_s, play.mix_time_s, a,
                glm::mix(play.prev_stride, play.stride, a), out_sample);
     const float fade = glm::mix(play.prev_fade, play.fade, a);
     const ClipEntry& prev = lib[play.previous];
-    if (fade <= 0.0f || !prev.present()) {
-        return true;
-    }
+    if (fade > 0.0f && prev.present()) {
     // THE CROSS-FADE RUNS ON TWO FINISHED SAMPLES, not on one sample built
     // from a blended time: the two roles carry DIFFERENT STRIDE SCALES and
     // different durations, and a single interpolated clip time between them
     // means nothing at all.
-    std::vector<JointLocal> other(n);
-    role_frame(skeleton, binding, clips[static_cast<std::size_t>(prev.clip)], prev,
-               play.prev_previous_time_s, play.previous_time_s, a,
-               glm::mix(play.prev_previous_stride, play.previous_stride, a), other);
-    blend_local(out_sample.first(n), other, fade, out_sample.first(n));
+        std::vector<JointLocal> other(n);
+        role_frame(skeleton, binding, clips, prev, play.prev_previous_time_s,
+                   play.previous_time_s, play.prev_previous_mix_time_s,
+                   play.previous_mix_time_s, a,
+                   glm::mix(play.prev_previous_stride, play.previous_stride, a), other);
+        blend_local(out_sample.first(n), other, fade, out_sample.first(n));
+    }
+    // THE TWO LAYERS, in the order a body wears them: the weapon guard is put
+    // ON the upper half, and the arm relax is what comes OFF when it is.
+    const float weapon = glm::mix(play.prev_weapon, play.weapon, a);
+    const ClipEntry& guard = lib[ClipRole::WeaponIdle];
+    if (weapon > 0.0f && guard.present() && lib.mask.valid()) {
+        std::vector<JointLocal> upper(n);
+        role_frame(skeleton, binding, clips, guard, play.prev_weapon_time_s,
+                   play.weapon_time_s, 0.0f, 0.0f, a, 1.0f, upper);
+        blend_masked(out_sample.first(n), upper, lib.mask, weapon, out_sample.first(n));
+    }
+    apply_arm_relax(skeleton, lib.relax, 1.0f - weapon, out_sample);
     return true;
 }
 
@@ -1047,9 +1292,8 @@ FootSlide measure_foot_slide(const skel::Skeleton& skeleton,
     out.demanded_m = 2.0f * std::max(0.0f, step_length_m);
     const float scale = stride_match ? stride_scale_for(entry, out.demanded_m) : 1.0f;
     const ContactTrack track =
-        track_contacts(skeleton, binding, lib.contacts,
-                       clips[static_cast<std::size_t>(entry.clip)], entry.duration_s,
-                       scale, samples);
+        track_contacts(skeleton, binding, lib.contacts, mix_of(entry, clips), scale,
+                       samples);
     const std::size_t n = track.samples();
     if (n < 2) {
         return out;

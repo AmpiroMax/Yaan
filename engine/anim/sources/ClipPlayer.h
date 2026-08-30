@@ -83,6 +83,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/Body.h"
 #include "engine/anim/sources/Clips.h"
 #include "engine/anim/sources/Pose.h"
+#include "engine/anim/sources/PoseLayers.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
@@ -110,8 +111,13 @@ enum class ClipRole : uint8_t {
     CrouchIdle,
     CrouchWalk,
     Sit,
+    /// A LAYER, NOT A STATE. WeaponIdle is never chosen by role_for_drive:
+    /// it is the pose the UPPER HALF wears while the legs keep walking, and
+    /// giving it its own row here rather than a special-cased clip name is
+    /// what lets it be resolved, measured and printed like every other role.
+    WeaponIdle,
 };
-inline constexpr uint32_t CLIP_ROLE_COUNT = 10;
+inline constexpr uint32_t CLIP_ROLE_COUNT = 11;
 
 [[nodiscard]] constexpr uint32_t role_index(ClipRole r) {
     return static_cast<uint32_t>(r);
@@ -240,13 +246,46 @@ struct ClipEntry {
     int32_t named_clip = -1;
     float named_slide_m = 0.0f;
 
+    /// THE SECOND CLIP OF A BLENDED GEAR, and the weight it carries.
+    ///
+    /// A GEAR WITH NO CLIP NEAR IT IS THE ONE CASE A SINGLE CLIP CANNOT
+    /// ANSWER. This asset is authored at 1.14, 5.98 and 9.12 m/s; sim's gears
+    /// are 1.8, 3.0 and 6.0. The walk and the run each have a clip within a
+    /// stride scale of 1.35 and 0.82 — that is a clip being ADJUSTED. The JOG
+    /// has neither: reaching 3 m/s means shrinking the jog clip to 0.42 (its
+    /// legs straighten, the feet skim, and grounding it lifts the whole body
+    /// 0.17 m — the "figure grows 18 cm on the gear change" the owner saw) or
+    /// stretching the walk to 1.84, which is a stride nobody walks. Blending
+    /// the two gives a cycle that natively covers what sim asks for, so the
+    /// stride scale lands near 1 and neither clip is bent far from what its
+    /// author drew.
+    ///
+    /// THE WEIGHT IS SOLVED, NOT CHOSEN: it is the blend whose MEASURED cycle
+    /// travel equals the gear's demanded travel. -1 / 0 = no blend.
+    int32_t mix_clip = -1;
+    float mix_duration_s = 0.0f;
+    float mix_footfall = 0.0f;
+    float mix_weight = 0.0f;
+    /// What the blend cost and bought, kept so the decision is auditable the
+    /// way `named_clip` keeps the rejected swap: the solo clip's slide and its
+    /// ground lift at this gear's stride.
+    float mix_solo_slide_m = 0.0f;
+    float mix_solo_lift_m = 0.0f;
+
     [[nodiscard]] bool present() const { return clip >= 0; }
+    [[nodiscard]] bool mixed() const { return mix_clip >= 0 && mix_weight > 0.0f; }
 };
 
 struct ClipLibrary {
     std::array<ClipEntry, CLIP_ROLE_COUNT> role{};
     /// Where this model's feet touch, and how high they touch at rest.
     ContactSet contacts;
+    /// WHICH HALF OF THE SKELETON A JOINT BELONGS TO, so the legs can walk
+    /// while the arms hold a sword (PoseLayers.h).
+    BranchMask mask;
+    /// THE ARM LAYER, solved against this model: how far the shoulders come in
+    /// when the hands are empty. Item 3 of the owner's list is this field.
+    ArmRelax relax;
     /// How many roles the asset actually answered. Zero means the model has
     /// clips we do not recognise, which is a naming problem and is said out
     /// loud rather than drawn as a T-pose.
@@ -301,6 +340,12 @@ void scale_sample_stride(const SkinnedRigBinding& binding,
 /// and 0.18 s sits inside the 0.15..0.25 s band the order names.
 inline constexpr float CLIP_CROSSFADE_S = 0.18f;
 
+/// HOW LONG DRAWING OR SHEATHING TAKES, seconds. Its own number and not
+/// CLIP_CROSSFADE_S: a gear change is a foot leaving the ground and has to
+/// happen inside a stride, while drawing is a whole arm travelling from the
+/// hip to a guard, and the order names 0.2 s for it.
+inline constexpr float WEAPON_CROSSFADE_S = 0.2f;
+
 /// THE PLAY STATE, plain data (Rule 8), one per body. Advanced once per fixed
 /// tick by advance_playback and read at any alpha by playback_pose.
 struct ClipPlayback {
@@ -311,6 +356,15 @@ struct ClipPlayback {
     /// Clip time in seconds for the CURRENT role and for the one fading out.
     float time_s = 0.0f;
     float previous_time_s = 0.0f;
+    /// The SAME two instants expressed in the blend partner's own clip time
+    /// (ClipEntry::mix_clip). Carried rather than recomputed in the frame
+    /// because the frame has no stride phase: it interpolates between two
+    /// ticks, and each tick is what knew where in the cycle it was.
+    float mix_time_s = 0.0f;
+    float previous_mix_time_s = 0.0f;
+    /// The weapon guard runs off its OWN seconds: it is not locomotion, it has
+    /// no stride, and its cycle is a man breathing over a raised blade.
+    float weapon_time_s = 0.0f;
     /// Stride scale in force this tick, and the one the previous role had.
     float stride = 1.0f;
     float previous_stride = 1.0f;
@@ -321,6 +375,14 @@ struct ClipPlayback {
     float prev_fade = 0.0f;
     float prev_stride = 1.0f;
     float prev_previous_stride = 1.0f;
+    float prev_mix_time_s = 0.0f;
+    float prev_previous_mix_time_s = 0.0f;
+    float prev_weapon_time_s = 0.0f;
+    /// WHETHER THE HANDS ARE FULL, eased. 0 = sheathed (the arm layer is on
+    /// and the whole body plays one clip), 1 = drawn (the arm layer is off and
+    /// the upper half plays the weapon idle over the legs' locomotion).
+    float weapon = 0.0f;
+    float prev_weapon = 0.0f;
     /// True once a tick has run: the first frame must not interpolate from an
     /// uninitialised past, which reads as the body snapping out of its bind.
     bool primed = false;

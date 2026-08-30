@@ -39,3 +39,13 @@ add_dfn_test(character_clips_played character/ClipPlayerTests.cpp
 if(TARGET dfn_characters)
     add_dependencies(character_clips_played dfn_characters)
 endif()
+
+# ХИТБОКСЫ ЧАСТЕЙ ТЕЛА (волна «стойка, оружие, стопы, хитбоксы»). Тот же довод,
+# что у двух наборов выше: читает ФАЙЛ, потому что покрытие силуэта — это
+# утверждение о НАСТОЯЩЕМ скине настоящей модели, и потому линкует dfn_render
+# ради читателя .dfo.
+add_dfn_test(character_hitboxes character/HitboxTests.cpp
+             dfn_anim dfn_render dfn_core)
+if(TARGET dfn_characters)
+    add_dependencies(character_hitboxes dfn_characters)
+endif()

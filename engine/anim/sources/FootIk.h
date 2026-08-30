@@ -1,0 +1,183 @@
+/*
+Module: engine/anim
+File: engine/anim/sources/FootIk.h
+
+Responsibility:
+- PUTTING THE FEET ON THE GROUND THAT IS ACTUALLY THERE. A clip knows one
+  ground: the flat one its author drew it on. A stair tread and a hillside are
+  the world's answer, they arrive as two numbers per foot (where the ground is
+  under the ankle and under the toe), and this file turns those numbers into a
+  vertical shift of the ROOT plus a two-bone knee solve for the foot the root
+  did not reach.
+
+Key items:
+- FootIkSetup / build_foot_ik(): which joints the solve moves, and how high
+  each contact point stands in OUR REST POSE.
+- FootIkProbe: what the world answered, in the body's own frame (y = 0 is the
+  ground the root stands on).
+- FootIkPlan / plan_foot_ik(): the measurement — how far each ankle and toe
+  must rise, how planted each foot is, and the root shift that follows.
+- apply_foot_ik(): the edit — root translation, two-bone knee, ankle pitch.
+- foot_penetration(): the acceptance instrument, metres below the ground.
+
+Dependencies:
+- Uses: Rig, SkinnedBody (JointLocal, the retarget), ClipPlayer (ContactSet),
+  core skeleton.
+- Used by: engine/app (SkinnedCharacter, which owns the raycast), tests.
+
+Notes:
+- WHY THE ROOT MOVES AT ALL, and why to the LOWER foot. With one foot on a
+  tread and the other on the tread below, no pose of the legs alone can put
+  both on their step: the pelvis has to come down to the lower one, and the
+  upper leg then folds. Shifting to the HIGHER foot instead would push the
+  lower one through the stair by the tread's whole rise.
+- WHY THIS IS NOT Posture::solve_legs, which the order pointed at. That solver
+  answers a different question in a different space: it takes a PELVIS HEIGHT
+  and returns the thigh angle that lands the ankle on the floor, with the shin
+  held at a fixed tilt, on OUR fifteen bones. Here the target is a POINT per
+  foot in the imported skeleton's own frame, the shin is whatever the clip
+  says, and the bend plane has to be preserved rather than chosen. What the
+  two share is the law of cosines on two segments, and that is three lines;
+  what they do not share is everything around it. Merging them would give one
+  function with two modes, which is the shape both would be worse for.
+- THE STANCE WEIGHT IS READ OFF THE POSE, not off the stride phase. The phase
+  says when the clip's author planted the foot; the pose says whether THIS
+  frame's foot is near the ground, which is the same question for a walk and
+  the right question for a run's flight phase, a jump and a crossfade between
+  two clips whose plants do not coincide. A foot in the air is weight 0 and
+  the solve is a no-op on it, which is what keeps a jump from being glued.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- Pure functions and plain data (Rule 8, Rule 30): no ECS, no IO, no clock and
+  no physics. The raycast belongs to whoever owns a world; this file is handed
+  its answers.
+*/
+
+#pragma once
+
+#include "engine/anim/sources/ClipPlayer.h"
+#include "engine/anim/sources/Rig.h"
+#include "engine/anim/sources/SkinnedBody.h"
+#include "engine/core/skeleton/sources/Skeleton.h"
+
+#include <array>
+#include <cstdint>
+#include <span>
+#include <vector>
+
+namespace dfn::anim {
+
+/// HOW CLOSE A CONTACT POINT HAS TO BE TO ITS REST HEIGHT to count as fully
+/// planted, metres. The same three centimetres ClipPlayer's stance band uses,
+/// and for the same reason: the contact point is a JOINT, not a sole, so it
+/// rides a shade above the grass while the ball of the foot rolls over it.
+inline constexpr float FOOT_IK_GRIP_M = 0.03f;
+
+/// AND HOW FAR ABOVE THAT THE WEIGHT REACHES ZERO. A hard edge at the grip
+/// band would switch the solve on and off inside one stride and read as the
+/// ankle ticking; twelve centimetres is about the height a walking foot
+/// clears, so the fade covers the whole lift rather than its first millimetre.
+inline constexpr float FOOT_IK_RELEASE_M = 0.12f;
+
+/// THE MOST THE ROOT MAY BE MOVED, metres. Not a taste: a raycast that misses
+/// its step and finds the floor of the stairwell would otherwise drop the
+/// whole body a storey, and a body that sinks through the world on one bad
+/// ray is worse than a foot that hangs for one frame. Half a metre is three
+/// canonical stair rises (0.18), so a legitimate stride can never reach it.
+inline constexpr float FOOT_IK_ROOT_LIMIT_M = 0.5f;
+
+/// Which joints the solve reads and writes, and the heights it judges against.
+struct FootIkSetup {
+    std::array<int32_t, 2> hip{-1, -1};   ///< thigh joint, [0] left [1] right
+    std::array<int32_t, 2> knee{-1, -1};  ///< shin joint
+    std::array<int32_t, 2> ankle{-1, -1}; ///< foot joint
+    std::array<int32_t, 2> toe{-1, -1};   ///< the foot's child, -1 when absent
+    /// Where the ankle and the toe sit in OUR REST POSE — the pose whose soles
+    /// the importer put on y = 0. A "ground height" from the world is added to
+    /// these, never used raw.
+    std::array<float, 2> ankle_rest_y{};
+    std::array<float, 2> toe_rest_y{};
+    /// Every parentless joint, i.e. everything the root shift is written on.
+    std::vector<int32_t> roots;
+    [[nodiscard]] bool valid() const {
+        return hip[0] >= 0 && hip[1] >= 0 && knee[0] >= 0 && knee[1] >= 0
+               && ankle[0] >= 0 && ankle[1] >= 0 && !roots.empty();
+    }
+};
+
+[[nodiscard]] FootIkSetup build_foot_ik(const skel::Skeleton& skeleton,
+                                        const SkinnedRigBinding& binding,
+                                        const ContactSet& contacts);
+
+/// WHAT THE WORLD ANSWERED, in the BODY'S OWN FRAME: the height of the ground
+/// under each contact point, relative to the ground the root stands on
+/// (y = 0). Flat ground is all zeros, which is why a test needs no physics.
+struct FootIkProbe {
+    std::array<float, 2> ankle_ground{};
+    std::array<float, 2> toe_ground{};
+    bool valid = false;
+};
+
+/// THE MEASUREMENT, taken on the pose as it will be drawn.
+struct FootIkPlan {
+    /// Metres the ankle (toe) must RISE to stand on the ground under it.
+    /// Negative means the clip is holding the foot above its ground.
+    std::array<float, 2> need{};
+    std::array<float, 2> toe_need{};
+    /// How planted each foot is in the clip, 0..1 (see the header note).
+    std::array<float, 2> weight{};
+    /// The shift that puts the LOWER planted foot on its ground. A suggestion:
+    /// the caller may filter it over time (the app does) and hand the filtered
+    /// value back to apply_foot_ik, which is why it is a field and not a
+    /// private step of the solve.
+    float root_dy = 0.0f;
+    [[nodiscard]] bool any_planted() const { return weight[0] > 0.0f || weight[1] > 0.0f; }
+};
+
+[[nodiscard]] FootIkPlan plan_foot_ik(const skel::Skeleton& skeleton,
+                                      const FootIkSetup& setup, const FootIkProbe& probe,
+                                      std::span<const JointLocal> sample);
+
+/// THE EDIT. Moves every root joint by `plan.root_dy`, then for each foot
+/// lifts the ankle the rest of the way with a two-bone solve at the knee and
+/// pitches the ankle so the toe meets its own ground. `strength` in [0,1]
+/// scales the whole thing; 0 is a bit-for-bit no-op, which is what the
+/// control arm of the acceptance test runs.
+void apply_foot_ik(const skel::Skeleton& skeleton, const FootIkSetup& setup,
+                   const FootIkProbe& probe, const FootIkPlan& plan, float strength,
+                   std::span<JointLocal> sample);
+
+/// THE ACCEPTANCE INSTRUMENT: how far the deepest contact point sits BELOW the
+/// ground under it, metres, worst of the four. Zero or negative means nothing
+/// is buried. Measured on the same pose the frame draws, through the same FK.
+///
+/// ONLY THE FEET THAT ARE TRYING TO STAND, and the exclusion is by CAUSE and
+/// not by size (Rule 36). A foot in its swing passes OVER the nosing of the
+/// tread ahead, and the ground under it at that instant is a surface it is not
+/// standing on and must not be pushed off: counting it would say a correct
+/// walk up a flight buries a foot 11 cm on every step, which is a statement
+/// about the swing and not about the grounding. `plan` is what says which
+/// feet are planted; pass the plan measured on the pose BEFORE the solve.
+///
+/// THE SWING IS A NAMED TAIL, not an oversight: a swinging foot that clips the
+/// step above it is a real defect and it needs a different mechanism (a swept
+/// query along the foot's path), which this wave did not build.
+[[nodiscard]] float foot_penetration(const skel::Skeleton& skeleton,
+                                     const FootIkSetup& setup, const FootIkProbe& probe,
+                                     const FootIkPlan& plan,
+                                     std::span<const JointLocal> sample);
+
+/// HOW PLANTED A FOOT HAS TO BE before the instrument above judges it, and the
+/// number is DERIVED FROM THE SOLVE rather than picked.
+///
+/// The solve scales its lift by the same stance weight, so a foot at weight w
+/// is corrected by w of what it asked for and is short by (1-w) of it BY
+/// CONSTRUCTION — not by a defect. On a canonical 0.18 m rise, 0.95 bounds
+/// that shortfall at 0.009 m, which is inside the centimetre the acceptance
+/// is written in; a looser gate would put the instrument's own fade into the
+/// number it reports. Measured on this asset: the run's releasing foot sits at
+/// weight 0.81 and is 0.024 m short, which is 19 % of 0.125 m exactly.
+inline constexpr float FOOT_JUDGED_WEIGHT = 0.95f;
+
+} // namespace dfn::anim

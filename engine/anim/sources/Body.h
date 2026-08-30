@@ -115,6 +115,16 @@ struct BodyDrive {
     // published value above because an ease must integrate its own state: fold
     // the fade into it and the fade multiplies every tick instead of once.
     float gear_weight = 0.0f;       // eased toward gait_run_weight(gait)
+    /// ОРУЖИЕ В РУКАХ (заказ владельца 31.08, пункты 5-6). ЗАЯВКА, а не
+    /// картинка: сама картинка едет в ClipPlayback::weapon за
+    /// WEAPON_CROSSFADE_S. Ферма как у всего остального привода — пишет
+    /// приложение (клавиша T), читает эта зона.
+    ///
+    /// ПОЧЕМУ ФЛАГ, А НЕ «КАКОЕ ОРУЖИЕ». Модели оружия у нас ещё нет, и
+    /// заводить ради неё перечисление значило бы заморозить контракт вокруг
+    /// вымысла. Состояний ровно два, и оба видны на кадре: руки свободны или
+    /// руки заняты.
+    bool weapon_drawn = false;
     // Showcase override (mirror map techno-demo): SHOWCASE_NONE = live body.
     uint8_t showcase_clip = SHOWCASE_NONE;
     float showcase_time_s = 0.0f;
