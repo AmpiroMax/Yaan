@@ -205,6 +205,95 @@ target_link_libraries(dfn_forge PRIVATE dfn_render dfn_core)
 add_executable(dfn_forge2 tools/forge_trees_v2.cpp)
 target_link_libraries(dfn_forge2 PRIVATE dfn_render dfn_core)
 
+# ИМПОРТЁР glTF (dfn_import_gltf, волна персонажа 30.08). Та же осанка, что у
+# кузниц: часть конвейера, а не прибор, — и по тому же доводу собирается со
+# всем остальным. Пишет .dfo v5 (SKIN/SKEL/ANIM); игра читает только .dfo, и
+# ни одна строка glTF в кадр не попадает (в1 на импорте).
+#
+# cgltf берётся из вендоренной bgfx.cmake — единственный третьесторонний
+# заголовок вне platform/sources во всём дереве, и он не в движке, а в
+# ОФЛАЙН-инструменте (довод в шапке tools/import_gltf.cpp).
+if(NOT DEFINED bgfx_cmake_SOURCE_DIR)
+    include(FetchContent)
+    FetchContent_GetProperties(bgfx_cmake)
+endif()
+set(DFN_CGLTF_DIR "${bgfx_cmake_SOURCE_DIR}/bgfx/3rdparty/cgltf")
+if(EXISTS "${DFN_CGLTF_DIR}/cgltf.h")
+    add_executable(dfn_import_gltf tools/import_gltf.cpp)
+    target_link_libraries(dfn_import_gltf PRIVATE dfn_render dfn_anim dfn_core)
+    target_include_directories(dfn_import_gltf SYSTEM PRIVATE "${DFN_CGLTF_DIR}")
+else()
+    message(WARNING "cgltf not found at ${DFN_CGLTF_DIR}; dfn_import_gltf skipped")
+endif()
+
+# СУДЬЯ ПРОПОРЦИЙ (dfn_human_scale, заказ владельца 30.08: «пропорции тела
+# делать сразу»). Мерит по СКЕЛЕТУ импортированной модели и судит по канону
+# docs/design/HUMAN_SCALE.md; числа печатает всегда, не только приговор.
+add_executable(dfn_human_scale tools/check_human_scale.cpp)
+target_link_libraries(dfn_human_scale PRIVATE dfn_render dfn_anim dfn_core)
+
+# ВЫПЕЧКА ПЕРСОНАЖЕЙ (dfn_characters). Правило дерева: исходник в git, выпечка
+# производная (.gitignore, решение владельца 17.08) — значит .glb лежит в
+# репозитории с лицензией рядом, а .dfo печётся здесь и в git не едет.
+# Печь на сборке, а не при первом запуске: импортёр — отдельный бинарник, и
+# приложение о нём знать не должно.
+if(TARGET dfn_import_gltf)
+    set(DFN_CHAR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/objects/characters")
+    set(DFN_CHAR_OUTPUTS)
+    # <исходник> <имя> <высота, м> <рыск, град> <канон?>
+    #
+    # ВИДИМЫЙ ПЕРСОНАЖ — ТОЛЬКО HumanBase, и только с --fit-canon (заказ
+    # владельца 30.08: «пропорции тела делать сразу», docs/design/HUMAN_SCALE.md).
+    # Knight и RiggedFigure — ФИКСТУРЫ ИМПОРТЁРА: рыцарь стилизован (2.11
+    # головы), фигурка мала (19 костей) — обе прекрасно ловят дефекты читателя
+    # и обе отвергаются судьёй пропорций, что и есть их вторая работа
+    # (контрольная рука, правило 30).
+    foreach(spec "HumanBase.glb;human-base;1.75;180;canon"
+                 "Knight.glb;knight-reference;2.0;180;raw"
+                 "RiggedFigure.gltf;reference-figure;1.8;0;raw")
+        list(GET spec 0 _src)
+        list(GET spec 1 _name)
+        list(GET spec 2 _height)
+        list(GET spec 3 _yaw)
+        list(GET spec 4 _fit)
+        get_filename_component(_stem "${_src}" NAME_WE)
+        set(_extra)
+        if(_fit STREQUAL "canon")
+            set(_extra --fit-canon)
+        endif()
+        if(EXISTS "${DFN_CHAR_DIR}/${_src}")
+            add_custom_command(
+                OUTPUT "${DFN_CHAR_DIR}/${_stem}.dfo"
+                COMMAND dfn_import_gltf "${DFN_CHAR_DIR}/${_src}"
+                        --out "${DFN_CHAR_DIR}/${_stem}.dfo"
+                        --name "${_name}" --height ${_height} --yaw ${_yaw} ${_extra}
+                DEPENDS dfn_import_gltf "${DFN_CHAR_DIR}/${_src}"
+                COMMENT "import ${_src} -> ${_stem}.dfo"
+                VERBATIM)
+            list(APPEND DFN_CHAR_OUTPUTS "${DFN_CHAR_DIR}/${_stem}.dfo")
+        endif()
+    endforeach()
+    if(DFN_CHAR_OUTPUTS)
+        add_custom_target(dfn_characters ALL DEPENDS ${DFN_CHAR_OUTPUTS})
+    endif()
+endif()
+
+# ПРИЁМКА ПРОПОРЦИЙ — В ctest, С КОНТРОЛЬНОЙ РУКОЙ (правило 30). Зелёная
+# строка на видимом персонаже одна ничего не значит: судья, который всех
+# пропускает, неотличим от судьи, который ничего не мерит. Рядом стоит рыцарь
+# KayKit — 2.11 головы, — и он ОБЯЗАН быть отвергнут.
+if(TARGET dfn_human_scale AND TARGET dfn_characters)
+    add_test(NAME human_scale_player
+             COMMAND dfn_human_scale assets/objects/characters/HumanBase.dfo
+                     --tolerance 0.05)
+    add_test(NAME human_scale_chibi_rejected
+             COMMAND dfn_human_scale assets/objects/characters/Knight.dfo
+                     --tolerance 0.05)
+    set_tests_properties(human_scale_chibi_rejected PROPERTIES WILL_FAIL TRUE)
+    set_tests_properties(human_scale_player human_scale_chibi_rejected
+                         PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
 # КУЗНИЦА ЯРУСОВ ФЛОРЫ (dfn_forge_tiers, 28.08): подрост и платы ковра в свою
 # полку assets/objects/tiers. Третий бинарник по тому же доводу, что и второй —
 # «не порти чужого» должно быть свойством того, куда программа дотягивается, а

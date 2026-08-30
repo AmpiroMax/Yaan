@@ -1,0 +1,59 @@
+REFERENCE CHARACTER ASSETS — LICENCES AND STANDING
+==================================================
+
+Knight.glb / Knight.dfo   — THE ACCEPTANCE CHARACTER
+----------------------------------------------------
+Source:  KayKit — Adventurers Character Pack (1.0), by Kay Lousberg
+         https://github.com/KayKit-Game-Assets/KayKit-Character-Pack-Adventures-1.0
+         addons/kaykit_character_pack_adventures/Characters/gltf/Knight.glb
+Licence: CC0 1.0 Universal (public domain dedication).
+         The pack's own licence text is beside this file as
+         KAYKIT_LICENSE.txt, verbatim. CC0 requires no attribution; the
+         author asks for credit and it is given here: Kay Lousberg,
+         www.kaylousberg.com.
+Measured on import: 41 joints, 3716 vertices, 4148 triangles, 76 clips
+(Idle, Walking_A/B/C, Running_A/B, Jump_*, Sit_Chair_*, 1H_Melee_*, Block,
+Hit, Death, Spellcast, ...). All 15 rig bones bind by name.
+
+RiggedFigure.gltf / RiggedFigure.dfo   — THE MINIMAL READER FIXTURE
+--------------------------------------------------------------------
+Source:  Khronos Group, glTF-Sample-Assets
+         https://github.com/KhronosGroup/glTF-Sample-Assets
+         Models/RiggedFigure/glTF-Embedded/RiggedFigure.gltf
+Licence: © 2017 Cesium — Creative Commons Attribution 4.0 International
+         (CC BY 4.0), https://creativecommons.org/licenses/by/4.0/
+         ATTRIBUTION IS REQUIRED BY THIS LICENCE and is given by this
+         paragraph; keep it with the file.
+19 joints, 370 vertices, 256 triangles, one 1.25 s clip. Small enough to be
+a test's reference numbers, and authored by nobody here — which is the whole
+point of a fixture for a READER.
+
+WHAT THESE FILES ARE FOR, AND WHAT THEY ARE NOT
+------------------------------------------------
+They are TEMPORARY REFERENCES for the import-and-skinning pipeline: real
+skeletons, real weights and real clips, so the importer, the .dfo v5 sections,
+the retarget onto our rig and the skinned vertex program can be proved end to
+end against files nobody in this project authored.
+
+They are NOT the game's character. Daggerfall N's own character is later work;
+when it lands, these keep one job — the pipeline's regression fixtures.
+
+THE GAME NEVER READS THE .gltf OR THE .glb. The importer bakes them into .dfo
+and the runtime reads only that (в1, the tooling pivot: nothing is generated —
+or parsed — in the frame). Re-bake with:
+
+    dfn_import_gltf assets/objects/characters/Knight.glb \
+        --out assets/objects/characters/Knight.dfo \
+        --name knight-reference --height 2.0
+
+    dfn_import_gltf assets/objects/characters/RiggedFigure.gltf \
+        --out assets/objects/characters/RiggedFigure.dfo \
+        --name reference-figure --height 1.8 --yaw 0
+
+WHY THE KNIGHT IS FITTED TO 2.00 m AND NOT TO PLAYER_CAPSULE_HEIGHT (1.8).
+He is a stylised chibi: his head is a fifth of him and his plume another
+0.5 m. Fitting his BOUNDING BOX to 1.8 would give a man whose body reads at
+1.4 m, and fitting his HIP JOINT to ours (--fit-hips, the right tool for a
+proportional rig) asks for a 5.4 m giant — the importer says so out loud. At
+2.00 m of bounding box his body stands at about 1.8 and the plume rises above
+it, which is what a knight with a plume looks like.
