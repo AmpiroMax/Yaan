@@ -28,3 +28,14 @@ add_dfn_test(character_skinning character/SkinningTests.cpp dfn_anim dfn_render 
 if(TARGET dfn_characters)
     add_dependencies(character_skinning dfn_characters)
 endif()
+
+# КЛИПЫ, КОТОРЫЕ ПРОИГРЫВАЮТСЯ (волна 31.08). Тот же довод, что у набора
+# выше — читает ФАЙЛ, потому что мерить скольжение ноги можно только на
+# настоящем клипе настоящей модели, и потому линкует dfn_render ради читателя
+# .dfo. Контрольная рука («без подгонки шага») живёт ВНУТРИ набора: судья,
+# у которого обе руки зелёные, неотличим от судьи, который ничего не мерит.
+add_dfn_test(character_clips_played character/ClipPlayerTests.cpp
+             dfn_anim dfn_render dfn_core)
+if(TARGET dfn_characters)
+    add_dependencies(character_clips_played dfn_characters)
+endif()
