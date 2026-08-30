@@ -1068,6 +1068,40 @@ void RenderSystem::clear_water_bodies(platform::IRenderer& renderer) {
     water_body_meshes_.clear();
 }
 
+bool RenderSystem::register_skinned_mesh(
+    platform::IRenderer& renderer, uint32_t mesh_asset,
+    std::span<const platform::SkinnedVertex> vertices,
+    std::span<const uint32_t> indices) {
+    // The same refusals as register_mesh and for the same reasons, minus the
+    // id-range guard: a skinned mesh id is allocated by the app out of the
+    // free space above the body segments, and there is no legacy range for it
+    // to shadow. Deliberately NOT a call into register_mesh with a converted
+    // vertex array -- converting would drop the weights, which is precisely
+    // the thing a skinned mesh is.
+    if (mesh_asset == 0 || vertices.empty() || indices.empty()) {
+        std::fprintf(stderr, "[render] register_skinned_mesh REFUSED id %u: %s.\n",
+                     mesh_asset,
+                     mesh_asset == 0 ? "id 0 is not a mesh id" : "empty geometry");
+        return false;
+    }
+    if (mesh_cache_.contains(mesh_asset)) {
+        std::fprintf(stderr,
+                     "[render] register_skinned_mesh REFUSED id %u: already "
+                     "registered; nothing was replaced.\n", mesh_asset);
+        return false;
+    }
+    const platform::MeshHandle handle = renderer.create_skinned_mesh(vertices, indices);
+    if (!handle.valid()) {
+        return false;
+    }
+    mesh_cache_.emplace(mesh_asset, handle.id);
+    return true;
+}
+
+void RenderSystem::set_skinned_bodies(std::span<const SkinnedDraw> bodies) {
+    skinned_bodies_.assign(bodies.begin(), bodies.end());
+}
+
 bool RenderSystem::register_mesh(platform::IRenderer& renderer, uint32_t mesh_asset,
                                  std::span<const platform::Vertex> vertices,
                                  std::span<const uint32_t> indices) {

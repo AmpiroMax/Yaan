@@ -288,6 +288,34 @@ public:
                           std::span<const uint32_t> river_segment_offsets);
     void clear_water_bodies(platform::IRenderer& renderer);
 
+    // --- SKINNED BODIES (character wave, 30.08) -------------------------------
+    //
+    // Uploads a skinned mesh under a RenderMesh-style asset id, the same seam
+    // register_mesh is: the DAG forbids render -> anim includes, so the app
+    // ferries engine/anim's imported character through here at init. Same
+    // refusals, same reasons.
+    [[nodiscard]] bool register_skinned_mesh(
+        platform::IRenderer& renderer, uint32_t mesh_asset,
+        std::span<const platform::SkinnedVertex> vertices,
+        std::span<const uint32_t> indices);
+
+    /// ONE SKINNED DRAW, submitted this frame. `palette` is borrowed for the
+    /// duration of the render() call and nothing else -- render owns no bones.
+    struct SkinnedDraw {
+        uint32_t mesh_asset = 0;
+        glm::mat4 transform{1.0f};
+        std::span<const glm::mat4> palette;
+    };
+    /// THE FRAME'S SKINNED BODIES, ferried in by the app each frame.
+    ///
+    /// A PER-FRAME LIST AND NOT AN ECS COMPONENT, deliberately. A palette is
+    /// 64 mat4 = 4 KiB; hung on a component it would be 4 KiB in a pool for
+    /// every entity that ever had one, copied on every pool growth, and the
+    /// one thing it must be -- this frame's pose and no other -- would be
+    /// state that can go stale. This is the same shape as set_water_bodies,
+    /// for a related reason: something the app knows and render only draws.
+    void set_skinned_bodies(std::span<const SkinnedDraw> bodies);
+
     // --- The §8.1 path surface ------------------------------------------------
     //
     // The app ferries ChunkManager::path_surface() here once per world, the
@@ -955,6 +983,12 @@ private:
         math::Aabb bounds{};
     };
     std::vector<WaterBucket> water_body_meshes_;
+    /// This frame's skinned draws (set_skinned_bodies). Cleared by render()
+    /// after it submits them: a body that stops being ferried must stop being
+    /// drawn on the very next frame, and "the app forgot to clear it" is not
+    /// a thing a viewer can tell apart from a bug in the pose.
+    std::vector<SkinnedDraw> skinned_bodies_;
+    uint32_t skinned_program_ = 0; // ProgramHandle.id ("skinned")
     // A path piece is one class over ~128 m of tread; the class picks the atlas
     // cell and is carried in the vertices, so this only needs the mesh and its
     // bounds — same shape as a water bucket, same reason (something to cull).

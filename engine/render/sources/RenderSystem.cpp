@@ -247,6 +247,7 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     unlit_program_ = renderer.load_program("unlit").id;
     water_program_ = renderer.load_program("water").id;
     prop_program_ = renderer.load_program("prop").id;
+    skinned_program_ = renderer.load_program("skinned").id;
     foliage_program_ = renderer.load_program("foliage").id;
     overlay_program_ = renderer.load_program("overlay").id;
     path_program_ = renderer.load_program("path").id;
@@ -659,6 +660,7 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     renderer.destroy_program(platform::ProgramHandle{path_program_});
     renderer.destroy_program(platform::ProgramHandle{water_program_});
     renderer.destroy_program(platform::ProgramHandle{prop_program_});
+    renderer.destroy_program(platform::ProgramHandle{skinned_program_});
     renderer.destroy_program(platform::ProgramHandle{foliage_program_});
     // ПРОГРАММА ОВЕРЛЕЯ. Единственная из семи, которую init() загружает, а
     // shutdown() не уничтожал — и по ней рисуется весь интерфейс, то есть
@@ -672,6 +674,8 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     path_program_ = 0;
     path_atlas_asset_ = 0;
     prop_program_ = 0;
+    skinned_program_ = 0;
+    skinned_bodies_.clear();
     foliage_program_ = 0;
 }
 
@@ -1246,6 +1250,42 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                             interpolated_transform(prev, curr, alpha), texture,
                             params);
         });
+
+    // SKINNED BODIES (character wave). Submitted with the opaques, before the
+    // water, on the "skinned" program -- which is fs_prop behind a different
+    // vertex stage, so a body is lit, shadowed and fogged by the same code as
+    // everything else in the frame (that is the whole reason the program pair
+    // was built that way).
+    //
+    // NOT FRUSTUM-CULLED HERE. The backend already culls this draw against the
+    // shadow volumes using the mesh's own bounding sphere, and there is at
+    // most a handful of bodies in a frame; a second cull in this layer would
+    // need bounds the app does not send and would only ever be wrong about a
+    // posed limb reaching outside them (create_skinned_mesh pads for exactly
+    // that, and says so).
+    if (skinned_program_ != 0 && !suspended) {
+        const platform::ProgramHandle skinned{skinned_program_};
+        for (const SkinnedDraw& body : skinned_bodies_) {
+            const auto it = mesh_cache_.find(body.mesh_asset);
+            if (it == mesh_cache_.end()) {
+                if (warned_missing_meshes_.insert(body.mesh_asset).second) {
+                    std::fprintf(stderr,
+                                 "[render] skinned body wants mesh asset %u, "
+                                 "which is not registered — it draws as "
+                                 "NOTHING\n",
+                                 body.mesh_asset);
+                }
+                continue;
+            }
+            platform::DrawParams params;
+            renderer.submit_skinned(platform::MeshHandle{it->second}, skinned,
+                                    body.transform, body.palette,
+                                    platform::TextureHandle{}, params);
+        }
+    }
+    // THE LIST IS THIS FRAME'S. Cleared after submission, so a body the app
+    // stops ferrying stops being drawn immediately (see set_skinned_bodies).
+    skinned_bodies_.clear();
 
     // Water: transparent, so submitted after all opaques (the backend renders
     // the scene view sequentially and gives "water" a no-depth-write blend).

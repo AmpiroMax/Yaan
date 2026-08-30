@@ -36,6 +36,7 @@ AI Agents Notice (must follow):
 
 #pragma once
 
+#include "engine/core/skeleton/sources/Skeleton.h" // skel::Skeleton, skel::AnimClip
 #include "engine/render/sources/ProcFlora.h" // MeshData
 
 #include <glm/vec2.hpp>
@@ -88,6 +89,22 @@ struct HouseSubmesh {
     MeshData mesh;
 };
 
+/// A SKINNED mesh stream (.dfo v5, character wave 30.08): the same triangles
+/// every other stream carries, on the SkinnedVertex layout -- four palette
+/// slots and four weights per vertex.
+///
+/// ITS OWN STRUCT AND ITS OWN SECTION, not a fifth MeshData, because the
+/// VERTEX is a different shape. The existing streams are all
+/// platform::Vertex and differ only in which PROGRAM draws them (the argument
+/// written at HouseSubmesh); this one differs in what a vertex IS, which is
+/// the one difference a stream cannot absorb.
+struct SkinMesh {
+    std::vector<platform::SkinnedVertex> vertices;
+    std::vector<uint32_t> indices;
+
+    [[nodiscard]] bool empty() const { return vertices.empty() || indices.empty(); }
+};
+
 /// One baked object of the registry. The three streams mirror FloraMesh on
 /// purpose: `wood` draws with the "prop" program, `cards` with "foliage" plus
 /// the leaf atlas, `ground` draws with the wood and never reaches collision —
@@ -114,6 +131,19 @@ struct RegistryObject {
     /// коллайдер), а не в россыпь сцены, и мешать одно с другим нельзя: одна
     /// поверхность, нарисованная дважды, воюет сама с собой за глубину.
     std::vector<HouseSubmesh> house;
+    /// СКИНИРОВАННЫЙ ПЕРСОНАЖ (v5): вершины с весами, скелет и клипы. Пусты у
+    /// всего, что испекли кузницы деревьев, набора, табличек и мебели, — и
+    /// ровно поэтому их файлы не изменились ни на бит: пустой скин в личность
+    /// объекта не входит (тот же довод, что у HOUS и MTRL).
+    ///
+    /// ТРИ ПОЛЯ, А НЕ ОДНО, потому что три вопроса раздельны: чем рисовать
+    /// (skin), по какой иерархии гнуть (skeleton) и что играть (clips).
+    /// Модель без клипов законна (её гнёт наша процедурная походка), скелет
+    /// без меша — тоже (референс движения). Склеенные в один тип, они
+    /// заставляли бы импортёр выдумывать недостающие два.
+    SkinMesh skin;
+    skel::Skeleton skeleton;
+    std::vector<skel::AnimClip> clips;
     /// fnv1a64 over the payload streams (see object_content_hash). Stored in
     /// the file AND recomputed on read; a mismatch is a refused file, because
     /// a registry whose identities cannot be trusted indexes nothing.

@@ -34,7 +34,7 @@ namespace {
 
 /// 'DFNO' — Daggerfall N object file (.dfo).
 inline constexpr uint32_t OBJECT_MAGIC = serialization::make_tag('D', 'F', 'N', 'O');
-inline constexpr uint32_t OBJECT_FORMAT_VERSION = 4; // v4: + MTRL (имя вещества)
+inline constexpr uint32_t OBJECT_FORMAT_VERSION = 5; // v5: + SKIN/SKEL/ANIM (персонаж)
 
 namespace section {
 inline constexpr serialization::SectionTag INFO = serialization::make_tag('I', 'N', 'F', 'O');
@@ -52,6 +52,15 @@ inline constexpr serialization::SectionTag HOUS = serialization::make_tag('H', '
 /// параллельна HOUS кусок в кусок; пустая или отсутствующая означает «куски
 /// вещества не назвали» — то есть ровно поведение v3.
 inline constexpr serialization::SectionTag MTRL = serialization::make_tag('M', 'T', 'R', 'L');
+/// СКИНИРОВАННЫЙ ПОТОК (v5): вершины с четырьмя весами. Отдельная секция, а не
+/// расширение WOOD, потому что вершина ДРУГОЙ ФОРМЫ: читатель постарше обязан
+/// пропустить её целиком (правило 7), а не прочесть первые 36 байт каждой
+/// вершины как свою и получить кашу.
+inline constexpr serialization::SectionTag SKIN = serialization::make_tag('S', 'K', 'I', 'N');
+/// СКЕЛЕТ (v5): имена, родители, поза привязки, обратная матрица привязки.
+inline constexpr serialization::SectionTag SKEL = serialization::make_tag('S', 'K', 'E', 'L');
+/// КЛИПЫ (v5): каналы T/R/S по ключам.
+inline constexpr serialization::SectionTag ANIM = serialization::make_tag('A', 'N', 'I', 'M');
 } // namespace section
 
 inline constexpr uint16_t SECTION_VERSION = 1;
@@ -64,7 +73,8 @@ inline constexpr uint16_t SECTION_VERSION = 1;
                                               uint16_t version) {
     if (tag == section::INFO || tag == section::WOOD || tag == section::CARD
         || tag == section::GRND || tag == section::BARK || tag == section::HOUS
-        || tag == section::MTRL) {
+        || tag == section::MTRL || tag == section::SKIN || tag == section::SKEL
+        || tag == section::ANIM) {
         return version <= SECTION_VERSION;
     }
     return true; // незнакомая: её и так пропустят
@@ -154,6 +164,154 @@ void hash_stream(serialization::Fnv1a64& h, const MeshData& mesh) {
     }
 }
 
+void write_skin_body(serialization::BinaryWriter& w, const SkinMesh& skin) {
+    w.write_u32(static_cast<uint32_t>(skin.vertices.size()));
+    for (const platform::SkinnedVertex& v : skin.vertices) {
+        w.write_f32(v.position.x);
+        w.write_f32(v.position.y);
+        w.write_f32(v.position.z);
+        w.write_f32(v.normal.x);
+        w.write_f32(v.normal.y);
+        w.write_f32(v.normal.z);
+        w.write_f32(v.uv.x);
+        w.write_f32(v.uv.y);
+        w.write_u32(v.color_rgba);
+        for (int k = 0; k < 4; ++k) {
+            w.write_u8(v.joints[k]);
+        }
+        for (int k = 0; k < 4; ++k) {
+            w.write_f32(v.weights[k]);
+        }
+    }
+    w.write_u32(static_cast<uint32_t>(skin.indices.size()));
+    for (const uint32_t i : skin.indices) {
+        w.write_u32(i);
+    }
+}
+
+[[nodiscard]] bool read_skin_body(serialization::BinaryReader& r, SkinMesh& skin) {
+    const uint32_t vertex_count = r.read_u32();
+    if (static_cast<uint64_t>(vertex_count) > MAX_ELEMENTS) {
+        return false;
+    }
+    skin.vertices.resize(vertex_count);
+    for (platform::SkinnedVertex& v : skin.vertices) {
+        v.position.x = r.read_f32();
+        v.position.y = r.read_f32();
+        v.position.z = r.read_f32();
+        v.normal.x = r.read_f32();
+        v.normal.y = r.read_f32();
+        v.normal.z = r.read_f32();
+        v.uv.x = r.read_f32();
+        v.uv.y = r.read_f32();
+        v.color_rgba = r.read_u32();
+        for (int k = 0; k < 4; ++k) {
+            v.joints[k] = r.read_u8();
+        }
+        for (int k = 0; k < 4; ++k) {
+            v.weights[k] = r.read_f32();
+        }
+    }
+    const uint32_t index_count = r.read_u32();
+    if (static_cast<uint64_t>(index_count) > MAX_ELEMENTS) {
+        return false;
+    }
+    skin.indices.resize(index_count);
+    for (uint32_t& i : skin.indices) {
+        i = r.read_u32();
+    }
+    return r.ok();
+}
+
+void hash_skin(serialization::Fnv1a64& h, const SkinMesh& skin) {
+    h.update_u64(skin.vertices.size());
+    for (const platform::SkinnedVertex& v : skin.vertices) {
+        h.update_u64(std::bit_cast<uint32_t>(v.position.x));
+        h.update_u64(std::bit_cast<uint32_t>(v.position.y));
+        h.update_u64(std::bit_cast<uint32_t>(v.position.z));
+        h.update_u64(std::bit_cast<uint32_t>(v.normal.x));
+        h.update_u64(std::bit_cast<uint32_t>(v.normal.y));
+        h.update_u64(std::bit_cast<uint32_t>(v.normal.z));
+        h.update_u64(std::bit_cast<uint32_t>(v.uv.x));
+        h.update_u64(std::bit_cast<uint32_t>(v.uv.y));
+        h.update_u64(v.color_rgba);
+        for (int k = 0; k < 4; ++k) {
+            h.update_u64(v.joints[k]);
+        }
+        for (int k = 0; k < 4; ++k) {
+            h.update_u64(std::bit_cast<uint32_t>(v.weights[k]));
+        }
+    }
+    h.update_u64(skin.indices.size());
+    for (const uint32_t i : skin.indices) {
+        h.update_u64(i);
+    }
+}
+
+void write_mat4(serialization::BinaryWriter& w, const glm::mat4& m) {
+    for (int c = 0; c < 4; ++c) {
+        for (int r = 0; r < 4; ++r) {
+            w.write_f32(m[c][r]);
+        }
+    }
+}
+
+void read_mat4(serialization::BinaryReader& r, glm::mat4& m) {
+    for (int c = 0; c < 4; ++c) {
+        for (int i = 0; i < 4; ++i) {
+            m[c][i] = r.read_f32();
+        }
+    }
+}
+
+void hash_mat4(serialization::Fnv1a64& h, const glm::mat4& m) {
+    for (int c = 0; c < 4; ++c) {
+        for (int r = 0; r < 4; ++r) {
+            h.update_u64(std::bit_cast<uint32_t>(m[c][r]));
+        }
+    }
+}
+
+void hash_skeleton(serialization::Fnv1a64& h, const skel::Skeleton& s) {
+    h.update_u64(s.joints.size());
+    for (const skel::SkeletonJoint& j : s.joints) {
+        h.update_length_prefixed(j.name);
+        h.update_u64(static_cast<uint64_t>(static_cast<int64_t>(j.parent)));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_translation.x));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_translation.y));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_translation.z));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_rotation.w));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_rotation.x));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_rotation.y));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_rotation.z));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_scale.x));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_scale.y));
+        h.update_u64(std::bit_cast<uint32_t>(j.bind_scale.z));
+        hash_mat4(h, j.inverse_bind);
+    }
+}
+
+void hash_clips(serialization::Fnv1a64& h, const std::vector<skel::AnimClip>& clips) {
+    h.update_u64(clips.size());
+    for (const skel::AnimClip& c : clips) {
+        h.update_length_prefixed(c.name);
+        h.update_u64(std::bit_cast<uint32_t>(c.duration_s));
+        h.update_u64(c.channels.size());
+        for (const skel::AnimChannel& ch : c.channels) {
+            h.update_u64(ch.joint);
+            h.update_u64(static_cast<uint64_t>(ch.path));
+            h.update_u64(ch.times.size());
+            for (std::size_t k = 0; k < ch.times.size(); ++k) {
+                h.update_u64(std::bit_cast<uint32_t>(ch.times[k]));
+                h.update_u64(std::bit_cast<uint32_t>(ch.values[k].x));
+                h.update_u64(std::bit_cast<uint32_t>(ch.values[k].y));
+                h.update_u64(std::bit_cast<uint32_t>(ch.values[k].z));
+                h.update_u64(std::bit_cast<uint32_t>(ch.values[k].w));
+            }
+        }
+    }
+}
+
 /// НАЗВАЛ ЛИ ОБЪЕКТ ХОТЬ ОДНО ВЕЩЕСТВО. Одно определение на запись, чтение и
 /// хэш (правило 39): разойдись эти три ответа, файл писался бы с секцией, а
 /// сверялся бы без неё — и полка отказала бы себе самой.
@@ -204,6 +362,19 @@ uint64_t object_content_hash(const RegistryObject& obj) {
             h.update_u64(std::bit_cast<uint32_t>(s.wear));
         }
     }
+    // ПЕРСОНАЖ ВХОДИТ В ЛИЧНОСТЬ, ТОЛЬКО ЕСЛИ ОН ЕСТЬ — третий случай того же
+    // довода, что у HOUS и MTRL, и на этот раз он охраняет уже 2544
+    // закоммиченных файла полок: посчитайся пустой скин, все они сменили бы
+    // хэш и перестали читаться, ни на вершину не изменившись.
+    if (!obj.skin.vertices.empty()) {
+        hash_skin(h, obj.skin);
+    }
+    if (!obj.skeleton.joints.empty()) {
+        hash_skeleton(h, obj.skeleton);
+    }
+    if (!obj.clips.empty()) {
+        hash_clips(h, obj.clips);
+    }
     return h.digest();
 }
 
@@ -227,7 +398,8 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
     // unchanged; it now names every stream it guards.
     if (obj.wood.vertices.empty() && obj.cards.vertices.empty()
         && obj.ground.vertices.empty() && obj.bark.vertices.empty()
-        && obj.house.empty()) {
+        && obj.house.empty() && obj.skin.vertices.empty()
+        && obj.skeleton.joints.empty()) {
         std::fprintf(stderr, "[dfo] \"%s\": refusing to write an object with no "
                              "streams -- a name pointing at nothing\n",
                      obj.name.c_str());
@@ -269,6 +441,58 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
             w.write_string(s.material);
             w.write_f32(s.span_m);
             w.write_f32(s.wear);
+        }
+        w.end_section();
+    }
+    // --- ПЕРСОНАЖ (v5). Три раздельные секции, каждая пишется только когда
+    // ей есть что сказать: модель без клипов и скелет без меша — законные
+    // объекты, а не половины одного.
+    if (!obj.skin.vertices.empty()) {
+        w.begin_section(section::SKIN, SECTION_VERSION);
+        write_skin_body(w, obj.skin);
+        w.end_section();
+    }
+    if (!obj.skeleton.joints.empty()) {
+        w.begin_section(section::SKEL, SECTION_VERSION);
+        w.write_u32(static_cast<uint32_t>(obj.skeleton.joints.size()));
+        for (const skel::SkeletonJoint& j : obj.skeleton.joints) {
+            w.write_string(j.name);
+            w.write_i32(j.parent);
+            w.write_f32(j.bind_translation.x);
+            w.write_f32(j.bind_translation.y);
+            w.write_f32(j.bind_translation.z);
+            // КВАТЕРНИОН ПИШЕТСЯ (w,x,y,z) — В ПОРЯДКЕ glm::quat, А НЕ glTF.
+            // Формат наш; порядок чужого файла кончается на импортёре.
+            w.write_f32(j.bind_rotation.w);
+            w.write_f32(j.bind_rotation.x);
+            w.write_f32(j.bind_rotation.y);
+            w.write_f32(j.bind_rotation.z);
+            w.write_f32(j.bind_scale.x);
+            w.write_f32(j.bind_scale.y);
+            w.write_f32(j.bind_scale.z);
+            write_mat4(w, j.inverse_bind);
+        }
+        w.end_section();
+    }
+    if (!obj.clips.empty()) {
+        w.begin_section(section::ANIM, SECTION_VERSION);
+        w.write_u32(static_cast<uint32_t>(obj.clips.size()));
+        for (const skel::AnimClip& c : obj.clips) {
+            w.write_string(c.name);
+            w.write_f32(c.duration_s);
+            w.write_u32(static_cast<uint32_t>(c.channels.size()));
+            for (const skel::AnimChannel& ch : c.channels) {
+                w.write_u32(ch.joint);
+                w.write_u8(static_cast<uint8_t>(ch.path));
+                w.write_u32(static_cast<uint32_t>(ch.times.size()));
+                for (std::size_t k = 0; k < ch.times.size(); ++k) {
+                    w.write_f32(ch.times[k]);
+                    w.write_f32(ch.values[k].x);
+                    w.write_f32(ch.values[k].y);
+                    w.write_f32(ch.values[k].z);
+                    w.write_f32(ch.values[k].w);
+                }
+            }
         }
         w.end_section();
     }
@@ -353,6 +577,75 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
                 m.name = r.read_string();
                 m.span_m = r.read_f32();
                 m.wear = r.read_f32();
+            }
+        } else if (s->tag == section::SKIN) {
+            streams_ok = read_skin_body(r, obj.skin) && streams_ok;
+        } else if (s->tag == section::SKEL) {
+            const uint32_t count = r.read_u32();
+            if (static_cast<uint64_t>(count) > MAX_ELEMENTS) {
+                return std::nullopt;
+            }
+            obj.skeleton.joints.resize(count);
+            for (uint32_t i = 0; i < count; ++i) {
+                skel::SkeletonJoint& j = obj.skeleton.joints[i];
+                j.name = r.read_string();
+                j.parent = r.read_i32();
+                j.bind_translation.x = r.read_f32();
+                j.bind_translation.y = r.read_f32();
+                j.bind_translation.z = r.read_f32();
+                j.bind_rotation.w = r.read_f32();
+                j.bind_rotation.x = r.read_f32();
+                j.bind_rotation.y = r.read_f32();
+                j.bind_rotation.z = r.read_f32();
+                j.bind_scale.x = r.read_f32();
+                j.bind_scale.y = r.read_f32();
+                j.bind_scale.z = r.read_f32();
+                read_mat4(r, j.inverse_bind);
+                // РОДИТЕЛЬ ОБЯЗАН ИДТИ РАНЬШЕ РЕБЁНКА, и это проверяется ЗДЕСЬ,
+                // а не в FK: обход прямой кинематики один проход вперёд именно
+                // по этой гарантии, и файл, её нарушивший, прочитал бы там свою
+                // же неинициализированную ячейку. Отказ, а не сортировка:
+                // индексы костей лежат ещё и в вершинах скина.
+                if (j.parent >= static_cast<int32_t>(i)) {
+                    std::fprintf(stderr,
+                                 "[dfo] \"%s\": SKEL joint %u names parent %d -- "
+                                 "not parent-before-child, REFUSED\n",
+                                 path.string().c_str(), i,
+                                 static_cast<int>(j.parent));
+                    return std::nullopt;
+                }
+            }
+        } else if (s->tag == section::ANIM) {
+            const uint32_t clip_count = r.read_u32();
+            if (static_cast<uint64_t>(clip_count) > MAX_ELEMENTS) {
+                return std::nullopt;
+            }
+            obj.clips.resize(clip_count);
+            for (skel::AnimClip& c : obj.clips) {
+                c.name = r.read_string();
+                c.duration_s = r.read_f32();
+                const uint32_t ch_count = r.read_u32();
+                if (static_cast<uint64_t>(ch_count) > MAX_ELEMENTS) {
+                    return std::nullopt;
+                }
+                c.channels.resize(ch_count);
+                for (skel::AnimChannel& ch : c.channels) {
+                    ch.joint = r.read_u32();
+                    ch.path = static_cast<skel::AnimPath>(r.read_u8());
+                    const uint32_t keys = r.read_u32();
+                    if (static_cast<uint64_t>(keys) > MAX_ELEMENTS) {
+                        return std::nullopt;
+                    }
+                    ch.times.resize(keys);
+                    ch.values.resize(keys);
+                    for (uint32_t k = 0; k < keys; ++k) {
+                        ch.times[k] = r.read_f32();
+                        ch.values[k].x = r.read_f32();
+                        ch.values[k].y = r.read_f32();
+                        ch.values[k].z = r.read_f32();
+                        ch.values[k].w = r.read_f32();
+                    }
+                }
             }
         }
         // Unknown tags: next_section() steps over them (Rule 7).
