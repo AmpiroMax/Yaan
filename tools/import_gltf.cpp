@@ -43,6 +43,7 @@ AI Agents Notice (must follow):
 #define CGLTF_IMPLEMENTATION
 #include "cgltf.h"
 
+#include "engine/anim/sources/BodyMesh.h"
 #include "engine/anim/sources/BoneMap.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/anim/sources/Rig.h"
@@ -77,6 +78,7 @@ struct Options {
     bool fit_hips = false;
     /// Rescale the SEGMENTS to the canon of docs/design/HUMAN_SCALE.md.
     bool fit_canon = false;
+    bool skin_palette = false;
     /// Degrees of yaw baked into the model so it ends up facing -Z (our
     /// convention, docs/RIG.md). Most authoring tools export facing +Z.
     float yaw_deg = 180.0f;
@@ -204,6 +206,32 @@ struct JointOrder {
                              "assumed (glTF default)\n");
     }
     return true;
+}
+
+/// ONE PRIMITIVE'S FLAT ALBEDO, from its glTF material. sRGB is what the rest
+/// of the pipe stores (BodyMesh's tunics, every prop's vertex colour), and
+/// glTF's baseColorFactor is LINEAR, so the transfer function is applied here
+/// rather than left for a shader that does not know where the colour came
+/// from. A material with a base colour TEXTURE still contributes only its
+/// factor: this asset ships none (no images, no textures in the file), and the
+/// case where one exists is a texture section the .dfo does not have yet --
+/// named as a tail rather than silently averaged into a colour.
+[[nodiscard]] uint32_t base_color_rgba(const cgltf_material* mat, uint32_t fallback) {
+    if (mat == nullptr || mat->has_pbr_metallic_roughness == 0) {
+        return fallback;
+    }
+    const cgltf_float* f = mat->pbr_metallic_roughness.base_color_factor;
+    const auto to_srgb = [](float c) {
+        c = c < 0.0f ? 0.0f : (c > 1.0f ? 1.0f : c);
+        const float s = c <= 0.0031308f ? c * 12.92f
+                                        : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f;
+        return static_cast<uint32_t>(s * 255.0f + 0.5f);
+    };
+    const uint32_t r = to_srgb(static_cast<float>(f[0]));
+    const uint32_t g = to_srgb(static_cast<float>(f[1]));
+    const uint32_t b = to_srgb(static_cast<float>(f[2]));
+    const uint32_t a = to_srgb(static_cast<float>(f[3]));
+    return (a << 24) | (b << 16) | (g << 8) | r; // 0xAABBGGRR
 }
 
 /// APPENDS one primitive to `out`. Appends, because a character is routinely
@@ -453,6 +481,50 @@ void apply_scale(skel::Skeleton& skeleton, SkinMesh& skin,
     }
 }
 
+/// CARRIES A CHANGE OF THE BIND POSE INTO THE CLIPS. Everything that moves a
+/// joint -- the canon fit, the grounding shift -- moves the SKELETON, and a
+/// clip exported from Blender keys every joint's translation and scale
+/// anyway: play those keys back and the model quietly returns to the
+/// proportions and the ground height it shipped with. Measured on the visible
+/// character before this existed: the walk's stance ankle sat at 0.089 m (its
+/// standing height, correct) but the jog's at 0.171 m -- the man ran eight
+/// centimetres above the grass, and the wave's own prober called it 0.39 m of
+/// foot slide because it had no other way to say "he is not touching".
+///
+/// TRANSLATION IS CARRIED AS AN OFFSET AND SCALE AS A RATIO, deliberately.
+/// Every joint but the hips keys a CONSTANT translation (its bone offset), and
+/// an offset reproduces the new offset exactly; the hips key a bob about that
+/// constant, and an offset preserves the bob's amplitude instead of stretching
+/// it by a fit that was about limb lengths. Scale is multiplicative by nature.
+void carry_bind_change_into_clips(const skel::Skeleton& before,
+                                  const skel::Skeleton& after,
+                                  std::vector<skel::AnimClip>& clips) {
+    const std::size_t n = std::min(before.joints.size(), after.joints.size());
+    for (skel::AnimClip& c : clips) {
+        for (skel::AnimChannel& ch : c.channels) {
+            if (ch.joint >= n) {
+                continue;
+            }
+            const skel::SkeletonJoint& b = before.joints[ch.joint];
+            const skel::SkeletonJoint& a = after.joints[ch.joint];
+            if (ch.path == skel::AnimPath::Translation) {
+                const glm::vec3 d = a.bind_translation - b.bind_translation;
+                for (glm::vec4& v : ch.values) {
+                    v = glm::vec4{glm::vec3{v} + d, v.w};
+                }
+            } else if (ch.path == skel::AnimPath::Scale) {
+                const glm::vec3 r{
+                    std::fabs(b.bind_scale.x) > 1e-6f ? a.bind_scale.x / b.bind_scale.x : 1.0f,
+                    std::fabs(b.bind_scale.y) > 1e-6f ? a.bind_scale.y / b.bind_scale.y : 1.0f,
+                    std::fabs(b.bind_scale.z) > 1e-6f ? a.bind_scale.z / b.bind_scale.z : 1.0f};
+                for (glm::vec4& v : ch.values) {
+                    v = glm::vec4{glm::vec3{v} * r, v.w};
+                }
+            }
+        }
+    }
+}
+
 /// The mesh's vertical extent IN ITS REST POSE. Not the stored bind vertices:
 /// once a segment has been rescaled the palette at rest is no longer the
 /// identity, and the stored vertices describe the model as its author shipped
@@ -667,6 +739,10 @@ void usage() {
                  "  --height  scale the model so it stands M metres tall (0 = keep)\n"
                  "  --fit-hips  scale by the HIP JOINT instead of the bounding box\n"
                  "  --fit-canon rescale the SEGMENTS to docs/design/HUMAN_SCALE.md\n"
+                 "  --skin-palette paint the mesh by BODY PART (the box body's\n"
+                 "                 five clothing colours) instead of by the file's\n"
+                 "                 own materials -- for a model whose materials are\n"
+                 "                 a mannequin's rather than a person's\n"
                  "  --yaw     degrees baked in so the model faces -Z (default 180)\n");
 }
 
@@ -687,6 +763,8 @@ int main(int argc, char** argv) {
             opt.out = next("--out");
         } else if (a == "--name") {
             opt.name = next("--name");
+        } else if (a == "--skin-palette") {
+            opt.skin_palette = true;
         } else if (a == "--fit-canon") {
             opt.fit_canon = true;
         } else if (a == "--fit-hips") {
@@ -762,9 +840,14 @@ int main(int argc, char** argv) {
     // ONE DRAW PER CHARACTER is the point: the palette is per draw, and six
     // draws sharing one skeleton would mean building and binding the same 41
     // matrices six times a frame for no gain whatsoever.
-    // FLAT PLACEHOLDER ALBEDO, in the same standing as BodyMesh's tunic
-    // colours: the reference model's texture is not imported this wave, and a
-    // white body reads as untextured error geometry rather than as a stand-in.
+    // ALBEDO PER SUBMESH, from the material glTF actually carries. A skinned
+    // character is routinely several primitives with several materials -- this
+    // one is two, M_Main and M_Joints -- and until this wave every one of them
+    // was written the same flat blue, which is why the character read as a
+    // mannequin. `base_color_rgba` below resolves each primitive's own
+    // baseColorFactor; the blue survives only as the answer for a primitive
+    // with NO material, where a white body would read as untextured error
+    // geometry rather than as a stand-in.
     constexpr uint32_t PLACEHOLDER_SKIN_RGBA = 0xFF9FB4CFu; // 0xAABBGGRR
     uint32_t merged_parts = 0;
     for (cgltf_size n = 0; n < data->nodes_count; ++n) {
@@ -777,7 +860,8 @@ int main(int argc, char** argv) {
                 continue;
             }
             if (!read_skin(&node.mesh->primitives[p], order, skin, obj.skin,
-                           PLACEHOLDER_SKIN_RGBA)) {
+                           base_color_rgba(node.mesh->primitives[p].material,
+                                           PLACEHOLDER_SKIN_RGBA))) {
                 cgltf_free(data);
                 return 1;
             }
@@ -899,8 +983,10 @@ int main(int argc, char** argv) {
                      static_cast<double>(final_height));
     }
     if (opt.fit_canon) {
+        const skel::Skeleton before_fit = obj.skeleton;
         fit_to_canon(obj.skeleton, obj.skin,
                      dfn::anim::RigProportions::from_config());
+        carry_bind_change_into_clips(before_fit, obj.skeleton, obj.clips);
         // THE HEIGHT IS RE-MEASURED AFTER THE FIT, and skipping this step is
         // how the reference base came out SIXTEEN METRES TALL with perfect
         // proportions: the fit moves joints, so the scale computed from the
@@ -954,17 +1040,79 @@ int main(int argc, char** argv) {
             zhi = i == 0 ? q.z : std::max(zhi, q.z);
         }
         const glm::vec3 shift{-(xlo + xhi) * 0.5f, -glo, -(zlo + zhi) * 0.5f};
+        const skel::Skeleton before_ground = obj.skeleton;
         for (dfn::skel::SkeletonJoint& j : obj.skeleton.joints) {
             if (j.parent < 0) {
                 j.bind_translation += shift;
             }
         }
+        // ...AND INTO THE CLIPS, which key the root's translation too: without
+        // this the first frame of any clip put the soles back where they were.
+        carry_bind_change_into_clips(before_ground, obj.skeleton, obj.clips);
         // The vertices are NOT moved: the shift went into the root joint, so
         // the palette carries it, and the inverse binds stay the file's own.
         std::printf("[import] grounded: soles to y=0 (moved %+.3f m), centred "
                     "(%+.3f, %+.3f)\n",
                     static_cast<double>(shift.y), static_cast<double>(shift.x),
                     static_cast<double>(shift.z));
+    }
+
+    // --- PAINT BY BODY PART (--skin-palette) -------------------------------
+    // WHY A MODEL'S OWN MATERIALS ARE SOMETIMES THE WRONG ANSWER. The visible
+    // character ships two materials, M_Main and M_Joints, and their base
+    // colours are orange and purple: it is a MANNEQUIN, and the file says so
+    // honestly. Importing that faithfully draws an orange man, which is a
+    // correct import and a wrong character. This paints each vertex by which
+    // BODY PART it belongs to instead, in the five colours the fifteen-box
+    // body already wears -- so the two bodies behind the DFN_BODY_BOXES door
+    // differ by their geometry and not by their wardrobe.
+    //
+    // THE PART IS THE VERTEX'S HEAVIEST JOINT, walked up to the nearest joint
+    // a rig bone actually binds. Thirty-eight of this skeleton's fifty-three
+    // joints are fingers, spine links and toes that no bone maps; a vertex on
+    // a knuckle has to become a HAND, not a default.
+    if (opt.skin_palette) {
+        const dfn::anim::SkeletonBinding pal_bind =
+            dfn::anim::bind_skeleton(obj.skeleton);
+        std::vector<int32_t> bone_of(obj.skeleton.size(), -1);
+        for (uint32_t b = 0; b < dfn::anim::BONE_COUNT; ++b) {
+            const int32_t j = pal_bind.joint[b];
+            if (j >= 0 && static_cast<std::size_t>(j) < bone_of.size()) {
+                bone_of[static_cast<std::size_t>(j)] = static_cast<int32_t>(b);
+            }
+        }
+        // Parent-before-child (Skeleton.h's invariant) makes the walk a single
+        // forward pass instead of a loop per vertex.
+        std::vector<int32_t> nearest = bone_of;
+        for (std::size_t j = 0; j < obj.skeleton.joints.size(); ++j) {
+            if (nearest[j] >= 0) {
+                continue;
+            }
+            const int32_t parent = obj.skeleton.joints[j].parent;
+            nearest[j] = parent >= 0 ? nearest[static_cast<std::size_t>(parent)] : -1;
+        }
+        std::array<uint32_t, dfn::anim::BONE_COUNT> colour{};
+        for (uint32_t b = 0; b < dfn::anim::BONE_COUNT; ++b) {
+            colour[b] = dfn::anim::segment_colour(static_cast<dfn::anim::Bone>(b));
+        }
+        std::size_t painted = 0;
+        for (dfn::platform::SkinnedVertex& v : obj.skin.vertices) {
+            int best = 0;
+            for (int k = 1; k < 4; ++k) {
+                if (v.weights[k] > v.weights[best]) {
+                    best = k;
+                }
+            }
+            const auto j = static_cast<std::size_t>(v.joints[best]);
+            const int32_t b = j < nearest.size() ? nearest[j] : -1;
+            if (b < 0) {
+                continue; // above the pelvis in the hierarchy: leave the file's own
+            }
+            v.color_rgba = colour[static_cast<std::size_t>(b)];
+            ++painted;
+        }
+        std::printf("[import] --skin-palette: painted %zu of %zu vertices by body "
+                    "part\n", painted, obj.skin.vertices.size());
     }
 
     // --- THE COVERAGE REPORT, and it is the whole reason this tool links the

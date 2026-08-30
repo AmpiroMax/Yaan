@@ -259,7 +259,15 @@ if(TARGET dfn_import_gltf)
         get_filename_component(_stem "${_src}" NAME_WE)
         set(_extra)
         if(_fit STREQUAL "canon")
-            set(_extra --fit-canon)
+            # ВИДИМЫЙ ПЕРСОНАЖ ПЕРЕКРАШИВАЕТСЯ ПО ЧАСТЯМ ТЕЛА. Собственные
+            # материалы HumanBase — манекенные (M_Main оранжевый, M_Joints
+            # фиолетовый): импортировать их честно значит нарисовать оранжевого
+            # человека. --skin-palette кладёт те же пять цветов одежды, что
+            # носит коробочное тело, — иначе доза DFN_BODY_BOXES сравнивала бы
+            # два гардероба, а не два тела. Фикстуры импортёра (raw) остаются
+            # со своими материалами: на них проверяется как раз чтение
+            # baseColorFactor.
+            set(_extra --fit-canon --skin-palette)
         endif()
         if(EXISTS "${DFN_CHAR_DIR}/${_src}")
             add_custom_command(

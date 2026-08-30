@@ -70,7 +70,7 @@ constexpr float TORSO_HIP_RATIO = 0.80f;
 constexpr float NECK_WIDTH_RATIO = 0.62f;
 constexpr float NECK_DEPTH_RATIO = 0.45f;
 
-[[nodiscard]] uint32_t pack(const glm::vec3& c) {
+[[nodiscard]] constexpr uint32_t pack(const glm::vec3& c) {
     const auto to8 = [](float v) {
         return static_cast<uint32_t>(std::clamp(v, 0.0f, 1.0f) * 255.0f + 0.5f);
     };
@@ -153,6 +153,32 @@ void limb(BodySegmentMesh& m, float length, float thickness, uint32_t c,
 }
 
 } // namespace
+
+uint32_t segment_colour(Bone bone) {
+    switch (bone) {
+    case Bone::Pelvis:
+    case Bone::ThighL:
+    case Bone::ThighR:
+        return pack(TROUSER);
+    case Bone::Torso:
+        return pack(TUNIC);
+    case Bone::UpperArmL:
+    case Bone::UpperArmR:
+        return pack(SLEEVE);
+    case Bone::Head:
+    case Bone::ForearmL:
+    case Bone::ForearmR:
+    case Bone::HandL:
+    case Bone::HandR:
+        return pack(SKIN);
+    case Bone::ShinL:
+    case Bone::ShinR:
+    case Bone::FootL:
+    case Bone::FootR:
+        return pack(BOOT);
+    }
+    return pack(SKIN);
+}
 
 BodySegmentMesh build_body_segment_mesh(Bone bone, const RigProportions& p) {
     BodySegmentMesh m;

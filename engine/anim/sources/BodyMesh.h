@@ -9,6 +9,10 @@ Responsibility:
   render's registry (render owns mesh ids and the GPU side).
 
 Key items:
+- segment_colour(): the five-colour clothing palette, per bone, shared with the
+  glTF importer's --skin-palette.
+- segment_colour(): the five-colour clothing palette, per bone, shared with the
+  glTF importer's --skin-palette.
 - BodySegmentMesh: vertices/indices (platform::Vertex — the frozen layout) +
   model-space bounds for LocalBounds.
 - build_body_segment_mesh(bone, proportions): pure, deterministic.
@@ -62,5 +66,25 @@ struct BodySegmentMesh {
 // same defect class as render's missing castle; tests enumerate all bones).
 [[nodiscard]] BodySegmentMesh build_body_segment_mesh(Bone bone,
                                                       const RigProportions& p);
+
+/// THE BOX BODY'S CLOTHING COLOUR FOR ONE BONE, packed 0xAABBGGRR.
+///
+/// IT LEFT THIS FILE BECAUSE A SECOND BODY APPEARED. The bought model's own
+/// materials are a mannequin's -- orange limbs, purple joints -- and painting
+/// it needs the same five colours the fifteen boxes already wear, or the
+/// DFN_BODY_BOXES door stops comparing two bodies and starts comparing two
+/// wardrobes. The importer's --skin-palette reads THIS (Rule 35: one table,
+/// two readers), which is also why the palette is not duplicated in tools/.
+[[nodiscard]] uint32_t segment_colour(Bone bone);
+
+/// THE BOX BODY'S CLOTHING COLOUR FOR ONE BONE, packed 0xAABBGGRR.
+///
+/// IT BECAME PUBLIC BECAUSE A SECOND BODY APPEARED. The bought model's own
+/// materials are a mannequin's — orange limbs, purple joints — and painting it
+/// needs the same five colours the fifteen boxes already wear, or the
+/// DFN_BODY_BOXES door stops comparing two BODIES and starts comparing two
+/// wardrobes. The importer's --skin-palette reads THIS (Rule 35: one table,
+/// two readers), which is why the palette is not copied into tools/.
+[[nodiscard]] uint32_t segment_colour(Bone bone);
 
 } // namespace dfn::anim
