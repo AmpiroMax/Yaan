@@ -42,6 +42,7 @@ if(DFN_APP_READY)
         sources/AppActions.cpp
         sources/AppAfterFrame.cpp
         sources/AppDoors.cpp
+    sources/AppStand.cpp
         sources/AppEditorWiring.cpp
         sources/AppHouse.cpp
         sources/AppHud.cpp

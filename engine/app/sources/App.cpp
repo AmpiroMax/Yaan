@@ -30,6 +30,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/AppSettings.h"
 
 #include "engine/app/sources/AppDoors.h"
+#include "engine/app/sources/AppStand.h"
 #include "engine/app/sources/AppHud.h"
 
 #include "engine/app/sources/AssetBake.h"
@@ -700,6 +701,34 @@ bool App::init(const AppConfig& config) {
     }
     if (const char* v = door_value("DFN_CAM_ORBIT"); v != nullptr && v[0] != '\0') {
         cam_probe_spin_ = static_cast<float>(std::atof(v));
+    }
+    // СТЕНД ПЕРСОНАЖА. Обе двери читаются ЗДЕСЬ по той же причине, что и обвод
+    // выше: доза, читаемая каждый кадр, разрешает ленте поменять смысл на
+    // середине, и две руки сравнения перестают отличаться только дозой.
+    if (const char* v = door_value("DFN_STAND_CAM"); v != nullptr && v[0] != '\0') {
+        const int n = std::atoi(v);
+        if (n >= 1 && n <= static_cast<int>(STAND_CAMERA_COUNT)) {
+            stand_cam_ = static_cast<uint32_t>(n);
+            third_person_ = true; // фигуру снимают снаружи, иначе снимать нечего
+            const StandCamera cam = stand_camera(stand_cam_);
+            cam_boom_desc_.back = cam.back_m;
+            cam_boom_desc_.lift = cam.lift_m;
+            std::fprintf(stderr, "[stand] камера %u «%s»: азимут %+.0f, тангаж "
+                                 "%+.0f, стрела %.2f м\n",
+                         stand_cam_, cam.label,
+                         static_cast<double>(cam.orbit_yaw_deg),
+                         static_cast<double>(cam.orbit_pitch_deg),
+                         static_cast<double>(cam.back_m));
+        } else {
+            std::fprintf(stderr, "[stand] DFN_STAND_CAM=%s — не поза стенда, их "
+                                 "%u. Дверь ОТКАЗАНА вслух.\n", v,
+                         STAND_CAMERA_COUNT);
+        }
+    }
+    if (const char* v = door_value("DFN_STAND_SEQ"); v != nullptr && v[0] == '1') {
+        stand_seq_ = true;
+        std::fprintf(stderr, "[stand] очередь клипов: %.0f с от Idle до Sit\n",
+                     static_cast<double>(STAND_SEQUENCE_S));
     }
 
     catalog_ = scan_map_catalog("assets/maps");
@@ -4154,6 +4183,15 @@ int App::run() {
                 orbit_yaw_ += cam_probe_spin_ * (3.14159265f / 180.0f)
                               * static_cast<float>(frame_dt);
             }
+            // ЗАДАННАЯ КАМЕРА СТЕНДА — ПОСЛЕДНЕЙ, и это не порядок ради
+            // порядка: и затухание «locked behind», и обвод выше пишут в те же
+            // два поля, а заданная поза обязана быть заданной — иначе два
+            // прогона одной дозой снимут два разных кадра.
+            if (stand_cam_ != 0) {
+                const StandCamera cam = stand_camera(stand_cam_);
+                orbit_yaw_ = cam.orbit_yaw_deg * (3.14159265f / 180.0f);
+                orbit_pitch_ = cam.orbit_pitch_deg * (3.14159265f / 180.0f);
+            }
         }
 
         // THE WORLD PAUSES WHILE THE INVENTORY IS OPEN (в70: "инвентарь как в
@@ -4295,6 +4333,26 @@ int App::run() {
                 if (playtest_ && !playtest_->finished) {
                     gameplay::playtest_drive(*playtest_, world_);
                 }
+                // ОЧЕРЕДЬ СТЕНДА — ТУДА ЖЕ, КУДА И БОТ, и по той же причине:
+                // она пишет ТЕ ЖЕ намерения, что пишут клавиши (move_axes,
+                // передачи, прыжок, присяд, E), и дальше работает настоящий
+                // код движения. Очередь, которая ставила бы клип напрямую,
+                // фотографировала бы AppStand.cpp вместо движка.
+                if (stand_seq_) {
+                    if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                        const float dt = static_cast<float>(timestep_.step_dt());
+                        const float prev = stand_seq_t_;
+                        stand_seq_t_ += dt;
+                        const StandStep step = stand_sequence_at(prev, stand_seq_t_);
+                        ps->move_axes = step.move;
+                        ps->jog = step.jog;
+                        ps->run = step.run;
+                        ps->crouch_held = step.crouch;
+                        ps->jump_pressed = ps->jump_pressed || step.jump;
+                        ps->interact_pressed = ps->interact_pressed || step.interact;
+                        ps->yaw = step.face_yaw;
+                    }
+                }
                 // AFTER the bot (it owns yaw; the probe owns the rest) and
                 // BEFORE pre_step, which is where a look intent is consumed.
                 body_probe_drive();
@@ -4414,6 +4472,21 @@ int App::run() {
                     }
                 }
                 anim::update_bodies(world_, body_rig_);
+                // ТЕЛО МОДЕЛИ — ТЕМ ЖЕ ТИКОМ. Проигрыватель клипов ведёт своё
+                // состояние (какой клип, где мы в нём, что гаснет) РОВНО ЗДЕСЬ,
+                // сразу за update_bodies и по той же ферме BodyDrive: иначе он
+                // читал бы привод прошлого тика, и модель отставала бы от
+                // коробок ровно на кадр — ту самую разницу, которую доза
+                // DFN_BODY_BOXES обязана НЕ показывать.
+                if (skinned_character_.ready()) {
+                    if (const auto* cdrive = world_.get<anim::BodyDrive>(player_)) {
+                        const auto* ctr = world_.get<components::Transform>(player_);
+                        skinned_character_.advance(
+                            body_rig_, *cdrive,
+                            ctr != nullptr ? ctr->position : glm::vec3{0.0f},
+                            static_cast<float>(timestep_.step_dt()));
+                    }
+                }
                 // КАМЕРА ПОЗЫ — СРАЗУ ЗА ТЕЛОМ: update_bodies только что
                 // опубликовал глаз НАРИСОВАННОЙ позы, и ставить камеру раньше
                 // значило бы читать позу прошлого тика. Стоит ДО update_hover,
@@ -5242,26 +5315,20 @@ int App::run() {
         // this editor without three of them editing this file.
         editor_ui_.begin_frame(*input_, *window_, static_cast<float>(frame_dt));
         editor_ui_.end_frame();
-        // ПАЛИТРА КОСТЕЙ ЭТОГО КАДРА (волна импорта и скиннинга, 30.08).
-        // Поза берётся ТЕМИ ЖЕ двумя функциями, которыми update_bodies только
-        // что поставил сегменты (evaluate_body_pose + body_root_for), а не
-        // отдельной формулой: разойдись они, модель и коробки стояли бы в
-        // разных местах — и доза DFN_BODY_BOXES перестала бы быть сравнением.
+        // ПАЛИТРА КОСТЕЙ ЭТОГО КАДРА (волна импорта и скиннинга, 30.08;
+        // клипы и интерполяция — волна «клипы и текстуры», 31.08).
         //
-        // ПОЗА НЕ ИНТЕРПОЛИРУЕТСЯ МЕЖДУ ТИКАМИ (правило 12 держит только
-        // Transform сегментов). Названо вслух как хвост волны: при шаге
-        // симуляции 60 Гц разницы не видно, при 30 будет.
+        // ПОЗА ТЕПЕРЬ ИНТЕРПОЛИРУЕТСЯ МЕЖДУ ТИКАМИ, тем же alpha, которым
+        // render интерполирует Transform (правило 12). До этой волны палитра
+        // строилась по позе ТЕКУЩЕГО тика, и это было названо хвостом:
+        // при 60 Гц не видно, при 30 видно. Всё, что знает про клип, про
+        // прошлый тик и про дозу DFN_PROC_GAIT, живёт в SkinnedCharacter —
+        // здесь остаётся ровно ферма alpha.
         std::array<render::RenderSystem::SkinnedDraw, 1> skinned_draws{};
         if (skinned_character_.ready()) {
-            if (const auto* drive = world_.get<anim::BodyDrive>(player_)) {
-                const auto* tr = world_.get<components::Transform>(player_);
-                const glm::vec3 stand = tr != nullptr ? tr->position : glm::vec3{0.0f};
-                const anim::LocalPose pose = anim::evaluate_body_pose(body_rig_, *drive);
-                const anim::BodyRoot root = anim::body_root_for(*drive, stand);
-                skinned_draws[0] = skinned_character_.build_draw(
-                    body_rig_, pose, root, /*hide_head=*/!third_person_);
-                render_system_.set_skinned_bodies(skinned_draws);
-            }
+            skinned_draws[0] = skinned_character_.build_draw(
+                body_rig_, /*hide_head=*/!third_person_, alpha);
+            render_system_.set_skinned_bodies(skinned_draws);
         }
         render_system_.render(world_, *renderer_, camera_, alpha);
 

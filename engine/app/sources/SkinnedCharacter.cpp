@@ -20,11 +20,30 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/AppDoors.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace dfn::app {
+namespace {
+
+/// The shortest signed turn from `from` to `to`, radians. Interpolating a yaw
+/// by plain subtraction spins the body the long way round exactly once per
+/// revolution, and once per revolution is often enough to be seen.
+[[nodiscard]] float shortest_turn(float from, float to) {
+    float d = to - from;
+    while (d > glm::pi<float>()) {
+        d -= 2.0f * glm::pi<float>();
+    }
+    while (d < -glm::pi<float>()) {
+        d += 2.0f * glm::pi<float>();
+    }
+    return d;
+}
+
+} // namespace
 
 bool SkinnedCharacter::load(render::RenderSystem& render_system,
                             platform::IRenderer& renderer, const anim::Rig& rig,
@@ -78,6 +97,8 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     name_ = obj->name;
     triangles_ = obj->skin.indices.size() / 3;
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
+    sample_.assign(skeleton_.size(), anim::JointLocal{});
+    library_ = anim::build_clip_library(skeleton_, binding_, clips_);
     ready_ = true;
     std::fprintf(stderr,
                  "[character] \"%s\": %zu joints (%u of %u rig bones bound), "
@@ -85,17 +106,83 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
                  name_.c_str(), skeleton_.size(), binding_.bound_count(),
                  anim::BONE_COUNT, triangles_, clips_.size(),
                  static_cast<double>(binding_.model_height_m));
+    // WHICH ROLES THE ASSET ANSWERED, printed for the same reason the importer
+    // prints its bone map: a model that resolves four roles of ten still draws
+    // and still walks, and the only moment anybody would notice is this line.
+    std::fprintf(stderr, "[character] clips: %u of %u roles —", library_.resolved,
+                 anim::CLIP_ROLE_COUNT);
+    for (uint32_t r = 0; r < anim::CLIP_ROLE_COUNT; ++r) {
+        const auto role = static_cast<anim::ClipRole>(r);
+        const anim::ClipEntry& e = library_[role];
+        if (!e.present()) {
+            std::fprintf(stderr, " %s=NONE", anim::role_name(role).data());
+            continue;
+        }
+        std::fprintf(stderr, " %s=\"%s\"(%.2fs",
+                     anim::role_name(role).data(),
+                     clips_[static_cast<std::size_t>(e.clip)].name.c_str(),
+                     static_cast<double>(e.duration_s));
+        if (e.cycle_m > 0.0f) {
+            std::fprintf(stderr, ", %.2fm/cycle, plant %.2f", 
+                         static_cast<double>(e.cycle_m),
+                         static_cast<double>(e.footfall_phase));
+        }
+        std::fprintf(stderr, ")");
+    }
+    std::fprintf(stderr, "\n");
     return true;
 }
 
-render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(
-    const anim::Rig& rig, const anim::LocalPose& pose, const anim::BodyRoot& root,
-    bool hide_head) {
+bool SkinnedCharacter::playing_clips() const {
+    // THE DOOR IS READ ONCE. A door that can change mid-run is a door that can
+    // make the before and the after arms of a comparison differ by more than
+    // the door (Rule 47).
+    static const bool procedural = [] {
+        const char* e = door_value("DFN_PROC_GAIT");
+        return e != nullptr && *e == '1';
+    }();
+    return ready_ && !procedural && library_.has(anim::ClipRole::Idle);
+}
+
+void SkinnedCharacter::advance(const anim::Rig& rig, const anim::BodyDrive& drive,
+                               const glm::vec3& standing_ground, float dt) {
+    if (!ready_) {
+        return;
+    }
+    anim::advance_playback(library_, drive, dt, play_);
+    // THE PROCEDURAL PAIR, kept whether or not the door is open: it costs one
+    // pose evaluation a tick and it is what makes DFN_PROC_GAIT switchable
+    // without a second code path through this file.
+    pose_prev_ = ticked_ ? pose_curr_ : anim::evaluate_body_pose(rig, drive);
+    root_prev_ = ticked_ ? root_curr_ : anim::body_root_for(drive, standing_ground);
+    pose_curr_ = anim::evaluate_body_pose(rig, drive);
+    root_curr_ = anim::body_root_for(drive, standing_ground);
+    ticked_ = true;
+}
+
+render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(const anim::Rig& rig,
+                                                              bool hide_head,
+                                                              float alpha) {
     render::RenderSystem::SkinnedDraw draw;
     if (!ready_) {
         return draw;
     }
-    anim::skinning_palette(rig, skeleton_, binding_, pose, palette_);
+    const float a = std::clamp(alpha, 0.0f, 1.0f);
+    // THE POSE OF THIS FRAME, not of this tick. Both arms interpolate: the
+    // clip arm by its own clip time (playback_sample), the procedural arm by
+    // slerping the two ticks it was evaluated at -- which is exactly what
+    // render does to a Transform, one level up from a matrix.
+    if (!playing_clips()
+        || !anim::playback_sample(skeleton_, binding_, clips_, library_, play_, a,
+                                  sample_)) {
+        const anim::LocalPose pose = anim::blend(pose_prev_, pose_curr_, a);
+        anim::skinning_palette(rig, skeleton_, binding_, pose, palette_);
+    } else {
+        anim::sample_palette(skeleton_, sample_, palette_);
+    }
+    const anim::BodyRoot root{glm::mix(root_prev_.ground, root_curr_.ground, a),
+                              root_prev_.yaw
+                                  + a * shortest_turn(root_prev_.yaw, root_curr_.yaw)};
     if (hide_head) {
         // THE HEAD IS COLLAPSED, NOT CULLED, and that is the only option a
         // skinned mesh leaves: the head's triangles live in the same buffer as
