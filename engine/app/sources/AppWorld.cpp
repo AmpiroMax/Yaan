@@ -1575,6 +1575,27 @@ bool App::enter_world(uint32_t stand) {
         && skinned_character_.load(render_system_, *renderer_, body_rig_,
                                    std::filesystem::path("assets/objects/characters")
                                        / "HumanBase.dfo")) {
+        // ЗЕМЛЯ ПОД СТОПОЙ — ЛУЧОМ, И ЛУЧ ЖИВЁТ ЗДЕСЬ. anim не видит мира
+        // (правило 1), поэтому приложение отдаёт ему ФУНКЦИЮ: точка -> высота
+        // грунта под ней. Луч пускается СВЕРХУ ВНИЗ из полуметра над стопой:
+        // начни его в самой стопе — и на ступени он ушёл бы под ступень, а на
+        // склоне пробил бы землю, в которую стопа уже воткнулась.
+        //
+        // СЛОИ: статика (рельеф, дома, марши) и предметы взаимодействия
+        // (дверная створка, на которой можно стоять). НЕ капсула персонажа —
+        // луч из-под собственной ноги, нашедший собственную капсулу, поднял бы
+        // тело на собственный рост.
+        skinned_character_.set_ground_probe([this](const glm::vec3& p) {
+            if (physics_ == nullptr) {
+                return std::numeric_limits<float>::quiet_NaN();
+            }
+            constexpr float ABOVE_M = 0.5f;
+            constexpr float REACH_M = 2.0f;
+            const platform::RayHit hit = physics_->raycast(
+                p + glm::vec3{0.0f, ABOVE_M, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f},
+                REACH_M, physics::LAYER_STATIC | physics::LAYER_INTERACTABLE);
+            return hit.hit ? hit.position.y : std::numeric_limits<float>::quiet_NaN();
+        });
         // КОРОБКИ ГАСЯТСЯ, А НЕ УДАЛЯЮТСЯ: сущности сегментов несут ещё и
         // LocalBounds с Transform, которыми пользуется остальной движок, а
         // «нет меша» — законное значение RenderMesh (0 = none, тот же случай,

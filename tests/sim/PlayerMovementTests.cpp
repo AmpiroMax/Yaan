@@ -191,6 +191,42 @@ TEST_CASE("gear speeds move exactly one tick's distance") {
     CHECK(sprint_speed > static_cast<float>(config::RUN_SPEED)); // guard the multiplier
 }
 
+TEST_CASE("a drawn weapon taxes the run and nothing else") {
+    // WHAT THIS IS ABOUT (owner, 31.08, items 5-6): running with a weapon in
+    // hand is slower by WEAPON_DRAWN_RUN_FACTOR, while walking and jogging are
+    // not. Three claims, and the two NEGATIVE ones are the load-bearing pair:
+    // a factor applied to `speed` before the gear switch would have slowed all
+    // three, and the frames would have looked identical.
+    const float factor = static_cast<float>(config::WEAPON_DRAWN_RUN_FACTOR);
+    const auto step_z = [](bool drawn, bool run, bool jog) {
+        Rig rig;
+        rig.state.weapon_drawn = drawn;
+        rig.state.move_axes = {0.0f, 1.0f};
+        rig.state.run = run;
+        rig.state.jog = jog;
+        rig.tick();
+        return -rig.transform.position.z;
+    };
+    CHECK(step_z(true, true, false)
+          == doctest::Approx(static_cast<float>(config::RUN_SPEED) * factor * DT)
+                 .epsilon(EPS));
+    // THE CONTROL ARM: the same tick with the hands empty. Without it the line
+    // above passes on a build where the factor is applied nowhere and
+    // RUN_SPEED happens to have been lowered.
+    CHECK(step_z(false, true, false)
+          == doctest::Approx(static_cast<float>(config::RUN_SPEED) * DT).epsilon(EPS));
+    // AND THE TWO SLOWER GEARS ARE UNTAXED.
+    CHECK(step_z(true, false, false)
+          == doctest::Approx(static_cast<float>(config::WALK_SPEED) * DT).epsilon(EPS));
+    CHECK(step_z(true, false, true)
+          == doctest::Approx(static_cast<float>(config::JOG_SPEED) * DT).epsilon(EPS));
+    // THE GEARS STAY THREE GEARS, which is the constraint the row's passport
+    // in NUMBERS.md is written against: a taxed run must still be clear of an
+    // untaxed jog, or Shift and Alt become the same key.
+    CHECK(static_cast<float>(config::RUN_SPEED) * factor
+          > static_cast<float>(config::JOG_SPEED) * 1.2f);
+}
+
 TEST_CASE("diagonal movement is not faster") {
     Rig rig;
     rig.state.move_axes = {1.0f, 1.0f};

@@ -425,7 +425,16 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
             speed = SPRINT_SPEED;
             state.gait = Gait::Run; // debug speed, Run's gait
         } else if (state.run) {
-            speed = RUN_SPEED;
+            // ОРУЖИЕ В РУКАХ ОБЛАГАЕТ ТОЛЬКО БЕГ, и только здесь. Ходьба и
+            // трусца остаются своей скоростью: клинок в руке не мешает идти,
+            // он мешает разогнаться. Передача остаётся Run — замедленный бег
+            // это по-прежнему бег, и клип ему нужен беговой; подменить здесь
+            // ещё и `state.gait` значило бы, что обнажённое оружие переводит
+            // тело на другую анимацию, чего никто не просил.
+            speed = RUN_SPEED
+                    * (state.weapon_drawn
+                           ? static_cast<float>(config::WEAPON_DRAWN_RUN_FACTOR)
+                           : 1.0f);
             state.gait = Gait::Run;
         } else if (state.jog) {
             speed = JOG_SPEED;

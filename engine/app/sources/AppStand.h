@@ -10,7 +10,8 @@ Key items:
 - StandCamera / stand_camera(): four poses (front, profile, three-quarter,
   close) selected by DFN_STAND_CAM=1..4.
 - StandStep / stand_sequence_at(): the queue Idle -> Walk -> Jog -> Sprint ->
-  Jump -> Crouch -> Sit, as PLAYER INPUT at a fixed time, selected by
+  Jump -> Crouch -> Sit -> WEAPON DRAWN (idle, walk, run) -> the long walk onto
+  the stand's slope, as PLAYER INPUT at a fixed time, selected by
   DFN_STAND_SEQ=1.
 - STAND_SEQUENCE_S: how long the whole queue lasts.
 
@@ -83,11 +84,28 @@ struct StandStep {
     /// setting. The stand must photograph the character.
     float face_yaw = 0.0f;
     const char* label = "idle";
+    /// ОРУЖИЕ В РУКАХ — УРОВЕНЬ, А НЕ ФРОНТ, в отличие от прыжка и E.
+    /// Клавиша T переключает, но очередь не нажимает клавиш: она ОБЪЯВЛЯЕТ
+    /// состояние, и объявление идемпотентно. Фронт здесь означал бы, что кадр,
+    /// снятый на тик позже границы фазы, показывает другое состояние.
+    ///
+    /// И ПОСЛЕДНИМ ПОЛЕМ, а не рядом с `interact`, где оно по смыслу: каждая
+    /// строка очереди — агрегатный инициализатор по ПОРЯДКУ полей, и поле,
+    /// вставленное в середину, молча сдвигает рыск и подпись у всех
+    /// четырнадцати прежних фаз.
+    bool weapon = false;
+    /// ВСТАТЬ, ЕСЛИ СИДИМ — ТОЖЕ УРОВЕНЬ, И ЭТО ПОЧИНКА ЗАМЕРА, А НЕ УДОБСТВО.
+    /// Второе нажатие E «чтобы встать» — переключатель: если посадка не
+    /// удалась (на стенде она удаётся НЕ КАЖДЫЙ ПРОГОН — прицел сиденья
+    /// зависит от тика), то же нажатие УСАЖИВАЕТ. Два прогона одной очереди
+    /// давали разные позы на 35-й секунде, то есть приёмочные кадры волны
+    /// зависели от жребия. Заявка «стоим» идемпотентна и жребия не имеет.
+    bool stand = false;
 };
 
 /// THE WHOLE QUEUE, seconds. Each phase is long enough to hold a full cycle of
 /// the clip it exercises plus the cross-fade into it.
-inline constexpr float STAND_SEQUENCE_S = 33.0f;
+inline constexpr float STAND_SEQUENCE_S = 64.0f;
 
 /// The queue at `t` seconds. `prev_t` is the previous tick's time and exists
 /// only so the EDGE intents (jump, interact) can be true for exactly one tick:

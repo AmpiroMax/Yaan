@@ -51,6 +51,8 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/Body.h"
 #include "engine/anim/sources/ClipPlayer.h"
+#include "engine/anim/sources/FootIk.h"
+#include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
@@ -59,6 +61,7 @@ AI Agents Notice (must follow):
 #include "engine/platform/render/interfaces/IRenderer.h"
 
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -92,6 +95,29 @@ public:
     /// the procedural gait (DFN_PROC_GAIT=1 turns it off).
     [[nodiscard]] bool playing_clips() const;
 
+    /// WHERE THE GROUND IS UNDER A WORLD POINT, metres, or NaN for "no ground
+    /// found". The app installs a raycast into the physics world; anim never
+    /// sees it (FootIk.h is handed answers, not a world).
+    ///
+    /// A CALLBACK AND NOT AN IPhysics HANDLE, so a test can stand this body on
+    /// a staircase it wrote in four lines. The stand's real stairs are what
+    /// the frames are shot on; the four lines are what makes the number
+    /// reproducible without a window.
+    using GroundProbe = std::function<float(const glm::vec3&)>;
+    void set_ground_probe(GroundProbe probe) { ground_probe_ = std::move(probe); }
+
+    /// THE HITBOX TABLE OF THIS BODY and where its shapes are for the pose
+    /// build_draw last produced. The pose is in the MODEL'S own space; the
+    /// caller multiplies by `draw.transform` — the same matrix the mesh got,
+    /// which is what makes "what you see is what you shoot" true by
+    /// construction rather than by a second placement.
+    [[nodiscard]] const anim::HitboxSet& hitboxes() const { return hitboxes_; }
+    [[nodiscard]] const anim::HitboxPose& hitbox_pose() const { return hitbox_pose_; }
+
+    /// The last tick's grounding, for the debug readout and the report.
+    [[nodiscard]] const anim::FootIkPlan& foot_plan() const { return plan_; }
+    [[nodiscard]] float foot_root_shift_m() const { return root_dy_; }
+
     /// ONE FIXED TICK. Advances the clip state machine and snapshots this
     /// tick's procedural pose and root beside the previous tick's, so
     /// build_draw can interpolate either path. `standing_ground` is the
@@ -107,6 +133,12 @@ public:
         const anim::Rig& rig, bool hide_head, float alpha);
 
 private:
+    /// ONE TICK'S RAYCASTS. Separate from advance() because it is the only
+    /// part of the tick that touches the world, and because a body with no
+    /// probe installed has to skip exactly this and nothing else.
+    void probe_ground(const anim::BodyDrive& drive, const glm::vec3& standing_ground,
+                      float dt);
+
     bool ready_ = false;
     std::string name_;
     std::size_t triangles_ = 0;
@@ -135,6 +167,28 @@ private:
     /// One frame's palette. A member so the span handed to render points at
     /// storage that outlives the call and is never reallocated mid-frame.
     std::vector<glm::mat4> palette_;
+
+    // --- FOOT IK ----------------------------------------------------------
+    GroundProbe ground_probe_;
+    anim::FootIkSetup foot_setup_{};
+    /// What the raycasts found this tick, in the body's own frame.
+    anim::FootIkProbe foot_probe_{};
+    anim::FootIkPlan plan_{};
+    /// THE ROOT SHIFT, FILTERED. The raw shift jumps by a whole stair rise the
+    /// instant a ray crosses a nosing, and the body would tick with it; the
+    /// filter spends FOOT_IK_ROOT_TAU_S getting there. Filtered here rather
+    /// than inside the solve because only the caller has a clock (Rule 12).
+    float root_dy_ = 0.0f;
+    /// How much of the solve is in force, eased. Zero in the air and in a
+    /// seat: a jump that is glued to the ground is not a jump, and a seated
+    /// body's feet answer to the bench.
+    float ik_strength_ = 0.0f;
+    /// One frame's scratch for the tick-time probe pose.
+    std::vector<anim::JointLocal> tick_sample_;
+
+    // --- HITBOXES ---------------------------------------------------------
+    anim::HitboxSet hitboxes_{};
+    anim::HitboxPose hitbox_pose_{};
 };
 
 } // namespace dfn::app

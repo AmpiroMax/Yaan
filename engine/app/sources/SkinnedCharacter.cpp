@@ -21,6 +21,7 @@ AI Agents Notice (must follow):
 #include "engine/render/sources/ObjectRegistry.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <glm/gtc/constants.hpp>
@@ -42,6 +43,22 @@ namespace {
     }
     return d;
 }
+
+/// HOW FAST THE ROOT FOLLOWS A NEW GROUND, seconds to 63 % of the way.
+///
+/// NOT ZERO, and the stand is where that gets decided: a ray crossing a
+/// stair's nosing changes its answer by a whole 0.18 m rise in one tick, and a
+/// root that took it instantly would tick down the flight one step per frame
+/// instead of walking down it. NOT LONG EITHER: past about a tenth of a second
+/// the body visibly lags the step it is standing on. 0.08 s is a shade under
+/// three ticks at 30 Hz, so a single bad ray is smoothed and a real step is
+/// followed inside one stride.
+constexpr float FOOT_IK_ROOT_TAU_S = 0.08f;
+
+/// How fast the whole solve fades in and out (a jump, sitting down). Its own
+/// number: it gates a MECHANISM rather than tracks a surface, and it wants to
+/// be off before the take-off frame rather than a tick after it.
+constexpr float FOOT_IK_GATE_TAU_S = 0.06f;
 
 } // namespace
 
@@ -99,6 +116,9 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
     sample_.assign(skeleton_.size(), anim::JointLocal{});
     library_ = anim::build_clip_library(rig, skeleton_, binding_, clips_);
+    foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
+    hitboxes_ = anim::build_hitboxes(rig.proportions);
+    tick_sample_.assign(skeleton_.size(), anim::JointLocal{});
     ready_ = true;
     std::fprintf(stderr,
                  "[character] \"%s\": %zu joints (%u of %u rig bones bound), "
@@ -130,7 +150,78 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
         std::fprintf(stderr, ")");
     }
     std::fprintf(stderr, "\n");
+    // THE TWO LAYERS, printed for the same reason the roles are: an arm layer
+    // that solved 0 degrees and a mask with no upper half both draw a body
+    // that looks exactly like a body with no layers at all.
+    std::fprintf(stderr,
+                 "[character] layers: mask upper %u / lower %u of %zu joints; arm "
+                 "relax %.1f deg (hand %.3f m -> target %.3f m), %zu finger joints\n",
+                 library_.mask.count(anim::Branch::Upper),
+                 library_.mask.count(anim::Branch::Lower), skeleton_.size(),
+                 static_cast<double>(library_.relax.angle_rad * 57.29578f),
+                 static_cast<double>(library_.relax.reference_m),
+                 static_cast<double>(library_.relax.target_m),
+                 library_.relax.finger.size());
     return true;
+}
+
+void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
+                                    const glm::vec3& standing_ground, float dt) {
+    // THE GATE FIRST: airborne or seated, the solve is off. A jump whose feet
+    // are pinned to the ground under them is not a jump, and a seated body's
+    // feet answer to the bench and not to the floor.
+    const float want_gate =
+        (drive.grounded && drive.posture_blend < 0.5f && ground_probe_) ? 1.0f : 0.0f;
+    const float gate_k =
+        dt > 0.0f ? 1.0f - std::exp(-dt / FOOT_IK_GATE_TAU_S) : 1.0f;
+    ik_strength_ += (want_gate - ik_strength_) * gate_k;
+    foot_probe_.valid = false;
+    if (!ground_probe_ || !foot_setup_.valid() || !playing_clips()) {
+        root_dy_ += (0.0f - root_dy_) * gate_k;
+        return;
+    }
+    // THE POSE THIS TICK ENDED ON, which is where the rays go from. The frame
+    // will re-measure the needs against its own interpolated pose; only the
+    // GROUND is sampled here, because a raycast is the expensive half and the
+    // ground under a foot does not change inside one tick.
+    if (!anim::playback_sample(skeleton_, binding_, clips_, library_, play_, 1.0f,
+                               tick_sample_)) {
+        return;
+    }
+    std::vector<glm::mat4> local(skeleton_.size());
+    std::vector<glm::mat4> model(skeleton_.size());
+    for (std::size_t j = 0; j < skeleton_.size(); ++j) {
+        local[j] = glm::translate(glm::mat4{1.0f}, tick_sample_[j].translation)
+                   * glm::mat4_cast(glm::normalize(tick_sample_[j].rotation))
+                   * glm::scale(glm::mat4{1.0f}, tick_sample_[j].scale);
+    }
+    skel::skeleton_model_matrices(skeleton_, local, model);
+    const anim::BodyRoot root = anim::body_root_for(drive, standing_ground);
+    const glm::mat4 to_world =
+        glm::translate(glm::mat4{1.0f}, root.ground)
+        * glm::rotate(glm::mat4{1.0f}, -root.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+    const auto ground_under = [&](int32_t joint, float fallback) {
+        if (joint < 0) {
+            return fallback;
+        }
+        const glm::vec3 world =
+            glm::vec3{to_world * glm::vec4{glm::vec3{model[static_cast<std::size_t>(joint)][3]},
+                                           1.0f}};
+        const float y = ground_probe_(world);
+        return std::isfinite(y) ? y - root.ground.y : fallback;
+    };
+    for (int i = 0; i < 2; ++i) {
+        const auto side = static_cast<std::size_t>(i);
+        foot_probe_.ankle_ground[side] = ground_under(foot_setup_.ankle[side], 0.0f);
+        foot_probe_.toe_ground[side] =
+            ground_under(foot_setup_.toe[side], foot_probe_.ankle_ground[side]);
+    }
+    foot_probe_.valid = true;
+    const anim::FootIkPlan tick_plan =
+        anim::plan_foot_ik(skeleton_, foot_setup_, foot_probe_, tick_sample_);
+    plan_ = tick_plan;
+    const float k = dt > 0.0f ? 1.0f - std::exp(-dt / FOOT_IK_ROOT_TAU_S) : 1.0f;
+    root_dy_ += (tick_plan.root_dy - root_dy_) * k;
 }
 
 bool SkinnedCharacter::playing_clips() const {
@@ -150,6 +241,7 @@ void SkinnedCharacter::advance(const anim::Rig& rig, const anim::BodyDrive& driv
         return;
     }
     anim::advance_playback(library_, drive, dt, play_);
+    probe_ground(drive, standing_ground, dt);
     // THE PROCEDURAL PAIR, kept whether or not the door is open: it costs one
     // pose evaluation a tick and it is what makes DFN_PROC_GAIT switchable
     // without a second code path through this file.
@@ -178,6 +270,18 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(const anim::Rig& 
         const anim::LocalPose pose = anim::blend(pose_prev_, pose_curr_, a);
         anim::skinning_palette(rig, skeleton_, binding_, pose, palette_);
     } else {
+        // THE FEET MEET THE GROUND THAT IS ACTUALLY THERE, on the frame's own
+        // pose: the needs are re-measured here (the pose between two ticks is
+        // not either tick's), while the ROOT shift comes from the tick, where
+        // it was filtered. Applying an unfiltered shift per frame would put
+        // the stair's whole rise into one frame at the nosing.
+        if (foot_probe_.valid && ik_strength_ > 0.001f) {
+            anim::FootIkPlan plan =
+                anim::plan_foot_ik(skeleton_, foot_setup_, foot_probe_, sample_);
+            plan.root_dy = root_dy_;
+            anim::apply_foot_ik(skeleton_, foot_setup_, foot_probe_, plan, ik_strength_,
+                                sample_);
+        }
         anim::sample_palette(skeleton_, sample_, palette_);
     }
     const anim::BodyRoot root{glm::mix(root_prev_.ground, root_curr_.ground, a),
@@ -211,6 +315,10 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(const anim::Rig& 
                                    glm::vec3{0.0f, 1.0f, 0.0f});
     draw.mesh_asset = SKINNED_CHARACTER_MESH_ID;
     draw.palette = palette_;
+    // THE HITBOXES OF THIS FRAME, from the SAME sample the palette was built
+    // from. Computing them from a second sample — the tick's, say — is how the
+    // drawn body and the shootable body come apart by one frame at speed.
+    hitbox_pose_ = anim::hitbox_pose(hitboxes_, skeleton_, binding_, sample_);
     // DFN_CHAR_TRACE=1: the posed body's extent IN METRES, once. A frame
     // cannot answer "how tall is he" — a small model close up and a large one
     // far away make the same pixels — and this wave lost an hour to exactly

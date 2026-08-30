@@ -84,6 +84,7 @@ bool App::dispatch_actions(bool chat_typing) {
         case Action::Wireframe: on_wireframe(); break;
         case Action::Screenshot: on_screenshot(); break;
         case Action::ToggleBody: on_toggle_body(); break;
+        case Action::WeaponToggle: on_weapon_toggle(); break;
         case Action::TrajectoryRecord: on_trajectory_record(); break;
         case Action::TrajectoryReplay: on_trajectory_replay(); break;
         case Action::ChatWindow: on_chat_window(); break;
@@ -299,6 +300,24 @@ void App::on_third_person() {
             }
         }
     }
+}
+
+// ОРУЖИЕ В РУКАХ (T). Заявка пишется в ПРИВОД ТЕЛА, а не в состояние игрока:
+// рисует его зона персонажа, и она же ведёт кроссфейд 0.2 с. Скорость бега
+// читает `PlayerState::weapon_drawn` — там же, где решается передача, — и
+// обе строки ставятся здесь, из одного нажатия, чтобы «руки заняты» не могло
+// означать разное для картинки и для движения.
+void App::on_weapon_toggle() {
+    auto* drive = world_.get<anim::BodyDrive>(player_);
+    if (drive == nullptr) {
+        return;
+    }
+    const bool drawn = !drive->weapon_drawn;
+    drive->weapon_drawn = drawn;
+    if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+        ps->weapon_drawn = drawn;
+    }
+    std::fprintf(stderr, "[character] оружие %s\n", drawn ? "в руках" : "убрано");
 }
 
 void App::on_debug_readout() { debug_overlay_ = !debug_overlay_; }

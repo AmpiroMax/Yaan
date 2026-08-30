@@ -47,4 +47,12 @@ inline constexpr platform::CollisionMask LAYER_INTERACTABLE = 1u << 2;
 // interactable and immovable) and from LAYER_STATIC (a wall).
 inline constexpr platform::CollisionMask LAYER_LOOSE = 1u << 3;
 
+// ХИТБОКСЫ ЧАСТЕЙ ТЕЛА: кинематические коробки, едущие за позой (голова,
+// корпус, конечности). ОТДЕЛЬНЫЙ СЛОЙ ОТ КАПСУЛЫ, И ЭТО НЕ АККУРАТНОСТЬ, А
+// РАЗНЫЕ ВОПРОСЫ. Капсула отвечает «куда человек может пройти» и обязана быть
+// гладкой: локти и колени в проёме — это застревание. Хитбоксы отвечают «во
+// что попали» и обязаны быть подробными. Один слой на оба ответа заставил бы
+// локомоцию цепляться за собственные руки.
+inline constexpr platform::CollisionMask LAYER_HITBOX = 1u << 4;
+
 } // namespace dfn::physics

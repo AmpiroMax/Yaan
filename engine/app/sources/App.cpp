@@ -4351,6 +4351,22 @@ int App::run() {
                         ps->jump_pressed = ps->jump_pressed || step.jump;
                         ps->interact_pressed = ps->interact_pressed || step.interact;
                         ps->yaw = step.face_yaw;
+                        // ОРУЖИЕ — ОБЪЯВЛЕНИЕ, А НЕ НАЖАТИЕ (AppStand.h): обе
+                        // строки ставятся из одной, как и от клавиши T, чтобы
+                        // «руки заняты» не значило разное для картинки и для
+                        // скорости.
+                        ps->weapon_drawn = step.weapon;
+                        if (auto* bd = world_.get<anim::BodyDrive>(player_)) {
+                            bd->weapon_drawn = step.weapon;
+                        }
+                        // «СТОИМ» — ЗАЯВКА, А НЕ НАЖАТИЕ E (AppStand.h).
+                        // leave_posture() ничего не делает со стоящим, и
+                        // именно поэтому очередь может её объявлять каждый
+                        // тик: у второго нажатия E такой роскоши нет.
+                        if (step.stand) {
+                            leave_posture();
+                            ps->yaw = step.face_yaw;
+                        }
                     }
                 }
                 // AFTER the bot (it owns yaw; the probe owns the rest) and
@@ -5329,6 +5345,23 @@ int App::run() {
             skinned_draws[0] = skinned_character_.build_draw(
                 body_rig_, /*hide_head=*/!third_person_, alpha);
             render_system_.set_skinned_bodies(skinned_draws);
+            // ХИТБОКСЫ ЧАСТЕЙ ТЕЛА ЕДУТ ЗА НАРИСОВАННОЙ ПОЗОЙ, и именно
+            // здесь, а не в тике: тело рисуется по ИНТЕРПОЛИРОВАННОЙ позе, и
+            // коробки, поставленные по позе тика, отставали бы от него ровно
+            // на кадр — то есть на 12 см руки при беге. Матрица берётся ТА ЖЕ,
+            // что и у меша (draw.transform), поэтому «во что целишься» и «во
+            // что попадаешь» — одно место, а не два похожих.
+            if (physics_ != nullptr) {
+                if (!body_hitboxes_.live()) {
+                    body_hitboxes_.create(*physics_, player_,
+                                          skinned_character_.hitboxes(),
+                                          skinned_character_.hitbox_pose(),
+                                          skinned_draws[0].transform);
+                } else {
+                    body_hitboxes_.update(*physics_, skinned_character_.hitbox_pose(),
+                                          skinned_draws[0].transform);
+                }
+            }
         }
         render_system_.render(world_, *renderer_, camera_, alpha);
 

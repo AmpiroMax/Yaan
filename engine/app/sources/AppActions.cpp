@@ -28,6 +28,7 @@ constexpr std::array<ActionRoute, static_cast<size_t>(Action::Count)> ROUTES{{
     {Action::Wireframe, Gate::TypingEats, "on_wireframe"},
     {Action::Screenshot, Gate::TypingEats, "on_screenshot"},
     {Action::ToggleBody, Gate::TypingEats, "on_toggle_body"},
+    {Action::WeaponToggle, Gate::TypingEats, "on_weapon_toggle"},
     {Action::TrajectoryRecord, Gate::TypingEats, "on_trajectory_record"},
     {Action::TrajectoryReplay, Gate::TypingEats, "on_trajectory_replay"},
     {Action::ChatWindow, Gate::TypingEats, "on_chat_window"},

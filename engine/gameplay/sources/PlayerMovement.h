@@ -122,6 +122,12 @@ struct PlayerState {
     bool jog = false;           // LEFT_ALT
     bool run = false;           // LEFT_SHIFT
     bool debug_sprint = false;  // RIGHT_SHIFT — debug only, user-requested
+    /// ОРУЖИЕ В РУКАХ (заказ владельца 31.08). Ставится приложением из той же
+    /// клавиши T, что и `anim::BodyDrive::weapon_drawn`: одно нажатие пишет
+    /// обе строки, потому что «руки заняты» не может значить разное для
+    /// картинки и для движения. Читается ровно в одном месте — при выборе
+    /// скорости передачи RUN (WEAPON_DRAWN_RUN_FACTOR).
+    bool weapon_drawn = false;
     Gait gait = Gait::Walk;     // resolved each tick; read by character
 
     // Jump: LATCHED like pending_look, not sampled. Render outpaces the fixed

@@ -48,6 +48,9 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     // и кнопками в панели инструмента, а клавиша, делающая два дела сразу,
     // делает второе неожиданно.
     {Action::ToggleBody, K::GRAVE, K::UNKNOWN, "controls.toggle_body", Scope::Anywhere},
+    // T — ОРУЖИЕ. Область PlayingOnly, поэтому строка не спорит ни с одной
+    // редакторской буквой; см. довод при Action::WeaponToggle.
+    {Action::WeaponToggle, K::T, K::UNKNOWN, "controls.weapon", Scope::PlayingOnly},
     {Action::TrajectoryRecord, K::K, K::UNKNOWN, "controls.traj_record", Scope::EditorOnly},
     {Action::TrajectoryReplay, K::P, K::UNKNOWN, "controls.traj_replay", Scope::EditorOnly},
     {Action::ChatWindow, K::SLASH, K::UNKNOWN, "controls.chat", Scope::Anywhere},
@@ -188,6 +191,7 @@ const char* key_name(platform::Key key) {
     case K::R: return "R";
     case K::B: return "B";
     case K::K: return "K";
+    case K::T: return "T";  // оружие: достать или убрать
     case K::G: return "G";
     // Z — отмена. Подпись обязана существовать: «?» на экране управления это
     // не косметика, а признак строки, о которой человеку никто не скажет.
