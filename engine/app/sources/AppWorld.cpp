@@ -1548,6 +1548,47 @@ bool App::enter_world(uint32_t stand) {
     }
     anim::spawn_body(world_, player_, body_rig_, /*hide_head=*/true);
 
+    // ТЕЛО МОДЕЛЬЮ (волна импорта и скиннинга, 30.08; заказ владельца: «как в
+    // Готике/Скайриме, не из кубиков»).
+    //
+    // МОДЕЛЬ — HumanBase, И ЭТО НЕ ПРОСТО «первая, что нашлась». Владелец
+    // увидел на карте стилизованную фигурку и сказал «очень плохо; пропорции
+    // тела делать сразу»: видимый персонаж обязан лежать в каноне
+    // docs/design/HUMAN_SCALE.md (7.5-8 голов). Рыцарь KayKit — 2.11 головы —
+    // остался ФИКСТУРОЙ ИМПОРТЁРА и в кадр не выходит; судья dfn_human_scale
+    // держит обе стороны этого решения в ctest. Коробки остаются ЗА ДВЕРЬЮ ДОЗЫ, а не
+    // удаляются: приёмка «до/после» обязана выходить из одного бинарника
+    // (правило 47), и вторая рука — это `DFN_BODY_BOXES=1`, а не вчерашняя
+    // сборка.
+    {
+        // ЧЕРЕЗ door_value, А НЕ getenv: дверь, прочитанная мимо таблицы, — это
+        // рычаг, о котором знает только написавший (AppDoors.h; tests/app
+        // ловит именно это).
+        const char* e = door_value("DFN_BODY_BOXES");
+        body_boxes_ = e != nullptr && *e == '1';
+        if (body_boxes_) {
+            std::fprintf(stderr, "[character] DFN_BODY_BOXES=1: тело рисуется "
+                                 "пятнадцатью коробками (рука «до»)\n");
+        }
+    }
+    if (!body_boxes_
+        && skinned_character_.load(render_system_, *renderer_, body_rig_,
+                                   std::filesystem::path("assets/objects/characters")
+                                       / "HumanBase.dfo")) {
+        // КОРОБКИ ГАСЯТСЯ, А НЕ УДАЛЯЮТСЯ: сущности сегментов несут ещё и
+        // LocalBounds с Transform, которыми пользуется остальной движок, а
+        // «нет меша» — законное значение RenderMesh (0 = none, тот же случай,
+        // что у спрятанной головы).
+        if (const auto* rig = world_.get<anim::BodyRig>(player_)) {
+            const auto segments = rig->segments;
+            for (const ecs::EntityId seg : segments) {
+                if (auto* rm = world_.get<components::RenderMesh>(seg)) {
+                    rm->mesh_asset = 0;
+                }
+            }
+        }
+    }
+
     // Landing dip rides sim's measured impact, not a guess (their event).
     landed_sub_ = bus_.subscribe<gameplay::Landed>([this](const gameplay::Landed& e) {
         anim::note_landed(world_, e.walker, e.impact_speed);

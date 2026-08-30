@@ -61,6 +61,7 @@ if(DFN_APP_READY)
         sources/FurnitureSeats.cpp
         sources/GrabDrive.cpp
         sources/PropPhysics.cpp
+    sources/SkinnedCharacter.cpp
         sources/SeatAim.cpp
         sources/EditorCamera.cpp
         sources/EditorPlant.cpp

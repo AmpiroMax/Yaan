@@ -286,10 +286,17 @@ void App::on_third_person() {
     // than as a deliberate first-person choice.
     if (auto* rig = world_.get<anim::BodyRig>(player_)) {
         rig->hide_head = !third_person_;
-        const auto head = rig->segments[anim::bone_index(anim::Bone::Head)];
-        if (auto* rm = world_.get<components::RenderMesh>(head)) {
-            rm->mesh_asset =
-                third_person_ ? anim::body_segment_mesh_id(anim::Bone::Head) : 0u;
+        // ...UNLESS THE BODY IS A MODEL. With the skinned character loaded the
+        // box segments are all switched off, and putting the head box back
+        // would hang a cube where the model's head already is. The model does
+        // the same thing by collapsing its head BONE (SkinnedCharacter), which
+        // is the only way a single skinned buffer can hide a part of itself.
+        if (!skinned_character_.ready()) {
+            const auto head = rig->segments[anim::bone_index(anim::Bone::Head)];
+            if (auto* rm = world_.get<components::RenderMesh>(head)) {
+                rm->mesh_asset =
+                    third_person_ ? anim::body_segment_mesh_id(anim::Bone::Head) : 0u;
+            }
         }
     }
 }

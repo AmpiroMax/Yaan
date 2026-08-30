@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 104> TABLE{{
+constexpr std::array<Door, 106> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -212,6 +212,12 @@ constexpr std::array<Door, 104> TABLE{{
      DoorRead::Once},
     {"DFN_THIRD_PERSON",
      "включить третье лицо на первом же игровом кадре. До этой двери вид сзади мог увидеть только человек, нажавший 1.",
+     DoorRead::Once},
+    {"DFN_CHAR_TRACE",
+     "напечатать РАЗМЕР нарисованного персонажа в метрах: кадр на вопрос «какого он роста» не отвечает — малая модель вблизи и крупная вдали дают одни пиксели.",
+     DoorRead::Once},
+    {"DFN_BODY_BOXES",
+     "рисовать тело пятнадцатью коробками, как до волны скиннинга: рука «до» для сравнения кадров одной сборкой.",
      DoorRead::Once},
     {"DFN_WIREFRAME",
      "каркас всей сцены (то же, что клавиша 4/F4).",

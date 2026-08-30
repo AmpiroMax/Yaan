@@ -5242,6 +5242,27 @@ int App::run() {
         // this editor without three of them editing this file.
         editor_ui_.begin_frame(*input_, *window_, static_cast<float>(frame_dt));
         editor_ui_.end_frame();
+        // ПАЛИТРА КОСТЕЙ ЭТОГО КАДРА (волна импорта и скиннинга, 30.08).
+        // Поза берётся ТЕМИ ЖЕ двумя функциями, которыми update_bodies только
+        // что поставил сегменты (evaluate_body_pose + body_root_for), а не
+        // отдельной формулой: разойдись они, модель и коробки стояли бы в
+        // разных местах — и доза DFN_BODY_BOXES перестала бы быть сравнением.
+        //
+        // ПОЗА НЕ ИНТЕРПОЛИРУЕТСЯ МЕЖДУ ТИКАМИ (правило 12 держит только
+        // Transform сегментов). Названо вслух как хвост волны: при шаге
+        // симуляции 60 Гц разницы не видно, при 30 будет.
+        std::array<render::RenderSystem::SkinnedDraw, 1> skinned_draws{};
+        if (skinned_character_.ready()) {
+            if (const auto* drive = world_.get<anim::BodyDrive>(player_)) {
+                const auto* tr = world_.get<components::Transform>(player_);
+                const glm::vec3 stand = tr != nullptr ? tr->position : glm::vec3{0.0f};
+                const anim::LocalPose pose = anim::evaluate_body_pose(body_rig_, *drive);
+                const anim::BodyRoot root = anim::body_root_for(*drive, stand);
+                skinned_draws[0] = skinned_character_.build_draw(
+                    body_rig_, pose, root, /*hide_head=*/!third_person_);
+                render_system_.set_skinned_bodies(skinned_draws);
+            }
+        }
         render_system_.render(world_, *renderer_, camera_, alpha);
 
         // ВЕСЬ ХВОСТ КАДРА — ОДНОЙ СТРОКОЙ (слой 4 разбора,

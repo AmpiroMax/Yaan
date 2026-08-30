@@ -64,6 +64,9 @@ const std::vector<std::string>& app_sources() {
         // AppHouse.cpp дописан 22.08: DFN_HOUSE_AO читается там (через
         // door_value, как и всё), и список обязан это видеть.
         "engine/app/sources/AppHouse.cpp",
+        // SkinnedCharacter.cpp дописан 30.08 (волна импорта и скиннинга):
+        // DFN_CHAR_TRACE читается там, и список обязан это видеть.
+        "engine/app/sources/SkinnedCharacter.cpp",
         // AppInterior.cpp дописан 24.08 (И15): DFN_LOAD_LOG читается и там —
         // экран загрузки ведёт тот же список этапов, что и прибор.
         "engine/app/sources/AppInterior.cpp",

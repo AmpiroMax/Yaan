@@ -41,6 +41,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/DoorAim.h"
 #include "engine/app/sources/GrabDrive.h"
 #include "engine/app/sources/PropPhysics.h"
+#include "engine/app/sources/SkinnedCharacter.h"
 #include "engine/app/sources/FurnitureSeats.h"
 #include "engine/app/sources/EditorCamera.h"
 #include "engine/app/sources/EditorPlant.h"
@@ -1380,6 +1381,13 @@ private:
 
     // First-person body (character's zone, wired here).
     anim::Rig body_rig_{};
+    /// ТЕЛО МОДЕЛЬЮ, А НЕ КОРОБКАМИ (волна импорта и скиннинга, 30.08).
+    /// Пусто, если .dfo персонажа не нашёлся или отказал: тогда рисуются
+    /// прежние пятнадцать коробок, и это НЕ запасной путь, а вторая рука
+    /// дозы DFN_BODY_BOXES (правило 47) — обе выходят из одного бинарника.
+    SkinnedCharacter skinned_character_{};
+    /// Дверь дозы: 1 — рисовать коробки, как до этой волны.
+    bool body_boxes_ = false;
     ecs::EntityId mirror_puppet_{}; // DFN_MIRROR/DFN_SHOWCASE double, 0 when absent
 
     // BODY PROBE (Rule 27 evidence path for the body; DFN_BODY_PROBE=
