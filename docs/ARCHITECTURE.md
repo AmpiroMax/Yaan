@@ -244,6 +244,14 @@ its root. Wave reports with frames, acceptance frames, reference photos and logs
 live in `artifacts/` (git-ignored). The task board is `docs/plans/BACKLOG.html`:
 work is taken from it and returned to it; a report earns two lines there.
 
+### Rule 17a — Character and animation acceptance runs on dedicated stands (owner's order 31.08.2026)
+A character, an animation, or a visual effect is NEVER accepted (frames, tapes,
+judges) on a world map — old maps doubly so. Acceptance runs on a dedicated
+stand map with PRE-DEFINED cameras (fixed poses selectable by dose/key) and a
+PRE-DEFINED clip/effect sequence, so every run frames the same thing. Stand maps
+live under assets/maps/stands/ and are the only maps such frames may come from.
+The owner watches the world; he must never meet a test figure there.
+
 ### Rule 18 — Per-module docs reflect current code
 Each module keeps `docs/README.md` describing its **current** state. Read it before
 modifying the module; update it in the same changeset. See `rules/documentation.md`.
