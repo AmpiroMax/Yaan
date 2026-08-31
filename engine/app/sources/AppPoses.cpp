@@ -39,10 +39,10 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/Body.h"
 #include "engine/anim/sources/PoseLibrary.h"
 #include "engine/app/sources/App.h"
+#include "engine/app/sources/AppDoors.h"
 #include "engine/app/sources/AppStand.h"
 
 #include <cstdio>
-#include <cstdlib>
 #include <string_view>
 
 namespace dfn::app {
@@ -100,7 +100,7 @@ void App::on_pose_cycle() {
 void App::tick_pose_tape(float dt) {
     if (!pose_tape_read_) {
         pose_tape_read_ = true;
-        const char* on = std::getenv("DFN_POSE_TAPE");
+        const char* on = door_value("DFN_POSE_TAPE");
         pose_tape_ = on != nullptr && *on == '1';
         if (pose_tape_) {
             std::fprintf(stderr, "[pose] лента: %u слотов, %.1f с\n", pose_slot_count(),
@@ -121,7 +121,9 @@ void App::apply_pose_dose() {
     if (pose_dose_done_) {
         return;
     }
-    const char* want = std::getenv("DFN_POSE");
+    // ДВЕРЬ, А НЕ getenv: реестр дверей (AppDoors.cpp) — единственное место,
+    // где перечислено, чем этот бинарник управляется извне.
+    const char* want = door_value("DFN_POSE");
     if (want == nullptr || *want == '\0') {
         pose_dose_done_ = true;
         return;

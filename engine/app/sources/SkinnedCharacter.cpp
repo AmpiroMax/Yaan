@@ -298,6 +298,9 @@ void SkinnedCharacter::advance(const anim::Rig& rig, const anim::BodyDrive& driv
     root_prev_ = ticked_ ? root_curr_ : anim::body_root_for(drive, standing_ground);
     pose_curr_ = anim::evaluate_body_pose(rig, drive);
     root_curr_ = anim::body_root_for(drive, standing_ground);
+    // СКОЛЬКО РЕЕСТРА ПОВЕРХ КЛИПА. Ферма, а не второе решение: вес ведёт
+    // update_bodies, здесь он только запоминается до кадра.
+    pose_weight_ = std::clamp(drive.pose_weight, 0.0f, 1.0f);
     ticked_ = true;
 }
 
@@ -336,6 +339,29 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(const anim::Rig& 
             // контрольная рука (DFN_FOOT_IK=0) обязана НАПЕЧАТАТЬ свои
             // сантиметры, иначе она молчит и её нечем предъявить.
             foot_trace_step(plan);
+        }
+        // ПОЗА РЕЕСТРА ПОВЕРХ СЭМПЛА КЛИПА, и это единственное место, где она
+        // может встретить кадр: штатный путь гнёт тело клипами, а реестр
+        // говорит на нашем пятнадцатикостном языке. Перевод делает тот же
+        // ретаргет, которым живёт процедурная рука (pose_local_transforms), —
+        // второго описания «где чей сустав» не заводится.
+        //
+        // ВЕС БЕРЁТСЯ ОДИН РАЗ, а не дважды: evaluate_body_pose уже смешала
+        // позу с локомоцией по нему же, поэтому здесь смешивается СЭМПЛ КЛИПА
+        // с уже смешанной позой. На единице это в точности поза, на нуле —
+        // побитово прежний кадр, между — движение, приходящее чуть позже
+        // середины. Возводить вес в квадрат ради формальной точности значило
+        // бы сделать въезд вдвое вялее ради разницы, которой не видно.
+        if (pose_weight_ > 0.0f) {
+            pose_sample_.resize(skeleton_.size());
+            const anim::LocalPose live = anim::blend(pose_prev_, pose_curr_, a);
+            anim::pose_local_transforms(rig, skeleton_, binding_, live, pose_sample_);
+            for (std::size_t j = 0; j < sample_.size() && j < pose_sample_.size(); ++j) {
+                sample_[j].rotation =
+                    glm::slerp(sample_[j].rotation, pose_sample_[j].rotation, pose_weight_);
+                sample_[j].translation = glm::mix(sample_[j].translation,
+                                                  pose_sample_[j].translation, pose_weight_);
+            }
         }
         anim::sample_palette(skeleton_, sample_, palette_);
     }

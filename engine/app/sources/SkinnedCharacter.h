@@ -181,6 +181,12 @@ private:
     /// One frame's imported-skeleton locals, a member for the same reason the
     /// palette is: it must not reallocate while a draw list points into it.
     std::vector<anim::JointLocal> sample_;
+    /// ПОЗА РЕЕСТРА, ПЕРЕВЕДЁННАЯ В СУСТАВЫ МОДЕЛИ, и вес, с которым она
+    /// подмешивается к сэмплу клипа. Иначе поза реестра была бы видна только
+    /// за дверью DFN_PROC_GAIT: в штатном пути тело гнут клипы, и наш
+    /// пятнадцатикостный слой до кадра не доходит вовсе.
+    std::vector<anim::JointLocal> pose_sample_;
+    float pose_weight_ = 0.0f;
     /// One frame's palette. A member so the span handed to render points at
     /// storage that outlives the call and is never reallocated mid-frame.
     std::vector<glm::mat4> palette_;
