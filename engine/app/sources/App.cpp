@@ -1734,11 +1734,40 @@ std::string App::chat_path_for_current_map() const {
 
 void App::write_pending_chat(float alpha) {
     const std::string chat_path = chat_path_for_current_map();
+    const DebugSnapshot snap = collect_snapshot(alpha);
+    // AN ENTRY WITH NO WORDS IS NOT A REMARK -- IT IS A PICTURE, and that
+    // distinction is the whole of the fix below. Key 5 (on_screenshot), Enter
+    // with the chat window closed, and the DFN_SHOT_AFTER door all raise a
+    // pending entry whose `text` is EMPTY: the chat line is the wrapper, the
+    // capture is the payload. A typed remark and DFN_CHAT_MSG carry text.
+    const bool picture_only = chat_pending_entry_.text.empty();
     if (chat_path.empty()) {
-        std::fprintf(stderr, "[chat] no map open; entry dropped\n");
+        // NO MAP MEANS NO CHAT -- IT DOES NOT MEAN NO PICTURE. The chat is a
+        // JSONL beside a map's manifest, so a remark without a map has nowhere
+        // to live and is honestly dropped. A SCREENSHOT has somewhere to live:
+        // capture_dir_, exactly where DFN_CAPTURE_AFTER_FRAMES puts its own.
+        //
+        // WHY THIS WAS WORTH FINDING. `write_capture` used to sit BELOW the
+        // early return, so on a stand raised by DFN_STAND (which opens no map)
+        // DFN_SHOT_AFTER reached its frame, printed one line about the chat,
+        // wrote no .png, and exited 0 -- indistinguishable from a run where the
+        // feature is broken, which is the exact failure the door's own comment
+        // forbids. It cost two waves several runs each in one night, and it
+        // depended on WHICH DOOR raised the same stand: through
+        // DFN_OPEN_MAP=stands/... the map is open and the shot lands.
+        if (picture_only) {
+            const int before = captures_written_;
+            write_capture(snap);
+            std::fprintf(stderr,
+                         "[chat] no map open: no chat entry, but the CAPTURE is "
+                         "written (%s/capture_%03d.png)\n",
+                         capture_dir_.c_str(), before);
+        } else {
+            std::fprintf(stderr, "[chat] no map open; the remark is dropped "
+                                 "(a chat lives beside a map's manifest)\n");
+        }
         return;
     }
-    const DebugSnapshot snap = collect_snapshot(alpha);
     ChatEntry entry = chat_pending_entry_;
     if (entry.who.empty()) {
         entry.who = "human";
