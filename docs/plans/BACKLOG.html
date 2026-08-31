@@ -21,7 +21,7 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 </style></head><body>
 <h1>Бэклог проекта — эпики, задачи, подзадачи</h1>
 <p>Состояние на 29.08.2026. Порядок эпиков и задач: сначала блокеры, затем по важности и размеру. Ключи задач — по образцу Jira: <code>E4-2</code> — задача, <code>E4-2.3</code> — подзадача.</p>
-<p><b>Итого: 15 эпиков, 91 задач, 381 подзадач — 472 тикетов.</b></p>
+<p><b>Итого: 15 эпиков, 91 задач, 384 подзадач — 475 тикетов.</b></p>
 <table><tr><th>Эпик</th><th>Задач</th><th>Подзадач</th><th>Блокеров</th></tr>
 <tr><td><a href="#E13">E13. Решения владельца (открытые)</a></td><td>3</td><td>14</td><td>3</td></tr>
 <tr><td><a href="#E1">E1. Единый игровой объект и уровни детализации</a></td><td>3</td><td>17</td><td>3</td></tr>
@@ -33,7 +33,7 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 <tr><td><a href="#E7">E7. Флора и биомы</a></td><td>4</td><td>13</td><td>0</td></tr>
 <tr><td><a href="#E8">E8. Звук: Steam Audio и мир источников</a></td><td>2</td><td>12</td><td>0</td></tr>
 <tr><td><a href="#E9">E9. Музыка</a></td><td>3</td><td>12</td><td>0</td></tr>
-<tr><td><a href="#E10">E10. Убранство, предметы, книги</a></td><td>3</td><td>8</td><td>0</td></tr>
+<tr><td><a href="#E10">E10. Убранство, предметы, книги</a></td><td>3</td><td>11</td><td>0</td></tr>
 <tr><td><a href="#E11">E11. Меню, интерфейс, сохранения, загрузка</a></td><td>4</td><td>12</td><td>0</td></tr>
 <tr><td><a href="#E12">E12. Лор, сюжет, квесты, RPG</a></td><td>7</td><td>30</td><td>0</td></tr>
 <tr><td><a href="#E14">E14. Графика уровня Skyrim — чего не хватает</a></td><td>19</td><td>77</td><td>1</td></tr>
@@ -389,7 +389,8 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 <div class="task" id="E10-1"><h3><span class="key">E10-1</span>Расстановка комнат по стилю Skyrim<span class="badge" style="background:#c60">Высокий</span><span class="st">в работе</span></h3><ol>
 <li><span class="key">E10-1.1</span>Инструмент расстановки в редакторе: привязка к полу/стене/столу, поворот, копирование</li>
 <li><span class="key">E10-1.2</span>Наборы «комната»: спальня, кухня, таверна, кузница, лавка — по скринам Skyrim</li>
-<li><span class="key">E10-1.3</span>Автозаполнение интерьера по паспорту дома (профессия, достаток); правила генератора: свет второго этажа (69 из 107 локаций без [light]), проходимость убранства и точки входа (9 непроходимых), параметр side элемента</li>
+<li><span class="key">E10-1.3</span>РЕШЕНИЕ ЛИДА: уличный сбор посадок находит 87 точек в Вайтране, из них 62 — фундаментные брусья и 6 — подпорная стенка-лежак; нужна роль размещения как поле композиции ЛИБО верхняя мера длины + признак «под площадкой пусто» (списки имён запрещены шапкой FurnitureSeats.h); пока улица за DFN_SEAT_MAP</li>
+<li><span class="key">E10-1.4</span>Автозаполнение интерьера по паспорту дома (профессия, достаток); правила генератора: свет второго этажа (69 из 107 локаций без [light]), проходимость убранства и точки входа (9 непроходимых), параметр side элемента</li>
 </ol></div>
 <div class="task" id="E10-2"><h3><span class="key">E10-2</span>Книги и письмо<span class="badge" style="background:#27a">Средний</span><span class="st">к работе</span></h3><ol>
 <li><span class="key">E10-2.1</span>Объект «книга/свиток/записка» с текстом из лора; чтение на экране в стиле меню</li>
@@ -398,7 +399,9 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 </ol></div>
 <div class="task" id="E10-3"><h3><span class="key">E10-3</span>Физика предметов — хвосты<span class="badge" style="background:#777">Низкий</span><span class="st">в работе</span></h3><ol>
 <li><span class="key">E10-3.1</span>Исполнить §10 после решения (E13-3): стулья, сила толчка, заполнение → в кузницу</li>
-<li><span class="key">E10-3.2</span>Звук и частицы при ударах (E8)</li>
+<li><span class="key">E10-3.2</span>БАГ 01.09: отпущенный из рук предмет на уличной карте проваливается сквозь землю (кувшин 21.8 при настиле 25.5; DFN_SEAT_MAP=0 не влияет) — тела предметов не видят рельеф улицы</li>
+<li><span class="key">E10-3.3</span>БАГ 01.09: плоские предметы (миска, каравай) не берутся при честной дистанции — подозрение на hull_points</li>
+<li><span class="key">E10-3.4</span>Звук и частицы при ударах (E8)</li>
 </ol><div class="note">Владелец принял основное.</div></div>
 <h2 id="E11">E11. Меню, интерфейс, сохранения, загрузка</h2><p class="why">Оболочка игры; частично сделана (меню, интро, настройки).</p>
 <div class="task" id="E11-1"><h3><span class="key">E11-1</span>Сохранения<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
