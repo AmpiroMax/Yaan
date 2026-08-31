@@ -1372,25 +1372,30 @@ void draw_controls(render::PixelCanvas& canvas) {
     // кадра. На холсте 1920×1080 это дало ровно то, что видно на первом кадре
     // приёмки, — описания левой колонки въехали в клавиши правой. Теперь у
     // страницы есть ШИРИНА КОЛОНКИ, и всё внутри неё.
+    //
+    // И СЧИТАЕТСЯ ОНА ПО ЧИСЛУ КОЛОНОК, А НЕ ПО ДВОЙКЕ. Раскладка умеет уже три
+    // (Controls.cpp, порядок жертв), и «двойка» здесь была бы третьим местом,
+    // где записано, сколько их: страница молча рисовала бы третью колонку
+    // поверх второй.
     const int margin = std::max(item_px, w / 24);
-    const int col_w = (L.columns == 2 ? (w - margin * 2) / 2 : w - margin * 2);
-    const int x_keys = L.columns == 2 ? margin : std::max(margin, (w - (keys_w + gap + col_w / 2)) / 2);
+    const int cols = std::max(1, L.columns);
+    const int col_w = (w - margin * 2) / cols;
+    const int x_keys = cols > 1 ? margin : std::max(margin, (w - (keys_w + gap + col_w / 2)) / 2);
     const int x_what = x_keys + keys_w + gap;
     // Правый край текста колонки: за него не выходит ни описание, ни пометка.
     const int col_right = x_what + col_w - keys_w - gap;
 
     int y = L.first_y;
     const size_t key_rows = control_bindings().size();
-    // TWO COLUMNS WHEN THE FRAME IS SHORT (Controls.h controls_layout). The
-    // second column starts at the middle of the frame and the y restarts; in
-    // one-column mode the offsets are zero and this reads exactly as before.
-    const int col_shift = L.columns == 2 ? col_w : 0;
+    // КОЛОНКИ, КОГДА КАДР НИЗОК (Controls.h, controls_layout). Каждая
+    // следующая начинается на свою ширину правее, и у каждой своя y; при одной
+    // колонке смещения нулевые и всё читается ровно как прежде.
     for (size_t i = 0; i < rows.size(); ++i) {
         int x_off = 0;
-        if (L.columns == 2) {
-            const bool second = static_cast<int>(i) >= L.rows_per_column;
-            x_off = second ? col_shift : 0;
-            y = L.first_y + (static_cast<int>(i) - (second ? L.rows_per_column : 0)) * row_h;
+        if (cols > 1 && L.rows_per_column > 0) {
+            const int col = std::min(cols - 1, static_cast<int>(i) / L.rows_per_column);
+            x_off = col * col_w;
+            y = L.first_y + (static_cast<int>(i) - col * L.rows_per_column) * row_h;
         }
         // The two headings mark where dispatched keys end and the fly camera's
         // continuous inputs begin -- they behave differently and the screen

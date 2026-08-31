@@ -49,6 +49,7 @@ if(DFN_APP_READY)
         sources/AppHud.cpp
         sources/AppInput.cpp
         sources/AppInterior.cpp
+        sources/AppPoses.cpp
         sources/AppProps.cpp
         sources/AppSeats.cpp
     sources/AppSettings.cpp

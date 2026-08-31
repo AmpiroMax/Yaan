@@ -85,6 +85,13 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     // освободилась от спуска: рука помнит Q как «вниз», и сетка, включающаяся
     // от старой привычки, читалась бы как сбой.
     {Action::GridToggle, K::X, K::UNKNOWN, "controls.grid", Scope::EditorOnly},
+    // СКОБКИ — ПОЗЫ, ОДНОЙ СТРОКОЙ НА ОБЕ. Обе свободны во всей таблице, стоят
+    // рядом на клавиатуре и читаются как «назад/вперёд по списку» — та же пара,
+    // которой листают кисть в редакторах изображений. Почему одна строка, а не
+    // две, сказано при Action::PoseCycle: вторая не помещается на экран
+    // управления при 320x180. Область — тело: в редакторе позировать некому.
+    {Action::PoseCycle, K::RIGHT_BRACKET, K::LEFT_BRACKET, "controls.pose_cycle",
+     Scope::PlayingOnly, Scope::PlayingOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -139,16 +146,21 @@ ControlsLayout controls_layout(int width_px, int height_px, int min_pitch, int l
     // В две колонки подписи разделов не идут: они помечают ГРАНИЦУ между
     // клавишами и полётом, а разрез пополам эту границу и так рвёт — подпись
     // над правой колонкой врала бы.
-    const bool wants[5][3] = {{true, true, false}, {true, false, false},
-                              {false, false, false},
-                              {false, true, true}, {false, false, true}};
+    //
+    // ...И ПОСЛЕДНЕЙ ЖЕРТВОЙ — ТРЕТЬЯ КОЛОНКА. Она появилась не «на вырост»:
+    // двадцать восьмая строка таблицы (перебор поз) съехала с нижнего края при
+    // 320x180 на ПОСЛЕДНЕЙ прежней раскладке — две колонки без подписей и без
+    // подвала, — то есть запас кончился по-настоящему. Третья колонка стоит
+    // после второй по той же логике, по которой вторая стоит после подвала:
+    // каждая следующая жертва меняет форму страницы сильнее предыдущей.
+    const int wants[6][3] = {{1, 1, 1}, {1, 0, 1}, {0, 0, 1},
+                             {0, 1, 2}, {0, 0, 2}, {0, 0, 3}};
     for (const auto& want : wants) {
-        L.headings = want[0];
-        L.footer = want[1];
-        L.columns = want[2] ? 2 : 1;
-        const int drawn_rows =
-            L.columns == 2 ? (rows + 1) / 2 : rows;
-        L.rows_per_column = L.columns == 2 ? drawn_rows : 0;
+        L.headings = want[0] != 0;
+        L.footer = want[1] != 0;
+        L.columns = want[2];
+        const int drawn_rows = (rows + L.columns - 1) / L.columns;
+        L.rows_per_column = L.columns > 1 ? drawn_rows : 0;
         L.line_count = drawn_rows + (L.headings ? 2 : 0);
         L.first_y = L.title_y + cell + (L.headings ? cell * 2 / 3 : cell / 2);
         const int floor_y = height_px - (L.footer ? cell * 2 + 4 : 2);
@@ -186,6 +198,8 @@ const char* key_name(platform::Key key) {
     case K::ENTER: return "Enter";
     case K::ESCAPE: return "Esc";
     case K::SLASH: return "/";
+    case K::LEFT_BRACKET: return "[";
+    case K::RIGHT_BRACKET: return "]";
     case K::M: return "M";
     case K::P: return "P";
     case K::R: return "R";

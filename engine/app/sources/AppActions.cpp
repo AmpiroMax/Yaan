@@ -57,6 +57,7 @@ constexpr std::array<ActionRoute, static_cast<size_t>(Action::Count)> ROUTES{{
     {Action::AxisLock, Gate::TypingEats, "on_axis_lock", 0},
     {Action::DeleteSelected, Gate::TypingEats, "on_delete_selected", 0},
     {Action::GridToggle, Gate::TypingEats, "on_grid_toggle", 0},
+    {Action::PoseCycle, Gate::TypingEats, "on_pose_cycle"},
 }};
 
 } // namespace

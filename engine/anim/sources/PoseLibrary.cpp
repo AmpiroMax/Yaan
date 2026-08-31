@@ -76,14 +76,14 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // --- ОПОРА 1: СТОЯ -----------------------------------------------------
     // Руки не заданы: покой рига И ЕСТЬ опущенная рука, и цель, поставленная
     // туда же, была бы вторым описанием того же места.
-    PoseRecord{.name = "stand", .label = "стоя", .support = Support::Stand},
+    PoseRecord{.name = "stand", .label = "стоя", .support = Support::Stand, .source_clip = ""},
 
     // --- ОПОРА 2: ПРИСЯД ---------------------------------------------------
     // Таз на 0.54 стоячей высоты бедра — ровно половина ноги вниз, глубина
     // присяда локомоции (Clips.cpp, crouch_pelvis_drop). Ноги ВЕДОМЫЕ:
     // двузвенник решается под эту высоту, оттого стопы стоят на полу и на
     // фигуре с другой ногой.
-    PoseRecord{.name = "crouch", .label = "присяд", .support = Support::Crouch,
+    PoseRecord{.name = "crouch", .label = "присяд", .support = Support::Crouch, .source_clip = "",
                .hip_frac = 0.54f, .torso_pitch_deg = 25.0f, .head_pitch_deg = -15.0f,
                .fold_legs = true,
                .arm = {{arm_at(-0.21f, -0.10f, -0.28f, 20.0f),
@@ -116,28 +116,28 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // вбок на полширины таза с запасом на толщину руки, чуть выше таза,
     // чуть назад. Локти разведены наружу закруткой.
     PoseRecord{.name = "hands_on_hips", .label = "руки в бока",
-               .support = Support::Stand,
+               .support = Support::Stand, .source_clip = "",
                .arm = {{arm_at(-0.26f, 0.11f, 0.03f, 55.0f),
                         arm_at(0.26f, 0.11f, 0.03f, 55.0f)}}},
 
     // РУКИ ЗА СПИНОЙ. Кисти сведены к средней линии позади крестца; локти
     // разведены наружу, иначе руки складываются внутрь корпуса.
     PoseRecord{.name = "hands_behind_back", .label = "стоя, руки за спиной",
-               .support = Support::Stand,
+               .support = Support::Stand, .source_clip = "",
                .arm = {{arm_at(-0.06f, 0.12f, 0.24f, 35.0f),
                         arm_at(0.06f, 0.12f, 0.24f, 35.0f)}}},
 
     // РУКИ ЗА ГОЛОВОЙ, ЛЁГКИЙ НАКЛОН («задержанный»). Кисти за затылком,
     // локти широко; корпус вперёд на 12°, голова следом.
     PoseRecord{.name = "hands_behind_head", .label = "руки за головой, наклон",
-               .support = Support::Stand, .torso_pitch_deg = 12.0f,
+               .support = Support::Stand, .source_clip = "", .torso_pitch_deg = 12.0f,
                .head_pitch_deg = 8.0f,
                .arm = {{arm_at(-0.13f, 0.80f, 0.14f, 70.0f),
                         arm_at(0.13f, 0.80f, 0.14f, 70.0f)}}},
 
     // «СОЛДАТИК». Руки прижаты к бёдрам, кисть на ладонь ближе к телу, чем в
     // покое; корпус отвесно, взгляд в горизонт.
-    PoseRecord{.name = "attention", .label = "«солдатик»", .support = Support::Stand,
+    PoseRecord{.name = "attention", .label = "«солдатик»", .support = Support::Stand, .source_clip = "",
                .arm = {{arm_at(-0.19f, -0.08f, 0.01f, -5.0f),
                         arm_at(0.19f, -0.08f, 0.01f, -5.0f)}}},
 
@@ -145,12 +145,12 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // обеими сторонами явно: у зеркала нет способа сказать «а вторая как
     // была».
     PoseRecord{.name = "arm_up_left", .label = "левая рука вверх",
-               .support = Support::Stand, .symmetric = false,
+               .support = Support::Stand, .source_clip = "", .symmetric = false,
                .arm = {{arm_at(-0.26f, 1.15f, 0.0f, 0.0f), none_arm()}}},
     PoseRecord{.name = "arm_up_right", .label = "правая рука вверх",
-               .support = Support::Stand, .symmetric = false,
+               .support = Support::Stand, .source_clip = "", .symmetric = false,
                .arm = {{none_arm(), arm_at(0.26f, 1.15f, 0.0f, 0.0f)}}},
-    PoseRecord{.name = "arms_up", .label = "обе руки вверх", .support = Support::Stand,
+    PoseRecord{.name = "arms_up", .label = "обе руки вверх", .support = Support::Stand, .source_clip = "",
                .arm = {{arm_at(-0.30f, 1.14f, 0.0f, 0.0f),
                         arm_at(0.30f, 1.14f, 0.0f, 0.0f)}}},
 
@@ -160,7 +160,7 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // (BODY_KNEE_FLEX_MAX), то есть поза упёрлась бы в предел и стала
     // неотличима от зажатой. Пол в системе таза лежит ровно на -hip_frac.
     PoseRecord{.name = "squat_touch", .label = "присед, руки на полу",
-               .support = Support::Crouch, .hip_frac = 0.40f,
+               .support = Support::Crouch, .source_clip = "", .hip_frac = 0.40f,
                .torso_pitch_deg = 68.0f, .head_pitch_deg = -35.0f, .fold_legs = true,
                .arm = {{arm_at(-0.22f, -0.40f, -0.28f, 15.0f),
                         arm_at(0.22f, -0.40f, -0.28f, 15.0f)}}},
@@ -169,7 +169,7 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // прямой руке), наклон -80° вместо -90° и есть те десять градусов, на
     // которые плечи выше носков. Кисти — под плечами, «вниз» в системе тела
     // это -Z (см. опору 4). Носки оттянуты: стоят на подушечках.
-    PoseRecord{.name = "push_up", .label = "упор лёжа", .support = Support::LieProne,
+    PoseRecord{.name = "push_up", .label = "упор лёжа", .support = Support::LieProne, .source_clip = "",
                .hip_frac = 0.44f, .pelvis_pitch_deg = -65.0f,
                .leg = {{LegAngles{.ankle_deg = -50.0f}, LegAngles{}}},
                .arm = {{arm_at(-0.25f, 0.55f, -0.622f, 0.0f),
@@ -178,7 +178,7 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // ПЛАНКА. То же тело, но опора на предплечья, поэтому плечо ниже на
     // длину плеча и таз с ним: 0.32. Кисть вынесена ВПЕРЁД от плеча — тем и
     // отличается предплечье, лежащее на полу, от прямой руки.
-    PoseRecord{.name = "plank", .label = "планка", .support = Support::LieProne,
+    PoseRecord{.name = "plank", .label = "планка", .support = Support::LieProne, .source_clip = "",
                .hip_frac = 0.34f, .pelvis_pitch_deg = -72.0f,
                .leg = {{LegAngles{.ankle_deg = -50.0f}, LegAngles{}}},
                .arm = {{arm_at(-0.25f, 0.83f, -0.36f, 0.0f),
@@ -187,7 +187,7 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // СИДЯ СКРЕСТНО. Бёдра разведены рыском (вокруг отвеса), а не креном:
     // нога, поднятая тангажом почти в горизонт, креном уже не разводится.
     PoseRecord{.name = "sit_cross", .label = "сидя скрестно",
-               .support = Support::SitFloor, .hip_frac = 0.17f,
+               .support = Support::SitFloor, .source_clip = "", .hip_frac = 0.17f,
                .leg = {{LegAngles{.thigh_pitch_deg = 88.0f, .thigh_yaw_deg = 45.0f,
                                   .thigh_roll_deg = 90.0f, .knee_deg = 110.0f},
                         LegAngles{}}},
@@ -196,7 +196,7 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
 
     // СИДЯ, НОГИ ВРОЗЬ. Та же опора, ноги прямые и разведены на 30°.
     PoseRecord{.name = "sit_apart", .label = "сидя, ноги врозь",
-               .support = Support::SitFloor, .hip_frac = 0.10f,
+               .support = Support::SitFloor, .source_clip = "", .hip_frac = 0.10f,
                .torso_pitch_deg = -6.0f,
                .leg = {{LegAngles{.thigh_pitch_deg = 84.0f, .thigh_yaw_deg = -30.0f,
                                   .knee_deg = 6.0f, .ankle_deg = 10.0f},
@@ -208,7 +208,7 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // вперёд на 90°, правая назад на 85°. Тазобедренный у нас свободная
     // кость, поэтому разгибание назад выразимо; колени прямые.
     PoseRecord{.name = "split_front", .label = "шпагат продольный",
-               .support = Support::SitFloor, .hip_frac = 0.09f, .symmetric = false,
+               .support = Support::SitFloor, .source_clip = "", .hip_frac = 0.09f, .symmetric = false,
                .leg = {{LegAngles{.thigh_pitch_deg = 90.0f},
                         LegAngles{.thigh_pitch_deg = -85.0f, .ankle_deg = -25.0f}}},
                .arm = {{arm_at(-0.55f, 0.50f, 0.0f, 0.0f),
@@ -217,7 +217,7 @@ const std::array<PoseRecord, POSE_COUNT> POSES = {{
     // ШПАГАТ ПОПЕРЕЧНЫЙ. Здесь тангаж нулевой, и разводит именно КРЕН —
     // единственный случай в реестре, ради которого крен и оставлен.
     PoseRecord{.name = "split_side", .label = "шпагат поперечный",
-               .support = Support::SitFloor, .hip_frac = 0.09f,
+               .support = Support::SitFloor, .source_clip = "", .hip_frac = 0.09f,
                .leg = {{LegAngles{.thigh_roll_deg = -97.0f}, LegAngles{}}},
                .arm = {{arm_at(-0.55f, 0.50f, 0.0f, 0.0f),
                         arm_at(0.55f, 0.50f, 0.0f, 0.0f)}}},
@@ -379,6 +379,26 @@ PoseId pose_by_name(std::string_view name, bool* found) {
 }
 
 LocalPose pose_of(const Rig& rig, PoseId p) { return pose_of(rig, p, DEFAULT_SEAT_M); }
+
+bool bone_is_upper(Bone b) {
+    switch (b) {
+    case Bone::Torso:
+    case Bone::Head:
+    case Bone::UpperArmL:
+    case Bone::ForearmL:
+    case Bone::HandL:
+    case Bone::UpperArmR:
+    case Bone::ForearmR:
+    case Bone::HandR:
+        return true;
+    default:
+        return false;
+    }
+}
+
+bool pose_transit_upper_only(const PoseTransit& tr) {
+    return pose_record(tr.from()).upper_only && pose_record(tr.to()).upper_only;
+}
 
 LocalPose pose_of(const Rig& rig, PoseId p, float seat_height_m) {
     const PoseRecord& r = pose_record(p);
@@ -599,11 +619,16 @@ float pose_ease(float u) {
 }
 
 LocalPose pose_transit_pose(const Rig& rig, const PoseTransit& tr) {
+    return pose_transit_pose(rig, tr, DEFAULT_SEAT_M);
+}
+
+LocalPose pose_transit_pose(const Rig& rig, const PoseTransit& tr, float seat_height_m) {
+    const float seat = seat_height_m > 0.0f ? seat_height_m : DEFAULT_SEAT_M;
     if (!tr.moving || tr.route.legs() == 0) {
-        return pose_of(rig, tr.from());
+        return pose_of(rig, tr.from(), seat);
     }
     const float span = std::max(1.0e-4f, tr.route.leg_s[tr.leg]);
-    return blend(pose_of(rig, tr.from()), pose_of(rig, tr.to()),
+    return blend(pose_of(rig, tr.from(), seat), pose_of(rig, tr.to(), seat),
                  pose_ease(tr.t_s / span));
 }
 

@@ -198,6 +198,29 @@ LocalPose evaluate_body_pose(const Rig& rig, const BodyDrive& drive) {
         const LocalPose target = posture_pose(rig, shown, drive.posture_height_m, w);
         pose = blend(pose, target, w.take);
     }
+    // ПОЗА РЕЕСТРА — ПОСЛЕДНИМ СЛОЕМ И ПОВЕРХ ВСЕГО ЖИВОГО, ровно как поза
+    // мебели строкой выше. Разница между ними одна и она в том, ЧТО именно
+    // въезжает: у мебели это траектория (таз едет по дуге на предмет), у
+    // реестра — маршрут по опорам, который уже посчитан в pose_transit.
+    // Здесь остаётся один вес — «сколько реестра поверх локомоции».
+    if (drive.pose_active || drive.pose_weight > 0.0f) {
+        const LocalPose target =
+            pose_transit_pose(rig, drive.pose_transit, drive.pose_seat_height_m);
+        if (pose_transit_upper_only(drive.pose_transit)) {
+            // ОРУЖЕЙНАЯ СТОЙКА БЕРЁТ ТОЛЬКО ВЕРХ. Ноги при ней ходят обычной
+            // ходьбой — это и есть заказ («ноги при этом ходят обычной
+            // ходьбой, маски есть»), и маска здесь по ВЕТВИ скелета, а не по
+            // списку имён: у пятнадцати костей ветвь известна по построению.
+            for (uint32_t b = 0; b < BONE_COUNT; ++b) {
+                if (bone_is_upper(static_cast<Bone>(b))) {
+                    pose.rotation[b] = glm::slerp(pose.rotation[b], target.rotation[b],
+                                                  drive.pose_weight);
+                }
+            }
+        } else {
+            pose = blend(pose, target, drive.pose_weight);
+        }
+    }
     // LAST, after every layer: crouch and the landing dip both drive the knees,
     // and a blend of two legal poses is not automatically legal.
     apply_joint_limits(rig, pose);
@@ -339,6 +362,17 @@ void update_bodies(ecs::World& world, const Rig& rig) {
             if (drive.posture_blend <= 0.0f && drive.posture == Posture::None) {
                 drive.posture_shown = Posture::None;
             }
+        }
+        // МАРШРУТ РЕЕСТРА ЕДЕТ ЗДЕСЬ, а вес слоя доводится линейно — по тому
+        // же доводу, что у позы мебели: экспонента не дошла бы до нуля, и
+        // тело навсегда осталось бы «немножко в позе».
+        {
+            pose_transit_advance(drive.pose_transit, dt);
+            const float want = drive.pose_active ? 1.0f : 0.0f;
+            const float step = dt / POSE_LAYER_BLEND_S;
+            drive.pose_weight = drive.pose_weight < want
+                                    ? std::min(want, drive.pose_weight + step)
+                                    : std::max(want, drive.pose_weight - step);
         }
         if (drive.showcase_clip != SHOWCASE_NONE) {
             drive.showcase_time_s += dt;

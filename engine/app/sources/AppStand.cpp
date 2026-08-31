@@ -183,4 +183,26 @@ StandStep stand_sequence_at(float prev_t, float t) {
     return out;
 }
 
+
+// --- ЛЕНТА ПОЗ ------------------------------------------------------------
+//
+// ОДИН ПРОХОД ПО КОЛЬЦУ И ОСТАНОВКА. Лента не зациклена намеренно: приёмочный
+// прогон обязан кончаться, иначе «сколько кадров снято» становится вопросом о
+// том, когда нажали выход, а не о том, сколько в реестре поз.
+
+uint32_t pose_tape_slot_at(float t, uint32_t slot_count) {
+    if (slot_count == 0) {
+        return 0;
+    }
+    if (t < 0.0f) {
+        return 0;
+    }
+    const auto k = static_cast<uint32_t>(t / POSE_TAPE_DWELL_S);
+    return k >= slot_count ? slot_count - 1 : k;
+}
+
+float pose_tape_length_s(uint32_t slot_count) {
+    return POSE_TAPE_DWELL_S * static_cast<float>(slot_count);
+}
+
 } // namespace dfn::app

@@ -85,6 +85,7 @@ bool App::dispatch_actions(bool chat_typing) {
         case Action::Screenshot: on_screenshot(); break;
         case Action::ToggleBody: on_toggle_body(); break;
         case Action::WeaponToggle: on_weapon_toggle(); break;
+        case Action::PoseCycle: on_pose_cycle(); break;
         case Action::TrajectoryRecord: on_trajectory_record(); break;
         case Action::TrajectoryReplay: on_trajectory_replay(); break;
         case Action::ChatWindow: on_chat_window(); break;

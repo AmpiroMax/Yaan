@@ -151,9 +151,15 @@ TEST_CASE("there is exactly one place a key reaches the app") {
     // в AppInput.cpp — домены держат только ТЕЛА методов. Появится третий
     // доменный файл — он входит в этот же список, а не в исключения.
     const std::string house = read_file("engine/app/sources/AppHouse.cpp");
+    // ...И ТРЕТИЙ ДОМЕННЫЙ ФАЙЛ, ровно как обещано абзацем выше: позы реестра
+    // (клавиши [ и ]) держат тела своих методов в AppPoses.cpp. Список
+    // доменных файлов — это список, а не исключение: он растёт, а прогулка по
+    // таблице остаётся одна и остаётся в AppInput.cpp.
+    const std::string poses = read_file("engine/app/sources/AppPoses.cpp");
     REQUIRE_FALSE(app.empty());  // wrong working directory would silently pass
     REQUIRE_FALSE(input.empty());
     REQUIRE_FALSE(house.empty());
+    REQUIRE_FALSE(poses.empty());
 
     // App.cpp may DEFINE action_pressed and must not CALL it: every key edge
     // now goes through dispatch_actions(), which is the single walk.
@@ -179,6 +185,7 @@ TEST_CASE("there is exactly one place a key reaches the app") {
         // бы, ноль — это строка таблицы, которая молчит.
         CHECK(count_of(input, "void App::" + h + "(")
                   + count_of(house, "void App::" + h + "(")
+                  + count_of(poses, "void App::" + h + "(")
               == 1);
         // Вызов (метка case) — в AppInput: там единственная прогулка.
         CHECK(count_of(input, h + "(") >= 1);
