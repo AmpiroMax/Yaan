@@ -432,6 +432,34 @@ int main(int argc, char** argv) {
                                  bi(Bone::ForearmL), bi(Bone::ForearmR),
                                  bi(Bone::HandL), bi(Bone::HandR)});
     };
+    /// How far the trunk's front reaches PAST THE SPINE at a height, in
+    /// fractions of the figure's height.
+    ///
+    /// THE BELLY LIVES HERE AND NOT IN THE DEPTH, and finding that out cost
+    /// this wave a whole revision. Depth is front PLUS back, and a man's back
+    /// at chest height carries the shoulder blades: a trunk that is 0.27 m
+    /// deep at the nipples and 0.26 m at the navel has a perfectly visible
+    /// gut, because 0.13 of the first is behind the spine and only 0.06 of the
+    /// second is. Judging the belly by depth reported "no belly" on a figure
+    /// whose stomach reached 3.6 cm further forward than its chest.
+    const auto front_from_spine = [&](float y0_frac, float y1_frac) {
+        const glm::vec3 hip_j = hip;
+        const glm::vec3 neck_j = neck;
+        float best = 0.0f;
+        bool any = false;
+        for (std::size_t i = 0; i < rest.size(); ++i) {
+            const float f = (rest[i].y - lo) / height;
+            if (f < y0_frac || f > y1_frac || !no_arms(vbone[i])) {
+                continue;
+            }
+            const float t = (rest[i].y - hip_j.y) / std::max(1e-4f, neck_j.y - hip_j.y);
+            const float spine_z = hip_j.z + (neck_j.z - hip_j.z) * t;
+            const float d = (rest[i].z - spine_z) * facing;
+            best = any ? std::max(best, d) : d;
+            any = true;
+        }
+        return any ? best / height : 0.0f;
+    };
     const float chest_depth = depth_in_band(chest_h - 0.02f, chest_h + 0.02f);
     const float waist_depth = depth_in_band(navel_h - 0.02f, navel_h + 0.02f);
     const float belly_depth = depth_in_band(navel_h - 0.08f, navel_h - 0.04f);
@@ -517,14 +545,19 @@ int main(int argc, char** argv) {
                     static_cast<double>(hip_breadth > 1e-6f ? bideltoid / hip_breadth
                                                             : 0.0f),
                     "1.35-1.65 (>1.8 = bodybuilder)");
+        const float f_che = front_from_spine(chest_h - 0.02f, chest_h + 0.02f);
+        const float f_nav = front_from_spine(navel_h - 0.02f, navel_h + 0.02f);
+        std::printf("        %-28s %8.2f  band %s\n", "BELLY: navel / chest front",
+                    static_cast<double>(f_che > 1e-6f ? f_nav / f_che : 0.0f),
+                    "1.00-1.25 (<0.95 = no belly, >1.4 = gut)");
         std::printf("        %-28s %8.2f  band %s\n", "waist / chest (depth)",
                     static_cast<double>(chest_depth > 1e-6f ? waist_depth / chest_depth
                                                             : 0.0f),
-                    "1.00-1.10 (<0.95 = no belly)");
-        std::printf("        %-28s %8.2f  band %s\n", "lower belly / chest",
+                    "0.92-1.05 - front+BACK, blades included");
+        std::printf("        %-28s %8.2f  band %s\n", "lower belly / chest (depth)",
                     static_cast<double>(chest_depth > 1e-6f ? belly_depth / chest_depth
                                                             : 0.0f),
-                    "0.90-1.05");
+                    "0.75-1.00 - pelvis, not stomach");
         std::printf("        %-28s %8.2f  band %s\n", "chest width / depth",
                     static_cast<double>(chest_depth > 1e-6f ? chest_w / chest_depth
                                                             : 0.0f),
