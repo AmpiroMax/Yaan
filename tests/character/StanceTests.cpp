@@ -193,6 +193,21 @@ TEST_CASE("stance_protocol") {
         print("bare", s, read(m, m.bare, s));
         print("full", s, read(m, m.lib, s));
     }
+    // THE FIST, in the unit the previous wave reported it in: wrist to
+    // fingertip. Open measures further than closed, so the number says how far
+    // the hand came back from the clip's sculpted fist — and the weapon hand
+    // has to stay in it.
+    for (const Shot& sh : {SHOTS[0], SHOTS[3]}) {
+        std::vector<anim::JointLocal> pose;
+        sample_shot(m, m.bare, sh, 0.25f, pose);
+        const float bare_open =
+            anim::measure_hand_openness(m.obj.skeleton, m.lib.relax, pose);
+        sample_shot(m, m.lib, sh, 0.25f, pose);
+        const float full_open =
+            anim::measure_hand_openness(m.obj.skeleton, m.lib.relax, pose);
+        std::printf("fist   %-12s wrist to fingertip %.3f -> %.3f m\n", sh.label,
+                    static_cast<double>(bare_open), static_cast<double>(full_open));
+    }
     std::printf("arm layer: adduction %.3f rad, lift %.3f rad, elbow offset "
                 "%.3f (stand) / %.3f (run) rad; reference hand %.3f m out, "
                 "%.3f m below the pelvis, elbow %.1f deg\n",
