@@ -240,25 +240,38 @@ target_link_libraries(dfn_human_scale PRIVATE dfn_render dfn_anim dfn_core)
 if(TARGET dfn_import_gltf)
     set(DFN_CHAR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/assets/objects/characters")
     set(DFN_CHAR_OUTPUTS)
-    # <исходник> <имя> <высота, м> <рыск, град> <канон?>
+    # <исходник> <имя> <высота, м> <рыск, град> <канон?> <имя выпечки>
     #
-    # ВИДИМЫЙ ПЕРСОНАЖ — ТОЛЬКО HumanBase, и только с --fit-canon (заказ
-    # владельца 30.08: «пропорции тела делать сразу», docs/design/HUMAN_SCALE.md).
+    # ВИДИМЫЙ ПЕРСОНАЖ — ТОЛЬКО HumanBase, и только с --fit-canon и --reshape.
+    # --fit-canon (заказ владельца 30.08 «пропорции тела делать сразу») ставит
+    # СУСТАВЫ по docs/design/HUMAN_SCALE.md; --reshape (заказ 31.08 «чрезмерно
+    # перекачен, слишком длинные руки, живота нет») правит МЯСО. Два разных
+    # заказа и два разных прохода, потому что на этой модели все девять
+    # суставных ориентиров лежали внутри 2 % от канона ровно тогда, когда все
+    # три жалобы были про неё правдой: у сустава нет радиуса, последний сустав
+    # руки — запястье, а живот лежит МЕЖДУ суставами.
+    #
+    # HumanBaseV1 — ТА ЖЕ МОДЕЛЬ БЕЗ --reshape, и она печётся не «на всякий
+    # случай»: приёмка «до/после» обязана выходить из одной сборки (правило 47),
+    # а судья, который пропускает всех, неотличим от судьи, который ничего не
+    # мерит. Она стоит в ctest ОТВЕРГНУТОЙ — это контрольная рука волны формы
+    # (правило 30) — и она же «до» на кадрах отчёта.
+    #
     # Knight и RiggedFigure — ФИКСТУРЫ ИМПОРТЁРА: рыцарь стилизован (2.11
     # головы), фигурка мала (19 костей) — обе прекрасно ловят дефекты читателя
-    # и обе отвергаются судьёй пропорций, что и есть их вторая работа
-    # (контрольная рука, правило 30).
-    foreach(spec "HumanBase.glb;human-base;1.75;180;canon"
-                 "Knight.glb;knight-reference;2.0;180;raw"
-                 "RiggedFigure.gltf;reference-figure;1.8;0;raw")
+    # и обе отвергаются судьёй пропорций, что и есть их вторая работа.
+    foreach(spec "HumanBase.glb;human-base;1.75;180;shape;HumanBase"
+                 "HumanBase.glb;human-base-v1;1.75;180;canon;HumanBaseV1"
+                 "Knight.glb;knight-reference;2.0;180;raw;Knight"
+                 "RiggedFigure.gltf;reference-figure;1.8;0;raw;RiggedFigure")
         list(GET spec 0 _src)
         list(GET spec 1 _name)
         list(GET spec 2 _height)
         list(GET spec 3 _yaw)
         list(GET spec 4 _fit)
-        get_filename_component(_stem "${_src}" NAME_WE)
+        list(GET spec 5 _stem)
         set(_extra)
-        if(_fit STREQUAL "canon")
+        if(_fit STREQUAL "canon" OR _fit STREQUAL "shape")
             # ВИДИМЫЙ ПЕРСОНАЖ ПЕРЕКРАШИВАЕТСЯ ПО ЧАСТЯМ ТЕЛА. Собственные
             # материалы HumanBase — манекенные (M_Main оранжевый, M_Joints
             # фиолетовый): импортировать их честно значит нарисовать оранжевого
@@ -268,6 +281,9 @@ if(TARGET dfn_import_gltf)
             # со своими материалами: на них проверяется как раз чтение
             # baseColorFactor.
             set(_extra --fit-canon --skin-palette)
+        endif()
+        if(_fit STREQUAL "shape")
+            list(APPEND _extra --reshape)
         endif()
         if(EXISTS "${DFN_CHAR_DIR}/${_src}")
             add_custom_command(
@@ -298,7 +314,18 @@ if(TARGET dfn_human_scale AND TARGET dfn_characters)
              COMMAND dfn_human_scale assets/objects/characters/Knight.dfo
                      --tolerance 0.05)
     set_tests_properties(human_scale_chibi_rejected PROPERTIES WILL_FAIL TRUE)
+    # ВТОРАЯ КОНТРОЛЬНАЯ РУКА, И ОНА БЛИЖЕ ПЕРВОЙ. Рыцарь отвергается за
+    # стилизацию — такого не пропустил бы и судья, мерящий одни суставы.
+    # HumanBaseV1 это ТА ЖЕ МОДЕЛЬ и те же суставы, что у видимого персонажа:
+    # она проходит все девять суставных строк и обязана валиться РОВНО на
+    # силуэте (рука 22 % длинная, плечо 62 % толстое, живота нет). Пока эта
+    # строка красная, зелёная строка соседа ничего не значит.
+    add_test(NAME human_scale_shape_v1_rejected
+             COMMAND dfn_human_scale assets/objects/characters/HumanBaseV1.dfo
+                     --tolerance 0.05)
+    set_tests_properties(human_scale_shape_v1_rejected PROPERTIES WILL_FAIL TRUE)
     set_tests_properties(human_scale_player human_scale_chibi_rejected
+                         human_scale_shape_v1_rejected
                          PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 

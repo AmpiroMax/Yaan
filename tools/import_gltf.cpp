@@ -9,9 +9,14 @@ Responsibility:
   .gltf, only the .dfo this tool bakes.
 
 Key items:
-- main(): CLI (--out, --height, --yaw, --skin, --name).
+- main(): CLI (--out, --height, --yaw, --skin, --name, --fit-hips,
+  --fit-canon, --reshape, --skin-palette).
 - read_skeleton() / read_skin() / read_clips(): the three sections.
 - normalize_and_scale(): metres and facing, baked at import.
+- fit_to_canon(): the JOINTS to docs/design/HUMAN_SCALE.md, by moving them.
+- reshape_to_commoner(): the SKIN to the same canon -- limb thickness, hand
+  length, hip breadth and the waist -- by deforming it in the rest pose and
+  writing the result back through the skinning, normals rebuilt.
 
 Dependencies:
 - Uses: cgltf (bgfx's vendored copy), engine/render ObjectRegistry, engine/core
@@ -27,6 +32,18 @@ Notes:
   The engine's only input is the .dfo, exactly as it is for trees, kits and
   houses (в1: "nothing is generated in the frame" -- here, nothing is PARSED
   in the frame either).
+- TWO FITS, AND THEY ANSWER DIFFERENT COMPLAINTS. --fit-canon moves JOINTS;
+  --reshape moves FLESH. Keeping them apart is not tidiness: on the reference
+  base every one of the nine joint landmarks was inside 2 % of the canon at
+  the moment the owner called the figure "чрезмерно перекачен, слишком длинные
+  руки, живота нет". A joint has no radius, the rig's last arm joint is the
+  wrist, and a belly lies between two joints -- so no amount of moving joints
+  could have answered any of the three.
+- NEITHER FIT HAS A TASTE KNOB. Every factor either pass applies is a quotient
+  of two measurements: what the registry says the body should be, over what
+  this model measures. Adding a hand-tuned multiplier anywhere here would put
+  the pass beyond the reach of any instrument, which is the one thing the
+  whole character wave exists to avoid.
 - METRES AND FACING ARE BAKED, NOT CONFIGURED. A model imported at 1.9 m
   facing -Z has no runtime knob to get wrong, and a knob is what would rot: it
   would be read by the app, by the editor and by every test, and the day one
@@ -52,6 +69,7 @@ AI Agents Notice (must follow):
 #include "engine/render/sources/ObjectRegistry.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -78,6 +96,8 @@ struct Options {
     bool fit_hips = false;
     /// Rescale the SEGMENTS to the canon of docs/design/HUMAN_SCALE.md.
     bool fit_canon = false;
+    /// Deform the SKIN to the canon's body shape (muscle, hand, belly).
+    bool reshape = false;
     bool skin_palette = false;
     /// Degrees of yaw baked into the model so it ends up facing -Z (our
     /// convention, docs/RIG.md). Most authoring tools export facing +Z.
@@ -761,6 +781,526 @@ void fit_to_canon(skel::Skeleton& skeleton, const SkinMesh& skin,
     }
 }
 
+/// THE FIGURE ITSELF (owner's verdict 31.08: "чрезмерно перекачен, слишком
+/// длинные руки, живота нет, всё кривенько — норм для файтинга, не для RPG").
+///
+/// WHY --fit-canon WAS NOT ENOUGH, and this is the whole reason the pass
+/// exists. The fit moves JOINTS, and on this model every joint landmark was
+/// already green inside 2 % while all four complaints were true of it. A
+/// joint has no radius, so it cannot be too muscular; the rig's last arm joint
+/// is the WRIST, so 23 cm of hand hung past everything the fit could reach;
+/// and a belly is the depth of the trunk BETWEEN two joints. Measured before
+/// this pass: upper arm 61.6 % thicker than the canon, thigh 35.2 %, hips
+/// 29.6 % wider, hand 22.1 % longer, arm span 1.20H against a target of 1.03H.
+///
+/// IT DEFORMS THE SKIN, IN THE REST POSE, AND WRITES THE RESULT BACK THROUGH
+/// THE SKINNING. Each vertex is skinned to its rest position, moved there, and
+/// carried back into bind space through the INVERSE of its own blended matrix,
+/// so the file stays one skinned mesh with the file's own inverse binds and
+/// every clip keeps playing. There is no morph target, no second mesh and no
+/// Blender in this path.
+///
+/// NOTHING HERE IS A TASTE KNOB. Every factor is a RATIO OF TWO MEASUREMENTS:
+/// what the canon says the body should be, over what this model measures. Run
+/// it on a thin model and it would fatten the arms by the same code. That is
+/// deliberate and it is what keeps the pass out of the "artist tweaks numbers
+/// until the screenshot looks right" trade, which no instrument can check.
+///
+/// CONTINUITY IS A PROPERTY OF THE CONSTRUCTION, NOT A CLEANUP AFTERWARDS.
+/// The displacement of a vertex is a weighted sum over its own skinning
+/// weights (limbs) plus a field that reads only its rest POSITION (trunk).
+/// Both are continuous across the mesh because the weights are, so a seam
+/// between two primitives cannot open: two vertices at the same place with the
+/// same weights get the same displacement. The welding pass below then makes
+/// that exact rather than nearly exact, and MEASURES the gap it closed.
+void reshape_to_commoner(skel::Skeleton& skeleton, SkinMesh& skin,
+                         const dfn::anim::RigProportions& canon) {
+    using dfn::anim::Bone;
+    using dfn::anim::bone_index;
+    const dfn::anim::SkeletonBinding bind = dfn::anim::bind_skeleton(skeleton);
+    if (bind.bound_count < dfn::anim::BONE_COUNT) {
+        std::fprintf(stderr, "[import] --reshape needs all 15 bones bound "
+                             "(%u are) -- SKIPPED\n", bind.bound_count);
+        return;
+    }
+    const std::size_t n = skeleton.size();
+    const std::size_t vn = skin.vertices.size();
+    const dfn::anim::Rig rig =
+        dfn::anim::Rig::build(dfn::anim::RigProportions::from_config());
+    const dfn::anim::SkinnedRigBinding sb = dfn::anim::bind_skinned_rig(rig, skeleton);
+    std::vector<glm::mat4> palette(n);
+    std::vector<glm::mat4> model(n);
+    dfn::anim::skinning_palette(rig, skeleton, sb, dfn::anim::LocalPose{}, palette);
+    dfn::anim::rest_model_matrices(rig, skeleton, sb, dfn::anim::LocalPose{}, model);
+
+    // THE PER-VERTEX BLENDED MATRIX, kept because it is needed TWICE: once
+    // forward to reach the rest pose and once inverted to come back. Rebuilding
+    // it the second time from the same weights would be two copies of the
+    // blend, and the two would drift the day someone changes the influence
+    // count.
+    std::vector<glm::mat4> vmat(vn);
+    std::vector<glm::vec3> rest(vn);
+    for (std::size_t i = 0; i < vn; ++i) {
+        const auto& v = skin.vertices[i];
+        glm::mat4 m{0.0f};
+        for (int k = 0; k < 4; ++k) {
+            const std::size_t j = v.joints[k];
+            if (v.weights[k] > 0.0f && j < n) {
+                m += palette[j] * v.weights[k];
+            }
+        }
+        // A vertex with no weight at all rides the identity rather than a zero
+        // matrix, which would collapse it onto the origin -- silently, and only
+        // for the handful of vertices an exporter forgot.
+        if (std::fabs(m[3][3]) < 1e-6f) {
+            m = glm::mat4{1.0f};
+        }
+        vmat[i] = m;
+        rest[i] = glm::vec3{m * glm::vec4{v.position, 1.0f}};
+    }
+    float lo = rest.empty() ? 0.0f : rest[0].y;
+    float hi = lo;
+    for (const glm::vec3& r : rest) {
+        lo = std::min(lo, r.y);
+        hi = std::max(hi, r.y);
+    }
+    const float height = hi - lo;
+    if (height < 1e-3f) {
+        std::fprintf(stderr, "[import] --reshape: the model has no height -- SKIPPED\n");
+        return;
+    }
+
+    // Body part of every joint: its nearest bound ancestor, itself included.
+    std::vector<int> bone_of_joint(n, -1);
+    for (uint32_t b = 0; b < dfn::anim::BONE_COUNT; ++b) {
+        const int32_t j = bind.joint[b];
+        if (j >= 0) {
+            bone_of_joint[static_cast<std::size_t>(j)] = static_cast<int>(b);
+        }
+    }
+    for (std::size_t j = 0; j < n; ++j) {
+        if (bone_of_joint[j] < 0) {
+            const int32_t par = skeleton.joints[j].parent;
+            if (par >= 0) {
+                bone_of_joint[j] = bone_of_joint[static_cast<std::size_t>(par)];
+            }
+        }
+    }
+    const auto bi = [](Bone b) { return static_cast<int>(bone_index(b)); };
+    const auto jpos = [&](Bone b) {
+        const int32_t j = bind.joint[bone_index(b)];
+        return j >= 0 ? glm::vec3{model[static_cast<std::size_t>(j)][3]} : glm::vec3{0.0f};
+    };
+    std::vector<int> vbone(vn, -1);
+    for (std::size_t i = 0; i < vn; ++i) {
+        const auto& v = skin.vertices[i];
+        int best = -1;
+        float bw = -1.0f;
+        for (int k = 0; k < 4; ++k) {
+            if (v.weights[k] > bw) {
+                bw = v.weights[k];
+                best = static_cast<int>(v.joints[k]);
+            }
+        }
+        vbone[i] = best >= 0 && static_cast<std::size_t>(best) < n
+                       ? bone_of_joint[static_cast<std::size_t>(best)]
+                       : -1;
+    }
+
+    // WHICH WAY IT FACES, TAKEN FROM THE TOES. --yaw is what the operator
+    // claimed; the toe is what the body says. A belly put on the wrong side is
+    // a hunchback, and no test of a number would catch it.
+    float facing = -1.0f;
+    {
+        const glm::vec3 ank = jpos(Bone::FootL);
+        float far_neg = 0.0f;
+        float far_pos = 0.0f;
+        for (std::size_t i = 0; i < vn; ++i) {
+            if (vbone[i] != bi(Bone::FootL) && vbone[i] != bi(Bone::FootR)) {
+                continue;
+            }
+            far_neg = std::min(far_neg, rest[i].z - ank.z);
+            far_pos = std::max(far_pos, rest[i].z - ank.z);
+        }
+        if (far_pos > -far_neg) {
+            facing = 1.0f;
+        }
+    }
+    const glm::vec3 fwd{0.0f, 0.0f, facing};
+
+    // --- what this model measures, in metres -----------------------------
+    const auto limb_radius = [&](Bone bone, Bone child) {
+        const glm::vec3 a = jpos(bone);
+        const glm::vec3 u = jpos(child) - a;
+        const float len = glm::length(u);
+        if (len < 1e-4f) {
+            return 0.0f;
+        }
+        const glm::vec3 e = u / len;
+        float best = 0.0f;
+        for (std::size_t i = 0; i < vn; ++i) {
+            if (vbone[i] != bi(bone)) {
+                continue;
+            }
+            const glm::vec3 d = rest[i] - a;
+            const float t = glm::dot(d, e) / len;
+            if (t < 0.3f || t > 0.7f) {
+                continue;
+            }
+            best = std::max(best, glm::length(d - e * (t * len)));
+        }
+        return best;
+    };
+    const float arm_r = limb_radius(Bone::UpperArmL, Bone::ForearmL);
+    const float leg_r = limb_radius(Bone::ThighL, Bone::ShinL);
+    float hand_len = 0.0f;
+    {
+        const glm::vec3 w = jpos(Bone::HandL);
+        for (std::size_t i = 0; i < vn; ++i) {
+            if (vbone[i] == bi(Bone::HandL)) {
+                hand_len = std::max(hand_len, glm::length(rest[i] - w));
+            }
+        }
+    }
+
+    // THE SPINE LINE, interpolated by height between the hip and the neck
+    // joints. Everything about the trunk is measured FROM IT and not from
+    // x = 0: a model whose author left the body off the origin would otherwise
+    // grow a belly that is only an offset.
+    const glm::vec3 hip_j = jpos(Bone::Pelvis);
+    const glm::vec3 neck_j = jpos(Bone::Head);
+    const auto spine_at = [&](float y) {
+        const float t = (y - hip_j.y) / std::max(1e-4f, neck_j.y - hip_j.y);
+        return hip_j + (neck_j - hip_j) * t;
+    };
+    const auto is_arm = [&](int b) {
+        return b == bi(Bone::UpperArmL) || b == bi(Bone::UpperArmR)
+               || b == bi(Bone::ForearmL) || b == bi(Bone::ForearmR)
+               || b == bi(Bone::HandL) || b == bi(Bone::HandR);
+    };
+    /// Half-width, forward reach and backward reach of the BODY in a band
+    /// around a height, all from the spine line and with the ARMS LEFT OUT: at
+    /// hip height a hanging hand is beside the pelvis, and counting it as hip
+    /// breadth is how a model measures 44 cm across the hips.
+    ///
+    /// THE LEGS ARE **IN**, and that is not sloppiness. `BODY_HIP_WIDTH_FRAC`
+    /// is a breadth ACROSS THE TROCHANTERS, and in any rig the flesh over a
+    /// trochanter is weighted to the thigh -- measure only the pelvis and the
+    /// number comes out 25 cm on a body that is 43 cm across, then the
+    /// correction widens the hips it was asked to narrow. The instrument and
+    /// the correction have to be reading the SAME body.
+    struct Slice {
+        float half_w = 0.0f;
+        float front = 0.0f;
+        float back = 0.0f;
+    };
+    const auto slice_at = [&](float yfrac) {
+        Slice s;
+        const float y = lo + yfrac * height;
+        const float band = 0.02f * height;
+        for (std::size_t i = 0; i < vn; ++i) {
+            if (std::fabs(rest[i].y - y) > band || is_arm(vbone[i])) {
+                continue;
+            }
+            const glm::vec3 d = rest[i] - spine_at(rest[i].y);
+            const float fz = glm::dot(d, fwd);
+            s.half_w = std::max(s.half_w, std::fabs(d.x));
+            s.front = std::max(s.front, fz);
+            s.back = std::max(s.back, -fz);
+        }
+        return s;
+    };
+    const auto HF = [](double frac) { return static_cast<float>(frac); };
+    const float hipf = HF(dfn::config::BODY_HIP_HEIGHT_FRAC);
+    const float navf = HF(dfn::config::BODY_NAVEL_HEIGHT_FRAC);
+    const float chef = HF(dfn::config::BODY_CHEST_HEIGHT_FRAC);
+    const float shof = HF(dfn::config::BODY_SHOULDER_HEIGHT_FRAC);
+    const float nekf = HF(dfn::config::BODY_NECK_HEIGHT_FRAC);
+    const Slice s_hip = slice_at(hipf);
+    const Slice s_nav = slice_at(navf);
+    const Slice s_che = slice_at(chef);
+
+    // --- what the canon asks for, in metres ------------------------------
+    const float H = static_cast<float>(dfn::config::PLAYER_CAPSULE_HEIGHT);
+    const float want_hip_w = canon.hip_width;
+    const float want_nav_w = H * HF(dfn::config::BODY_WAIST_WIDTH_FRAC);
+    const float want_nav_d = H * HF(dfn::config::BODY_WAIST_DEPTH_FRAC);
+    const float want_che_w = H * HF(dfn::config::BODY_CHEST_WIDTH_FRAC);
+    const float want_che_d = canon.torso_depth;
+
+    // A RATIO IS CLAMPED, NOT TRUSTED. Every one of them is a quotient whose
+    // denominator this model supplies, and a model with a degenerate part
+    // (a hand welded into the forearm, a trunk two vertices wide) would
+    // otherwise ask for a factor of forty. The band is generous enough that a
+    // real correction is never touched and narrow enough that a broken one
+    // cannot destroy the mesh -- and it says so out loud when it bites.
+    const auto ratio = [](const char* what, float want, float have) {
+        if (have < 1e-4f || want < 1e-4f) {
+            std::fprintf(stderr, "[import] --reshape: cannot measure %s "
+                                 "(want %.3f, have %.3f) -- left alone\n",
+                         what, static_cast<double>(want), static_cast<double>(have));
+            return 1.0f;
+        }
+        const float r = want / have;
+        const float c = std::clamp(r, 0.55f, 1.80f);
+        if (std::fabs(c - r) > 1e-4f) {
+            std::fprintf(stderr, "[import] --reshape: %s wanted x%.2f, CLAMPED to "
+                                 "x%.2f -- this model is not the shape the pass "
+                                 "assumes\n",
+                         what, static_cast<double>(r), static_cast<double>(c));
+        }
+        return c;
+    };
+    // The arm's ratio drives the FOREARM and the HAND too, and the leg's the
+    // SHIN. One number per limb, not three: the canon has a row for the upper
+    // arm's thickness and none for the forearm's, and inventing two more would
+    // ALSO destroy the taper this model draws between them. Scaling a limb by
+    // its own arm's correction removes the muscle and keeps the shape.
+    const float k_arm = ratio("upper arm", canon.arm_thickness * 0.5f, arm_r);
+    const float k_leg = ratio("thigh", canon.leg_thickness * 0.5f, leg_r);
+    const float k_hand_long = ratio("hand length", canon.hand_length, hand_len);
+    const float k_hip_w = ratio("hip breadth", want_hip_w * 0.5f, s_hip.half_w);
+    const float k_nav_w = ratio("waist breadth", want_nav_w * 0.5f, s_nav.half_w);
+    const float k_che_w = ratio("chest breadth", want_che_w * 0.5f, s_che.half_w);
+    // THE BACK RIDES WITH THE RIBCAGE AND THE BELLY GROWS IN FRONT. That is
+    // not a stylistic choice: a waist that thickens by pushing the SPINE
+    // backwards is a hunchback, and the back of a standing man is nearly flat
+    // from the shoulder blades to the sacrum whatever he weighs. So the
+    // backward reach is scaled by the same factor as the width (both are the
+    // skeleton underneath), and the whole of the depth correction is spent on
+    // the front.
+    const auto front_k = [&](const Slice& s, float k_w, float want_depth) {
+        const float back = s.back * k_w;
+        return ratio("trunk front", std::max(0.02f, want_depth - back), s.front);
+    };
+    const float k_nav_f = front_k(s_nav, k_nav_w, want_nav_d);
+    const float k_che_f = front_k(s_che, k_che_w, want_che_d);
+
+    std::printf("[import] reshape: arm x%.2f, leg x%.2f, hand length x%.2f, "
+                "hips x%.2f, waist x%.2f (front x%.2f), chest x%.2f (front x%.2f)\n",
+                static_cast<double>(k_arm), static_cast<double>(k_leg),
+                static_cast<double>(k_hand_long), static_cast<double>(k_hip_w),
+                static_cast<double>(k_nav_w), static_cast<double>(k_nav_f),
+                static_cast<double>(k_che_w), static_cast<double>(k_che_f));
+
+    /// The trunk's three factors at a height: linear between the hip, the
+    /// navel and the chest, held below the hip, and eased back to 1 between
+    /// the shoulder and the neck so the head and throat are never touched.
+    const auto trunk_k = [&](float y, float& kw, float& kf, float& kb) {
+        const float f = (y - lo) / height;
+        const auto mix = [](float a, float b, float t) { return a + (b - a) * t; };
+        // BELOW THE CROTCH THE FIELD LETS GO. It gates on "not an arm" rather
+        // than "is trunk" (see the slice above), so without this ramp the hip
+        // correction would run all the way down both legs and squeeze the
+        // ankles by the factor that was meant for the pelvis.
+        const float crotch = hipf - 0.09f;
+        if (f <= crotch) {
+            kw = 1.0f;
+            kf = 1.0f;
+        } else if (f <= hipf) {
+            const float t = (f - crotch) / std::max(1e-4f, hipf - crotch);
+            const float e = t * t * (3.0f - 2.0f * t);
+            kw = mix(1.0f, k_hip_w, e);
+            kf = kw;
+        } else if (f <= navf) {
+            const float t = (f - hipf) / std::max(1e-4f, navf - hipf);
+            kw = mix(k_hip_w, k_nav_w, t);
+            kf = mix(k_hip_w, k_nav_f, t);
+        } else if (f <= chef) {
+            const float t = (f - navf) / std::max(1e-4f, chef - navf);
+            kw = mix(k_nav_w, k_che_w, t);
+            kf = mix(k_nav_f, k_che_f, t);
+        } else if (f <= shof) {
+            kw = k_che_w;
+            kf = k_che_f;
+        } else {
+            const float t = std::clamp((f - shof) / std::max(1e-4f, nekf - shof),
+                                       0.0f, 1.0f);
+            const float e = t * t * (3.0f - 2.0f * t); // smoothstep: no crease
+            kw = mix(k_che_w, 1.0f, e);
+            kf = mix(k_che_f, 1.0f, e);
+        }
+        kb = kw; // the back is bone, and bone does not follow the belly
+    };
+
+    // --- the displacement -------------------------------------------------
+    // LIMBS: a radial scale about the bone's own axis, summed over the
+    // vertex's own weights. TRUNK: a field of the rest POSITION alone, gated
+    // by how much of the vertex belongs to the trunk. Both are continuous, and
+    // that is the entire seam story.
+    std::vector<glm::vec3> target(vn);
+    for (std::size_t i = 0; i < vn; ++i) {
+        const auto& v = skin.vertices[i];
+        const glm::vec3 r = rest[i];
+        glm::vec3 d{0.0f};
+        float w_arm = 0.0f;
+        for (int k = 0; k < 4; ++k) {
+            const std::size_t j = v.joints[k];
+            const float w = v.weights[k];
+            if (w <= 0.0f || j >= n) {
+                continue;
+            }
+            const int b = bone_of_joint[j];
+            if (is_arm(b)) {
+                w_arm += w;
+            }
+            float k_rad = 1.0f;
+            float k_along = 1.0f;
+            if (b == bi(Bone::UpperArmL) || b == bi(Bone::UpperArmR)
+                || b == bi(Bone::ForearmL) || b == bi(Bone::ForearmR)) {
+                k_rad = k_arm;
+            } else if (b == bi(Bone::HandL) || b == bi(Bone::HandR)) {
+                k_rad = k_arm;
+                k_along = k_hand_long;
+            } else if (b == bi(Bone::ThighL) || b == bi(Bone::ThighR)
+                       || b == bi(Bone::ShinL) || b == bi(Bone::ShinR)) {
+                k_rad = k_leg;
+            } else {
+                continue; // head, feet: the canon fit already sized them
+            }
+            // THE HAND IS ONE PIECE, MEASURED FROM THE WRIST. This model
+            // carries fifteen finger joints under each hand, and shrinking
+            // each phalanx about its OWN joint shortens the bones while
+            // leaving them exactly where they were -- the first run of this
+            // pass did that and moved the hand by 3 mm out of the 37 it owed.
+            // What makes a hand shorter is the whole of it sliding back
+            // towards the wrist, so every hand vertex, finger or palm, is
+            // scaled about the WRIST along the FOREARM's direction.
+            const bool hand = b == bi(Bone::HandL) || b == bi(Bone::HandR);
+            const bool left = b == bi(Bone::HandL);
+            const glm::vec3 p = hand ? jpos(left ? Bone::HandL : Bone::HandR)
+                                     : glm::vec3{model[j][3]};
+            glm::vec3 axis{0.0f};
+            if (hand) {
+                axis = p - jpos(left ? Bone::ForearmL : Bone::ForearmR);
+            }
+            for (std::size_t c = 0; c < n && !hand; ++c) {
+                if (skeleton.joints[c].parent == static_cast<int32_t>(j)) {
+                    axis = glm::vec3{model[c][3]} - p;
+                    break;
+                }
+            }
+            if (glm::length(axis) < 1e-5f && !hand) {
+                const int32_t par = skeleton.joints[j].parent;
+                axis = par >= 0
+                           ? p - glm::vec3{model[static_cast<std::size_t>(par)][3]}
+                           : glm::vec3{0.0f, -1.0f, 0.0f};
+            }
+            const float alen = glm::length(axis);
+            if (alen < 1e-5f) {
+                continue;
+            }
+            const glm::vec3 e = axis / alen;
+            const glm::vec3 off = r - p;
+            const float along = glm::dot(off, e);
+            const glm::vec3 perp = off - e * along;
+            d += w * (perp * (k_rad - 1.0f) + e * (along * (k_along - 1.0f)));
+        }
+        const float w_body = std::clamp(1.0f - w_arm, 0.0f, 1.0f);
+        if (w_body > 0.0f) {
+            float kw = 1.0f;
+            float kf = 1.0f;
+            float kb = 1.0f;
+            trunk_k(r.y, kw, kf, kb);
+            const glm::vec3 off = r - spine_at(r.y);
+            const float fz = glm::dot(off, fwd);
+            // The front/back split is smoothed over a 2 cm band about the
+            // spine plane, so the change of factor is a slope and not a crease
+            // down the middle of the body.
+            const float t = std::clamp(fz / 0.02f * 0.5f + 0.5f, 0.0f, 1.0f);
+            const float e = t * t * (3.0f - 2.0f * t);
+            const float kz = kb + (kf - kb) * e;
+            d += w_body * glm::vec3{off.x * (kw - 1.0f), 0.0f, 0.0f};
+            d += w_body * fwd * (fz * (kz - 1.0f));
+        }
+        target[i] = r + d;
+    }
+
+    // --- welding: the seam, made exact and MEASURED -----------------------
+    // Two vertices at the same place in different primitives (this model ships
+    // two, a knight ships six) are the same point of the same body. The field
+    // above already moves them almost identically; "almost" is a hairline of
+    // background between the arm and the sleeve, and it is exactly the kind of
+    // defect that is invisible until it is in a frame. Averaging the group's
+    // target closes it, and the largest gap closed is printed because a weld
+    // that silently did nothing and a weld that silently saved the model look
+    // the same from outside.
+    {
+        std::map<std::array<int64_t, 3>, std::vector<std::size_t>> groups;
+        for (std::size_t i = 0; i < vn; ++i) {
+            const glm::vec3 p = rest[i];
+            groups[{static_cast<int64_t>(std::llround(p.x * 20000.0f)),
+                    static_cast<int64_t>(std::llround(p.y * 20000.0f)),
+                    static_cast<int64_t>(std::llround(p.z * 20000.0f))}]
+                .push_back(i);
+        }
+        float worst = 0.0f;
+        std::size_t welded = 0;
+        for (const auto& [key, ids] : groups) {
+            if (ids.size() < 2) {
+                continue;
+            }
+            glm::vec3 avg{0.0f};
+            for (const std::size_t i : ids) {
+                avg += target[i];
+            }
+            avg /= static_cast<float>(ids.size());
+            for (const std::size_t i : ids) {
+                worst = std::max(worst, glm::length(target[i] - avg));
+                target[i] = avg;
+            }
+            welded += ids.size();
+        }
+        std::printf("[import] reshape: welded %zu coincident vertices in %zu "
+                    "seams; widest gap closed %.4f mm\n",
+                    welded, groups.size(), static_cast<double>(worst * 1000.0f));
+    }
+
+    // --- back into bind space, and the NORMALS with it --------------------
+    // NORMALS ARE REBUILT FROM THE MOVED GEOMETRY, NOT CARRIED. A radial
+    // scale is not a rotation: the normal of a squashed cylinder is not the
+    // normal of the cylinder, and reusing the file's normals is precisely what
+    // "всё кривенько" looks like when it is lit. Area-weighted face normals
+    // are summed per vertex IN THE REST POSE (the shape the eye sees) and then
+    // pushed back into bind space by the transpose of the vertex's own blend,
+    // which is the exact inverse of what skinning does to a normal
+    // (n_rest = (M^-1)^T n_bind  =>  n_bind = M^T n_rest).
+    std::vector<glm::vec3> nrm(vn, glm::vec3{0.0f});
+    for (std::size_t t = 0; t + 2 < skin.indices.size(); t += 3) {
+        const std::size_t a = skin.indices[t];
+        const std::size_t b = skin.indices[t + 1];
+        const std::size_t c = skin.indices[t + 2];
+        if (a >= vn || b >= vn || c >= vn) {
+            continue;
+        }
+        // NOT normalised: the cross product's length is twice the triangle's
+        // area, and weighting by area is what keeps a fan of slivers from
+        // outvoting the one big face a vertex actually lies on.
+        const glm::vec3 fn = glm::cross(target[b] - target[a], target[c] - target[a]);
+        nrm[a] += fn;
+        nrm[b] += fn;
+        nrm[c] += fn;
+    }
+    std::size_t degenerate = 0;
+    for (std::size_t i = 0; i < vn; ++i) {
+        const glm::mat4 inv = glm::inverse(vmat[i]);
+        skin.vertices[i].position = glm::vec3{inv * glm::vec4{target[i], 1.0f}};
+        if (glm::length(nrm[i]) < 1e-12f) {
+            ++degenerate; // keep whatever the file had rather than invent one
+            continue;
+        }
+        const glm::vec3 rn = glm::normalize(nrm[i]);
+        const glm::vec3 bn = glm::transpose(glm::mat3{vmat[i]}) * rn;
+        skin.vertices[i].normal =
+            glm::length(bn) > 1e-9f ? glm::normalize(bn) : skin.vertices[i].normal;
+    }
+    if (degenerate > 0) {
+        std::fprintf(stderr, "[import] reshape: %zu vertices touch no triangle with "
+                             "area; their normals are the file's own\n",
+                     degenerate);
+    }
+}
+
 void usage() {
     std::fprintf(stderr,
                  "dfn_import_gltf <in.gltf|in.glb> --out <out.dfo> [--name N] "
@@ -768,6 +1308,10 @@ void usage() {
                  "  --height  scale the model so it stands M metres tall (0 = keep)\n"
                  "  --fit-hips  scale by the HIP JOINT instead of the bounding box\n"
                  "  --fit-canon rescale the SEGMENTS to docs/design/HUMAN_SCALE.md\n"
+                 "  --reshape   deform the SKIN to the canon's body shape: limb\n"
+                 "              thickness, hand length and the trunk's waist.\n"
+                 "              Needs --fit-canon; the two answer different\n"
+                 "              complaints (joints vs flesh)\n"
                  "  --skin-palette paint the mesh by BODY PART (the box body's\n"
                  "                 five clothing colours) instead of by the file's\n"
                  "                 own materials -- for a model whose materials are\n"
@@ -796,6 +1340,8 @@ int main(int argc, char** argv) {
             opt.skin_palette = true;
         } else if (a == "--fit-canon") {
             opt.fit_canon = true;
+        } else if (a == "--reshape") {
+            opt.reshape = true;
         } else if (a == "--fit-hips") {
             opt.fit_hips = true;
         } else if (a == "--height") {
@@ -1036,6 +1582,16 @@ int main(int argc, char** argv) {
         }
     }
     apply_scale(obj.skeleton, obj.skin, obj.clips, scale);
+
+    // AFTER THE SCALE AND BEFORE THE GROUNDING, and the order is forced rather
+    // than chosen. The reshape's every target is a length in METRES read from
+    // the registry, so it has to run on a model that already stands at its
+    // final stature; and it moves the skin, so the grounding that puts the
+    // soles on y = 0 has to run after it and measure what came out.
+    if (opt.reshape) {
+        reshape_to_commoner(obj.skeleton, obj.skin,
+                            dfn::anim::RigProportions::from_config());
+    }
 
     // GROUNDING: the REST pose's soles are put on y = 0 and the figure is
     // centred on x = 0. The engine places a character by its GROUND POINT
