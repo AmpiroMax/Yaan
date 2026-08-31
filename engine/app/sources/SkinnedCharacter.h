@@ -52,6 +52,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/Body.h"
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/FootIk.h"
+#include "engine/anim/sources/HeldBlade.h"
 #include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
@@ -132,6 +133,18 @@ public:
     [[nodiscard]] render::RenderSystem::SkinnedDraw build_draw(
         const anim::Rig& rig, bool hide_head, float alpha);
 
+    /// IS THERE A BLADE IN THE HAND THIS FRAME. The pose crosses over at
+    /// WEAPON_CROSSFADE_S; the sword is not faded with it, because a blade
+    /// half-drawn is a blade half-INSIDE the hand and there is nothing to see
+    /// through. It appears when the guard is more than half on.
+    [[nodiscard]] bool blade_drawn() const;
+    /// THE SAME PALETTE AND THE SAME TRANSFORM AS THE BODY, with the blade's
+    /// mesh id. It rides the character's own bones (HeldBlade.h), so passing
+    /// the body's draw through here is the whole placement: there is no second
+    /// matrix that could disagree with the fist.
+    [[nodiscard]] render::RenderSystem::SkinnedDraw blade_draw(
+        const render::RenderSystem::SkinnedDraw& body) const;
+
 private:
     /// ONE TICK'S RAYCASTS. Separate from advance() because it is the only
     /// part of the tick that touches the world, and because a body with no
@@ -185,6 +198,12 @@ private:
     float ik_strength_ = 0.0f;
     /// One frame's scratch for the tick-time probe pose.
     std::vector<anim::JointLocal> tick_sample_;
+
+    // --- THE BLADE --------------------------------------------------------
+    /// The sword's geometry, kept after upload so the report can print what
+    /// was built and a test can find its point without rebuilding it.
+    anim::HeldBlade blade_{};
+    bool blade_ready_ = false;
 
     // --- HITBOXES ---------------------------------------------------------
     anim::HitboxSet hitboxes_{};

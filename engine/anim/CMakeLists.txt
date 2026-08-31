@@ -24,6 +24,7 @@ add_library(dfn_anim STATIC
     sources/SkinnedBody.cpp
     sources/PoseLayers.cpp
     sources/Stance.cpp
+    sources/HeldBlade.cpp
     sources/ClipPlayer.cpp
     sources/FootIk.cpp
     sources/Hitbox.cpp

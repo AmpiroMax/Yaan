@@ -19,6 +19,9 @@ Key items:
 - a_drawn_weapon_keeps_our_proportions: the weapon branch differs in the upper
   half, is bit-for-bit identical in the lower, and no longer throws the arms
   wide.
+- the_blade_is_in_the_hand: the sword exists, hangs off ONE joint, and its
+  point lands where a sword's point lands — the claim no frame could make
+  while the hand was empty.
 
 Dependencies:
 - Uses: engine/anim (ClipPlayer, Stance, PoseLayers), engine/render (.dfo
@@ -34,6 +37,7 @@ AI Agents Notice (must follow):
 #include <doctest/doctest.h>
 
 #include "engine/anim/sources/ClipPlayer.h"
+#include "engine/anim/sources/HeldBlade.h"
 #include "engine/anim/sources/PoseLayers.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
@@ -46,6 +50,7 @@ AI Agents Notice (must follow):
 #include <filesystem>
 #include <string>
 #include <vector>
+#include <glm/gtc/matrix_transform.hpp>
 
 using namespace dfn;
 
@@ -366,4 +371,65 @@ TEST_CASE("a_drawn_weapon_keeps_our_proportions") {
     // carries the off hand in front of the chest. Half the arm layer takes
     // 0.06 m off it; the rest needs a guard clip that holds a sword.
     CHECK(ds < ss + 0.26f);
+}
+
+TEST_CASE("the_blade_is_in_the_hand") {
+    Model m;
+    REQUIRE(load(m));
+    const anim::HeldBlade blade = anim::build_held_blade(m.obj.skeleton, m.binding);
+    REQUIRE(blade.valid());
+    const int32_t hand = m.binding.names.joint[anim::bone_index(anim::Bone::HandR)];
+    CHECK(blade.joint == hand);
+    CAPTURE(blade.length_m);
+    CHECK(blade.length_m > 0.80f);
+    CHECK(blade.length_m < 1.05f); // an arming sword, not a claymore
+    CHECK(blade.indices.size() % 3 == 0);
+
+    // ONE JOINT, WEIGHT ONE, and it is the whole placement mechanism: a vertex
+    // that leaked a second influence would make the sword bend when the wrist
+    // did.
+    for (const platform::SkinnedVertex& v : blade.vertices) {
+        REQUIRE(v.joints[0] == static_cast<uint8_t>(hand));
+        REQUIRE(v.weights[0] == doctest::Approx(1.0f));
+        REQUIRE(v.weights[1] == doctest::Approx(0.0f));
+    }
+
+    // AND WHERE IT ENDS UP. The vertices are authored in BIND-model space, so
+    // the palette must land them in the POSED hand's frame: the point has to
+    // sit a blade's length from the hand joint in every pose, and the hilt
+    // has to sit inside the fist. Measured on the drawn walk, which is the
+    // pose the reference frame shows.
+    std::vector<anim::JointLocal> pose;
+    Shot s{anim::Gait::Walk, static_cast<float>(config::WALK_SPEED), true, "w"};
+    sample_shot(m, m.lib, s, 0.25f, pose);
+    std::vector<glm::mat4> palette(m.obj.skeleton.size());
+    anim::sample_palette(m.obj.skeleton, pose, palette);
+    const glm::mat4& p = palette[static_cast<std::size_t>(hand)];
+    float near_m = 1.0e9f;
+    float far_m = 0.0f;
+    std::vector<glm::mat4> local(m.obj.skeleton.size());
+    std::vector<glm::mat4> model(m.obj.skeleton.size());
+    for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+        local[j] = glm::translate(glm::mat4{1.0f}, pose[j].translation)
+                   * glm::mat4_cast(glm::normalize(pose[j].rotation))
+                   * glm::scale(glm::mat4{1.0f}, pose[j].scale);
+    }
+    skel::skeleton_model_matrices(m.obj.skeleton, local, model);
+    const glm::vec3 hand_pos{model[static_cast<std::size_t>(hand)][3]};
+    for (const platform::SkinnedVertex& v : blade.vertices) {
+        const glm::vec3 w{p * glm::vec4{v.position, 1.0f}};
+        const float d = glm::length(w - hand_pos);
+        near_m = std::min(near_m, d);
+        far_m = std::max(far_m, d);
+    }
+    CAPTURE(near_m);
+    CAPTURE(far_m);
+    // 0.08 m and not something tighter because what is measured is a CORNER:
+    // the grip box straddles the wrist, so its nearest VERTEX is at the end of
+    // the grip and half its thickness off the axis — 0.054 m — while the
+    // surface passes 0.015 m from the joint. A tighter band would be a claim
+    // about where a box's corners are.
+    CHECK(near_m < 0.08f);              // the grip is IN the fist
+    CHECK(far_m > 0.70f);               // the point is a blade away
+    CHECK(far_m < blade.length_m + 0.1f); // and not further than the sword is long
 }

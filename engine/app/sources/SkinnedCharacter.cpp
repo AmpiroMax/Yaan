@@ -119,6 +119,26 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
     hitboxes_ = anim::build_hitboxes(rig.proportions);
     tick_sample_.assign(skeleton_.size(), anim::JointLocal{});
+    // THE BLADE, uploaded beside the body. LOUD when it cannot be built: a
+    // drawn weapon that draws as nothing is exactly the state the comparison
+    // report called its blocker, and it looked from the frame like a POSE
+    // problem.
+    blade_ = anim::build_held_blade(skeleton_, binding_);
+    if (!blade_.valid()) {
+        std::fprintf(stderr,
+                     "[character] no blade: the right hand or forearm of \"%s\" did "
+                     "not bind, so there is no line to lay a sword along. The guard "
+                     "pose will play over an EMPTY hand.\n",
+                     path.string().c_str());
+    } else if (!render_system.register_skinned_mesh(renderer, anim::HELD_BLADE_MESH_ID,
+                                                    blade_.vertices, blade_.indices)) {
+        std::fprintf(stderr,
+                     "[character] the blade mesh (id %u) was refused by the registry "
+                     "— the guard pose will play over an EMPTY hand\n",
+                     anim::HELD_BLADE_MESH_ID);
+    } else {
+        blade_ready_ = true;
+    }
     ready_ = true;
     std::fprintf(stderr,
                  "[character] \"%s\": %zu joints (%u of %u rig bones bound), "
@@ -351,6 +371,17 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(const anim::Rig& 
                          static_cast<double>(root.ground.z));
         }
     }
+    return draw;
+}
+
+bool SkinnedCharacter::blade_drawn() const {
+    return blade_ready_ && playing_clips() && play_.weapon > 0.5f;
+}
+
+render::RenderSystem::SkinnedDraw SkinnedCharacter::blade_draw(
+    const render::RenderSystem::SkinnedDraw& body) const {
+    render::RenderSystem::SkinnedDraw draw = body;
+    draw.mesh_asset = anim::HELD_BLADE_MESH_ID;
     return draw;
 }
 

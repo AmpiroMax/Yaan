@@ -5340,11 +5340,21 @@ int App::run() {
         // при 60 Гц не видно, при 30 видно. Всё, что знает про клип, про
         // прошлый тик и про дозу DFN_PROC_GAIT, живёт в SkinnedCharacter —
         // здесь остаётся ровно ферма alpha.
-        std::array<render::RenderSystem::SkinnedDraw, 1> skinned_draws{};
+        // ДВА МЕСТА В СПИСКЕ, А НЕ ОДНО: второе — КЛИНОК В РУКЕ. Он едет на
+        // ТОЙ ЖЕ палитре и ТОЙ ЖЕ матрице (SkinnedCharacter::blade_draw), то
+        // есть на костях тела, поэтому меч не может отстать от кулака на кадр
+        // — как и хитбоксы ниже, и по той же причине.
+        std::array<render::RenderSystem::SkinnedDraw, 2> skinned_draws{};
         if (skinned_character_.ready()) {
             skinned_draws[0] = skinned_character_.build_draw(
                 body_rig_, /*hide_head=*/!third_person_, alpha);
-            render_system_.set_skinned_bodies(skinned_draws);
+            const std::size_t count = skinned_character_.blade_drawn() ? 2u : 1u;
+            if (count == 2) {
+                skinned_draws[1] = skinned_character_.blade_draw(skinned_draws[0]);
+            }
+            render_system_.set_skinned_bodies(
+                std::span<const render::RenderSystem::SkinnedDraw>{
+                    skinned_draws.data(), count});
             // ХИТБОКСЫ ЧАСТЕЙ ТЕЛА ЕДУТ ЗА НАРИСОВАННОЙ ПОЗОЙ, и именно
             // здесь, а не в тике: тело рисуется по ИНТЕРПОЛИРОВАННОЙ позе, и
             // коробки, поставленные по позе тика, отставали бы от него ровно
