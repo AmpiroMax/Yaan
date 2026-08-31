@@ -19,6 +19,7 @@ add_library(dfn_anim STATIC
     sources/Pose.cpp
     sources/Clips.cpp
     sources/Posture.cpp
+    sources/PoseLibrary.cpp
     sources/BodyMesh.cpp
     sources/BoneMap.cpp
     sources/SkinnedBody.cpp

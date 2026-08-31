@@ -60,3 +60,8 @@ add_dfn_test(character_stance character/StanceTests.cpp
 if(TARGET dfn_characters)
     add_dependencies(character_stance dfn_characters)
 endif()
+
+# РЕЕСТР ПОЗ И ГРАФ ПЕРЕХОДОВ (волна «позы и переходы»). Файла не читает:
+# реестр обязан считаться без единого ассета, и набор это доказывает тем, что
+# линкует только dfn_anim и dfn_core.
+add_dfn_test(character_pose_library character/PoseLibraryTests.cpp dfn_anim dfn_core)
