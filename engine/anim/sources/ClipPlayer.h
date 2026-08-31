@@ -82,11 +82,13 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/Body.h"
 #include "engine/anim/sources/Clips.h"
+#include "engine/anim/sources/Mirror.h"
 #include "engine/anim/sources/Pose.h"
 #include "engine/anim/sources/PoseLayers.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/anim/sources/Stance.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 
 #include <array>
@@ -307,6 +309,24 @@ struct ClipLibrary {
     /// an angle the reference states outright, so what a model contributes is
     /// only which joint is which.
     StanceLayer stance;
+    /// ОБХОД ТЕЛА РУКОЙ (заказ владельца 31.08, пункт 1) и формы, до которых
+    /// он мерит. Формы — те же, что несут тела Jolt: второй таблицы габаритов
+    /// тела в проекте нет и не заводится (правило 35).
+    ArmClearance arms;
+    HitboxSet boxes;
+    /// СКОЛЬКО МЕСТА ОБХОД ОСТАВЛЯЕТ, метры. ПОЛЕ, А НЕ ЧТЕНИЕ КОНСТАНТЫ В
+    /// КАДРЕ, и это ДВЕРЬ ДОЗЫ: ноль выключает слой ПОБИТОВО, поэтому
+    /// контрольная рука приёмки («тот же кадр без обхода») выходит из того же
+    /// бинарника и отличается ровно слоем (правило 47). Значение по умолчанию
+    /// — строка реестра, и второго места, где оно берётся, нет.
+    float arm_clearance_m = static_cast<float>(config::ARM_BODY_CLEARANCE);
+    /// ЗЕРКАЛЬНАЯ РАЗМЕТКА И ДОЗА СИММЕТРИЗАЦИИ ПОХОДКИ (дополнение владельца
+    /// 31.08: «никакой левой/правой стойки и ведущей ноги»). Доза 0.5 — точная
+    /// антисимметрия, 0 — слой снят ПОБИТОВО, и на этом стоит контрольная рука
+    /// приёмки. Поле, а не константа в кадре, по той же причине, что и
+    /// клиренс: обе руки сравнения обязаны выходить из одного бинарника.
+    MirrorMap mirror;
+    float mirror_dose = 0.5f;
     /// How many roles the asset actually answered. Zero means the model has
     /// clips we do not recognise, which is a naming problem and is said out
     /// loud rather than drawn as a T-pose.
@@ -413,6 +433,18 @@ struct ClipPlayback {
     float prev_stance_run = 0.0f;
     float stance_stand = 1.0f;
     float prev_stance_stand = 1.0f;
+    /// В ВОЗДУХЕ, 0..1, сглажено тем же временем, что и смена роли (заказ
+    /// владельца 31.08, пункт 2: «в воздухе поза — чистый клип»). Гасит СЛОЙ
+    /// СТОЙКИ целиком: он выпрямляет колени к STANCE_KNEE_STAND, а у прыжка
+    /// колени поджаты нарочно, и выпрямлять их — это и есть «ноги уходят
+    /// вперёд». Замерено: стопа улетала на 0.81 м вперёд от таза при длине
+    /// ноги 0.88 м.
+    ///
+    /// СГЛАЖЕНО, А НЕ ФЛАГОМ, по той же причине, что и всё остальное в этой
+    /// структуре: отрыв от земли случается в одном тике, а слой, снятый
+    /// мгновенно, — это щелчок ног на этом тике.
+    float airborne = 0.0f;
+    float prev_airborne = 0.0f;
     /// True once a tick has run: the first frame must not interpolate from an
     /// uninitialised past, which reads as the body snapping out of its bind.
     bool primed = false;

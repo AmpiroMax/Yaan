@@ -63,10 +63,13 @@ AI Agents Notice (must follow):
 
 #pragma once
 
+#include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdint>
 #include <span>
 #include <vector>
@@ -220,6 +223,70 @@ struct HandSpread {
 [[nodiscard]] HandSpread measure_hand_spread(const skel::Skeleton& skeleton,
                                              const SkinnedRigBinding& binding,
                                              std::span<const JointLocal> sample);
+
+/// ОБХОД ТЕЛА РУКОЙ (заказ владельца 31.08, пункт 1: «руки проходят сквозь
+/// ягодицы при ходьбе/беге»).
+///
+/// ПОЧЕМУ ЭТО ОТДЕЛЬНЫЙ СЛОЙ, А НЕ ПОПРАВКА К ПРИВЕДЕНИЮ. Приведение решается
+/// ОДИН РАЗ на позе покоя и держит руку у тела всю дорогу — в этом его работа.
+/// Проход сквозь таз случается в ФАЗЕ МАХА, когда рука уходит назад и таз
+/// оказывается у неё на пути; величина, которую надо снять, зависит от фазы, а
+/// значит не может жить в калиброванном угле. Уменьшить приведение «на всякий
+/// случай» — значит развести руки на всём цикле ради двух его кадров.
+///
+/// МЕРИТСЯ ДО ХИТБОКСОВ, А НЕ ДО КОСТИ. «Насколько кисть близко к ягодице» —
+/// вопрос об ОБЪЁМЕ таза, и объём этот в проекте уже описан один раз
+/// (Hitbox.h, выведен из пропорций рига). Расстояние до сустава таза было бы
+/// вторым описанием тела и разошлось бы с первым на первой же правке
+/// пропорций (правило 35).
+struct ArmClearance {
+    std::array<int32_t, 2> upper_arm{-1, -1};
+    std::array<int32_t, 2> parent{-1, -1};
+    std::array<int32_t, 2> forearm{-1, -1};
+    std::array<int32_t, 2> hand{-1, -1};
+    /// Длина руки от плеча до кисти в позе покоя, метры: она переводит
+    /// «не хватает стольких сантиметров» в «повернуть на столько радиан».
+    std::array<float, 2> arm_len{0.0f, 0.0f};
+    [[nodiscard]] bool valid() const {
+        return upper_arm[0] >= 0 && upper_arm[1] >= 0 && hand[0] >= 0 && hand[1] >= 0;
+    }
+};
+
+[[nodiscard]] ArmClearance build_arm_clearance(const skel::Skeleton& skeleton,
+                                               const SkinnedRigBinding& binding);
+
+/// НАСКОЛЬКО БЛИЗКО РУКА ПОДОШЛА К ТЕЛУ, метры: минимум по кисти и предплечью
+/// обеих рук против форм таза и обоих бёдер. Число, которым написана приёмка
+/// пункта 1.
+struct ArmBodyGap {
+    std::array<float, 2> hand{0.0f, 0.0f};    ///< [0] левая
+    std::array<float, 2> forearm{0.0f, 0.0f};
+    [[nodiscard]] float worst() const {
+        return std::min({hand[0], hand[1], forearm[0], forearm[1]});
+    }
+};
+
+[[nodiscard]] ArmBodyGap measure_arm_body_gap(const skel::Skeleton& skeleton,
+                                              const ArmClearance& arms,
+                                              const HitboxSet& boxes,
+                                              const SkinnedRigBinding& binding,
+                                              std::span<const JointLocal> sample);
+
+/// ОТВОДИТ ПЛЕЧО НАРУЖУ РОВНО НАСТОЛЬКО, ЧТОБЫ КЛИРЕНС ВЕРНУЛСЯ К `want_m`.
+/// Ничего не делает на руке, у которой клиренс и так есть — то есть на
+/// подавляющем большинстве кадров это побитовое тождество, и «до/после» на
+/// стоящей фигуре обязано совпасть до бита.
+///
+/// УГОЛ РЕШАЕТСЯ, А НЕ СКАНИРУЕТСЯ: нехватка клиренса — это ДЛИНА, плечо —
+/// РЫЧАГ известной длины, и частное одно делит другое. Скан, как у калибровки
+/// приведения, стоил бы шестьдесят четыре прохода FK на кадр там, где хватает
+/// одного деления и одной проверки.
+///
+/// `dose` в [0,1] масштабирует весь слой; 0 — побитовое тождество, и на этом
+/// стоит контрольная рука приёмки.
+void apply_arm_clearance(const skel::Skeleton& skeleton, const ArmClearance& arms,
+                         const HitboxSet& boxes, const SkinnedRigBinding& binding,
+                         float want_m, float dose, std::span<JointLocal> sample);
 
 /// HOW CLOSED THE HAND IS: the mean distance from the fingertip joints to the
 /// hand joint, metres. An open hand measures further than a fist, so the

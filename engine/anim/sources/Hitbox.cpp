@@ -17,6 +17,8 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/Hitbox.h"
 
+#include <limits>
+
 #include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
@@ -305,6 +307,28 @@ BodyPart hitbox_contains(const HitboxSet& set, const HitboxPose& pose,
         }
     }
     return BodyPart::None;
+}
+
+float hitbox_distance(const HitboxSet& set, const HitboxPose& pose, BodyPart part,
+                      const glm::vec3& point) {
+    float best = std::numeric_limits<float>::infinity();
+    for (uint32_t i = 0; i < HITBOX_COUNT; ++i) {
+        if (pose.valid[i] == 0 || set.slot[i].part != part) {
+            continue;
+        }
+        const glm::vec3 p{glm::inverse(pose.frame[i]) * glm::vec4{point, 1.0f}};
+        if (set.slot[i].shape == HitShape::Sphere) {
+            best = std::min(best, std::max(0.0f, glm::length(p) - pose.half[i].x));
+            continue;
+        }
+        // РАССТОЯНИЕ ДО КОРОБКИ — ДЛИНА ВЫХОДА ЗА ЕЁ ГРАНИ, покомпонентно
+        // срезанного снизу нулём. Точка внутри даёт ноль по всем трём осям,
+        // то есть 0 — и это правильный ответ: «касается» и «внутри на
+        // сантиметр» одинаково означают, что клиренса нет.
+        const glm::vec3 d = glm::max(glm::abs(p) - pose.half[i], glm::vec3{0.0f});
+        best = std::min(best, glm::length(d));
+    }
+    return best;
 }
 
 } // namespace dfn::anim

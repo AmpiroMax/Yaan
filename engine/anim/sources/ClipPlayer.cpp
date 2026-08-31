@@ -1019,6 +1019,9 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     // the pose the owner was looking at when he called it a combat stance.
     lib.mask = build_branch_mask(skeleton, binding);
     lib.stance = build_stance_layer(skeleton, binding);
+    lib.arms = build_arm_clearance(skeleton, binding);
+    lib.mirror = build_mirror_map(skeleton);
+    lib.boxes = build_hitboxes(rig.proportions);
     // WHAT EACH CLIP SWINGS ON ITS OWN, so the stance layer's gains have a
     // denominator that is a measurement (ClipEntry::arm_swing_peak_rad). Over
     // the clip's OWN cycle and at stride scale 1: the gains multiply a shape,
@@ -1130,6 +1133,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     play.prev_weapon_time_s = play.weapon_time_s;
     play.prev_stance_run = play.stance_run;
     play.prev_stance_stand = play.stance_stand;
+    play.prev_airborne = play.airborne;
 
     // THE STANCE LAYER'S TWO WEIGHTS. The run weight is sim's own eased gear
     // blend, ferried on the drive — re-deriving it from the speed here would
@@ -1185,6 +1189,21 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         if ((landing || just_landed) && drive.speed_mps <= MOVING_SPEED_MPS) {
             want = ClipRole::JumpLand;
         }
+    }
+
+    // В ВОЗДУХЕ СЛОЙ СТОЙКИ СНИМАЕТСЯ (заказ 31.08, пункт 2). Ведётся по
+    // ВЫБРАННОЙ РОЛИ, а не по `drive.grounded`, и это не мелочь: приземление
+    // доигрывает JumpLand уже НА ЗЕМЛЕ, и признак земли вернул бы слой на
+    // середине клипа приземления — то есть выпрямил бы колени человеку,
+    // который в этот кадр как раз приседает от удара.
+    {
+        const bool in_air = want == ClipRole::JumpStart || want == ClipRole::JumpLoop
+                            || want == ClipRole::JumpLand;
+        const float target = in_air ? 1.0f : 0.0f;
+        const float move = CLIP_CROSSFADE_S > 0.0f && dt > 0.0f ? dt / CLIP_CROSSFADE_S
+                                                                : 1.0f;
+        play.airborne = play.airborne < target ? std::min(target, play.airborne + move)
+                                               : std::max(target, play.airborne - move);
     }
 
     if (want != play.role) {
@@ -1248,6 +1267,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         play.prev_weapon_time_s = play.weapon_time_s;
         play.prev_stance_run = play.stance_run;
         play.prev_stance_stand = play.stance_stand;
+        play.prev_airborne = play.airborne;
         play.primed = true;
     }
 }
@@ -1313,6 +1333,22 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     role_frame(skeleton, binding, clips, cur, play.prev_time_s, play.time_s,
                play.prev_mix_time_s, play.mix_time_s, a,
                glm::mix(play.prev_stride, play.stride, a), out_sample);
+    // СИММЕТРИЗАЦИЯ — СРАЗУ ЗА СЭМПЛОМ РОЛИ И ДО КРОССФЕЙДА. Предмет слоя —
+    // ЦИКЛ, а кроссфейд смешивает два разных цикла: симметризовать смесь
+    // значило бы искать полуцикл у позы, у которой его нет. И до слоёв стойки
+    // и рук по той же причине, по которой они идут после клипа вообще: они
+    // правят то, что цикл уже сказал.
+    if (locomotion(play.role) && lib.mirror_dose > 0.0f && lib.mirror.valid()
+        && cur.duration_s > 0.0f) {
+        const float d = cur.duration_s;
+        std::vector<JointLocal> half(n);
+        role_frame(skeleton, binding, clips, cur,
+                   std::fmod(play.prev_time_s + 0.5f * d, d),
+                   std::fmod(play.time_s + 0.5f * d, d),
+                   play.prev_mix_time_s, play.mix_time_s, a,
+                   glm::mix(play.prev_stride, play.stride, a), half);
+        mirror_blend(skeleton, lib.mirror, half, lib.mirror_dose, out_sample);
+    }
     const float fade = glm::mix(play.prev_fade, play.fade, a);
     const ClipEntry& prev = lib[play.previous];
     if (fade > 0.0f && prev.present()) {
@@ -1351,6 +1387,10 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     StanceDrive stance;
     stance.run_weight = run;
     stance.stand_weight = stand;
+    // И ВЕС ВСЕГО СЛОЯ — «НАСКОЛЬКО МЫ НА ЗЕМЛЕ». В воздухе поза обязана быть
+    // чистым клипом: слой целится в стойку СТОЯЩЕГО человека, а у летящего
+    // ни стойки, ни опоры нет.
+    stance.weight = 1.0f - glm::mix(play.prev_airborne, play.airborne, a);
     // THE GAINS, from what THIS clip swings against what the reference does.
     // Clamped at 1 below: the layer is here to add the swing the retarget ate,
     // never to take swing away from a clip that already has enough.
@@ -1400,6 +1440,16 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
         cur.elbow_mean_rad > 0.0f ? (want_elbow - cur.elbow_mean_rad) * sheathed : 0.0f;
     dose.finger = sheathed * static_cast<float>(config::STANCE_FINGER_RELAX);
     apply_arm_relax(skeleton, lib.relax, dose, out_sample);
+    // ОБХОД ТЕЛА — ПОСЛЕДНИМ СЛОЕМ РУКИ, и порядок здесь не вкус: и стойка, и
+    // приведение ДВИГАЮТ кисть, а обход отвечает на вопрос о том, где кисть
+    // ОКАЗАЛАСЬ. Поставленный раньше, он мерил бы клиренс позы, которую
+    // следующий слой сейчас поменяет.
+    //
+    // И ОН НЕ ДОЗИРУЕТСЯ ОРУЖИЕМ. Рука с клинком проходит сквозь бедро ровно
+    // так же, как пустая, а guard-клип уводит её ещё дальше назад: доза здесь
+    // — единица всегда, и единственное, что её снимает, это дверь контроля.
+    apply_arm_clearance(skeleton, lib.arms, lib.boxes, binding, lib.arm_clearance_m,
+                        1.0f, out_sample);
     return true;
 }
 

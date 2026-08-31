@@ -28,6 +28,7 @@ add_library(dfn_anim STATIC
     sources/ClipPlayer.cpp
     sources/FootIk.cpp
     sources/Hitbox.cpp
+    sources/Mirror.cpp
     sources/Body.cpp)
 
 target_link_libraries(dfn_anim PUBLIC dfn_headers dfn_core)

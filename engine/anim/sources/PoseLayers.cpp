@@ -304,6 +304,147 @@ void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax,
     }
 }
 
+/// СКОЛЬКО РАЗ СЛОЙ ПЕРЕСПРАШИВАЕТ. Отвод плеча увозит и таз (он висит на том
+/// же корне), поэтому одна поправка в цель не попадает; ЗАМЕРЕНО на этом
+/// ассете: за один заход клиренс ходьбы доходит до 2.5 см при цели 3.5, за три
+/// — до цели, четвёртый не меняет ничего.
+constexpr int CLEARANCE_PASSES = 3;
+
+ArmClearance build_arm_clearance(const skel::Skeleton& skeleton,
+                                 const SkinnedRigBinding& binding) {
+    ArmClearance a;
+    a.upper_arm[0] = binding.names.joint[bone_index(Bone::UpperArmL)];
+    a.upper_arm[1] = binding.names.joint[bone_index(Bone::UpperArmR)];
+    a.forearm[0] = binding.names.joint[bone_index(Bone::ForearmL)];
+    a.forearm[1] = binding.names.joint[bone_index(Bone::ForearmR)];
+    a.hand[0] = binding.names.joint[bone_index(Bone::HandL)];
+    a.hand[1] = binding.names.joint[bone_index(Bone::HandR)];
+    for (int s = 0; s < 2; ++s) {
+        const auto k = static_cast<std::size_t>(s);
+        const int32_t j = a.upper_arm[k];
+        a.parent[k] = j >= 0 ? skeleton.joints[static_cast<std::size_t>(j)].parent : -1;
+        if (j < 0 || a.hand[k] < 0) {
+            continue;
+        }
+        // ПЛЕЧО ЗАМЕРЕНО ПО БИНДУ, а не по позе кадра: это ДЛИНА РЫЧАГА,
+        // свойство модели, и считать её каждый кадр значило бы делать её
+        // функцией того, насколько рука согнута.
+        const glm::vec3 sh{glm::inverse(
+            skeleton.joints[static_cast<std::size_t>(j)].inverse_bind)[3]};
+        const glm::vec3 hd{glm::inverse(
+            skeleton.joints[static_cast<std::size_t>(a.hand[k])].inverse_bind)[3]};
+        a.arm_len[k] = glm::length(hd - sh);
+    }
+    return a;
+}
+
+namespace {
+
+/// Ближайшая из трёх форм, которые рука обходит: таз и оба бедра. ИМЕННО ТРИ,
+/// и это то, что назвал заказ («ягодицы/бедро»): грудь рука на ходу не задевает
+/// (её обходит собственная длина плеча), а голень к ней не поднимается.
+[[nodiscard]] float body_gap(const HitboxSet& boxes, const HitboxPose& posed,
+                             const glm::vec3& p) {
+    return std::min({hitbox_distance(boxes, posed, BodyPart::Hips, p),
+                     hitbox_distance(boxes, posed, BodyPart::ThighL, p),
+                     hitbox_distance(boxes, posed, BodyPart::ThighR, p)});
+}
+
+} // namespace
+
+ArmBodyGap measure_arm_body_gap(const skel::Skeleton& skeleton, const ArmClearance& arms,
+                                const HitboxSet& boxes,
+                                const SkinnedRigBinding& binding,
+                                std::span<const JointLocal> sample) {
+    ArmBodyGap out;
+    for (int s = 0; s < 2; ++s) {
+        const auto k = static_cast<std::size_t>(s);
+        out.hand[k] = std::numeric_limits<float>::infinity();
+        out.forearm[k] = std::numeric_limits<float>::infinity();
+    }
+    if (!arms.valid() || sample.size() < skeleton.size()) {
+        return out;
+    }
+    const HitboxPose posed = hitbox_pose(boxes, skeleton, binding, sample);
+    std::vector<glm::mat4> local;
+    std::vector<glm::mat4> model;
+    model_matrices(skeleton, sample, local, model);
+    for (int s = 0; s < 2; ++s) {
+        const auto k = static_cast<std::size_t>(s);
+        out.hand[k] = body_gap(
+            boxes, posed,
+            glm::vec3{model[static_cast<std::size_t>(arms.hand[k])][3]});
+        if (arms.forearm[k] >= 0) {
+            out.forearm[k] = body_gap(
+                boxes, posed,
+                glm::vec3{model[static_cast<std::size_t>(arms.forearm[k])][3]});
+        }
+    }
+    return out;
+}
+
+void apply_arm_clearance(const skel::Skeleton& skeleton, const ArmClearance& arms,
+                         const HitboxSet& boxes, const SkinnedRigBinding& binding,
+                         float want_m, float dose, std::span<JointLocal> sample) {
+    const float w = std::clamp(dose, 0.0f, 1.0f);
+    if (!arms.valid() || w <= 0.0f || want_m <= 0.0f
+        || sample.size() < skeleton.size()) {
+        return;
+    }
+    // ТРИ ЗАХОДА, И ВТОРОЙ С ТРЕТЬИМ — НЕ ПЕРЕСТРАХОВКА. Отвод плеча УВОЗИТ И ТАЗ (он
+    // висит на том же корне), поэтому первая поправка попадает в цель не
+    // точно; замерено на этом ассете, второй заход снимает остаток до долей
+    // миллиметра, третий не меняет ничего.
+    for (int pass = 0; pass < CLEARANCE_PASSES; ++pass) {
+        const HitboxPose posed = hitbox_pose(boxes, skeleton, binding, sample);
+        std::vector<glm::mat4> local;
+        std::vector<glm::mat4> model;
+        model_matrices(skeleton, sample, local, model);
+        bool touched = false;
+        for (int s = 0; s < 2; ++s) {
+            const auto k = static_cast<std::size_t>(s);
+            const int32_t j = arms.upper_arm[k];
+            if (j < 0 || arms.arm_len[k] <= 1.0e-4f) {
+                continue;
+            }
+            float gap = body_gap(
+                boxes, posed,
+                glm::vec3{model[static_cast<std::size_t>(arms.hand[k])][3]});
+            if (arms.forearm[k] >= 0) {
+                gap = std::min(gap,
+                               body_gap(boxes, posed,
+                                        glm::vec3{model[static_cast<std::size_t>(
+                                            arms.forearm[k])][3]}));
+            }
+            const float need = want_m - gap;
+            if (!(need > 0.0f)) {
+                continue; // клиренс есть: рука не трогается ВООБЩЕ
+            }
+            // НЕДОСТАЮЩАЯ ДЛИНА ЧЕРЕЗ ДЛИНУ РЫЧАГА — И ЭТО УГОЛ. Малый угол:
+            // рука не отводится на радианы, ей не хватает сантиметров.
+            const float angle = w * std::atan2(need, arms.arm_len[k]);
+            const int32_t p = arms.parent[k];
+            const glm::quat parent_rot =
+                p >= 0 ? model_rotation(model[static_cast<std::size_t>(p)])
+                       : glm::quat{1.0f, 0.0f, 0.0f, 0.0f};
+            // ТА ЖЕ ОСЬ И ТОТ ЖЕ ЗНАК, ЧТО У ПРИВЕДЕНИЯ, только наоборот:
+            // приведение ведёт руку ВНУТРЬ на +angle слева, значит наружу —
+            // на -angle. Один и тот же поворот, прочитанный в обе стороны,
+            // а не второе описание того, где у тела бок.
+            const float sign = s == 0 ? -1.0f : 1.0f;
+            const glm::quat turn =
+                glm::angleAxis(sign * angle, glm::vec3{0.0f, 0.0f, 1.0f});
+            const glm::quat in_parent = glm::conjugate(parent_rot) * turn * parent_rot;
+            JointLocal& jl = sample[static_cast<std::size_t>(j)];
+            jl.rotation = glm::normalize(in_parent * glm::normalize(jl.rotation));
+            touched = true;
+        }
+        if (!touched) {
+            return; // побитовое тождество, на нём стоит контрольная рука
+        }
+    }
+}
+
 ArmRelax calibrate_arm_relax(const Rig& rig, const skel::Skeleton& skeleton,
                              const SkinnedRigBinding& binding,
                              std::span<const JointLocal> reference) {
