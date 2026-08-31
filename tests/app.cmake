@@ -15,6 +15,13 @@
 # - Follow docs/ARCHITECTURE.md strictly. LEAD-owned.
 
 if(TARGET dfn_render AND TARGET dfn_core)
+    # СВОБОДНЫЙ ОБЛЁТ ТРЕТЬЕГО ЛИЦА (заказ владельца 31.08, пункт 4). Свой
+    # рукав, а не случай в app_debug_overlay: предмет здесь — чистая
+    # арифметика ThirdPersonRig.cpp, и ей не нужны ни двери, ни оверлей.
+    add_dfn_test(app_third_person app/ThirdPersonRigTests.cpp dfn_core)
+    target_sources(app_third_person PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/ThirdPersonRig.cpp)
+
     add_dfn_test(app_debug_overlay app/DebugOverlayTests.cpp dfn_render dfn_core)
     target_sources(app_debug_overlay PRIVATE
         # AppDoors.cpp: дверь читается ТОЛЬКО через таблицу (слой 2), а эти

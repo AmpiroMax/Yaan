@@ -31,6 +31,7 @@ AI Agents Notice (must follow):
 
 #include "engine/app/sources/AppDoors.h"
 #include "engine/app/sources/AppStand.h"
+#include "engine/app/sources/ThirdPersonRig.h"
 #include "engine/app/sources/AppHud.h"
 
 #include "engine/app/sources/AssetBake.h"
@@ -701,6 +702,22 @@ bool App::init(const AppConfig& config) {
     }
     if (const char* v = door_value("DFN_CAM_ORBIT"); v != nullptr && v[0] != '\0') {
         cam_probe_spin_ = static_cast<float>(std::atof(v));
+    }
+    // ДВЕРЬ DFN_CAM_WALK — БУКВОЙ, А НЕ ПАРОЙ ЧИСЕЛ, и это решение о приборе:
+    // «вперёд» и «вбок» — единственные четыре ответа, которые пункт 4 просит
+    // предъявить, а произвольная пара осей позволила бы снять ленту с
+    // полунажатым стиком и назвать это разворотом.
+    if (const char* v = door_value("DFN_CAM_WALK"); v != nullptr && v[0] != '\0') {
+        switch (v[0]) {
+        case 'f': cam_walk_ = {0.0f, 1.0f}; break;
+        case 'b': cam_walk_ = {0.0f, -1.0f}; break;
+        case 'r': cam_walk_ = {1.0f, 0.0f}; break;
+        case 'l': cam_walk_ = {-1.0f, 0.0f}; break;
+        default:
+            std::fprintf(stderr, "[cam] DFN_CAM_WALK=%s — не направление, "
+                                 "их четыре: f b r l\n", v);
+            break;
+        }
     }
     // СТЕНД ПЕРСОНАЖА. Обе двери читаются ЗДЕСЬ по той же причине, что и обвод
     // выше: доза, читаемая каждый кадр, разрешает ленте поменять смысл на
@@ -4138,59 +4155,94 @@ int App::run() {
         }
 
         if (!playtest_ && !editor && !chat_typing) { // typing must not walk/turn
-            // THIRD-PERSON ORBIT (his request, and the Skyrim rule he named):
-            // standing still, the mouse swings the camera AROUND the character
-            // and the character does not turn; moving, the camera locks behind
-            // him. Implemented by withholding the look from sim for those
-            // frames rather than by reaching into their look code -- the app
-            // owns which input reaches the simulation, and this keeps the
-            // character's own yaw the single authority on where he faces.
-            bool orbiting = false;
+            // СВОБОДНЫЙ ОБЛЁТ ТРЕТЬЕГО ЛИЦА (заказ владельца 31.08, пункт 4).
+            // Мышь крутит СТРЕЛУ вокруг персонажа ВСЕГДА — и стоя, и на ходу;
+            // тело поворачивается только когда его просят идти, и только к
+            // тому направлению, куда просят. Прежняя развилка «стоим — обвод,
+            // идём — камера прилипает к затылку» и была жалобой: азимут,
+            // набранный рукой, гасился множителем 0.85 за кадр в тот момент,
+            // когда игрок трогался с места.
+            //
+            // ВЗГЛЯД НЕ ДОХОДИТ ДО СИМУЛЯЦИИ ВОВСЕ, пока вид третий: рыск тела
+            // пишется здесь и только здесь, а два автора одного угла — это
+            // рывок на каждом кадре, где они не согласились. Накопление ввода
+            // идёт как обычно (клавиши движения обязаны доходить), и гасится
+            // ровно накопленный ВЗГЛЯД, ровно так же, как это делала прежняя
+            // ветка обвода.
+            gameplay::player_accumulate_input(world_, *input_);
             if (third_person_) {
-                if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
-                    orbiting = ps->stride_speed < 0.15f; // still, not "not running"
-                }
-            }
-            if (orbiting) {
                 const glm::vec2 d = input_->mouse_delta();
                 const float sens = static_cast<float>(config::MOUSE_SENSITIVITY);
-                orbit_yaw_ += d.x * sens;
-                orbit_pitch_ = std::clamp(orbit_pitch_ - d.y * sens, -1.2f, 1.2f);
-                // Sim's accumulate runs normally so movement keys still reach
-                // it -- he can walk out of an orbit without letting go of the
-                // mouse -- and then the LOOK it banked is dropped. Clearing the
-                // latch rather than adding a sim entry point keeps this the
-                // app's decision about which input reaches the simulation,
-                // which is the composition root's job (Rule 22), and leaves
-                // sim's look code with exactly one caller and one meaning.
-                gameplay::player_accumulate_input(world_, *input_);
+                cam_yaw_ += d.x * sens;
+                cam_pitch_ = std::clamp(cam_pitch_ - d.y * sens,
+                                        -static_cast<float>(config::CAMERA_PITCH_LIMIT),
+                                        static_cast<float>(config::CAMERA_PITCH_LIMIT));
+                // ДВЕРЬ DFN_CAM_ORBIT: обвод камеры по кругу без руки на мыши.
+                // Стрела упирается в РАЗНЫЕ стены на разных азимутах, и прогон,
+                // снятый на одном, не является измерением комнаты (Rule 27:
+                // точка съёмки, неспособная провалиться, не доказательство).
+                if (cam_probe_spin_ != 0.0f) {
+                    cam_yaw_ += cam_probe_spin_ * (3.14159265f / 180.0f)
+                                * static_cast<float>(visual_dt);
+                }
                 if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
                     ps->pending_look = glm::vec2{0.0f};
+                    // ДВЕРЬ DFN_CAM_WALK: держать направление нажатым без руки
+                    // на клавиатуре. Пишется ТУДА ЖЕ, куда пишет клавиатура, и
+                    // ровно поэтому дальше работает настоящий код движения:
+                    // прибор, ставивший бы рыск напрямую, снимал бы App.cpp.
+                    if (cam_walk_ != glm::vec2{0.0f}) {
+                        ps->move_axes = cam_walk_;
+                    }
+                    // ТЕЛО ДОВОРАЧИВАЕТСЯ К ВВОДУ, А ИДЁТ СРАЗУ ТУДА, КУДА
+                    // ПРОСЯТ. Разворот — картинка и у него есть скорость;
+                    // направление шага — намерение и оно мгновенно, иначе
+                    // прямая, набранная на клавиатуре, рисуется дугой.
+                    //
+                    // СЧЁТНАЯ ДЕЛЬТА, А НЕ СТЕННАЯ: разворот — фильтр по
+                    // времени, и на стенной дельте два прогона одного рецепта
+                    // ловят его в разной фазе (та же причина, что у стрелы).
+                    //
+                    // ПОЗА (сидит, лежит) РАЗВОРОТА НЕ ПОЛУЧАЕТ: сидящий, у
+                    // которого нажали W, обязан сначала встать, а тело,
+                    // повёрнутое под лавкой, — это тело, торчащее из лавки.
+                    const auto* drv = world_.get<anim::BodyDrive>(player_);
+                    const float pw = drv != nullptr ? drv->posture_blend : 0.0f;
+                    // ОЧЕРЕДЬ СТЕНДА ВЛАДЕЕТ РЫСКОМ ЦЕЛИКОМ, когда она идёт:
+                    // она пишет face_yaw каждым тиком, и доворот, вклинившийся
+                    // между тиками, качал бы заданную камеру стенда — то есть
+                    // делал бы приёмочные кадры функцией частоты кадров.
+                    // И ЗАДАННАЯ КАМЕРА СТЕНДА ТОЖЕ ВЛАДЕЕТ РЫСКОМ, но по
+                    // другой причине — ПОЛОЖИТЕЛЬНАЯ ОБРАТНАЯ СВЯЗЬ. Её азимут
+                    // задан ОТНОСИТЕЛЬНО фигуры, значит камера едет за телом;
+                    // а доворот ведёт тело за камерой. Двое, гоняющиеся друг
+                    // за другом, дают фигуру, вращающуюся с постоянной
+                    // скоростью на месте — и ни один кадр стенда не был бы
+                    // воспроизводим.
+                    if (pw < 0.5f && !stand_seq_ && stand_cam_ == 0) {
+                        const ThirdPersonStep turn = third_person_step(
+                            ps->yaw, cam_yaw_, ps->move_axes,
+                            static_cast<float>(visual_dt),
+                            static_cast<float>(config::BODY_TURN_RATE));
+                        ps->yaw = turn.body_yaw;
+                        ps->move_axes = turn.move_axes;
+                    }
                 }
-            } else {
-                // Locked behind: the offset decays rather than snapping, so
-                // starting to walk does not whip the camera.
-                orbit_yaw_ *= 0.85f;
-                orbit_pitch_ *= 0.85f;
-                gameplay::player_accumulate_input(world_, *input_); // per render frame (sim's contract)
-            }
-            // ДВЕРЬ DFN_CAM_ORBIT: обвод камеры по кругу без руки на мыши.
-            // Стрела упирается в РАЗНЫЕ стены на разных азимутах, и прогон,
-            // снятый на одном, не является измерением комнаты (Rule 27: точка
-            // съёмки, неспособная провалиться, не доказательство). Крутится
-            // ПОСЛЕ ветки затухания — иначе «locked behind» гасил бы обвод.
-            if (third_person_ && cam_probe_spin_ != 0.0f) {
-                orbit_yaw_ += cam_probe_spin_ * (3.14159265f / 180.0f)
-                              * static_cast<float>(frame_dt);
             }
             // ЗАДАННАЯ КАМЕРА СТЕНДА — ПОСЛЕДНЕЙ, и это не порядок ради
-            // порядка: и затухание «locked behind», и обвод выше пишут в те же
-            // два поля, а заданная поза обязана быть заданной — иначе два
-            // прогона одной дозой снимут два разных кадра.
+            // порядка: и мышь, и обвод пишут в те же два поля, а заданная поза
+            // обязана быть заданной — иначе два прогона одной дозой снимут два
+            // разных кадра. Азимут стенда задан ОТНОСИТЕЛЬНО ФИГУРЫ («0 —
+            // сзади»), поэтому здесь он и складывается с её рыском: камера
+            // теперь мировая, и без сложения «сзади» означало бы «с севера».
             if (stand_cam_ != 0) {
                 const StandCamera cam = stand_camera(stand_cam_);
-                orbit_yaw_ = cam.orbit_yaw_deg * (3.14159265f / 180.0f);
-                orbit_pitch_ = cam.orbit_pitch_deg * (3.14159265f / 180.0f);
+                float body = 0.0f;
+                if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                    body = ps->yaw;
+                }
+                cam_yaw_ = body + cam.orbit_yaw_deg * (3.14159265f / 180.0f);
+                cam_pitch_ = cam.orbit_pitch_deg * (3.14159265f / 180.0f);
             }
         }
 
@@ -4599,10 +4651,14 @@ int App::run() {
             // character's own yaw is untouched -- the camera moves, he does not
             // turn -- which is what makes standing-still orbiting read right.
             if (third_person_) {
-                const float y0 = prev_pose->yaw + orbit_yaw_;
-                const float y1 = pose->yaw + orbit_yaw_;
-                const float p0 = prev_pose->pitch + orbit_pitch_;
-                const float p1 = pose->pitch + orbit_pitch_;
+                // МИРОВОЙ УГОЛ НА ОБА КОНЦА ИНТЕРПОЛЯЦИИ, а не отступ от
+                // рыска тела: тело теперь доворачивается под камерой, и
+                // `prev_yaw + отступ` против `yaw + отступ` дало бы азимут,
+                // отъезжающий назад ровно на долю доворота каждый кадр.
+                const float y0 = cam_yaw_;
+                const float y1 = cam_yaw_;
+                const float p0 = cam_pitch_;
+                const float p1 = cam_pitch_;
                 // СТРЕЛА, А НЕ ФИКСИРОВАННОЕ СМЕЩЕНИЕ. Раньше здесь стояло
                 // eye - fwd*3.2 + up*0.55 без единого вопроса к миру, и камера
                 // в доме уезжала СКВОЗЬ стену — «могу за границы посмотреть»
