@@ -4,8 +4,10 @@ File: engine/app/sources/FurnitureSeats.cpp
 
 Responsibility:
 - Правило «самая широкая горизонтальная площадка», классификатор сиденье/лежак,
-  перенос найденной площадки в мировую точку позы и ТОЧКА СТАРТА ПОЗЫ — где
-  человек стоит, чтобы сесть (лечь) без перекоса (контракт в заголовке).
+  перенос найденной площадки в мировую точку позы, ТОЧКА СТАРТА ПОЗЫ — где
+  человек стоит, чтобы сесть (лечь) без перекоса, — и СБОР ПО КОМПОЗИЦИИ,
+  которым эти правила прикладываются к расставленной мебели (контракт в
+  заголовке).
 
 Dependencies:
 - Uses: FurnitureSeats.h, SeatAim.h, glm.
@@ -245,6 +247,103 @@ glm::vec3 seat_facing(const glm::vec3& seat_xz, const glm::vec3& cross,
     const glm::vec3 to_room{room_centre.x - seat_xz.x, 0.0f, room_centre.z - seat_xz.z};
     const float side = glm::dot(to_room, axis);
     return side >= 0.0f ? axis : -axis;
+}
+
+// ---------------------------------------------------------------------------
+// СБОР ПО КОМПОЗИЦИИ
+// ---------------------------------------------------------------------------
+
+SeatCollection collect_furniture_spots(std::span<const SeatPiece> pieces,
+                                       const SeatGeometryFn& geometry,
+                                       const glm::vec3& centre) {
+    SeatCollection out;
+    if (pieces.empty() || !geometry) {
+        return out;
+    }
+
+    /// ЗАМЕР ОДНОГО ИМЕНИ. Упорядоченная карта, а не хеш: обход по именам
+    /// одинаков на каждом прогоне (правило 13.2).
+    struct Measured {
+        FurnSurface surface;
+        SpotKind kind = SpotKind::None;
+        glm::vec3 lo{0.0f};
+        glm::vec3 hi{0.0f};
+    };
+    std::map<std::string, Measured> measured;
+
+    struct Classified {
+        const Measured* m = nullptr;
+        const SeatPiece* piece = nullptr;
+    };
+    std::vector<Classified> kept;
+    kept.reserve(pieces.size());
+
+    std::vector<glm::vec3> positions;
+    std::vector<std::uint32_t> indices;
+    for (const SeatPiece& piece : pieces) {
+        auto it = measured.find(piece.key);
+        if (it == measured.end()) {
+            Measured m;
+            positions.clear();
+            indices.clear();
+            if (geometry(piece, positions, indices) && !positions.empty()
+                && !indices.empty()) {
+                ++out.measured;
+                m.surface = furniture_surface(positions, indices);
+                m.kind = classify_surface(m.surface);
+                glm::vec3 lo{1.0e9f};
+                glm::vec3 hi{-1.0e9f};
+                for (const glm::vec3& p : positions) {
+                    lo = glm::min(lo, p);
+                    hi = glm::max(hi, p);
+                }
+                m.lo = lo;
+                m.hi = hi;
+            }
+            it = measured.emplace(piece.key, m).first;
+            if (m.kind == SpotKind::None && m.surface.found) {
+                out.refused.push_back(SeatCollection::Refused{piece.key, m.surface});
+            }
+        }
+        if (it->second.kind != SpotKind::None) {
+            kept.push_back(Classified{&it->second, &piece});
+        }
+    }
+
+    // СТОЛЫ — ОБСТАНОВКА, И ОНИ СЧИТАЮТСЯ ПЕРВЫМИ: по ним разворачивается
+    // сидящий (seat_facing), значит к первому же сиденью они обязаны быть
+    // известны все, а не те, что попались раньше него в списке.
+    std::vector<glm::vec3> tables;
+    for (const Classified& c : kept) {
+        if (c.m->kind == SpotKind::Table) {
+            ++out.tables;
+            tables.push_back(furniture_spot(c.m->surface, SpotKind::Table,
+                                            c.piece->origin, c.piece->yaw, c.m->lo,
+                                            c.m->hi).floor_at);
+        }
+    }
+
+    for (const Classified& c : kept) {
+        if (c.m->kind != SpotKind::Seat && c.m->kind != SpotKind::Lie) {
+            continue;
+        }
+        FurnitureSpot spot = furniture_spot(c.m->surface, c.m->kind, c.piece->origin,
+                                            c.piece->yaw, c.m->lo, c.m->hi);
+        spot.source = c.piece->key;
+        // РОСТ ЧЕЛОВЕКА ОТДАЁТСЯ ПРИЦЕЛУ ЗДЕСЬ, а не у вызывающего: SeatAim.h
+        // не знает ни одной константы мира (как и DoorAim.h), и стоило бы этой
+        // строке остаться у вызывающего — двух вызывающих было бы двое, а
+        // прицел у комнаты и у улицы обязан быть один.
+        spot.aim.stand_m = static_cast<float>(config::PLAYER_EYE_HEIGHT);
+        if (spot.kind == SpotKind::Seat) {
+            spot.facing = seat_facing(spot.floor_at, spot.facing, tables, centre);
+            ++out.seats;
+        } else {
+            ++out.lies;
+        }
+        out.spots.push_back(std::move(spot));
+    }
+    return out;
 }
 
 } // namespace dfn::app

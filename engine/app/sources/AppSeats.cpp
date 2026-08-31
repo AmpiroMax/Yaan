@@ -8,7 +8,10 @@ Responsibility:
   точке старта по клавише E, парковка капсулы и камера из глаза позы.
 
 Key items:
-- App::spawn_furniture_seats / clear_furniture_seats: точки как вещь мира.
+- App::spawn_furniture_seats / clear_furniture_seats: точки как вещь мира. Сбор
+  идёт по ДВУМ композициям — карман локации и карта под открытым небом, — и
+  выбор между ними это единственное, чем ветки отличаются: само правило стоит
+  одно, в collect_furniture_spots (FurnitureSeats.h).
 - App::filter_seat_hover: подсказка только когда СМОТРИМ на предмет — и
   ЗАМОРОЖЕННАЯ на время, пока лежит клавиша E (там же назван замер
   «садится не каждый раз»).
@@ -28,7 +31,7 @@ Dependencies:
 - Used by: App (тик, вход/выход из локации).
 
 Notes:
-- ОТКУДА БЕРЁТСЯ ГЕОМЕТРИЯ. Мебель локации приходит двумя путями и оба здесь
+- ОТКУДА БЕРЁТСЯ ГЕОМЕТРИЯ. Мебель приходит двумя путями и оба здесь
   сведены к ОДНОМУ правилу (FurnitureSeats.h): секция [house] несёт чертёж
   .dfh (граф уже прочитан в interior_houses_, меш собирается тем же
   build_house_mesh, что и для картинки), секция [place] несёт объект реестра
@@ -68,6 +71,7 @@ AI Agents Notice (must follow):
 #include "engine/world/sources/Scene.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -145,150 +149,144 @@ bool App::seat_approach_enabled() {
     return on;
 }
 
+bool App::seats_map_enabled() {
+    static const bool on = [] {
+        const char* e = door_value("DFN_SEAT_MAP");
+        return e == nullptr || *e == '\0' || *e != '0';
+    }();
+    return on;
+}
+
 // ---------------------------------------------------------------------------
 // СБОР ТОЧЕК ПОЗЫ
 // ---------------------------------------------------------------------------
 
-void App::spawn_furniture_seats() {
+void App::spawn_furniture_seats(bool interior) {
     clear_furniture_seats();
     if (!seats_enabled() || physics_ == nullptr) {
         return;
     }
+    // ОТРИЦАТЕЛЬНОЕ ПЛЕЧО ЭТОЙ ВОЛНЫ (правило 47): обе руки сравнения обязаны
+    // выходить из ОДНОГО бинарника, а «до» этой волны — это карта, на которой
+    // точек нет вовсе. Дверь и есть то «до», иначе его пришлось бы искать в
+    // сборке недельной давности и мерить заодно всё, что легло рядом.
+    if (!interior && !seats_map_enabled()) {
+        std::fprintf(stderr,
+                     "[поза] DFN_SEAT_MAP=0: под открытым небом точки не "
+                     "собираются — карта доволновая\n");
+        return;
+    }
+    const auto t0 = std::chrono::steady_clock::now();
 
-    // МЕШ ЧЕРТЕЖА СЧИТАЕТСЯ ОДИН РАЗ НА ИМЯ. В комнате стоит до шести
-    // одинаковых лавок, и собирать одну и ту же геометрию шесть раз значило бы
-    // платить за побайтово тот же ответ (тот же довод, что у кэша AO в
-    // upload_house_mesh). Упорядоченная карта — обход детерминирован.
-    struct Measured {
-        FurnSurface surface;
-        SpotKind kind = SpotKind::None;
-        glm::vec3 lo{0.0f};
-        glm::vec3 hi{0.0f};
-        bool ok = false;
-    };
-    std::map<std::string, Measured> measured;
+    // --- ДВЕ КОМПОЗИЦИИ, ОДНО ПРАВИЛО --------------------------------------
+    // Мебель приходит из кармана локации (вход в дом) либо с карты под
+    // открытым небом (вход в мир, правка сцены редактором). Различаются они
+    // ровно тремя вещами — какой документ, какие постройки, где начало
+    // координат расстановок, — и здесь эти три вещи и выбираются. Само
+    // правило («замерь площадку, назови её, разверни сидящего») стоит ОДНО, в
+    // collect_furniture_spots: вторая его копия разошлась бы с первой в тот
+    // день, когда порог сиденья подвинут, и разошлась бы молча (правило 32).
+    const world::SceneDoc& doc = interior ? interior_doc_ : scene_doc_;
+    const std::vector<PlacedHouse>& houses = interior ? interior_houses_
+                                                      : placed_houses_;
+    // КАРМАН ПРИБАВЛЯЕТСЯ ТОЛЬКО РАССТАНОВКАМ: у построек он уже сложен в
+    // ph.pos на чтении локации, а на улице кармана нет вовсе.
+    const glm::vec3 origin = interior ? interior_pocket_ : glm::vec3{0.0f};
 
-    const auto measure = [&](const std::string& key,
-                             std::span<const glm::vec3> pos,
-                             std::span<const std::uint32_t> idx) -> const Measured& {
-        auto it = measured.find(key);
-        if (it != measured.end()) {
-            return it->second;
-        }
-        Measured m;
-        if (!pos.empty() && !idx.empty()) {
-            m.surface = furniture_surface(pos, idx);
-            m.kind = classify_surface(m.surface);
-            glm::vec3 lo{1.0e9f};
-            glm::vec3 hi{-1.0e9f};
-            for (const glm::vec3& p : pos) {
-                lo = glm::min(lo, p);
-                hi = glm::max(hi, p);
-            }
-            m.lo = lo;
-            m.hi = hi;
-            m.ok = true;
-        }
-        return measured.emplace(key, m).first->second;
-    };
+    std::vector<SeatPiece> pieces;
+    pieces.reserve(houses.size() + doc.placements.size());
+    // ОТКУДА БРАТЬ ГЕОМЕТРИЮ ПО ИМЕНИ. Ключ замера — имя, и спрашивают его
+    // один раз на имя (контракт SeatPiece), поэтому и адрес геометрии хранится
+    // по имени, а не по номеру расстановки.
+    std::map<std::string, const world::HouseGraph*> graph_of;
+    std::map<std::string, const render::RegistryObject*> object_of;
 
-    // --- ЧТО ГДЕ СТОИТ: две секции композиции, одно правило ------------------
-    struct Piece {
-        Measured m;
-        glm::vec3 origin{0.0f};
-        float yaw = 0.0f;
-        std::string name;
-    };
-    std::vector<Piece> pieces;
-
-    for (const PlacedHouse& ph : interior_houses_) {
-        if (ph.scene_index >= interior_doc_.houses.size()) {
+    for (const PlacedHouse& ph : houses) {
+        if (ph.scene_index >= doc.houses.size()) {
             continue;
         }
-        const world::ScenePlacedHouse& H = interior_doc_.houses[ph.scene_index];
-        const std::string key = std::filesystem::path(H.file).stem().string();
+        const world::ScenePlacedHouse& H = doc.houses[ph.scene_index];
         // ОБОЛОЧКА ЛОКАЦИИ НЕ МЕБЕЛЬ. Пол комнаты — это тоже «самая широкая
         // горизонтальная площадка», и без этой строки в каждом доме появился
         // бы лежак размером с комнату. Признак берётся у ЗАПИСИ композиции
-        // (sealed / есть ли у неё внутренность), а не по имени файла.
+        // (sealed / есть ли у неё внутренность), а не по имени файла. На
+        // улице она же снимает с замера ВСЕ настоящие дома города: их
+        // геометрия — самая дорогая на карте, и мерить в ней сиденья незачем.
         if (H.sealed || !H.interior.empty()) {
             continue;
         }
-        const world::HouseMesh built = world::build_house_mesh(ph.graph);
-        std::vector<glm::vec3> pos;
-        pos.reserve(built.vertices.size());
-        for (const world::HouseVertex& v : built.vertices) {
-            pos.push_back(v.pos);
-        }
-        const Measured& m = measure(key, pos, built.indices);
-        if (m.kind != SpotKind::None) {
-            pieces.push_back(Piece{m, ph.pos, ph.yaw, key});
-        }
+        const std::string key = std::filesystem::path(H.file).stem().string();
+        graph_of.emplace(key, &ph.graph);
+        pieces.push_back(SeatPiece{key, ph.pos, ph.yaw});
     }
 
-    for (const world::Placement& p : interior_doc_.placements) {
+    for (const world::Placement& p : doc.placements) {
         const auto obj = scene_objects_.find(p.object);
         if (obj == scene_objects_.end() || obj->second.house.empty()) {
             continue;
         }
-        std::vector<glm::vec3> pos;
-        std::vector<std::uint32_t> idx;
-        for (const render::HouseSubmesh& sub : obj->second.house) {
-            const auto base = static_cast<std::uint32_t>(pos.size());
-            for (const platform::Vertex& v : sub.mesh.vertices) {
-                pos.push_back(v.position);
+        object_of.emplace(p.object, &obj->second);
+        pieces.push_back(SeatPiece{p.object, p.position + origin, p.yaw});
+    }
+
+    const SeatGeometryFn geometry = [&](const SeatPiece& piece,
+                                        std::vector<glm::vec3>& pos,
+                                        std::vector<std::uint32_t>& idx) {
+        if (const auto g = graph_of.find(piece.key); g != graph_of.end()) {
+            // ТОТ ЖЕ ПОСТРОИТЕЛЬ, ЧТО РИСУЕТ КАРТИНКУ: меряется геометрия,
+            // которую игрок видит, а не её описание.
+            const world::HouseMesh built = world::build_house_mesh(*g->second);
+            pos.reserve(built.vertices.size());
+            for (const world::HouseVertex& v : built.vertices) {
+                pos.push_back(v.pos);
             }
-            for (const std::uint32_t i : sub.mesh.indices) {
-                idx.push_back(base + i);
+            idx.assign(built.indices.begin(), built.indices.end());
+            return !idx.empty();
+        }
+        if (const auto o = object_of.find(piece.key); o != object_of.end()) {
+            for (const render::HouseSubmesh& sub : o->second->house) {
+                const auto base = static_cast<std::uint32_t>(pos.size());
+                for (const platform::Vertex& v : sub.mesh.vertices) {
+                    pos.push_back(v.position);
+                }
+                for (const std::uint32_t i : sub.mesh.indices) {
+                    idx.push_back(base + i);
+                }
             }
+            return !idx.empty();
         }
-        const Measured& m = measure(p.object, pos, idx);
-        if (m.kind != SpotKind::None) {
-            pieces.push_back(Piece{m, p.position + interior_pocket_, p.yaw, p.object});
+        return false;
+    };
+
+    // СЕРЕДИНА, ПО КОТОРОЙ РАЗВОРАЧИВАЕТСЯ ЛАВКА БЕЗ СТОЛА (seat_facing).
+    // Под крышей это середина комнаты, и её знают вершины залитого коллайдера.
+    // ПОД ОТКРЫТЫМ НЕБОМ КОМНАТЫ НЕТ, и другого ответа у площадки не бывает:
+    // единственное, что известно об уличной лавке, у которой нет своего стола,
+    // — с какой стороны от неё стоит остальная обстановка. Берётся середина
+    // габарита самой расстановки; лавка у края площадки разворачивается к её
+    // середине, а не к пустому полю за спиной.
+    glm::vec3 centre{0.0f};
+    if (interior) {
+        glm::vec3 lo{1.0e9f};
+        glm::vec3 hi{-1.0e9f};
+        for (const glm::vec3& v : interior_positions_) {
+            lo = glm::min(lo, v);
+            hi = glm::max(hi, v);
         }
+        centre = interior_positions_.empty() ? interior_pocket_ : (lo + hi) * 0.5f;
+    } else if (!pieces.empty()) {
+        glm::vec3 lo{1.0e9f};
+        glm::vec3 hi{-1.0e9f};
+        for (const SeatPiece& piece : pieces) {
+            lo = glm::min(lo, piece.origin);
+            hi = glm::max(hi, piece.origin);
+        }
+        centre = (lo + hi) * 0.5f;
     }
 
-    // --- СЕРЕДИНА КОМНАТЫ И СТОЛЫ: обстановка, по которой сидящий
-    //     разворачивается (см. seat_facing) -----------------------------------
-    glm::vec3 room_lo{1.0e9f};
-    glm::vec3 room_hi{-1.0e9f};
-    for (const glm::vec3& v : interior_positions_) {
-        room_lo = glm::min(room_lo, v);
-        room_hi = glm::max(room_hi, v);
-    }
-    const glm::vec3 room_centre = interior_positions_.empty()
-                                      ? interior_pocket_
-                                      : (room_lo + room_hi) * 0.5f;
-    std::vector<glm::vec3> tables;
-    for (const Piece& piece : pieces) {
-        if (piece.m.kind == SpotKind::Table) {
-            tables.push_back(furniture_spot(piece.m.surface, SpotKind::Table,
-                                            piece.origin, piece.yaw, piece.m.lo,
-                                            piece.m.hi).floor_at);
-        }
-    }
+    SeatCollection found = collect_furniture_spots(pieces, geometry, centre);
 
-    std::size_t n_seat = 0;
-    std::size_t n_lie = 0;
-    for (const Piece& piece : pieces) {
-        if (piece.m.kind != SpotKind::Seat && piece.m.kind != SpotKind::Lie) {
-            continue;
-        }
-        FurnitureSpot spot = furniture_spot(piece.m.surface, piece.m.kind,
-                                            piece.origin, piece.yaw,
-                                            piece.m.lo, piece.m.hi);
-        spot.source = piece.name;
-        // РОСТ ЧЕЛОВЕКА ОТДАЁТСЯ ПРИЦЕЛУ ЗДЕСЬ: SeatAim.h не знает ни одной
-        // константы мира (как и DoorAim.h), и второй копии PLAYER_EYE_HEIGHT
-        // в нём не будет.
-        spot.aim.stand_m = static_cast<float>(config::PLAYER_EYE_HEIGHT);
-        if (spot.kind == SpotKind::Seat) {
-            spot.facing = seat_facing(spot.floor_at, spot.facing, tables, room_centre);
-            ++n_seat;
-        } else {
-            ++n_lie;
-        }
-
+    for (FurnitureSpot& spot : found.spots) {
         const ecs::EntityId id = world_.spawn();
         world_.add(id, components::Transform{.position = spot.floor_at,
                                              .rotation = {1.0f, 0.0f, 0.0f, 0.0f},
@@ -329,16 +327,56 @@ void App::spawn_furniture_seats() {
         seats_.push_back(std::move(link));
     }
 
+    const double ms = std::chrono::duration<double, std::milli>(
+                          std::chrono::steady_clock::now() - t0).count();
     if (!seats_.empty()) {
         const FurnitureSpot& first = seats_.front().spot;
         std::fprintf(stderr,
-                     "[поза] точек на локации: %zu (сидений %zu, лежаков %zu); "
+                     "[поза] точек %s: %zu (сидений %zu, лежаков %zu); "
                      "первая %s на (%.2f %.2f %.2f), площадка %.3f м\n",
-                     seats_.size(), n_seat, n_lie, first.source.c_str(),
+                     interior ? "на локации" : "на карте", seats_.size(),
+                     found.seats, found.lies, first.source.c_str(),
                      static_cast<double>(first.floor_at.x),
                      static_cast<double>(first.floor_at.y),
                      static_cast<double>(first.floor_at.z),
                      static_cast<double>(first.surface_m));
+    }
+    // ЦЕНА СБОРА — СТРОКОЙ, И ОНА ЗДЕСЬ НЕ ОТЛАДКА. Под открытым небом сбор
+    // зовётся не только на входе в мир: он повторяется на каждом выходе из
+    // дома и на каждой правке сцены редактором, а мерить приходится ЧЕРТЕЖИ
+    // города. Без числа «стало тормозить на выходе из дома» проверялось бы
+    // ощущением. Печатается, только если было что мерить.
+    if (!pieces.empty()) {
+        std::fprintf(stderr,
+                     "[поза] сбор %s: вещей %zu, замеров %zu (столов %zu), точек "
+                     "%zu за %.1f ms\n",
+                     interior ? "по локации" : "по карте", pieces.size(),
+                     found.measured, found.tables, seats_.size(), ms);
+    }
+    // ПРИБОР — ЗДЕСЬ, А НЕ У ВЫЗЫВАЮЩЕГО. Дверь DFN_SEAT_PROBE стояла в
+    // enter_interior, и на уличной карте её нельзя было спросить вовсе: прибор
+    // существовал только для комнат. Спрашивается там же, где точки заведены,
+    // — тогда обе композиции меряются одной рукой.
+    if (const char* probe = door_value("DFN_SEAT_PROBE");
+        probe != nullptr && *probe != '\0' && *probe != '0') {
+        // ОТКАЗЫ — ПЕРЕД ПРИНЯТЫМИ, И ЭТО НЕ УКРАШЕНИЕ ЛОГА. «На стул не
+        // садятся» — предъявление стенда, и предъявлять его молчанием нельзя:
+        // молчание одинаково у отвергнутого стула и у стула, которого сборщик
+        // не увидел вовсе (правило 30).
+        for (const SeatCollection::Refused& r : found.refused) {
+            std::fprintf(stderr,
+                         "[поза] %s: площадка %.3f м, %.2f x %.2f — ни сиденье, "
+                         "ни лежак, ни стол (пороги: сиденье %.2f..%.3f при длине "
+                         ">= %.2f и ширине <= %.2f)\n",
+                         r.key.c_str(), static_cast<double>(r.surface.top_y),
+                         static_cast<double>(r.surface.long_side()),
+                         static_cast<double>(r.surface.short_side()),
+                         static_cast<double>(SEAT_MIN_M),
+                         static_cast<double>(SEAT_MAX_M),
+                         static_cast<double>(SEAT_MIN_LONG_M),
+                         static_cast<double>(SEAT_MAX_SHORT_M));
+        }
+        probe_seats();
     }
 }
 

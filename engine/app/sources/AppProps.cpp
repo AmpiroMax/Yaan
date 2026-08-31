@@ -744,11 +744,28 @@ void App::probe_grab() {
         const glm::vec3 flat{at.x - cam->position.x, 0.0f, at.z - cam->position.z};
         const glm::vec3 dir = glm::length(flat) > 1e-3f ? glm::normalize(flat)
                                                         : glm::vec3{0.0f, 0.0f, -1.0f};
-        const glm::vec3 stand = at - dir * 0.90f;
-        const platform::RayHit floor_hit =
-            physics_->raycast({stand.x, at.y + 1.0f, stand.z}, {0.0f, -1.0f, 0.0f}, 4.0f,
-                              physics::LAYER_STATIC);
-        const float feet = floor_hit.hit ? floor_hit.position.y + 0.02f : at.y;
+        // ...И НЕ НА ТОТ ЖЕ ПРЕДМЕТ, С КОТОРОГО БЕРЁТ. Луч вниз честно находит
+        // ПЕРВУЮ опору под точкой, а в 0.90 м от кубка, стоящего посреди стола
+        // 1.8 x 0.9, этой опорой оказывается САМА СТОЛЕШНИЦА: прибор влезал на
+        // стол, глаз уезжал на 1.65 м выше предмета, до кубка становилось
+        // 1.83 м при руке 1.60 — и «взять» не предлагалось (замер стенда
+        // взаимодействия: ноги на 26.320 при столешнице 26.300). Отходим ещё
+        // на полшага, пока опора не окажется НИЖЕ подошвы предмета: человек
+        // тянется к столу С ПОЛА, и мерить надо это.
+        constexpr float STEP_BACK_M = 0.45f;
+        constexpr int STEP_BACK_MAX = 4;
+        glm::vec3 stand = at - dir * 0.90f;
+        float feet = at.y;
+        for (int back = 0; back <= STEP_BACK_MAX; ++back) {
+            const platform::RayHit floor_hit =
+                physics_->raycast({stand.x, at.y + 1.0f, stand.z}, {0.0f, -1.0f, 0.0f},
+                                  4.0f, physics::LAYER_STATIC);
+            feet = floor_hit.hit ? floor_hit.position.y + 0.02f : at.y;
+            if (!floor_hit.hit || feet <= at.y - 0.30f || back == STEP_BACK_MAX) {
+                break;
+            }
+            stand -= dir * STEP_BACK_M;
+        }
         // СТОЙКА ЗАПОМИНАЕТСЯ: во второй заход предмет уже не там, где стоял,
         // и вычисленная от него новая стойка легко оказывается по ту сторону
         // столешницы — луч упирается в её кромку, и «взять» не случается
@@ -769,6 +786,35 @@ void App::probe_grab() {
     // до телепорта, смотрит из точки, в которой человека уже нет, — и первый
     // прогон этого прибора промахнулся мимо кувшина ровно так (тангаж -0.55
     // при нужных -1.03).
+    // ЦЕЛИТЬСЯ НАДО В ПРЕДМЕТ, А НЕ В ЕГО ПОДОШВУ. Тело возвращает НАЧАЛО
+    // чертежа, а у всей полки утвари начало стоит на дне: у кувшина, у бутыли,
+    // у миски. Пока предмет НИЖЕ глаза, разница незаметна — луч всё равно
+    // входит в оболочку сверху; как только предмет оказывается ВЫШЕ глаза,
+    // луч приходит к нему снизу и первым встречает полку, на которой предмет
+    // стоит. ЗАМЕРЕНО на стенде взаимодействия: бутыль на верхней полке 1.93
+    // (тело на 27.430, глаз на 27.220, до предмета 0.87 м при руке 1.60) —
+    // прицел -1 во всех кадрах, то есть «взять» не предлагалось ВООБЩЕ, а
+    // кувшин средней полки 1.38, стоящий НИЖЕ глаза, брался тем же прогоном.
+    // Живой игрок наводит перекрестье на то, что ВИДИТ, — то есть на середину
+    // предмета, и высота её берётся у той же полки объектов, из которой
+    // предмет собран.
+    const auto prop_mid_up = [&](int index) -> float {
+        if (index < 0) {
+            return 0.0f;
+        }
+        const LoosePropLink& link = loose_props_[static_cast<std::size_t>(index)];
+        const auto obj = scene_objects_.find(link.object);
+        if (obj == scene_objects_.end()) {
+            return 0.0f;
+        }
+        float top = 0.0f;
+        for (const render::HouseSubmesh& sub : obj->second.house) {
+            for (const platform::Vertex& v : sub.mesh.vertices) {
+                top = std::max(top, v.position.y);
+            }
+        }
+        return top * 0.5f;
+    };
     const auto probe_aim = [&](int index) {
         auto* ps = world_.get<gameplay::PlayerState>(player_);
         const auto* cam = world_.get<components::CameraPose>(player_);
@@ -776,7 +822,8 @@ void App::probe_grab() {
             return;
         }
         const glm::vec3 at =
-            physics_->body_pose(loose_props_[static_cast<std::size_t>(index)].body).position;
+            physics_->body_pose(loose_props_[static_cast<std::size_t>(index)].body).position
+            + glm::vec3{0.0f, prop_mid_up(index), 0.0f};
         const glm::vec3 to = at - cam->position;
         const float flat_len = std::sqrt(to.x * to.x + to.z * to.z);
         ps->yaw = std::atan2(to.x, -to.z);

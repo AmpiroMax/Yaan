@@ -1409,11 +1409,7 @@ bool App::enter_interior(const std::string& scene_path,
     // резидентном заливки не было, но список точек снесён выходом из прошлой
     // комнаты, и оставить его пустым значило бы, что во второй раз в дом
     // садиться уже нельзя.
-    spawn_furniture_seats();
-    if (const char* probe = door_value("DFN_SEAT_PROBE");
-        probe != nullptr && *probe != '\0' && *probe != '0') {
-        probe_seats();
-    }
+    spawn_furniture_seats(/*interior=*/true);
     render_system_.set_world_suspended(true);
     state.visited = true;
     loading_.stage("переход и точка входа");
@@ -1454,7 +1450,18 @@ void App::leave_interior() {
     // ТОЧКИ ПОЗЫ УХОДЯТ ВМЕСТЕ С ПЕРЕХОДАМИ. Сидящий при этом поднимается сам
     // (clear_furniture_seats): выйти на улицу, оставшись сидеть на лавке в
     // комнате, — это состояние, из которого нет выхода.
-    clear_furniture_seats();
+    //
+    // ...И НА УЛИЦЕ СРАЗУ ЖЕ СОБИРАЮТСЯ ЗАНОВО. Точки карты снёс вход в дом
+    // (сбор начинается с уборки), и без этой строки вышедший из дома получал
+    // бы город, в котором сесть больше нельзя ни на что до следующего входа в
+    // мир. Выход в ВЕРХНЮЮ локацию (двухэтажный переход, стек не опустел)
+    // ничего не собирает: геометрия верхней комнаты уже не залита, и мерить
+    // там нечего — честнее пустой список, чем список по чужой комнате.
+    if (state.inside()) {
+        clear_furniture_seats();
+    } else {
+        spawn_furniture_seats(/*interior=*/false);
+    }
 
     if (city_lights_saved_) {
         render_system_.set_scene_lights(city_lights_);
