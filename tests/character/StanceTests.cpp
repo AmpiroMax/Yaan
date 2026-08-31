@@ -204,6 +204,55 @@ TEST_CASE("stance_protocol") {
                 static_cast<double>(m.lib.relax.reference_drop_m),
                 static_cast<double>(m.lib.relax.reference_elbow_rad * DEG));
     CHECK(m.lib.stance.valid());
+
+    // WHERE THE BLADE POINTS, in the drawn poses, as the angle off the ground
+    // plane — the number the reference states ("the blade at 30-40 degrees to
+    // the ground, point back and down") and the one a frame of an empty hand
+    // could not be asked for at all.
+    std::vector<anim::JointLocal> guard(m.obj.skeleton.size());
+    anim::sample_clip_pose(
+        m.obj.skeleton,
+        m.obj.clips[static_cast<std::size_t>(m.lib[anim::ClipRole::WeaponIdle].clip)],
+        0.0f, guard);
+    const anim::HeldBlade blade =
+        anim::build_held_blade(m.obj.skeleton, m.binding, guard);
+    if (blade.valid()) {
+        for (const Shot& s : SHOTS) {
+            if (!s.drawn) {
+                continue;
+            }
+            std::vector<anim::JointLocal> pose;
+            sample_shot(m, m.lib, s, 0.25f, pose);
+            std::vector<glm::mat4> palette(m.obj.skeleton.size());
+            anim::sample_palette(m.obj.skeleton, pose, palette);
+            const glm::mat4& p = palette[static_cast<std::size_t>(blade.joint)];
+            // The point is the vertex furthest from the pommel end, and the
+            // pommel is the one furthest from IT: two passes, no name table.
+            glm::vec3 a{0.0f};
+            glm::vec3 b{0.0f};
+            float best = -1.0f;
+            std::vector<glm::vec3> world;
+            world.reserve(blade.vertices.size());
+            for (const platform::SkinnedVertex& v : blade.vertices) {
+                world.push_back(glm::vec3{p * glm::vec4{v.position, 1.0f}});
+            }
+            for (const glm::vec3& w : world) {
+                const float d = glm::length(w - world.front());
+                if (d > best) { best = d; a = w; }
+            }
+            best = -1.0f;
+            for (const glm::vec3& w : world) {
+                const float d = glm::length(w - a);
+                if (d > best) { best = d; b = w; }
+            }
+            const glm::vec3 axis = glm::normalize(b - a);
+            const float tilt = std::asin(std::clamp(std::abs(axis.y), 0.0f, 1.0f));
+            std::printf("blade  %-12s tilt from the ground %5.1f deg, "
+                        "point %.2f m from the hilt\n",
+                        s.label, static_cast<double>(tilt * DEG),
+                        static_cast<double>(glm::length(b - a)));
+        }
+    }
 }
 
 TEST_CASE("the_reference_bands") {
@@ -376,7 +425,13 @@ TEST_CASE("a_drawn_weapon_keeps_our_proportions") {
 TEST_CASE("the_blade_is_in_the_hand") {
     Model m;
     REQUIRE(load(m));
-    const anim::HeldBlade blade = anim::build_held_blade(m.obj.skeleton, m.binding);
+    std::vector<anim::JointLocal> guard(m.obj.skeleton.size());
+    anim::sample_clip_pose(
+        m.obj.skeleton,
+        m.obj.clips[static_cast<std::size_t>(m.lib[anim::ClipRole::WeaponIdle].clip)],
+        0.0f, guard);
+    const anim::HeldBlade blade =
+        anim::build_held_blade(m.obj.skeleton, m.binding, guard);
     REQUIRE(blade.valid());
     const int32_t hand = m.binding.names.joint[anim::bone_index(anim::Bone::HandR)];
     CHECK(blade.joint == hand);
@@ -430,6 +485,34 @@ TEST_CASE("the_blade_is_in_the_hand") {
     // surface passes 0.015 m from the joint. A tighter band would be a claim
     // about where a box's corners are.
     CHECK(near_m < 0.08f);              // the grip is IN the fist
+    // AND IT IS CARRIED, NOT BRANDISHED. The reference holds a drawn blade at
+    // 30-40 degrees to the ground with the point down; the grip's cant is
+    // solved for exactly that (STANCE_BLADE_TILT), so this is the check that
+    // the solve reached its target through the retarget and the palette.
+    {
+        std::vector<glm::vec3> w;
+        w.reserve(blade.vertices.size());
+        for (const platform::SkinnedVertex& v : blade.vertices) {
+            w.push_back(glm::vec3{p * glm::vec4{v.position, 1.0f}});
+        }
+        glm::vec3 a = w.front();
+        glm::vec3 b = w.front();
+        float best = -1.0f;
+        for (const glm::vec3& q : w) {
+            const float d = glm::length(q - w.front());
+            if (d > best) { best = d; a = q; }
+        }
+        best = -1.0f;
+        for (const glm::vec3& q : w) {
+            const float d = glm::length(q - a);
+            if (d > best) { best = d; b = q; }
+        }
+        const glm::vec3 axis = glm::normalize(b - a);
+        const float tilt = std::asin(std::clamp(std::abs(axis.y), 0.0f, 1.0f));
+        CAPTURE(tilt * DEG);
+        CHECK(tilt > 0.44f); // 25 deg: not held out level like a lance...
+        CHECK(tilt < 0.79f); // 45 deg: ...and not dragged in the grass
+    }
     CHECK(far_m > 0.70f);               // the point is a blade away
     CHECK(far_m < blade.length_m + 0.1f); // and not further than the sword is long
 }

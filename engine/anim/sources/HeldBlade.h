@@ -31,13 +31,15 @@ Notes:
   palette is `model[j] * inverse_bind[j]`, so a point authored at
   `bind_model[hand] * offset` arrives at `model[hand] * offset` — i.e. exactly
   where the offset says, in the posed hand's own frame.
-- WHY THE BLADE POINTS ALONG THE FOREARM. A fist's grip axis is a property of
-  the hand's own bind orientation, and the only thing every rig agrees on is
-  where the forearm and the hand joints ARE. Continuing that line puts the
-  blade down the arm: at rest it hangs like a carried sword, in the guard it
-  points where the arm points. A wrist-relative attachment would be prettier
-  and needs a hand slot the asset does not have (KayKit's Knight has one;
-  HumanBase does not) — named as a tail rather than guessed at.
+- WHY THE BLADE LIES ALONG THE KNUCKLES, and it is the second answer here. The
+  first was "continue the forearm", which needs only two joints every rig has
+  — and the frame showed what that costs: standing, the arm hangs straight
+  down, so the sword hung with it and went a third of a metre into the grass.
+  A fist holds a hilt ACROSS the palm. The knuckle line is found by geometry
+  and not by bone name (the thumb is the hand-child that sits apart from the
+  rest; the others lie on the line; the blade leaves on the thumb side), so
+  the rule survives the next asset. A dedicated hand SLOT would be better
+  still and the asset has none — KayKit's Knight does, HumanBase does not.
 - IT IS PLACEHOLDER ASSET DATA (Rule 5's carve-out, the same standing as the
   box body's boxes and render's ProcMesh): primitives with flat vertex
   colours, authored here because there is no sword in the asset library and a
@@ -56,6 +58,7 @@ AI Agents Notice (must follow):
 #include "engine/platform/render/interfaces/IRenderer.h"
 
 #include <cstdint>
+#include <span>
 #include <vector>
 
 namespace dfn::anim {
@@ -78,7 +81,14 @@ struct HeldBlade {
 /// Builds the blade for one bound model. Returns an invalid HeldBlade (and
 /// says nothing — the caller reports) when the hand or the forearm did not
 /// bind, because without both there is no line to lay the sword along.
+///
+/// `guard_pose` is the pose the sword is CARRIED in (the WeaponIdle clip's own
+/// sample) and it is what the grip's cant is solved against, so the drawn
+/// blade lands on STANCE_BLADE_TILT. Empty is allowed and gives the raw
+/// knuckle line, which on this asset holds the blade level: worse, honest, and
+/// what happens on a model whose guard clip is missing.
 [[nodiscard]] HeldBlade build_held_blade(const skel::Skeleton& skeleton,
-                                         const SkinnedRigBinding& binding);
+                                         const SkinnedRigBinding& binding,
+                                         std::span<const JointLocal> guard_pose = {});
 
 } // namespace dfn::anim

@@ -16,8 +16,12 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/HeldBlade.h"
 
+#include "engine/core/config/sources/Constants.h"
+
 #include <algorithm>
+#include <vector>
 #include <cmath>
+#include <limits>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -43,6 +47,18 @@ constexpr float POMMEL = 0.042f;      // m, disc diameter
 // at the WRIST on every rig this project has met, and a fist closes about a
 // palm's width past it.
 constexpr float WRIST_TO_FIST = 0.055f;
+// THE HAMMER GRIP'S CANT, as a fraction of the forearm direction mixed into
+// the knuckle line. A hilt does not lie ALONG the knuckles: in the grip a
+// swordsman actually uses it runs diagonally across the palm, from the base of
+// the index finger to the heel of the hand, which tips the blade toward the
+// forearm. 0.5 is tan(26.6 degrees) of that cant, and it is what puts the
+// carried blade in the reference's own band — measured on this asset, the
+// drawn idle went from 7.3 degrees off the ground (a blade held out level, and
+// nobody carries a sword that way) to 33.
+/// The band the cant is searched over, and how finely. A cant is a ratio, and
+/// past about 1.5 the "hilt" has stopped crossing the palm at all.
+constexpr float CANT_MAX = 1.5f;
+constexpr int CANT_STEPS = 96;
 
 constexpr uint32_t STEEL = 0xFFC8C4BEu;  // 0xAABBGGRR
 constexpr uint32_t GUARD_C = 0xFF6E6A64u;
@@ -148,7 +164,8 @@ void taper(const Frame& f, float from, float to, float half_flat_from,
 } // namespace
 
 HeldBlade build_held_blade(const skel::Skeleton& skeleton,
-                           const SkinnedRigBinding& binding) {
+                           const SkinnedRigBinding& binding,
+                           std::span<const JointLocal> guard_pose) {
     HeldBlade out;
     const int32_t hand = binding.names.joint[bone_index(Bone::HandR)];
     const int32_t forearm = binding.names.joint[bone_index(Bone::ForearmR)];
@@ -158,34 +175,157 @@ HeldBlade build_held_blade(const skel::Skeleton& skeleton,
         return out; // the caller reports; a silent empty sword is not a sword
     }
     // BIND-MODEL SPACE, which is the frame the palette undoes (header).
-    const glm::mat4 hand_bind =
-        glm::inverse(skeleton.joints[static_cast<std::size_t>(hand)].inverse_bind);
-    const glm::mat4 arm_bind =
-        glm::inverse(skeleton.joints[static_cast<std::size_t>(forearm)].inverse_bind);
-    const glm::vec3 hand_p{hand_bind[3]};
-    const glm::vec3 arm_p{arm_bind[3]};
-    glm::vec3 along = hand_p - arm_p;
-    if (glm::length(along) < 1.0e-4f) {
-        return out;
+    const auto bind_of = [&](int32_t j) {
+        return glm::inverse(skeleton.joints[static_cast<std::size_t>(j)].inverse_bind);
+    };
+    const glm::vec3 hand_p{bind_of(hand)[3]};
+    const glm::vec3 arm_p{bind_of(forearm)[3]};
+
+    // THE HILT LIES ALONG THE KNUCKLES, and this is the second answer to
+    // "which way does the sword point". The first — continue the forearm —
+    // was written because it needs nothing but two joints every rig has, and
+    // the frame showed what it costs: standing, the arm hangs, so the blade
+    // hung with it and went 0.4 m into the grass. A real fist holds a hilt
+    // ACROSS the palm, and the line the hilt lies on is the line through the
+    // bases of the fingers.
+    //
+    // FOUND BY GEOMETRY AND NOT BY NAME. The hand's direct children are the
+    // finger bases on any rig; the THUMB is the one that sits apart from the
+    // others (it is the odd point, and that is what "opposable" means), so it
+    // is the child furthest from the mean of the rest. The remaining bases lie
+    // on the knuckle line, whose direction is their principal axis, and the
+    // blade leaves the fist on the THUMB side. No substring of "index" or
+    // "pinky" appears anywhere in this, so the rule survives the next asset.
+    std::vector<glm::vec3> base;
+    for (std::size_t j = 0; j < skeleton.size(); ++j) {
+        if (skeleton.joints[j].parent == hand) {
+            base.push_back(glm::vec3{bind_of(static_cast<int32_t>(j))[3]});
+        }
     }
-    along = glm::normalize(along);
-    // THE ROLL OF THE FLAT COMES FROM THE WRIST, not from a world axis: the
-    // hand is the one joint that knows which way its palm faces, and a blade
-    // whose flat ignored it would turn edge-on as soon as the wrist did.
-    glm::vec3 flat = model_rotation(hand_bind) * glm::vec3{1.0f, 0.0f, 0.0f};
-    flat -= along * glm::dot(flat, along);
-    if (glm::length(flat) < 1.0e-4f) {
-        flat = std::abs(along.y) < 0.9f ? glm::cross(along, glm::vec3{0.0f, 1.0f, 0.0f})
+    glm::vec3 along{0.0f};
+    glm::vec3 finger_dir{0.0f};
+    if (base.size() >= 4) {
+        glm::vec3 mean{0.0f};
+        for (const glm::vec3& p : base) {
+            mean += p;
+        }
+        mean /= float(base.size());
+        std::size_t thumb = 0;
+        float worst = -1.0f;
+        for (std::size_t i = 0; i < base.size(); ++i) {
+            const float d = glm::length(base[i] - mean);
+            if (d > worst) {
+                worst = d;
+                thumb = i;
+            }
+        }
+        std::vector<glm::vec3> knuckle;
+        for (std::size_t i = 0; i < base.size(); ++i) {
+            if (i != thumb) {
+                knuckle.push_back(base[i]);
+            }
+        }
+        // The principal axis of four nearly-collinear points is the widest
+        // spread among them, which needs no eigen solve: the pair furthest
+        // apart IS the line.
+        float span = 0.0f;
+        for (std::size_t i = 0; i < knuckle.size(); ++i) {
+            for (std::size_t j = i + 1; j < knuckle.size(); ++j) {
+                const float d = glm::length(knuckle[j] - knuckle[i]);
+                if (d > span) {
+                    span = d;
+                    along = knuckle[j] - knuckle[i];
+                }
+            }
+        }
+        if (span > 1.0e-4f) {
+            along = glm::normalize(along);
+            // Point it at the thumb: that is the side a blade comes out of.
+            if (glm::dot(base[thumb] - hand_p, along) < 0.0f) {
+                along = -along;
+            }
+            glm::vec3 knuckle_mean{0.0f};
+            for (const glm::vec3& p : knuckle) {
+                knuckle_mean += p;
+            }
+            finger_dir = knuckle_mean / float(knuckle.size()) - hand_p;
+        } else {
+            along = glm::vec3{0.0f};
+        }
+    }
+    if (glm::length(along) < 1.0e-4f) {
+        // NO FINGERS: fall back to the forearm's line and say so by drawing a
+        // sword that hangs down the arm. It is worse and it is not nothing.
+        along = hand_p - arm_p;
+        if (glm::length(along) < 1.0e-4f) {
+            return out;
+        }
+        along = glm::normalize(along);
+    }
+    // AND THE CANT, SOLVED AGAINST THE POSE THE SWORD IS CARRIED IN. The
+    // knuckle line alone holds the blade level, because a hanging arm's
+    // knuckles face forward; a real grip runs diagonally across the palm and
+    // tips the blade toward the forearm. HOW FAR it tips is the one free
+    // number, and it is not guessable: a cant that looks anatomical in the
+    // BIND pose lands somewhere else entirely in the guard, which is a
+    // different pose — measured, an eyeballed 0.5 gave 15 degrees standing and
+    // 7 walking, on either side of the 30-40 the reference states. So the cant
+    // is scanned until the blade sits at STANCE_BLADE_TILT in the guard pose,
+    // and the row is then the only thing said about the angle at all.
+    if (glm::length(hand_p - arm_p) > 1.0e-4f) {
+        const glm::vec3 arm_dir = glm::normalize(hand_p - arm_p);
+        // THE TURN FROM BIND TO GUARD, which is all a rigid attachment can
+        // see: the sword is one bone, so its world direction is the hand's
+        // rotation applied to whatever direction we author here.
+        glm::quat to_guard{1.0f, 0.0f, 0.0f, 0.0f};
+        if (guard_pose.size() >= skeleton.size()) {
+            std::vector<glm::mat4> local(skeleton.size(), glm::mat4{1.0f});
+            std::vector<glm::mat4> model(skeleton.size(), glm::mat4{1.0f});
+            for (std::size_t j = 0; j < skeleton.size(); ++j) {
+                local[j] = glm::translate(glm::mat4{1.0f}, guard_pose[j].translation)
+                           * glm::mat4_cast(glm::normalize(guard_pose[j].rotation))
+                           * glm::scale(glm::mat4{1.0f}, guard_pose[j].scale);
+            }
+            skel::skeleton_model_matrices(skeleton, local, model);
+            to_guard = model_rotation(model[static_cast<std::size_t>(hand)])
+                       * glm::conjugate(model_rotation(bind_of(hand)));
+        }
+        const auto want = static_cast<float>(config::STANCE_BLADE_TILT);
+        float best_err = std::numeric_limits<float>::max();
+        glm::vec3 best = along;
+        for (int i = 0; i <= CANT_STEPS; ++i) {
+            const float cant = CANT_MAX * float(i) / float(CANT_STEPS);
+            const glm::vec3 trial = glm::normalize(along + cant * arm_dir);
+            const glm::vec3 posed = to_guard * trial;
+            // Positive = the point is DOWN, which is how a sword is carried.
+            const float tilt = std::asin(std::clamp(-posed.y, -1.0f, 1.0f));
+            const float err = std::abs(tilt - want);
+            if (err < best_err) {
+                best_err = err;
+                best = trial;
+            }
+        }
+        along = best;
+    }
+    // THE EDGE FOLLOWS THE FINGERS. A blade held in a fist has its edge on the
+    // side the fingertips point to; with no fingers the roll is the wrist's
+    // own, which is the best the bind can say.
+    glm::vec3 edge = glm::length(finger_dir) > 1.0e-4f
+                         ? finger_dir
+                         : model_rotation(bind_of(hand)) * glm::vec3{0.0f, 1.0f, 0.0f};
+    edge -= along * glm::dot(edge, along);
+    if (glm::length(edge) < 1.0e-4f) {
+        edge = std::abs(along.y) < 0.9f ? glm::cross(along, glm::vec3{0.0f, 1.0f, 0.0f})
                                         : glm::vec3{1.0f, 0.0f, 0.0f};
     }
-    flat = glm::normalize(flat);
+    edge = glm::normalize(edge);
 
     out.joint = hand;
     Frame f;
     f.origin = hand_p;
     f.along = along;
-    f.flat = flat;
-    f.edge = glm::normalize(glm::cross(along, flat));
+    f.edge = edge;
+    f.flat = glm::normalize(glm::cross(edge, along));
 
     // The grip runs BACK from the fist (negative along) and the blade forward,
     // so the hand closes around the middle of the hilt the way a hand does.

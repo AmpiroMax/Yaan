@@ -123,7 +123,18 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     // drawn weapon that draws as nothing is exactly the state the comparison
     // report called its blocker, and it looked from the frame like a POSE
     // problem.
-    blade_ = anim::build_held_blade(skeleton_, binding_);
+    // THE GUARD POSE IS PART OF THE ARGUMENT: the sword's tilt is fixed to the
+    // hand, so the only pose that can decide it is the one it is carried in.
+    std::vector<anim::JointLocal> guard(skeleton_.size());
+    if (library_.has(anim::ClipRole::WeaponIdle)) {
+        anim::sample_clip_pose(
+            skeleton_,
+            clips_[static_cast<std::size_t>(library_[anim::ClipRole::WeaponIdle].clip)],
+            0.0f, guard);
+    } else {
+        guard.clear();
+    }
+    blade_ = anim::build_held_blade(skeleton_, binding_, guard);
     if (!blade_.valid()) {
         std::fprintf(stderr,
                      "[character] no blade: the right hand or forearm of \"%s\" did "
