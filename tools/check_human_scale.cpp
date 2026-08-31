@@ -9,9 +9,13 @@ Responsibility:
   the band.
 
 Key items:
-- main(): <file.dfo> [--tolerance FRAC] [--quiet].
-- The measured landmarks: total height, head height (and heads-per-figure),
+- main(): <file.dfo> [--tolerance FRAC] [--silhouette-tolerance FRAC] [--quiet].
+- The JOINT landmarks: total height, head height (and heads-per-figure),
   shoulder / hip / knee / ankle heights, shoulder width, upper arm, forearm.
+- The SILHOUETTE landmarks, measured on the rest-posed SKIN: hand length,
+  fingertip height, arm span, bideltoid shoulders, hip breadth, chest width
+  and depth, waist breadth and depth at the navel, upper arm and thigh
+  diameters -- plus the trunk's profile in metres at five heights.
 
 Dependencies:
 - Uses: engine/render (.dfo reader), engine/anim (bone map, RigProportions),
@@ -25,7 +29,18 @@ Notes:
   certifies as EXACTLY the canonical values. A second copy of the table in
   this file would be the two-copies defect (Rule 35) sitting inside the very
   instrument that exists to catch proportion drift.
-- IT MEASURES THE SKELETON, NOT THE PICTURE (Rule 47). Joint positions in the
+- IT MEASURES THE BODY, NOT THE PICTURE (Rule 47). Nothing here reads a
+  frame, a camera or a light. The silhouette half measures the SKIN because a
+  joint has no radius and the rig's last arm joint is the wrist: a table of
+  joints alone passed this very model while it was, in the owner's words,
+  "чрезмерно перекачен, слишком длинные руки, живота нет". Judging a
+  silhouette off a RENDER is what the rule forbids; measuring the body that
+  casts it is the opposite.
+- THE SKIN HAS ITS OWN BAND (15 % against the joints' 5 %) and the reason is
+  written where it is applied: the canon gives the same shoulders as 0.259
+  (bone) and 0.29 (skin), so three digits of agreement is precision the source
+  does not have.
+- THE SKELETON IS STILL NOT THE PICTURE. Joint positions in the
   bind pose are geometry; a silhouette in a frame is a function of the camera,
   the light and the armour. The one thing taken from the MESH is the total
   height, because the crown of the head is not a joint.
@@ -42,6 +57,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/BoneMap.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
@@ -50,6 +66,7 @@ AI Agents Notice (must follow):
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <initializer_list>
 #include <string>
 #include <vector>
 
@@ -73,11 +90,18 @@ int main(int argc, char** argv) {
     // с каноном > 5 %"). Kept as a flag so a stricter reading can be asked for
     // without editing the judge -- but never defaulted looser.
     float tolerance = 0.05f;
+    // THE SKIN'S OWN BAND. Wider than the skeleton's on purpose and for a
+    // stated reason (see the silhouette block below): the canon gives the same
+    // shoulders as 0.259 and 0.29 depending on whether bone or skin is meant,
+    // so three digits of agreement is precision the source does not have.
+    float silhouette_tolerance = 0.15f;
     bool quiet = false;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         if (a == "--tolerance" && i + 1 < argc) {
             tolerance = std::strtof(argv[++i], nullptr);
+        } else if (a == "--silhouette-tolerance" && i + 1 < argc) {
+            silhouette_tolerance = std::strtof(argv[++i], nullptr);
         } else if (a == "--quiet") {
             quiet = true;
         } else if (path.empty()) {
@@ -86,7 +110,7 @@ int main(int argc, char** argv) {
     }
     if (path.empty()) {
         std::fprintf(stderr, "dfn_human_scale <character.dfo> [--tolerance 0.05] "
-                             "[--quiet]\n");
+                             "[--silhouette-tolerance 0.15] [--quiet]\n");
         return 2;
     }
     const auto obj = dfn::render::read_object(path);
@@ -127,10 +151,16 @@ int main(int argc, char** argv) {
     std::vector<glm::mat4> palette(obj->skeleton.size());
     dfn::anim::skinning_palette(rig, obj->skeleton, skinned, dfn::anim::LocalPose{},
                                 palette);
+    // THE REST-POSED MESH IS KEPT, not just its extremes. Every silhouette
+    // number below -- the fingertip, the deltoid, the belly -- is a property of
+    // the SKIN and cannot be read off a joint; skinning the model twice to get
+    // them would be the two-copies defect inside the instrument.
+    std::vector<glm::vec3> rest(obj->skin.vertices.size());
     float lo = 0.0f;
     float hi = 0.0f;
     for (std::size_t i = 0; i < obj->skin.vertices.size(); ++i) {
-        const float y = dfn::anim::cpu_skin_position(obj->skin.vertices[i], palette).y;
+        rest[i] = dfn::anim::cpu_skin_position(obj->skin.vertices[i], palette);
+        const float y = rest[i].y;
         lo = i == 0 ? y : std::min(lo, y);
         hi = i == 0 ? y : std::max(hi, y);
     }
@@ -181,6 +211,257 @@ int main(int argc, char** argv) {
          canon.shoulder_width / H},
     };
 
+
+    // =====================================================================
+    // THE SILHOUETTE, MEASURED ON THE MESH.
+    //
+    // WHY A SECOND TABLE AT ALL, when Rule 47 says this instrument measures
+    // the SKELETON. Because the owner's complaint on 31.08 -- "чрезмерно
+    // перекачен, слишком длинные руки, живота нет" -- names three things a
+    // joint cannot hold. Every landmark above was green on this very model
+    // while all three were true of it: the arm is long past the WRIST, which
+    // is the last joint the rig has; muscle is the mesh's radius about a bone,
+    // and a bone has no radius; a belly is the depth of the trunk between two
+    // joints. A judge whose whole table is joints will pass a bodybuilder and
+    // a stick figure with equal enthusiasm.
+    //
+    // IT IS STILL NOT A PICTURE. Nothing below reads a frame, a camera or a
+    // light: these are extents of the REST-POSED SKIN in metres, which is
+    // geometry exactly as much as a joint position is. What Rule 47 forbids is
+    // judging a silhouette off a rendered image; measuring the body that casts
+    // it is the opposite of that.
+    //
+    // THE BAND IS ITS OWN (--silhouette-tolerance, default 15 %), and that is
+    // not a loosening of the 5 % above. A joint height is a length and the
+    // canon states it to three digits; a bideltoid width is a body that wears
+    // clothes, and HUMAN_SCALE.md itself gives 0.259 and 0.29 for the same
+    // shoulders depending on whether bone or skin is meant. Judging skin at the
+    // bone's tolerance would be precision the source does not have.
+    // =====================================================================
+    //
+    // WHICH RIG BONE EACH IMPORTED JOINT BELONGS TO -- its nearest bound
+    // ancestor, itself included. Joints are stored parent-before-child, so one
+    // forward pass fills the tree; a Rigify spine's three unbound links thus
+    // count as trunk and a finger as hand, which is what a body part means.
+    std::vector<int> bone_of_joint(n, -1);
+    for (uint32_t b = 0; b < dfn::anim::BONE_COUNT; ++b) {
+        const int32_t j = bind.joint[b];
+        if (j >= 0) {
+            bone_of_joint[static_cast<std::size_t>(j)] = static_cast<int>(b);
+        }
+    }
+    for (std::size_t j = 0; j < n; ++j) {
+        if (bone_of_joint[j] < 0) {
+            const int32_t par = obj->skeleton.joints[j].parent;
+            if (par >= 0) {
+                bone_of_joint[j] = bone_of_joint[static_cast<std::size_t>(par)];
+            }
+        }
+    }
+    // A VERTEX BELONGS TO ITS HEAVIEST BONE. Not to all four: a body part is a
+    // partition of the surface, and the seam vertices that straddle two parts
+    // are a rounding error on an extent, not a fifth limb.
+    std::vector<int> vbone(obj->skin.vertices.size(), -1);
+    for (std::size_t i = 0; i < obj->skin.vertices.size(); ++i) {
+        const auto& v = obj->skin.vertices[i];
+        int best = -1;
+        float bw = -1.0f;
+        for (int k = 0; k < 4; ++k) {
+            if (v.weights[k] > bw) {
+                bw = v.weights[k];
+                best = static_cast<int>(v.joints[k]);
+            }
+        }
+        vbone[i] = best >= 0 && static_cast<std::size_t>(best) < n
+                       ? bone_of_joint[static_cast<std::size_t>(best)]
+                       : -1;
+    }
+    const auto bi = [](Bone b) { return static_cast<int>(bone_index(b)); };
+    const auto is_one_of = [](int b, std::initializer_list<int> set) {
+        return std::find(set.begin(), set.end(), b) != set.end();
+    };
+    const bool arm_bones_split =
+        std::any_of(vbone.begin(), vbone.end(),
+                    [&](int b) { return b == bi(Bone::HandL) || b == bi(Bone::HandR); });
+
+    // WHICH WAY THE FIGURE FACES, TAKEN FROM THE TOES rather than assumed.
+    // The importer's --yaw is a flag someone passes; the toe is a fact about
+    // the body. A belly measured against the wrong sign is a back.
+    float facing = -1.0f; // model faces -Z by our convention (docs/RIG.md)
+    {
+        const int32_t ankle_j = bind.joint[bone_index(Bone::FootL)];
+        float far_neg = 0.0f;
+        float far_pos = 0.0f;
+        for (std::size_t i = 0; i < rest.size(); ++i) {
+            if (vbone[i] != bi(Bone::FootL) && vbone[i] != bi(Bone::FootR)) {
+                continue;
+            }
+            const float dz = rest[i].z - joint_pos(model, ankle_j).z;
+            far_neg = std::min(far_neg, dz);
+            far_pos = std::max(far_pos, dz);
+        }
+        if (far_pos > -far_neg) {
+            facing = 1.0f;
+        }
+    }
+
+    const float axis_x = hip.x;
+    /// Widest x-extent of the chosen vertices inside a horizontal band, as a
+    /// fraction of the figure's height. `keep` decides what counts as the body
+    /// part being measured.
+    const auto width_in_band = [&](float y0_frac, float y1_frac, auto keep) {
+        float wmin = 0.0f;
+        float wmax = 0.0f;
+        bool any = false;
+        for (std::size_t i = 0; i < rest.size(); ++i) {
+            const float f = (rest[i].y - lo) / height;
+            if (f < y0_frac || f > y1_frac || !keep(vbone[i])) {
+                continue;
+            }
+            wmin = any ? std::min(wmin, rest[i].x) : rest[i].x;
+            wmax = any ? std::max(wmax, rest[i].x) : rest[i].x;
+            any = true;
+        }
+        return any ? (wmax - wmin) / height : 0.0f;
+    };
+    /// The trunk's front reach and its full depth at a height, as fractions of
+    /// height. TWO NUMBERS AND NOT ONE, because a belly is not a thicker trunk:
+    /// it is thickness that went FORWARD. A man's back is nearly flat from the
+    /// shoulder blades to the sacrum while his front is not, so the depth alone
+    /// cannot tell a gut from a barrel chest, and the front reach alone cannot
+    /// tell a gut from a man leaning back.
+    const auto trunk_at = [&](float y0_frac, float y1_frac, float& front,
+                              float& depth) {
+        float fmax = 0.0f;
+        float bmax = 0.0f;
+        bool any = false;
+        for (std::size_t i = 0; i < rest.size(); ++i) {
+            const float f = (rest[i].y - lo) / height;
+            if (f < y0_frac || f > y1_frac) {
+                continue;
+            }
+            if (arm_bones_split
+                && is_one_of(vbone[i], {bi(Bone::UpperArmL), bi(Bone::UpperArmR),
+                                        bi(Bone::ForearmL), bi(Bone::ForearmR),
+                                        bi(Bone::HandL), bi(Bone::HandR)})) {
+                continue;
+            }
+            const float d = rest[i].z * facing;
+            fmax = any ? std::max(fmax, d) : d;
+            bmax = any ? std::min(bmax, d) : d;
+            any = true;
+        }
+        front = any ? fmax / height : 0.0f;
+        depth = any ? (fmax - bmax) / height : 0.0f;
+    };
+    const auto depth_in_band = [&](float y0_frac, float y1_frac) {
+        float front = 0.0f;
+        float depth = 0.0f;
+        trunk_at(y0_frac, y1_frac, front, depth);
+        return depth;
+    };
+    /// Diameter of a limb across the MIDDLE of its segment, measured
+    /// perpendicular to the bone. Twice the farthest perpendicular reach, which
+    /// is the honest reading of "how thick is this arm" for a shape that is not
+    /// a circle.
+    const auto limb_diameter = [&](Bone bone, Bone child) {
+        const glm::vec3 a = at(bone);
+        const glm::vec3 b = at(child);
+        const glm::vec3 axis = b - a;
+        const float len = glm::length(axis);
+        if (len < 1e-4f) {
+            return 0.0f;
+        }
+        const glm::vec3 u = axis / len;
+        float best = 0.0f;
+        for (std::size_t i = 0; i < rest.size(); ++i) {
+            if (vbone[i] != bi(bone)) {
+                continue;
+            }
+            const glm::vec3 d = rest[i] - a;
+            const float t = glm::dot(d, u) / len;
+            if (t < 0.3f || t > 0.7f) {
+                continue;
+            }
+            best = std::max(best, glm::length(d - u * (t * len)));
+        }
+        return 2.0f * best / height;
+    };
+
+    // THE HAND IS MEASURED FROM THE WRIST TO THE FARTHEST VERTEX ON IT, and
+    // this single number is the owner's "слишком длинные руки". The rig's last
+    // arm joint IS the wrist: everything past it -- palm, fingers -- is mesh
+    // the joint table never saw, and the fit that made every segment canonical
+    // above could not touch it.
+    float hand_len = 0.0f;
+    float fingertip_y = hi;
+    if (arm_bones_split) {
+        for (const Bone h : {Bone::HandL, Bone::HandR}) {
+            const glm::vec3 w = at(h);
+            for (std::size_t i = 0; i < rest.size(); ++i) {
+                if (vbone[i] != bi(h)) {
+                    continue;
+                }
+                hand_len = std::max(hand_len, glm::length(rest[i] - w));
+                fingertip_y = std::min(fingertip_y, rest[i].y);
+            }
+        }
+    }
+    const float upper_arm_m = glm::length(elbow_l - shoulder_l);
+    const float forearm_m = glm::length(wrist_l - elbow_l);
+    const float half_span = std::fabs(shoulder_l.x - axis_x) + upper_arm_m + forearm_m
+                            + hand_len;
+    const float bideltoid = width_in_band(0.760f, 0.830f, [](int) { return true; });
+    const float hip_breadth =
+        width_in_band(0.495f, 0.545f, [&](int b) {
+            return !arm_bones_split
+                   || !is_one_of(b, {bi(Bone::UpperArmL), bi(Bone::UpperArmR),
+                                     bi(Bone::ForearmL), bi(Bone::ForearmR),
+                                     bi(Bone::HandL), bi(Bone::HandR)});
+        });
+    // THE BANDS ARE THE CANON'S OWN HEIGHTS, not round numbers: the chest at
+    // BODY_CHEST_HEIGHT_FRAC and the waist at BODY_NAVEL_HEIGHT_FRAC. A belly
+    // measured five centimetres off the navel is a different organ.
+    const auto CH = [](double f) { return static_cast<float>(f); };
+    const float chest_h = CH(dfn::config::BODY_CHEST_HEIGHT_FRAC);
+    const float navel_h = CH(dfn::config::BODY_NAVEL_HEIGHT_FRAC);
+    const float shoulder_h = static_cast<float>(dfn::config::BODY_SHOULDER_HEIGHT_FRAC);
+    const auto no_arms = [&](int b) {
+        return !arm_bones_split
+               || !is_one_of(b, {bi(Bone::UpperArmL), bi(Bone::UpperArmR),
+                                 bi(Bone::ForearmL), bi(Bone::ForearmR),
+                                 bi(Bone::HandL), bi(Bone::HandR)});
+    };
+    const float chest_depth = depth_in_band(chest_h - 0.02f, chest_h + 0.02f);
+    const float waist_depth = depth_in_band(navel_h - 0.02f, navel_h + 0.02f);
+    const float belly_depth = depth_in_band(navel_h - 0.08f, navel_h - 0.04f);
+    const float chest_w = width_in_band(chest_h - 0.02f, chest_h + 0.02f, no_arms);
+    const float waist_w = width_in_band(navel_h - 0.02f, navel_h + 0.02f, no_arms);
+
+    const std::vector<Landmark> mesh_rows{
+        {"hand length (wrist-tip)", hand_len / height, canon.hand_length / H},
+        {"fingertip height", (fingertip_y - lo) / height,
+         static_cast<float>(dfn::config::BODY_FINGERTIP_HEIGHT_FRAC)},
+        {"arm span", 2.0f * half_span / height,
+         static_cast<float>(dfn::config::BODY_ARM_SPAN_FRAC)},
+        {"shoulders (bideltoid)", bideltoid,
+         static_cast<float>(dfn::config::BODY_SHOULDER_SILHOUETTE_FRAC)},
+        {"hip breadth (mesh)", hip_breadth, canon.hip_width / H},
+        {"chest width", chest_w, static_cast<float>(dfn::config::BODY_CHEST_WIDTH_FRAC)},
+        {"chest depth", chest_depth, canon.torso_depth / H},
+        {"waist breadth (navel)", waist_w,
+         static_cast<float>(dfn::config::BODY_WAIST_WIDTH_FRAC)},
+        // THE ONE ROW THAT IS THE BELLY. It is judged against a number only
+        // 4 % larger than the chest's depth, and that smallness is the point:
+        // the owner asked for a man who is not carved, not for a fat one.
+        {"waist depth (navel)", waist_depth,
+         static_cast<float>(dfn::config::BODY_WAIST_DEPTH_FRAC)},
+        {"upper arm diameter", limb_diameter(Bone::UpperArmL, Bone::ForearmL),
+         canon.arm_thickness / H},
+        {"thigh diameter", limb_diameter(Bone::ThighL, Bone::ShinL),
+         canon.leg_thickness / H},
+    };
+
     const float heads = height / std::max(hi - neck.y, 1e-4f);
     int failures = 0;
     if (!quiet) {
@@ -201,6 +482,89 @@ int main(int argc, char** argv) {
                         static_cast<double>(rel * 100.0f), bad ? "<-- OUT" : "");
         }
     }
+    if (!quiet) {
+        std::printf("        %s\n", "-- silhouette (rest-posed MESH, not joints) "
+                                     "-------------------");
+    }
+    if (!arm_bones_split && !quiet) {
+        std::printf("        (this model weights no vertex to a HAND bone: the "
+                    "hand, fingertip and span rows read 0 and are NOT judged)\n");
+    }
+    for (const Landmark& r : mesh_rows) {
+        const bool measurable = r.measured > 1e-6f;
+        const float rel =
+            r.canon > 1e-6f ? (r.measured - r.canon) / r.canon : 0.0f;
+        const bool bad = measurable && std::fabs(rel) > silhouette_tolerance;
+        failures += bad ? 1 : 0;
+        if (!quiet) {
+            std::printf("        %-28s %8.3f %8.3f %+8.1f%% %s\n", r.name,
+                        static_cast<double>(r.measured), static_cast<double>(r.canon),
+                        static_cast<double>(rel * 100.0f),
+                        bad ? "<-- OUT" : (measurable ? "" : "(n/a)"));
+        }
+    }
+    // THREE RATIOS, PRINTED AND NOT JUDGED, and the honesty is in the second
+    // half of that sentence. Each is a quotient of two rows already judged
+    // above, so failing them again would count one defect twice; they are here
+    // because they, not the fractions, are what a person SEES -- "V-shaped",
+    // "barrel-chested", "has a gut" are all ratios. The bands beside them come
+    // from docs/design/HUMAN_SCALE.md's own reading of ANSUR II (bideltoid
+    // 0.290H over hip breadth 0.191H = 1.52) and from the reference frames
+    // gathered for this wave; they say what the number MEANS, not whether the
+    // model passes.
+    if (!quiet) {
+        std::printf("        %-28s %8.2f  band %s\n", "shoulders / hips",
+                    static_cast<double>(hip_breadth > 1e-6f ? bideltoid / hip_breadth
+                                                            : 0.0f),
+                    "1.35-1.65 (>1.8 = bodybuilder)");
+        std::printf("        %-28s %8.2f  band %s\n", "waist / chest (depth)",
+                    static_cast<double>(chest_depth > 1e-6f ? waist_depth / chest_depth
+                                                            : 0.0f),
+                    "1.00-1.10 (<0.95 = no belly)");
+        std::printf("        %-28s %8.2f  band %s\n", "lower belly / chest",
+                    static_cast<double>(chest_depth > 1e-6f ? belly_depth / chest_depth
+                                                            : 0.0f),
+                    "0.90-1.05");
+        std::printf("        %-28s %8.2f  band %s\n", "chest width / depth",
+                    static_cast<double>(chest_depth > 1e-6f ? chest_w / chest_depth
+                                                            : 0.0f),
+                    "1.20-1.50");
+        // THE TRUNK'S PROFILE IN METRES, printed because a ratio that has gone
+        // wrong never says WHERE. Five heights from the armpit to the hip, each
+        // with the width, the depth and how far the front reaches past the
+        // body axis -- read down the front column and a belly is visible as a
+        // number the way it is visible on a person.
+        // THE PROFILE IS MEASURED FROM THE SPINE, not from z = 0. A model
+        // whose author left the body off the origin would otherwise report a
+        // belly or a hunchback that is only an offset, and the direction the
+        // figure faces is taken from its toes (see `facing` above) rather than
+        // assumed from the import flag.
+        std::printf("        facing %+.0f Z, spine at z = %.3f (hips) / %.3f "
+                    "(neck)\n", static_cast<double>(facing),
+                    static_cast<double>(hip.z * facing),
+                    static_cast<double>(neck.z * facing));
+        std::printf("        %-28s %8s %8s %8s\n", "trunk profile (m)", "width",
+                    "depth", "front");
+        for (const float f : {shoulder_h, chest_h, 0.5f * (chest_h + navel_h),
+                              navel_h, navel_h - 0.06f}) {
+            float front = 0.0f;
+            float depth = 0.0f;
+            trunk_at(f - 0.02f, f + 0.02f, front, depth);
+            const float w = width_in_band(f - 0.02f, f + 0.02f, [&](int b) {
+                return !arm_bones_split
+                       || !is_one_of(b, {bi(Bone::UpperArmL), bi(Bone::UpperArmR),
+                                         bi(Bone::ForearmL), bi(Bone::ForearmR),
+                                         bi(Bone::HandL), bi(Bone::HandR)});
+            });
+            char label[32];
+            std::snprintf(label, sizeof(label), "  at %.2fH", static_cast<double>(f));
+            std::printf("        %-28s %8.3f %8.3f %8.3f\n", label,
+                        static_cast<double>(w * height),
+                        static_cast<double>(depth * height),
+                        static_cast<double>(front * height));
+        }
+    }
+
     // HEADS-PER-FIGURE IS JUDGED SEPARATELY and its band is the artistic one
     // (HUMAN_SCALE.md: 7.5-8 heads), not a percentage of a fraction: it is the
     // single number a person reads off a silhouette, and the stylised chibi
@@ -213,15 +577,19 @@ int main(int argc, char** argv) {
     }
     if (failures > 0) {
         std::fprintf(stderr,
-                     "[scale] %d landmark(s) outside +-%.0f%% of the canon "
+                     "[scale] %d landmark(s) outside the canon's band "
+                     "(+-%.0f%% on joints, +-%.0f%% on the silhouette) "
                      "(docs/design/HUMAN_SCALE.md) — REFUSED as a VISIBLE "
                      "character. A model may still be a fine test fixture.\n",
-                     failures, static_cast<double>(tolerance * 100.0f));
+                     failures, static_cast<double>(tolerance * 100.0f),
+                     static_cast<double>(silhouette_tolerance * 100.0f));
         return 1;
     }
     if (!quiet) {
-        std::printf("[scale] every landmark within +-%.0f%% of the canon\n",
-                    static_cast<double>(tolerance * 100.0f));
+        std::printf("[scale] every landmark within its band (+-%.0f%% joints, "
+                    "+-%.0f%% silhouette)\n",
+                    static_cast<double>(tolerance * 100.0f),
+                    static_cast<double>(silhouette_tolerance * 100.0f));
     }
     return 0;
 }
