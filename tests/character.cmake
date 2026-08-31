@@ -49,3 +49,14 @@ add_dfn_test(character_hitboxes character/HitboxTests.cpp
 if(TARGET dfn_characters)
     add_dependencies(character_hitboxes dfn_characters)
 endif()
+
+# СТОЙКА ПО РЕФЕРЕНСУ (волна сверки со Skyrim). Тот же довод, что у наборов
+# выше: читает ФАЙЛ, потому что стойка — это утверждение о НАСТОЯЩЕМ клипе
+# настоящей модели. Контрольная рука («тот же клип без слоёв») живёт ВНУТРИ
+# набора и обязана вылетать из тех же вилок: приёмка, которую нечем провалить,
+# ничего не меряет.
+add_dfn_test(character_stance character/StanceTests.cpp
+             dfn_anim dfn_render dfn_core)
+if(TARGET dfn_characters)
+    add_dependencies(character_stance dfn_characters)
+endif()

@@ -40,6 +40,15 @@ constexpr float PHASE_LEFT = static_cast<float>(config::FOOTFALL_PHASE_LEFT);
 /// procedural gait in over the same neighbourhood for the same reason.
 constexpr float MOVING_SPEED_MPS = 0.15f;
 
+/// THE CEILING ON A STANCE GAIN. A gain is a ratio against a MEASURED peak,
+/// and a clip whose peak is almost nothing would ask for almost anything: the
+/// Idle's twist measures 0.004 rad, and reaching the reference's running 0.23
+/// from there is a multiplier of 57, i.e. a body wringing itself out while
+/// standing still. Not a NUMBERS row: it guards a division in this file and
+/// has no second reader. The 0.02 rad floor beside it is the same guard from
+/// the other side — below it there is no waveform to scale, only noise.
+constexpr float STANCE_GAIN_MAX = 3.0f;
+
 /// WHICH SAMPLES COUNT AS THE FOOT BEING DOWN: the foot's CONTACT POINT (the
 /// lowest of the ankle and whatever the asset hangs off it — here a toe)
 /// within this many metres of ITS OWN lowest point in the cycle.
@@ -1009,11 +1018,47 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     // the arm layer is solved against the asset's OWN IDLE, because that is
     // the pose the owner was looking at when he called it a combat stance.
     lib.mask = build_branch_mask(skeleton, binding);
+    lib.stance = build_stance_layer(skeleton, binding);
+    // WHAT EACH CLIP SWINGS ON ITS OWN, so the stance layer's gains have a
+    // denominator that is a measurement (ClipEntry::arm_swing_peak_rad). Over
+    // the clip's OWN cycle and at stride scale 1: the gains multiply a shape,
+    // and the shape is not what the stride scale changes.
+    {
+        std::vector<JointLocal> probe(skeleton.size());
+        for (uint32_t r = 0; r < CLIP_ROLE_COUNT; ++r) {
+            ClipEntry& entry = lib.role[r];
+            if (!entry.present() || entry.duration_s <= 0.0f) {
+                continue;
+            }
+            float elbow_sum = 0.0f;
+            for (uint32_t i = 0; i < MEASURE_SAMPLES; ++i) {
+                const float t = entry.duration_s * float(i) / float(MEASURE_SAMPLES);
+                sample_clip_pose(skeleton,
+                                 clips[static_cast<std::size_t>(entry.clip)], t, probe);
+                const StanceMetrics m = measure_stance(skeleton, binding, probe);
+                entry.arm_swing_peak_rad =
+                    std::max(entry.arm_swing_peak_rad,
+                             0.5f * std::abs(m.arm_split_rad()));
+                entry.twist_peak_rad =
+                    std::max(entry.twist_peak_rad, std::abs(m.shoulder_twist_rad));
+                elbow_sum += 0.5f * (m.elbow_rad[0] + m.elbow_rad[1]);
+            }
+            entry.elbow_mean_rad = elbow_sum / float(MEASURE_SAMPLES);
+        }
+    }
     const ClipEntry& idle = lib[ClipRole::Idle];
     if (idle.present()) {
         std::vector<JointLocal> reference(skeleton.size());
         sample_clip_pose(skeleton, clips[static_cast<std::size_t>(idle.clip)], 0.0f,
                          reference);
+        // THE REFERENCE IS THE POSE THE ARM LAYER WILL ACTUALLY SIT ON, i.e.
+        // the idle AFTER the stance layer, because that is the order the frame
+        // wears them in. Calibrating on the raw clip instead left the hands
+        // 4.5 cm high: straightening the knees lifts the pelvis the hand's
+        // height is measured against, and the layer had aimed at the old one.
+        StanceDrive calib;
+        calib.stand_weight = 1.0f;
+        apply_stance(skeleton, lib.stance, calib, reference);
         lib.relax = calibrate_arm_relax(rig, skeleton, binding, reference);
     }
     return lib;
@@ -1083,6 +1128,23 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     play.prev_previous_mix_time_s = play.previous_mix_time_s;
     play.prev_weapon = play.weapon;
     play.prev_weapon_time_s = play.weapon_time_s;
+    play.prev_stance_run = play.stance_run;
+    play.prev_stance_stand = play.stance_stand;
+
+    // THE STANCE LAYER'S TWO WEIGHTS. The run weight is sim's own eased gear
+    // blend, ferried on the drive — re-deriving it from the speed here would
+    // be the second description of one thing this zone has already paid for
+    // twice. The standing weight is eased over the SAME time a role change
+    // takes, so the knees straighten while the walk clip is fading out and not
+    // a frame after it.
+    play.stance_run = std::clamp(drive.run_weight, 0.0f, 1.0f);
+    {
+        const float want = drive.speed_mps > MOVING_SPEED_MPS ? 0.0f : 1.0f;
+        const float move = CLIP_CROSSFADE_S > 0.0f ? dt / CLIP_CROSSFADE_S : 1.0f;
+        play.stance_stand = play.stance_stand < want
+                                ? std::min(want, play.stance_stand + move)
+                                : std::max(want, play.stance_stand - move);
+    }
 
     // THE HANDS, EASED. The state is a flag on the drive and the picture is
     // this float; the 0.2 s is WEAPON_CROSSFADE_S, which the order names.
@@ -1184,6 +1246,8 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         play.prev_previous_mix_time_s = play.previous_mix_time_s;
         play.prev_weapon = play.weapon;
         play.prev_weapon_time_s = play.weapon_time_s;
+        play.prev_stance_run = play.stance_run;
+        play.prev_stance_stand = play.stance_stand;
         play.primed = true;
     }
 }
@@ -1263,8 +1327,10 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
                    glm::mix(play.prev_previous_stride, play.previous_stride, a), other);
         blend_local(out_sample.first(n), other, fade, out_sample.first(n));
     }
-    // THE TWO LAYERS, in the order a body wears them: the weapon guard is put
-    // ON the upper half, and the arm relax is what comes OFF when it is.
+    // THE THREE LAYERS, in the order a body wears them: the weapon guard is
+    // put ON the upper half, then the arm layer brings the shoulders and the
+    // elbows to our proportions, then the stance layer answers for everything
+    // the clip's author decided about standing.
     const float weapon = glm::mix(play.prev_weapon, play.weapon, a);
     const ClipEntry& guard = lib[ClipRole::WeaponIdle];
     if (weapon > 0.0f && guard.present() && lib.mask.valid()) {
@@ -1273,7 +1339,67 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
                    play.weapon_time_s, 0.0f, 0.0f, a, 1.0f, upper);
         blend_masked(out_sample.first(n), upper, lib.mask, weapon, out_sample.first(n));
     }
-    apply_arm_relax(skeleton, lib.relax, 1.0f - weapon, out_sample);
+    const float sheathed = 1.0f - weapon;
+    const float run = glm::mix(play.prev_stance_run, play.stance_run, a);
+    const float stand = glm::mix(play.prev_stance_stand, play.stance_stand, a);
+
+    // THE STANCE LAYER FIRST AND THE ARM LAYER SECOND, and the order is a
+    // measurement rather than a preference: the stance straightens the knees,
+    // which lifts the PELVIS the arm layer's hand height is measured against.
+    // Run the other way round and the hands aim at a pelvis that is about to
+    // move — measured, 4.5 cm of it.
+    StanceDrive stance;
+    stance.run_weight = run;
+    stance.stand_weight = stand;
+    // THE GAINS, from what THIS clip swings against what the reference does.
+    // Clamped at 1 below: the layer is here to add the swing the retarget ate,
+    // never to take swing away from a clip that already has enough.
+    const auto gain_for = [](float peak, float want, float dose) {
+        const float g = peak > 0.02f ? std::clamp(want / peak, 1.0f, STANCE_GAIN_MAX)
+                                     : 1.0f;
+        return 1.0f + (g - 1.0f) * std::clamp(dose, 0.0f, 1.0f);
+    };
+    // ...AND THE ARM SWING IS DOSED OFF WHEN THERE IS NO WALK TO SWING WITH.
+    // A gain multiplies whatever the clip has, and an IDLE has a small
+    // asymmetric arm offset rather than a swing: tripling it turned a standing
+    // man's arms 22.6 degrees apart. Same for a drawn blade, where the guard
+    // clip is what the arms are supposed to be doing.
+    stance.arm_swing_gain =
+        gain_for(cur.arm_swing_peak_rad, static_cast<float>(config::STANCE_ARM_SWING),
+                 (1.0f - stand) * sheathed);
+    stance.twist_gain =
+        gain_for(cur.twist_peak_rad, static_cast<float>(config::STANCE_TWIST_RUN), 1.0f);
+    apply_stance(skeleton, lib.stance, stance, out_sample);
+
+    // THE ARM LAYER DOES NOT SWITCH OFF WHEN THE SWORD COMES OUT, and that
+    // single `1.0f - weapon` was the wave's worst line. Measured: drawn, the
+    // hands stood 0.529 m from the pelvis centre against 0.256 m sheathed —
+    // drawing a blade threw the arms twice as wide, because the guard clip is
+    // drawn for its author's proportions and the calibration that fits it to
+    // OURS was exactly what got removed. The guard keeps its shoulder ANGLES;
+    // it does not get to keep its shoulder WIDTH.
+    //
+    // THE FINGERS ARE THE HALF THAT DOES SWITCH OFF, and they are dosed apart
+    // for that reason: the hand holding the blade must stay in the clip's
+    // keyed fist. Empty, it opens STANCE_FINGER_RELAX of the way back to the
+    // bind — a soft half-fist, not the splayed fan a full relax gave.
+    ArmRelaxDose dose;
+    dose.arm = std::max(sheathed,
+                        weapon * static_cast<float>(config::STANCE_WEAPON_ARM_RELAX));
+    // THE ELBOW OFFSET IS THIS CLIP'S, and the target is the gear's: standing
+    // and walking the reference holds 15-20 degrees, at a run 80-90, and the
+    // clip playing may already be anywhere between. Subtracting what the clip
+    // holds is what keeps the correction a correction.
+    const float want_elbow =
+        glm::mix(static_cast<float>(config::STANCE_ELBOW_STAND),
+                 static_cast<float>(config::STANCE_ELBOW_RUN), run);
+    // ...AND WHEN THE SWORD IS OUT THE GUARD DECIDES THE ELBOW. A blade is
+    // held with a bent arm and the guard clip says how bent; the layer's job
+    // there is the shoulder, not the fold.
+    dose.elbow_offset_rad =
+        cur.elbow_mean_rad > 0.0f ? (want_elbow - cur.elbow_mean_rad) * sheathed : 0.0f;
+    dose.finger = sheathed * static_cast<float>(config::STANCE_FINGER_RELAX);
+    apply_arm_relax(skeleton, lib.relax, dose, out_sample);
     return true;
 }
 

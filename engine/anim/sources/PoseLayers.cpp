@@ -6,7 +6,8 @@ Responsibility:
 - Implements the branch mask, the masked blend, and the calibrated arm layer.
 
 Dependencies:
-- Uses: PoseLayers.h, SkinnedBody.h, core skeleton, glm.
+- Uses: PoseLayers.h, Stance.h (the pose measurement), SkinnedBody.h, core
+  skeleton, generated constants (STANCE_*), glm.
 - Used by: dfn_anim (ClipPlayer), engine/app, tests.
 
 AI Agents Notice (must follow):
@@ -16,6 +17,9 @@ AI Agents Notice (must follow):
 */
 
 #include "engine/anim/sources/PoseLayers.h"
+
+#include "engine/anim/sources/Stance.h"
+#include "engine/core/config/sources/Constants.h"
 
 #include <algorithm>
 #include <array>
@@ -203,21 +207,61 @@ float measure_hand_openness(const skel::Skeleton& skeleton, const ArmRelax& rela
     return n > 0 ? sum / float(n) : 0.0f;
 }
 
-void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax, float weight,
-                     std::span<JointLocal> sample) {
-    const float w = std::clamp(weight, 0.0f, 1.0f);
-    if (!relax.valid() || w <= 0.0f) {
-        return; // bit-for-bit no-op: "weapon drawn" depends on it
+void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax,
+                     const ArmRelaxDose& dose, std::span<JointLocal> sample) {
+    const float w = std::clamp(dose.arm, 0.0f, 1.0f);
+    const float offset = dose.elbow_offset_rad;
+    const float wf = std::clamp(dose.finger, 0.0f, 1.0f);
+    if (!relax.valid()
+        || (w <= 0.0f && std::abs(offset) < 1.0e-5f && wf <= 0.0f)) {
+        return; // bit-for-bit no-op: a zero-dose control arm depends on it
     }
     std::vector<glm::mat4> local;
     std::vector<glm::mat4> model;
     model_matrices(skeleton, sample, local, model);
+    // THE ELBOW FIRST, because unfolding it moves the hand the shoulder is
+    // then carried by, and the shoulder's two angles were solved on a pose
+    // whose elbow had already been unfolded.
+    if (std::abs(offset) > 1.0e-5f) {
+        for (int s = 0; s < 2; ++s) {
+            const auto k = static_cast<std::size_t>(s);
+            const int32_t j = relax.forearm[k];
+            const int32_t up = relax.upper_arm[k];
+            const int32_t hand = relax.hand[k];
+            if (j < 0 || up < 0 || hand < 0
+                || static_cast<std::size_t>(j) >= sample.size()) {
+                continue;
+            }
+            // THE AXIS IS THE ONE THE ARM IS ACTUALLY BENT ABOUT this frame,
+            // not a stored one: an arm that has swung forward folds in a
+            // different plane, and a stored axis would twist it instead.
+            const glm::vec3 a{model[static_cast<std::size_t>(j)][3]};
+            const glm::vec3 root{model[static_cast<std::size_t>(up)][3]};
+            const glm::vec3 tip{model[static_cast<std::size_t>(hand)][3]};
+            glm::vec3 axis{1.0f, 0.0f, 0.0f};
+            const glm::vec3 v1 = a - root;
+            const glm::vec3 v2 = tip - a;
+            const glm::vec3 c = glm::cross(v1, v2);
+            if (glm::length(c) > 1.0e-5f) {
+                axis = glm::normalize(c);
+            }
+            const glm::quat parent_rot = model_rotation(model[static_cast<std::size_t>(
+                skeleton.joints[static_cast<std::size_t>(j)].parent >= 0
+                    ? skeleton.joints[static_cast<std::size_t>(j)].parent
+                    : j)]);
+            const glm::quat turn = glm::angleAxis(offset, axis);
+            const glm::quat in_parent = glm::conjugate(parent_rot) * turn * parent_rot;
+            JointLocal& jl = sample[static_cast<std::size_t>(j)];
+            jl.rotation = glm::normalize(in_parent * glm::normalize(jl.rotation));
+        }
+        model_matrices(skeleton, sample, local, model);
+    }
     // THE ADDUCTION, EXPRESSED IN THE PARENT'S FRAME. The layer's statement is
     // about MODEL space ("bring the arm toward the body's midline"), and the
     // thing that has to be written is a LOCAL rotation, so the model-space
     // turn is carried into the parent's frame once per side per frame. It is
     // PRE-multiplied, so the clip's own arm swing survives underneath.
-    for (int s = 0; s < 2; ++s) {
+    for (int s = 0; s < 2 && w > 0.0f; ++s) {
         const int32_t j = relax.upper_arm[static_cast<std::size_t>(s)];
         const int32_t p = relax.parent[static_cast<std::size_t>(s)];
         if (j < 0 || static_cast<std::size_t>(j) >= sample.size()) {
@@ -230,8 +274,13 @@ void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax, floa
         // hanging arm toward +X = its right. The left arm therefore comes in
         // on +angle and the right on -angle.
         const float sign = s == 0 ? 1.0f : -1.0f;
+        // AND THE LIFT IS ABOUT +X, THE SAME AXIS AND SIGN THE TRUNK'S LEAN
+        // USES (Stance.cpp): the character faces -Z, so carrying a limb
+        // FORWARD by `a` is a turn of `-a`. The angle is signed by the solve,
+        // so a model whose clip holds the arms too LOW gets it back.
         const glm::quat turn =
-            glm::angleAxis(sign * relax.angle_rad * w, glm::vec3{0.0f, 0.0f, 1.0f});
+            glm::angleAxis(sign * relax.angle_rad * w, glm::vec3{0.0f, 0.0f, 1.0f})
+            * glm::angleAxis(-relax.lift_rad * w, glm::vec3{1.0f, 0.0f, 0.0f});
         const glm::quat in_parent = glm::conjugate(parent_rot) * turn * parent_rot;
         JointLocal& jl = sample[static_cast<std::size_t>(j)];
         jl.rotation = glm::normalize(in_parent * glm::normalize(jl.rotation));
@@ -241,7 +290,7 @@ void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax, floa
     // toward the bind rather than toward an authored open pose is the same
     // choice the branch mask makes — the bind is the one pose every asset has.
     for (const int32_t j : relax.finger) {
-        if (j < 0 || static_cast<std::size_t>(j) >= sample.size()) {
+        if (wf <= 0.0f || j < 0 || static_cast<std::size_t>(j) >= sample.size()) {
             continue;
         }
         const glm::quat bind =
@@ -250,7 +299,8 @@ void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax, floa
         if (glm::dot(cur, bind) < 0.0f) {
             cur = -cur;
         }
-        sample[static_cast<std::size_t>(j)].rotation = glm::normalize(glm::slerp(cur, bind, w));
+        sample[static_cast<std::size_t>(j)].rotation =
+            glm::normalize(glm::slerp(cur, bind, wf));
     }
 }
 
@@ -269,47 +319,100 @@ ArmRelax calibrate_arm_relax(const Rig& rig, const skel::Skeleton& skeleton,
             j >= 0 ? skeleton.joints[static_cast<std::size_t>(j)].parent : -1;
         collect_subtree(skeleton, relax.hand[static_cast<std::size_t>(s)], relax.finger);
     }
+    relax.forearm[0] = binding.names.joint[bone_index(Bone::ForearmL)];
+    relax.forearm[1] = binding.names.joint[bone_index(Bone::ForearmR)];
     if (!relax.valid() || reference.size() < skeleton.size()) {
         return relax;
     }
-    // THE TARGET IS OUR REST POSE, READ THROUGH THE RETARGET. Not a row and
-    // not the order's "10 to 12 degrees": the sentence being enforced is "the
-    // hand hangs where a person's hand hangs", and the only place this project
-    // has ever written that down is the rest pose the box body stands in.
+    // THE SIDEWAYS TARGET IS OUR REST POSE, READ THROUGH THE RETARGET. Not a
+    // row and not the order's "10 to 12 degrees": the sentence being enforced
+    // is "the hand hangs where a person's hand hangs", and the only place this
+    // project has ever written that down is the rest pose the box body stands
+    // in.
     std::vector<JointLocal> rest(skeleton.size());
     pose_local_transforms(rig, skeleton, binding, LocalPose{}, rest);
     const HandSpread rest_spread = measure_hand_spread(skeleton, binding, rest);
     relax.target_m = 0.5f * (rest_spread.left + rest_spread.right);
-    const HandSpread ref_spread = measure_hand_spread(skeleton, binding, reference);
-    relax.reference_m = 0.5f * (ref_spread.left + ref_spread.right);
+    // THE HEIGHT TARGET IS A ROW AND NOT THE REST POSE, and the difference is
+    // the point. Our rest pose hangs both arms dead vertical from the shoulder
+    // — a mannequin, not a stance — so its hand height is an artefact of a
+    // pose nobody stands in, while "the hands sit at mid-thigh" is something
+    // the reference frames actually show (STANCE_HAND_DROP). The sideways
+    // number survives that objection because a vertical arm's SIDEWAYS
+    // position is exactly the proportion being copied.
+    relax.target_drop_m = static_cast<float>(config::STANCE_HAND_DROP);
+
+    const StanceMetrics ref = measure_stance(skeleton, binding, reference);
+    relax.reference_m = 0.5f * (ref.hand_spread_m[0] + ref.hand_spread_m[1]);
+    relax.reference_drop_m = 0.5f * (ref.hand_drop_m[0] + ref.hand_drop_m[1]);
+    relax.reference_elbow_rad = 0.5f * (ref.elbow_rad[0] + ref.elbow_rad[1]);
+    // THE ELBOW IS AN ARITHMETIC SOLVE and needs no scan: flexion is measured
+    // directly and the layer adds to it, so the offset is the difference. One
+    // number for both sides, for the reason the adduction is one number.
+    relax.elbow_stand_rad =
+        static_cast<float>(config::STANCE_ELBOW_STAND) - relax.reference_elbow_rad;
+    relax.elbow_run_rad =
+        static_cast<float>(config::STANCE_ELBOW_RUN) - relax.reference_elbow_rad;
 
     // A SCAN AND NOT A FORMULA, and not a bisection either. The angle whose
     // hand lands on the target is the root of a function nobody has in closed
     // form (the arm is three joints and the clip has already bent two of
     // them), and a SIGNED scan also answers the question a bisection would
-    // have to be told: which way is inward on this skeleton. Load-time cost is
-    // 65 forward-kinematics passes, once per model.
+    // have to be told: which way is inward on this skeleton.
+    //
+    // AND TWO SCANS TAKING TURNS, because there are two targets and they
+    // interact: adducting the arm changes its height a little, lifting it
+    // changes its spread a little. Three rounds is enough for both residuals
+    // to stop moving on this asset; a joint 2-D scan would cost 65x65 passes
+    // to answer the same question no better.
     constexpr int STEPS = 64;
     constexpr float SPAN_RAD = 0.9f;
+    constexpr float LIFT_SPAN_RAD = 1.2f;
+    constexpr int ROUNDS = 3;
     std::vector<JointLocal> probe(skeleton.size());
-    float best_err = std::numeric_limits<float>::max();
-    float best_angle = 0.0f;
-    for (int i = -STEPS; i <= STEPS; ++i) {
-        const float angle = SPAN_RAD * float(i) / float(STEPS);
+    const auto trial_metrics = [&](float angle, float lift) {
         std::copy(reference.begin(), reference.begin() + std::ptrdiff_t(skeleton.size()),
                   probe.begin());
-        ArmRelax trial = relax;
-        trial.angle_rad = angle;
-        trial.finger.clear(); // the fingers do not move the wrist
-        apply_arm_relax(skeleton, trial, 1.0f, probe);
-        const HandSpread got = measure_hand_spread(skeleton, binding, probe);
-        const float err = std::abs(0.5f * (got.left + got.right) - relax.target_m);
-        if (err < best_err) {
-            best_err = err;
-            best_angle = angle;
+        ArmRelax t = relax;
+        t.angle_rad = angle;
+        t.lift_rad = lift;
+        t.finger.clear(); // the fingers do not move the wrist
+        apply_arm_relax(skeleton, t,
+                        ArmRelaxDose{1.0f, relax.elbow_stand_rad, 0.0f}, probe);
+        return measure_stance(skeleton, binding, probe);
+    };
+    float angle = 0.0f;
+    float lift = 0.0f;
+    for (int round = 0; round < ROUNDS; ++round) {
+        float best = std::numeric_limits<float>::max();
+        float best_angle = angle;
+        for (int i = -STEPS; i <= STEPS; ++i) {
+            const float a = SPAN_RAD * float(i) / float(STEPS);
+            const StanceMetrics got = trial_metrics(a, lift);
+            const float err = std::abs(0.5f * (got.hand_spread_m[0] + got.hand_spread_m[1])
+                                       - relax.target_m);
+            if (err < best) {
+                best = err;
+                best_angle = a;
+            }
         }
+        angle = best_angle;
+        best = std::numeric_limits<float>::max();
+        float best_lift = lift;
+        for (int i = -STEPS; i <= STEPS; ++i) {
+            const float l = LIFT_SPAN_RAD * float(i) / float(STEPS);
+            const StanceMetrics got = trial_metrics(angle, l);
+            const float err = std::abs(0.5f * (got.hand_drop_m[0] + got.hand_drop_m[1])
+                                       - relax.target_drop_m);
+            if (err < best) {
+                best = err;
+                best_lift = l;
+            }
+        }
+        lift = best_lift;
     }
-    relax.angle_rad = best_angle;
+    relax.angle_rad = angle;
+    relax.lift_rad = lift;
     return relax;
 }
 

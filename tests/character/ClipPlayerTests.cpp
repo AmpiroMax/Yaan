@@ -841,7 +841,7 @@ TEST_CASE("the_hands_hang_like_a_persons") {
             anim::measure_hand_spread(m.obj.skeleton, m.binding, sample);
         const float open_before =
             anim::measure_hand_openness(m.obj.skeleton, m.lib.relax, sample);
-        anim::apply_arm_relax(m.obj.skeleton, m.lib.relax, 1.0f, sample);
+        anim::apply_arm_relax(m.obj.skeleton, m.lib.relax, anim::ArmRelaxDose{}, sample);
         const anim::HandSpread after =
             anim::measure_hand_spread(m.obj.skeleton, m.binding, sample);
         const float open_after =

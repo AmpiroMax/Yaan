@@ -86,6 +86,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/PoseLayers.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
+#include "engine/anim/sources/Stance.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 
 #include <array>
@@ -266,6 +267,22 @@ struct ClipEntry {
     float mix_duration_s = 0.0f;
     float mix_footfall = 0.0f;
     float mix_weight = 0.0f;
+    /// THE AMPLITUDES THE STANCE LAYER'S GAINS ARE MEASURED AGAINST: the peak
+    /// fore-aft arm pitch and the peak shoulder-over-hip twist this clip
+    /// reaches over its own cycle, radians.
+    ///
+    /// MEASURED PER CLIP AND NOT ASSUMED, because a gain is a ratio and a
+    /// ratio needs a denominator that is a fact. "Multiply the twist by 2.3"
+    /// is a sentence about ONE asset; "reach STANCE_TWIST_RUN" is a sentence
+    /// about the reference, and it only becomes a gain once somebody has
+    /// measured what this clip does on its own.
+    float arm_swing_peak_rad = 0.0f;
+    float twist_peak_rad = 0.0f;
+    /// THE ELBOW THIS CLIP HOLDS ON AVERAGE over its own cycle, radians. The
+    /// arm layer's elbow offset is the reference's elbow minus THIS, per clip:
+    /// a number solved on the idle and reused on the sprint overshot the
+    /// reference by 49 degrees, because the sprint was already right.
+    float elbow_mean_rad = 0.0f;
     /// What the blend cost and bought, kept so the decision is auditable the
     /// way `named_clip` keeps the rejected swap: the solo clip's slide and its
     /// ground lift at this gear's stride.
@@ -284,8 +301,12 @@ struct ClipLibrary {
     /// while the arms hold a sword (PoseLayers.h).
     BranchMask mask;
     /// THE ARM LAYER, solved against this model: how far the shoulders come in
-    /// when the hands are empty. Item 3 of the owner's list is this field.
+    /// and how far the elbow unfolds when the hands are empty.
     ArmRelax relax;
+    /// THE STANCE LAYER'S JOINTS. Nothing solved: every target it aims at is
+    /// an angle the reference states outright, so what a model contributes is
+    /// only which joint is which.
+    StanceLayer stance;
     /// How many roles the asset actually answered. Zero means the model has
     /// clips we do not recognise, which is a naming problem and is said out
     /// loud rather than drawn as a T-pose.
@@ -383,6 +404,15 @@ struct ClipPlayback {
     /// the upper half plays the weapon idle over the legs' locomotion).
     float weapon = 0.0f;
     float prev_weapon = 0.0f;
+    /// THE STANCE LAYER'S TWO WEIGHTS, eased here rather than read from the
+    /// drive in the frame, for the reason every other field in this struct is
+    /// here: the frame sits between two ticks and may only interpolate.
+    /// `run` is sim's own eased gear weight; `stand` is 1 while the body is
+    /// not travelling, and it gates the leg half (Stance.h says why).
+    float stance_run = 0.0f;
+    float prev_stance_run = 0.0f;
+    float stance_stand = 1.0f;
+    float prev_stance_stand = 1.0f;
     /// True once a tick has run: the first frame must not interpolate from an
     /// uninitialised past, which reads as the body snapping out of its bind.
     bool primed = false;

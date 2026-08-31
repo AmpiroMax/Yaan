@@ -14,15 +14,19 @@ Key items:
 - Branch / BranchMask / build_branch_mask(): every imported joint labelled
   Lower (pelvis-down), Upper (spine-up, arms, head, fingers) or Root.
 - blend_masked(): one pose from two, the upper half weighted.
-- ArmRelax / calibrate_arm_relax(): the adduction angle that puts this model's
-  hand where OUR REST POSE puts it, solved once per model against the asset's
-  own idle. Plus the finger joints, which this asset keys into a fist.
-- apply_arm_relax(): the layer, weighted 0..1, on a sampled pose.
+- ArmRelax / calibrate_arm_relax(): the SHOULDER-AND-ELBOW pair that puts this
+  model's hand where the reference puts it — adduction and lift solved against
+  two targets (how far out, how far down), the elbow solved against the
+  reference's own flexion. Plus the finger joints, which this asset keys into
+  a fist.
+- ArmRelaxDose / apply_arm_relax(): the layer on a sampled pose, with the
+  shoulder, the elbow and the fingers dosed separately.
 - measure_hand_spread(): the number the acceptance is written in — how far the
   hand sits sideways from the pelvis centre, metres.
 
 Dependencies:
-- Uses: Rig, Pose, SkinnedBody (JointLocal + the retarget), core skeleton.
+- Uses: Rig, Pose, SkinnedBody (JointLocal + the retarget), Stance (the pose
+  measurement the calibration solves against), core skeleton.
 - Used by: ClipPlayer (the frame), engine/app, tests.
 
 Notes:
@@ -32,6 +36,12 @@ Notes:
   off the joint our TORSO bone bound to" is the same sentence for both, and it
   cannot go stale, because the binding is what already had to be right for the
   body to be drawn at all.
+- WHY THE ELBOW IS AN OFFSET AND THE SHOULDER IS TWO ANGLES. One adduction
+  aimed at one sideways target was enough to state "the arms are not held out"
+  and could not state anything else: measured on this asset it left the hands
+  0.20 m ABOVE the pelvis line with the elbows folded at 90 degrees, which is
+  a boxer, correctly adducted. Two targets need two degrees of freedom, and
+  the fold needs the joint that folds.
 - WHY THE ARM ANGLE IS SOLVED AND NOT AUTHORED. The order named "about 10-12
   degrees inward". On THIS asset 10 degrees is not enough and 12 is not either:
   the hand starts 0.403 m from the pelvis centre and our rest pose puts it at
@@ -110,17 +120,48 @@ struct ArmRelax {
     std::array<int32_t, 2> upper_arm{-1, -1};
     std::array<int32_t, 2> parent{-1, -1};
     std::array<int32_t, 2> hand{-1, -1};
+    /// THE ELBOW, and it is the joint the layer was missing. A shoulder alone
+    /// can carry a folded arm inward and it stays folded: this asset's idle
+    /// holds 85-95 degrees of elbow where the reference holds 15-20, and no
+    /// adduction angle can unfold it.
+    std::array<int32_t, 2> forearm{-1, -1};
     int32_t pelvis = -1;
     /// The solved adduction, radians, positive = inward. One angle for both
     /// sides: an asymmetric relax would make the asset's own asymmetry
     /// (this one swings its left arm wider) into a permanent lean.
     float angle_rad = 0.0f;
+    /// The solved shoulder LIFT, radians, positive = the arm carried forward.
+    /// The second degree of freedom the second target needed: adduction moves
+    /// the hand sideways and cannot move it down, and "the hands hang at
+    /// mid-thigh" is a claim about height.
+    float lift_rad = 0.0f;
+    /// HOW MUCH ELBOW FLEXION THE LAYER ADDS (radians, negative = unfolds),
+    /// solved so that the reference pose lands on the reference's own elbow —
+    /// STANCE_ELBOW_STAND standing, STANCE_ELBOW_RUN at a full run.
+    ///
+    /// AN OFFSET AND NOT AN ANGLE, deliberately, and it is the same decision
+    /// the adduction makes: writing the elbow every frame would pin it, and a
+    /// pinned elbow is an arm that has stopped swinging. The clip's own elbow
+    /// motion survives underneath, shifted to the reference's neighbourhood.
+    ///
+    /// THESE TWO ARE THE CALIBRATION'S OWN, against the pose the layer was
+    /// solved on (the asset's idle). What the FRAME uses is per clip and
+    /// arrives through ArmRelaxDose — see there for the 49 degrees this
+    /// distinction is worth.
+    float elbow_stand_rad = 0.0f;
+    float elbow_run_rad = 0.0f;
     /// WHERE OUR REST POSE PUTS THE HAND, metres sideways from the pelvis
     /// centre — the target the angle was solved against, kept so a report can
     /// print what was aimed at next to what was hit.
     float target_m = 0.0f;
     /// What the reference pose measured BEFORE the layer, same units.
     float reference_m = 0.0f;
+    /// The same pair for the HEIGHT target (STANCE_HAND_DROP): how far below
+    /// the pelvis line the hand is asked to hang, and where it hung before.
+    float target_drop_m = 0.0f;
+    float reference_drop_m = 0.0f;
+    /// The elbow the reference pose came in at, kept for the same reason.
+    float reference_elbow_rad = 0.0f;
     /// The finger joints, i.e. everything descending from the hands. This
     /// asset keys them into a closed fist in every clip including its idle,
     /// and a fist is a held weapon the model does not have.
@@ -138,12 +179,35 @@ struct ArmRelax {
                                            const SkinnedRigBinding& binding,
                                            std::span<const JointLocal> reference);
 
-/// Applies the layer to `sample` in place at `weight` in [0,1]: the arms come
-/// in by `weight * angle_rad`, the fingers relax `weight` of the way back to
-/// their BIND rotation. Weight 0 is a bit-for-bit no-op — the state "weapon
-/// drawn" depends on that being true.
-void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax, float weight,
-                     std::span<JointLocal> sample);
+/// HOW MUCH OF EACH HALF OF THE LAYER THIS FRAME WANTS.
+///
+/// FOUR DIALS AND NOT ONE WEIGHT, because the weapon branch needs them to say
+/// different things at the same instant: a drawn sword leaves the SHOULDER
+/// half-relaxed (the guard clip's angles are drawn for another body, and our
+/// proportions still need their calibration — STANCE_WEAPON_ARM_RELAX) while
+/// the FINGERS must stay in the clip's keyed fist, because that fist is what
+/// is holding the blade. One number could not have said both, and the version
+/// that tried gassed the whole layer to zero and flung the arms 0.53 m out.
+struct ArmRelaxDose {
+    float arm = 1.0f;    ///< the shoulder: adduction + lift
+    /// HOW MUCH FLEXION TO ADD AT THE ELBOW, radians, negative = unfold.
+    ///
+    /// AN ABSOLUTE OFFSET PASSED IN, AND NOT A DIAL ON A STORED PAIR, because
+    /// the offset is a property of the CLIP being played and this struct's
+    /// owner is the only one who knows which clip that is. Solved against the
+    /// idle and reused on the sprint, it overshot by 49 degrees: the idle
+    /// holds 38 and needs +45 to reach the reference's standing elbow, while
+    /// the sprint already holds 87 and needs nothing at all.
+    float elbow_offset_rad = 0.0f;
+    float finger = 1.0f; ///< how far the fist opens back toward the bind
+};
+
+/// Applies the layer to `sample` in place: the elbow unfolds toward the
+/// reference's, the arms come in and down by `dose.arm * (angle_rad,
+/// lift_rad)`, the fingers relax `dose.finger` of the way back to their BIND
+/// rotation. An all-zero dose is a bit-for-bit no-op.
+void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax,
+                     const ArmRelaxDose& dose, std::span<JointLocal> sample);
 
 /// HOW FAR THE HANDS SIT SIDEWAYS FROM THE PELVIS CENTRE, metres, in the
 /// model's own frame (+X is the character's right, docs/RIG.md). The number
