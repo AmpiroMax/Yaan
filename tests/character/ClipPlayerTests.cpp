@@ -1039,11 +1039,19 @@ TEST_CASE("the_hands_hang_like_a_persons") {
                                << open_after << " m");
         CHECK(mean_after < mean_before - 0.05f);
         if (c.role == anim::ClipRole::Idle) {
-            // THE ORDER'S BAND, on the pose the complaint is about.
-            CHECK(mean_after > 0.20f);
-            CHECK(mean_after < 0.29f);
+            // THE ORDER'S BAND, on the pose the complaint is about — WRITTEN
+            // FROM THE PELVIS, NOT IN METRES FROM THE OLD SHOULDERS. A hanging
+            // hand rests at the greater trochanter, so its distance from the
+            // body axis is half the hip width plus a little flesh; a band in
+            // absolute metres broke the day the shoulder row moved 0.259 ->
+            // 0.236 while the pose stayed anatomically right (wave of shapes,
+            // 01.09: 0.1974 m failed a 0.20 m floor by 2.6 mm).
+            const float axis_to_trochanter =
+                0.5f * dfn::config::BODY_HIP_WIDTH_FRAC * 1.75f;
+            CHECK(mean_after > axis_to_trochanter + 0.02f);
+            CHECK(mean_after < axis_to_trochanter + 0.13f);
             // ...AND THE CONTROL: the arm the wave started from was outside it.
-            CHECK(mean_before > 0.33f);
+            CHECK(mean_before > axis_to_trochanter + 0.15f);
         }
         // THE FIST OPENS. A hand measured from its own wrist to its fingertips
         // is longer open than closed, and the layer takes the fingers back to

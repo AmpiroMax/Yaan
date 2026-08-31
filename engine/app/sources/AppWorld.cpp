@@ -1609,10 +1609,15 @@ bool App::enter_world(uint32_t stand) {
                                  "пятнадцатью коробками (рука «до»)\n");
         }
     }
+    // ФИГУРА «ДО» ЗА ДВЕРЬЮ: HumanBaseV1.dfo — та же модель без --reshape
+    // (волна форм тела, 01.09). Кадры «до/после» одной сборкой — правило 47.
+    const char* body_v1 = door_value("DFN_BODY_V1");
+    const char* body_model =
+        (body_v1 != nullptr && body_v1[0] == '1') ? "HumanBaseV1.dfo" : "HumanBase.dfo";
     if (!body_boxes_
         && skinned_character_.load(render_system_, *renderer_, body_rig_,
                                    std::filesystem::path("assets/objects/characters")
-                                       / "HumanBase.dfo")) {
+                                       / body_model)) {
         // ЗЕМЛЯ ПОД СТОПОЙ — ЛУЧОМ, И ЛУЧ ЖИВЁТ ЗДЕСЬ. anim не видит мира
         // (правило 1), поэтому приложение отдаёт ему ФУНКЦИЮ: точка -> высота
         // грунта под ней. Луч пускается СВЕРХУ ВНИЗ из полуметра над стопой:
