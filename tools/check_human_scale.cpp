@@ -558,6 +558,19 @@ int main(int argc, char** argv) {
                     static_cast<double>(chest_depth > 1e-6f ? belly_depth / chest_depth
                                                             : 0.0f),
                     "0.75-1.00 - pelvis, not stomach");
+        // THE ARM'S OWN TAPER, printed and not judged. The reshape scales a
+        // whole arm by ONE factor -- the canon has a row for the upper arm's
+        // thickness and none for the forearm's -- so this ratio is the model's
+        // own and comes out of the pass unchanged. It is here because "the
+        // muscle is gone" and "the arms are sticks" are the same measurement
+        // read twice, and the second reading needs its own number.
+        const float fore_d = limb_diameter(Bone::ForearmL, Bone::HandL);
+        const float upper_d = limb_diameter(Bone::UpperArmL, Bone::ForearmL);
+        std::printf("        %-28s %8.2f  band %s\n", "forearm / upper arm",
+                    static_cast<double>(upper_d > 1e-6f ? fore_d / upper_d : 0.0f),
+                    "0.78-0.92 (girth 27 cm over 32 cm)");
+        std::printf("        %-28s %8.3f  %8s %s\n", "  forearm diameter",
+                    static_cast<double>(fore_d), "", "(fraction of height)");
         std::printf("        %-28s %8.2f  band %s\n", "chest width / depth",
                     static_cast<double>(chest_depth > 1e-6f ? chest_w / chest_depth
                                                             : 0.0f),
