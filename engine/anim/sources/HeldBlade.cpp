@@ -40,13 +40,16 @@ constexpr float BLADE_TIP = 0.016f;   // m, at the point
 constexpr float BLADE_THICK = 0.009f; // m
 constexpr float GUARD_SPAN = 0.20f;   // m, tip to tip
 constexpr float GUARD_THICK = 0.018f; // m
-constexpr float GRIP_LEN = 0.105f;    // m
 constexpr float GRIP_THICK = 0.030f;  // m
 constexpr float POMMEL = 0.042f;      // m, disc diameter
-// HOW FAR THE GUARD SITS FROM THE HAND JOINT along the grip. The hand joint is
-// at the WRIST on every rig this project has met, and a fist closes about a
-// palm's width past it.
-constexpr float WRIST_TO_FIST = 0.055f;
+// СКОЛЬКО ГАРДА СТОИТ ЗА ЛИНИЕЙ КОСТЯШЕК, метры. Гарда упирается в
+// указательный палец — не пронзает его и не висит отдельно от него, — и
+// половина её собственной толщины плюс миллиметр это ровно и означает.
+constexpr float GUARD_PAST_KNUCKLES = 0.5f * GUARD_THICK + 0.001f;
+// СКОЛЬКО НАВЕРШИЕ ВЫСТУПАЕТ ЗА ПЯТКУ ЛАДОНИ, метры. Навершие затем и
+// существует, чтобы рука не соскальзывала с рукояти: оно обязано быть ЗА
+// краем ладони, а не внутри неё.
+constexpr float POMMEL_PAST_HEEL = 0.010f;
 // THE HAMMER GRIP'S CANT, as a fraction of the forearm direction mixed into
 // the knuckle line. A hilt does not lie ALONG the knuckles: in the grip a
 // swordsman actually uses it runs diagonally across the palm, from the base of
@@ -322,17 +325,37 @@ HeldBlade build_held_blade(const skel::Skeleton& skeleton,
 
     out.joint = hand;
     Frame f;
-    f.origin = hand_p;
+    // НАЧАЛО — ЦЕНТР КУЛАКА, А НЕ СУСТАВ ЗАПЯСТЬЯ, и это половина починки
+    // пункта 5 («меч торчит из кисти, не лежит в руке»). Сустав кисти стоит в
+    // ЗАПЯСТЬЕ, а рукоять зажата в ЛАДОНИ — между запястьем и костяшками; ось,
+    // проведённая через сустав, проходит МИМО кулака. Замерено на этом ассете:
+    // центр кулака отстоял от оси рукояти на 5.2 см при радиусе кулака 3.6 —
+    // то есть рукоять шла рядом с рукой, снаружи неё.
+    const glm::vec3 fist = 0.5f * (hand_p + (glm::length(finger_dir) > 1.0e-4f
+                                                 ? hand_p + finger_dir
+                                                 : hand_p));
+    f.origin = fist;
     f.along = along;
     f.edge = edge;
     f.flat = glm::normalize(glm::cross(edge, along));
 
-    // The grip runs BACK from the fist (negative along) and the blade forward,
-    // so the hand closes around the middle of the hilt the way a hand does.
-    const float guard_at = WRIST_TO_FIST;
-    box(f, guard_at - 0.5f * GRIP_LEN, 0.5f * GRIP_LEN, 0.5f * GRIP_THICK,
+    // И ДЛИНА РУКОЯТИ ВЫВОДИТСЯ ИЗ РУКИ, А НЕ ЗАДАЁТСЯ. Гарда стоит за линией
+    // костяшек (у указательного пальца), навершие — за пяткой ладони, а
+    // рукоять — это ровно то, что между ними, то есть ДЛИНА ЛАДОНИ. Число
+    // 0.105, стоявшее здесь раньше, было верным для чьей-то руки и неверным
+    // для этой (её ладонь 0.116): гарда садилась на 4.9 см НЕ ДОХОДЯ до
+    // костяшек, то есть в середину ладони.
+    const float knuckle_at =
+        glm::length(finger_dir) > 1.0e-4f
+            ? glm::dot(hand_p + finger_dir - f.origin, f.along)
+            : 0.5f * 0.116f;
+    const float heel_at = glm::dot(hand_p - f.origin, f.along);
+    const float guard_at = knuckle_at + GUARD_PAST_KNUCKLES;
+    const float pommel_face = heel_at - POMMEL_PAST_HEEL;
+    const float grip_len = std::max(0.02f, guard_at - pommel_face);
+    box(f, guard_at - 0.5f * grip_len, 0.5f * grip_len, 0.5f * GRIP_THICK,
         0.5f * GRIP_THICK, LEATHER, out);
-    box(f, guard_at - GRIP_LEN - 0.5f * POMMEL, 0.5f * POMMEL, 0.5f * POMMEL,
+    box(f, pommel_face - 0.5f * POMMEL, 0.5f * POMMEL, 0.5f * POMMEL,
         0.5f * POMMEL, BRASS, out);
     // The crossguard's long axis is the FLAT direction: a guard lies in the
     // plane of the blade, which is what makes it a cross and not a T.
@@ -348,7 +371,7 @@ HeldBlade build_held_blade(const skel::Skeleton& skeleton,
     }
     taper(f, guard_at + 0.5f * GUARD_THICK, guard_at + BLADE_LEN, 0.5f * BLADE_WIDE,
           0.5f * BLADE_TIP, 0.5f * BLADE_THICK, STEEL, out);
-    out.length_m = BLADE_LEN + GRIP_LEN + POMMEL;
+    out.length_m = BLADE_LEN + grip_len + POMMEL;
     return out;
 }
 

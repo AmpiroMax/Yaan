@@ -7,8 +7,8 @@ Responsibility:
   that every acceptance frame of the character is shot from.
 
 Key items:
-- StandCamera / stand_camera(): four poses (front, profile, three-quarter,
-  close) selected by DFN_STAND_CAM=1..4.
+- StandCamera / stand_camera(): five poses (front, profile, three-quarter,
+  close, hand) selected by DFN_STAND_CAM=1..5.
 - StandStep / stand_sequence_at(): the queue Idle -> Walk -> Jog -> Sprint ->
   Jump -> Crouch -> Sit -> WEAPON DRAWN (idle, walk, run) -> the long walk onto
   the stand's slope, as PLAYER INPUT at a fixed time, selected by
@@ -63,7 +63,7 @@ struct StandCamera {
     const char* label = "";
 };
 
-inline constexpr uint32_t STAND_CAMERA_COUNT = 4;
+inline constexpr uint32_t STAND_CAMERA_COUNT = 5;
 
 /// `n` is 1..STAND_CAMERA_COUNT (DFN_STAND_CAM). Out of range returns the
 /// profile pose, which is the one a gait is read from.

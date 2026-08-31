@@ -531,3 +531,184 @@ TEST_CASE("the_blade_is_in_the_hand") {
     CHECK(far_m > 0.70f);               // the point is a blade away
     CHECK(far_m < blade.length_m + 0.1f); // and not further than the sword is long
 }
+
+TEST_CASE("the_hilt_lies_in_the_hand") {
+    // ЗАКАЗ ВЛАДЕЛЬЦА 31.08, ПУНКТ 5: «меч торчит из кисти, не лежит в руке».
+    // Три утверждения, и все три — про ГЕОМЕТРИЮ БИНДА, а не про кадр: меч
+    // жёстко привязан к кости кисти, поэтому «лежит ли рукоять в ладони» не
+    // зависит ни от позы, ни от ракурса и обязано проверяться там, где решено.
+    //   1. ОСЬ РУКОЯТИ ПРОХОДИТ ЧЕРЕЗ КУЛАК — расстояние от центра кулака до
+    //      оси меньше радиуса кулака;
+    //   2. КУЛАК ДЕРЖИТСЯ ЗА РУКОЯТЬ — проекция центра кулака на ось лежит
+    //      МЕЖДУ навершием и гардой, а не за ними;
+    //   3. ГАРДА У УКАЗАТЕЛЬНОГО — она стоит на дальнем краю ладони, а не в
+    //      запястье и не в воздухе перед кистью.
+    Model m;
+    REQUIRE(load(m));
+    std::vector<anim::JointLocal> guard_pose(m.obj.skeleton.size());
+    anim::sample_clip_pose(
+        m.obj.skeleton,
+        m.obj.clips[static_cast<std::size_t>(m.lib[anim::ClipRole::WeaponIdle].clip)],
+        0.0f, guard_pose);
+    const anim::HeldBlade blade =
+        anim::build_held_blade(m.obj.skeleton, m.binding, guard_pose);
+    REQUIRE(blade.valid());
+
+    const int32_t hand = m.binding.names.joint[anim::bone_index(anim::Bone::HandR)];
+    REQUIRE(hand >= 0);
+    const auto bind_of = [&](int32_t j) {
+        return glm::vec3{glm::inverse(
+            m.obj.skeleton.joints[static_cast<std::size_t>(j)].inverse_bind)[3]};
+    };
+    const glm::vec3 wrist = bind_of(hand);
+    // ОСНОВАНИЯ ПАЛЬЦЕВ — дети кисти; большой находится тем же способом, что и
+    // в HeldBlade (самый далёкий от их среднего), чтобы прибор и предмет
+    // говорили об одной и той же руке.
+    std::vector<glm::vec3> base;
+    for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+        if (m.obj.skeleton.joints[j].parent == hand) {
+            base.push_back(bind_of(static_cast<int32_t>(j)));
+        }
+    }
+    REQUIRE(base.size() >= 4);
+    glm::vec3 mean{0.0f};
+    for (const glm::vec3& p : base) {
+        mean += p;
+    }
+    mean /= float(base.size());
+    std::size_t thumb = 0;
+    float worst = -1.0f;
+    for (std::size_t i = 0; i < base.size(); ++i) {
+        const float d = glm::length(base[i] - mean);
+        if (d > worst) { worst = d; thumb = i; }
+    }
+    glm::vec3 knuckle_mean{0.0f};
+    uint32_t n = 0;
+    float knuckle_spread = 0.0f;
+    for (std::size_t i = 0; i < base.size(); ++i) {
+        if (i == thumb) { continue; }
+        knuckle_mean += base[i];
+        ++n;
+    }
+    knuckle_mean /= float(n);
+    for (std::size_t i = 0; i < base.size(); ++i) {
+        for (std::size_t j = i + 1; j < base.size(); ++j) {
+            if (i == thumb || j == thumb) { continue; }
+            knuckle_spread = std::max(knuckle_spread, glm::length(base[j] - base[i]));
+        }
+    }
+    // ЦЕНТР КУЛАКА — середина ладони: между запястьем и линией костяшек.
+    const glm::vec3 fist = 0.5f * (wrist + knuckle_mean);
+    const float palm = glm::length(knuckle_mean - wrist);
+    // РАДИУС КУЛАКА — половина размаха костяшек: ширина сжатой ладони и есть
+    // расстояние между крайними костяшками, и делить его надо пополам.
+    const float fist_radius = 0.5f * knuckle_spread;
+
+    // ОСЬ РУКОЯТИ И ЕЁ КОНЦЫ — из САМИХ ВЕРШИН, а не из констант HeldBlade.cpp:
+    // прибор, читающий числа предмета, меряет согласие предмета с собой.
+    glm::vec3 a{0.0f};
+    glm::vec3 b{0.0f};
+    float best = -1.0f;
+    for (const platform::SkinnedVertex& v : blade.vertices) {
+        const float d = glm::length(v.position - blade.vertices.front().position);
+        if (d > best) { best = d; a = v.position; }
+    }
+    best = -1.0f;
+    for (const platform::SkinnedVertex& v : blade.vertices) {
+        const float d = glm::length(v.position - a);
+        if (d > best) { best = d; b = v.position; }
+    }
+    // Навершие — тот из двух концов, что ближе к запястью; остриё — второй.
+    const bool a_is_pommel = glm::length(a - wrist) < glm::length(b - wrist);
+    glm::vec3 pommel = a_is_pommel ? a : b;
+    glm::vec3 point = a_is_pommel ? b : a;
+    glm::vec3 axis = glm::normalize(point - pommel);
+    // И ОСЬ УТОЧНЯЕТСЯ ПО СЕРЕДИНАМ ТОРЦОВ, а не остаётся линией «угол —
+    // угол». Две самые далёкие вершины меча — это УГОЛ навершия и УГОЛ
+    // острия, оба в паре сантиметров от настоящей оси, и линия между ними
+    // косит на столько же. Прибор, читающий по ней «рукоять мимо кулака»,
+    // мерил бы собственную косину: замерено, поправка снимает 2.6 см из
+    // ответа и оставляет 0.
+    for (int pass = 0; pass < 2; ++pass) {
+        float lo = 1.0e9f;
+        float hi = -1.0e9f;
+        for (const platform::SkinnedVertex& v : blade.vertices) {
+            const float t = glm::dot(v.position - pommel, axis);
+            lo = std::min(lo, t);
+            hi = std::max(hi, t);
+        }
+        glm::vec3 sum_lo{0.0f};
+        glm::vec3 sum_hi{0.0f};
+        uint32_t n_lo = 0;
+        uint32_t n_hi = 0;
+        for (const platform::SkinnedVertex& v : blade.vertices) {
+            const float t = glm::dot(v.position - pommel, axis);
+            if (t <= lo + 0.02f) { sum_lo += v.position; ++n_lo; }
+            if (t >= hi - 0.02f) { sum_hi += v.position; ++n_hi; }
+        }
+        REQUIRE(n_lo > 0);
+        REQUIRE(n_hi > 0);
+        const glm::vec3 p0 = sum_lo / float(n_lo);
+        const glm::vec3 p1 = sum_hi / float(n_hi);
+        pommel = p0;
+        point = p1;
+        axis = glm::normalize(p1 - p0);
+    }
+
+    const float along_fist = glm::dot(fist - pommel, axis);
+    const float off_axis = glm::length((fist - pommel) - axis * along_fist);
+    // ГАРДА — самая широкая поперёк оси точка клинка: перекрестье шире и
+    // клинка, и рукояти по построению, и находится это, опять же, по вершинам.
+    float guard_at = 0.0f;
+    float guard_span = 0.0f;
+    {
+        // Поперечная ось — та, вдоль которой у гарды размах: берём худшую
+        // поперечную координату среди всех вершин и её положение вдоль оси.
+        for (const platform::SkinnedVertex& v : blade.vertices) {
+            const float t = glm::dot(v.position - pommel, axis);
+            const float r = glm::length((v.position - pommel) - axis * t);
+            if (r > guard_span) { guard_span = r; guard_at = t; }
+        }
+    }
+    const float knuckle_at = glm::dot(knuckle_mean - pommel, axis);
+    const float wrist_at = glm::dot(wrist - pommel, axis);
+
+    MESSAGE("--- хват (бинд, правая кисть) ---");
+    MESSAGE("ладонь " << 100.0f * palm << " см, размах костяшек "
+                      << 100.0f * knuckle_spread << " см");
+    MESSAGE("центр кулака: вдоль оси " << 100.0f * along_fist << " см от навершия, "
+                                       << "поперёк оси " << 100.0f * off_axis
+                                       << " см (радиус кулака "
+                                       << 100.0f * fist_radius << ")");
+    MESSAGE("гарда на " << 100.0f * guard_at << " см от навершия; костяшки на "
+                        << 100.0f * knuckle_at << ", запястье на "
+                        << 100.0f * wrist_at);
+    MESSAGE("длина рукояти (навершие->гарда) " << 100.0f * guard_at << " см");
+
+    // 1. ОСЬ РУКОЯТИ ПРОХОДИТ ЧЕРЕЗ КУЛАК.
+    CHECK(off_axis < fist_radius);
+    // КОНТРОЛЬНАЯ РУКА — ПРЕЖНЕЕ ПРАВИЛО, посчитанное здесь же и из той же
+    // геометрии, чтобы две руки отличались ровно правилом размещения, а не
+    // сборкой (правило 47). Прежнее правило ставило гарду на ЗАДАННЫЕ 0.055 м
+    // от сустава запястья вдоль оси; проверяется то же самое утверждение —
+    // «гарда у указательного пальца», — и оно обязано провалиться.
+    constexpr float OLD_WRIST_TO_FIST = 0.055f;
+    const float control_guard_at =
+        glm::dot(wrist - pommel, axis) + OLD_WRIST_TO_FIST;
+    const float control_miss = std::abs(control_guard_at - knuckle_at);
+    CAPTURE(control_miss);
+    MESSAGE("контроль (гарда на заданных 5.5 см от запястья): промах мимо "
+            << "костяшек " << 100.0f * control_miss << " см");
+    CHECK(control_miss > 0.03f);
+    // 2. КУЛАК ДЕРЖИТСЯ ЗА РУКОЯТЬ, а не за навершие и не за клинок.
+    CHECK(along_fist > 0.0f);
+    CHECK(along_fist < guard_at);
+    // 3. ГАРДА У УКАЗАТЕЛЬНОГО ПАЛЬЦА: не дальше сантиметра от линии
+    // костяшек. Сантиметр — это половина толщины гарды с запасом, то есть
+    // «касается», а не «рядом».
+    CHECK(std::abs(guard_at - knuckle_at) < 0.01f);
+    // И НАВЕРШИЕ ЗА ПЯТКОЙ ЛАДОНИ, иначе рука соскальзывает с рукояти назад.
+    CHECK(wrist_at > 0.0f);
+    CAPTURE(guard_span);
+    CHECK(guard_span > 0.05f); // перекрестье найдено, а не спутано с клинком
+}
