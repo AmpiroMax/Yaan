@@ -316,27 +316,48 @@ void apply_foot_ik(const skel::Skeleton& skeleton, const FootIkSetup& setup,
     }
 }
 
-float foot_penetration(const skel::Skeleton& skeleton, const FootIkSetup& setup,
-                       const FootIkProbe& probe, const FootIkPlan& plan,
-                       std::span<const JointLocal> sample) {
+FootGap foot_gap(const skel::Skeleton& skeleton, const FootIkSetup& setup,
+                 const FootIkProbe& probe, const FootIkPlan& plan,
+                 std::span<const JointLocal> sample) {
+    FootGap out;
     if (!setup.valid() || sample.size() < skeleton.size()) {
-        return 0.0f;
+        return out;
     }
     std::vector<glm::mat4> local;
     std::vector<glm::mat4> model;
     model_matrices(skeleton, sample, local, model);
+    for (int i = 0; i < 2; ++i) {
+        const auto side = static_cast<std::size_t>(i);
+        out.judged[side] = plan.weight[side] >= FOOT_JUDGED_WEIGHT ? 1u : 0u;
+        // THE DEEPEST OF THE FOOT'S CONTACTS decides, and the sign is kept:
+        // `deficit` is how far the ground is ABOVE the contact, so the gap the
+        // foot leaves is its negative.
+        const float ankle_y = origin_of(model[static_cast<std::size_t>(setup.ankle[side])]).y;
+        float deficit = probe.ankle_ground[side] + setup.ankle_rest_y[side] - ankle_y;
+        if (setup.toe[side] >= 0) {
+            const float toe_y = origin_of(model[static_cast<std::size_t>(setup.toe[side])]).y;
+            deficit = std::max(deficit,
+                               probe.toe_ground[side] + setup.toe_rest_y[side] - toe_y);
+        }
+        out.gap[side] = -deficit;
+    }
+    return out;
+}
+
+float foot_penetration(const skel::Skeleton& skeleton, const FootIkSetup& setup,
+                       const FootIkProbe& probe, const FootIkPlan& plan,
+                       std::span<const JointLocal> sample) {
+    // ONE ARITHMETIC, TWO READINGS (Rule 39): this is the buried half of
+    // foot_gap, and writing the model matrices out a second time here is
+    // exactly the shadow copy that drifts on the next edit.
+    const FootGap g = foot_gap(skeleton, setup, probe, plan, sample);
     float worst = 0.0f;
     for (int i = 0; i < 2; ++i) {
         const auto side = static_cast<std::size_t>(i);
-        if (plan.weight[side] < FOOT_JUDGED_WEIGHT) {
+        if (g.judged[side] == 0) {
             continue; // in its swing: see the header note
         }
-        const float ankle_y = origin_of(model[static_cast<std::size_t>(setup.ankle[side])]).y;
-        worst = std::max(worst, probe.ankle_ground[side] + setup.ankle_rest_y[side] - ankle_y);
-        if (setup.toe[side] >= 0) {
-            const float toe_y = origin_of(model[static_cast<std::size_t>(setup.toe[side])]).y;
-            worst = std::max(worst, probe.toe_ground[side] + setup.toe_rest_y[side] - toe_y);
-        }
+        worst = std::max(worst, -g.gap[side]);
     }
     return worst;
 }

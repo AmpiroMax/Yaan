@@ -61,7 +61,9 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <span>
 #include <vector>
@@ -167,6 +169,41 @@ void apply_foot_ik(const skel::Skeleton& skeleton, const FootIkSetup& setup,
                                      const FootIkSetup& setup, const FootIkProbe& probe,
                                      const FootIkPlan& plan,
                                      std::span<const JointLocal> sample);
+
+/// НАСКОЛЬКО СТОПА НЕ СТОИТ НА СВОЁМ ГРУНТЕ — ЗНАКОВО И ПО КАЖДОЙ ОТДЕЛЬНО.
+/// Положительное = стопа ПАРИТ над своим грунтом, отрицательное = утонула.
+///
+/// ЗАЧЕМ ОТДЕЛЬНО ОТ foot_penetration, у которой та же арифметика. Та берёт
+/// max(0, ...), то есть срезает ровно ПОЛОЖИТЕЛЬНУЮ половину — а жалоба
+/// владельца 31.08 («стоя на объекте одна стопа парит») живёт целиком в ней.
+/// Прибор, устроенный так, что проверяемое им состояние всегда читается нулём,
+/// — это правило 47 в чистом виде, и здесь оно сработало на собственном
+/// приборе зоны. `foot_penetration` теперь ВЫРАЖЕНА через эту функцию, а не
+/// написана рядом: две копии одного замера расходятся на первой же правке
+/// (правило 39).
+///
+/// ПО ХУДШЕЙ ИЗ ДВУХ КОНТАКТНЫХ ТОЧЕК стопы, как и подъём: стопа стоит на
+/// грунте, если её НИЖНЯЯ точка на нём, и пятка, висящая на кромке ступени, —
+/// не парение, а лестница.
+struct FootGap {
+    std::array<float, 2> gap{};      ///< метры, [0] левая; + парит, − утонула
+    std::array<uint8_t, 2> judged{}; ///< 1, если стопа опорная (вес >= FOOT_JUDGED_WEIGHT)
+    /// Худшее по модулю среди СУДИМЫХ стоп; 0, если судить нечего.
+    [[nodiscard]] float worst_abs() const {
+        float w = 0.0f;
+        for (int i = 0; i < 2; ++i) {
+            const auto s = static_cast<std::size_t>(i);
+            if (judged[s] != 0) {
+                w = std::max(w, std::abs(gap[s]));
+            }
+        }
+        return w;
+    }
+};
+
+[[nodiscard]] FootGap foot_gap(const skel::Skeleton& skeleton, const FootIkSetup& setup,
+                               const FootIkProbe& probe, const FootIkPlan& plan,
+                               std::span<const JointLocal> sample);
 
 /// HOW PLANTED A FOOT HAS TO BE before the instrument above judges it, and the
 /// number is DERIVED FROM THE SOLVE rather than picked.

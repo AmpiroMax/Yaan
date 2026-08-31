@@ -282,7 +282,14 @@ TEST_CASE("whether a run is unattended is the table's column, door by door") {
     // законно играет с нею на обоих значениях), вторая — НАКРЫТЫЙ СТОЛ, то
     // есть тоже содержимое мира, за которым человек как раз и сидит, когда
     // берёт кувшин руками.
-    CHECK(unattended_doors == 24);
+    // 25 с 31.08: DFN_CAM_WALK — беспилотная рука НА КЛАВИШЕ ДВИЖЕНИЯ (держать
+    // «вперёд», пока камера обходит фигуру по кругу). За таким прогоном никто
+    // не сидит по той же причине, что и за DFN_GRAB_PROBE: человек, который
+    // сидит, просто нажимает W. Её соседки DFN_CAM_ORBIT и DFN_FOOT_IK в счёт
+    // НЕ входят и не должны: первая крутит камеру, за которой человек как раз
+    // и смотрит, вторая — ДОЗА (называет поведение тела, и обе её руки
+    // законны).
+    CHECK(unattended_doors == 25);
 
     // PRESENCE, NOT TRUTH. `DFN_TOUR=0` still means a tour is being run by a
     // script -- every door here is opened by being set at all, and a door that

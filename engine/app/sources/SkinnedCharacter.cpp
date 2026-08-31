@@ -117,6 +117,22 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     sample_.assign(skeleton_.size(), anim::JointLocal{});
     library_ = anim::build_clip_library(rig, skeleton_, binding_, clips_);
     foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
+    {
+        // ЧЕРЕЗ door_value, А НЕ getenv (AppDoors.h): дверь, прочитанная мимо
+        // таблицы, — рычаг, о котором знает только написавший.
+        const char* e = door_value("DFN_FOOT_TRACE");
+        foot_trace_ = e != nullptr && e[0] == '1';
+        // ДОЗА DFN_FOOT_IK=0 — КОНТРОЛЬНАЯ РУКА, А НЕ УДОБСТВО. Приёмка
+        // «стопы стоят на предмете» без руки, которая обязана провалиться,
+        // ничего не меряет (правило 30), а «до» вчерашней сборкой меряет
+        // неделю, а не правку (правило 47).
+        const char* ik = door_value("DFN_FOOT_IK");
+        foot_ik_enabled_ = !(ik != nullptr && ik[0] == '0');
+        if (!foot_ik_enabled_) {
+            std::fprintf(stderr, "[character] DFN_FOOT_IK=0: решатель стоп "
+                                 "выключен (контрольная рука)\n");
+        }
+    }
     hitboxes_ = anim::build_hitboxes(rig.proportions);
     tick_sample_.assign(skeleton_.size(), anim::JointLocal{});
     // THE BLADE, uploaded beside the body. LOUD when it cannot be built: a
@@ -201,8 +217,10 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
     // THE GATE FIRST: airborne or seated, the solve is off. A jump whose feet
     // are pinned to the ground under them is not a jump, and a seated body's
     // feet answer to the bench and not to the floor.
-    const float want_gate =
-        (drive.grounded && drive.posture_blend < 0.5f && ground_probe_) ? 1.0f : 0.0f;
+    const float want_gate = (foot_ik_enabled_ && drive.grounded
+                             && drive.posture_blend < 0.5f && ground_probe_)
+                                ? 1.0f
+                                : 0.0f;
     const float gate_k =
         dt > 0.0f ? 1.0f - std::exp(-dt / FOOT_IK_GATE_TAU_S) : 1.0f;
     ik_strength_ += (want_gate - ik_strength_) * gate_k;
@@ -306,12 +324,18 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(const anim::Rig& 
         // not either tick's), while the ROOT shift comes from the tick, where
         // it was filtered. Applying an unfiltered shift per frame would put
         // the stair's whole rise into one frame at the nosing.
-        if (foot_probe_.valid && ik_strength_ > 0.001f) {
+        if (foot_probe_.valid) {
             anim::FootIkPlan plan =
                 anim::plan_foot_ik(skeleton_, foot_setup_, foot_probe_, sample_);
             plan.root_dy = root_dy_;
-            anim::apply_foot_ik(skeleton_, foot_setup_, foot_probe_, plan, ik_strength_,
-                                sample_);
+            if (ik_strength_ > 0.001f) {
+                anim::apply_foot_ik(skeleton_, foot_setup_, foot_probe_, plan,
+                                    ik_strength_, sample_);
+            }
+            // ПРИБОР МЕРИТ И КОГДА РЕШАТЕЛЬ ВЫКЛЮЧЕН, и это половина приёмки:
+            // контрольная рука (DFN_FOOT_IK=0) обязана НАПЕЧАТАТЬ свои
+            // сантиметры, иначе она молчит и её нечем предъявить.
+            foot_trace_step(plan);
         }
         anim::sample_palette(skeleton_, sample_, palette_);
     }
@@ -394,6 +418,31 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::blade_draw(
     render::RenderSystem::SkinnedDraw draw = body;
     draw.mesh_asset = anim::HELD_BLADE_MESH_ID;
     return draw;
+}
+
+// ДВЕРЬ DFN_FOOT_TRACE. Читается на КАДРЕ, а не на тике, и это не мелочь:
+// решатель применяется к позе кадра, поэтому «стоит ли стопа на грунте» —
+// вопрос о кадре. `plan` передаётся тот, что померен ДО решателя (его веса и
+// решают, какую стопу вообще судить, — контракт foot_penetration).
+void SkinnedCharacter::foot_trace_step(const anim::FootIkPlan& plan) {
+    if (!foot_trace_) {
+        return;
+    }
+    const anim::FootGap gap =
+        anim::foot_gap(skeleton_, foot_setup_, foot_probe_, plan, sample_);
+    std::fprintf(stderr,
+                 "[foot] %llu ik %.3f root %.4f | L ground a %.4f t %.4f w %.3f "
+                 "gap %+.4f%s | R ground a %.4f t %.4f w %.3f gap %+.4f%s\n",
+                 static_cast<unsigned long long>(foot_trace_frames_++),
+                 static_cast<double>(ik_strength_), static_cast<double>(root_dy_),
+                 static_cast<double>(foot_probe_.ankle_ground[0]),
+                 static_cast<double>(foot_probe_.toe_ground[0]),
+                 static_cast<double>(plan.weight[0]),
+                 static_cast<double>(gap.gap[0]), gap.judged[0] != 0 ? "" : " (swing)",
+                 static_cast<double>(foot_probe_.ankle_ground[1]),
+                 static_cast<double>(foot_probe_.toe_ground[1]),
+                 static_cast<double>(plan.weight[1]),
+                 static_cast<double>(gap.gap[1]), gap.judged[1] != 0 ? "" : " (swing)");
 }
 
 } // namespace dfn::app

@@ -146,6 +146,10 @@ public:
         const render::RenderSystem::SkinnedDraw& body) const;
 
 private:
+    /// Одна строка прибора стоп на кадр (DFN_FOOT_TRACE): дверь читается при
+    /// загрузке, а печатает кадр.
+    void foot_trace_step(const anim::FootIkPlan& plan);
+
     /// ONE TICK'S RAYCASTS. Separate from advance() because it is the only
     /// part of the tick that touches the world, and because a body with no
     /// probe installed has to skip exactly this and nothing else.
@@ -198,6 +202,18 @@ private:
     float ik_strength_ = 0.0f;
     /// One frame's scratch for the tick-time probe pose.
     std::vector<anim::JointLocal> tick_sample_;
+    /// ДВЕРЬ DFN_FOOT_TRACE: печатать по стопам грунт, ЗНАКОВЫЙ зазор, вес
+    /// опоры и сдвиг корня. Заведена под пункт 3 заказа 31.08 («стоя на
+    /// объекте одна стопа парит»): кадр не отвечает на «парит на сантиметр»,
+    /// а прежний прибор зоны (foot_penetration) срезал положительную половину
+    /// и по построению читал парение нулём.
+    bool foot_trace_ = false;
+    /// ДОЗА DFN_FOOT_IK: false — решатель стоп выключен целиком, контрольная
+    /// рука приёмки. Не «сила 0» на кадре, а закрытый ЗАТВОР: сила еле-еле
+    /// сходит к нулю по FOOT_IK_GATE_TAU_S, и рука, снятая на переходе, была
+    /// бы рукой с половиной решателя.
+    bool foot_ik_enabled_ = true;
+    uint64_t foot_trace_frames_ = 0;
 
     // --- THE BLADE --------------------------------------------------------
     /// The sword's geometry, kept after upload so the report can print what
