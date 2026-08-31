@@ -33,6 +33,16 @@ glm::vec3 seat_aim_local(const SeatAim& aim, const glm::vec3& world) {
     return {d.x * c - d.z * s, d.y, d.x * s + d.z * c};
 }
 
+float seat_aim_support(const SeatAim& aim, const glm::vec3& dir) {
+    // ТОТ ЖЕ ОБРАТНЫЙ ПОВОРОТ, ЧТО У seat_aim_local, но без переноса:
+    // направление — это разность двух точек, и перенос из неё уходит.
+    const float c = std::cos(aim.yaw);
+    const float s = std::sin(aim.yaw);
+    const glm::vec3 d{dir.x * c - dir.z * s, dir.y, dir.x * s + dir.z * c};
+    const glm::vec3 h = glm::max(aim.half, glm::vec3{0.0f});
+    return std::fabs(d.x) * h.x + std::fabs(d.y) * h.y + std::fabs(d.z) * h.z;
+}
+
 SeatAimHit seat_aim(const SeatAim& aim, const glm::vec3& eye, const glm::vec3& dir) {
     SeatAimHit hit;
     const glm::vec3 h = glm::max(aim.half, glm::vec3{0.01f});

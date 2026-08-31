@@ -220,6 +220,16 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SeatAim.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/FurnitureSeats.cpp)
 
+    # ПОДХОД К МЕБЕЛИ: точка старта позы и сходимость к ней. Отдельный рукав от
+    # прицела, потому что и вопрос другой — не «горит ли подсказка», а «куда
+    # встать, чтобы сесть без перекоса», — и линкует он на одну единицу больше
+    # (ThirdPersonRig: доворот тела берётся ГОТОВЫЙ, второй копии нет).
+    add_dfn_test(app_seat_approach app/SeatApproachTests.cpp dfn_world dfn_core)
+    target_sources(app_seat_approach PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SeatAim.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/FurnitureSeats.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/ThirdPersonRig.cpp)
+
     # ФИЗИЧЕСКИЕ СВОЙСТВА ПРЕДМЕТА (зона big-grab). Та же выгородка, что у
     # прицела двери: масса считается из треугольников полки, поэтому цель
     # линкует чтение реестра и НИЧЕГО из окна и физики. Отвергаемый случай

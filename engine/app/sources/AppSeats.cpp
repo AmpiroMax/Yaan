@@ -4,13 +4,19 @@ File: engine/app/sources/AppSeats.cpp
 
 Responsibility:
 - СИДЕТЬ И ЛЕЖАТЬ (обязательство эпохи «Большой мир», заказ владельца 28.08):
-  сбор точек позы по залитой локации, прицел радиус+взгляд у мебели, клавиша E
-  туда и обратно, парковка капсулы и камера из глаза позы.
+  сбор точек позы по залитой локации, прицел радиус+взгляд у мебели, ПОДХОД к
+  точке старта по клавише E, парковка капсулы и камера из глаза позы.
 
 Key items:
 - App::spawn_furniture_seats / clear_furniture_seats: точки как вещь мира.
-- App::filter_seat_hover: подсказка только когда СМОТРИМ на предмет.
-- App::take_seat / leave_posture: вход в позу и выход из неё.
+- App::filter_seat_hover: подсказка только когда СМОТРИМ на предмет — и
+  ЗАМОРОЖЕННАЯ на время, пока лежит клавиша E (там же назван замер
+  «садится не каждый раз»).
+- App::take_seat: нажатие E начинает ПОДХОД, а не позу.
+- App::begin_approach / approach_step / cancel_approach: короткий автопилот к
+  точке старта позы — ходьба теми же намерениями, что пишет клавиатура,
+  доворот, и только потом поза.
+- App::enter_posture / leave_posture: вход в позу и выход из неё.
 - App::park_posture / posture_camera: движение выключено, глаз — из позы.
 - App::posture_trace_step: прибор перехода (DFN_POSTURE_TRACE).
 - App::probe_seats: беспилотный прибор прицела (DFN_SEAT_PROBE).
@@ -45,12 +51,14 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/AppInternal.h"
 #include "engine/app/sources/App.h"
 #include "engine/app/sources/Localization.h"
+#include "engine/app/sources/ThirdPersonRig.h"
 
 #include "engine/anim/sources/Body.h"
 #include "engine/core/components/sources/Components.h"
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/gameplay/sources/Interaction.h"
 #include "engine/gameplay/sources/InteractableSpawn.h"
+#include "engine/gameplay/sources/InteractionSystem.h"
 #include "engine/gameplay/sources/CameraBoom.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/physics/sources/CollisionLayers.h"
@@ -91,9 +99,29 @@ constexpr std::uint64_t SEAT_TAKE_APPROACH_FRAMES = 15;
 constexpr std::uint64_t SEAT_TAKE_SETTLE_FRAMES = 30;
 constexpr std::uint64_t SEAT_TAKE_HOLD_FRAMES = 480;
 
+/// НА СКОЛЬКО РУКА ПРИБОРА ВСТАЁТ ДАЛЬШЕ ТОЧКИ СТАРТА, м. Не ноль и не
+/// «побольше»: ноль означал бы, что подход нечего проходить, а мерить
+/// подход, которого не было, нельзя (правило 47). 0.55 м — это дальше точки
+/// старта на 0.20 м (лавка: 0.175 + 0.35 = 0.525 против 0.175 + 0.55) и всё
+/// ещё внутри радиуса руки SEAT_REACH_M 1.2 м, то есть подсказка обязана
+/// гореть, а автопилот — иметь что пройти.
+constexpr float SEAT_TAKE_STANDOFF_M = 0.55f;
+
 /// Единичный вектор взгляда по позе камеры — та же формула, что у дверей
 /// (door_aim_now) и у InteractionSystem::view_direction. Расхождение здесь
 /// значило бы, что подсказка горит не там, куда указывает перекрестье.
+/// ОТКРЫТА ЛИ ДВЕРЬ СЛЕДА (DFN_POSTURE_TRACE). Один ответ на весь файл: и
+/// след перехода, и след подхода — один прибор, и включаться они обязаны
+/// вместе, иначе «поза не поехала» и «человек не дошёл» придётся ловить
+/// разными прогонами.
+[[nodiscard]] bool posture_trace_on() {
+    static const bool on = [] {
+        const char* v = door_value("DFN_POSTURE_TRACE");
+        return v != nullptr && v[0] != '\0' && v[0] != '0';
+    }();
+    return on;
+}
+
 [[nodiscard]] glm::vec3 look_dir(float yaw, float pitch) {
     const float cp = std::cos(pitch);
     return {std::sin(yaw) * cp, std::sin(pitch), -std::cos(yaw) * cp};
@@ -104,6 +132,14 @@ constexpr std::uint64_t SEAT_TAKE_HOLD_FRAMES = 480;
 bool App::seats_enabled() {
     static const bool on = [] {
         const char* e = door_value("DFN_SEAT");
+        return e == nullptr || *e == '\0' || *e != '0';
+    }();
+    return on;
+}
+
+bool App::seat_approach_enabled() {
+    static const bool on = [] {
+        const char* e = door_value("DFN_SEAT_APPROACH");
         return e == nullptr || *e == '\0' || *e != '0';
     }();
     return on;
@@ -327,6 +363,9 @@ void App::clear_furniture_seats() {
     }
     seats_.clear();
     pending_seat_ = 0;
+    approach_seat_ = -1;
+    approach_s_ = 0.0f;
+    aim_held_seat_ = -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -344,24 +383,84 @@ SeatAimHit App::seat_aim_now(const SeatLink& link) const {
 
 void App::filter_seat_hover() {
     if (seats_.empty() || !world_.has_resource<components::HoverTarget>()) {
+        aim_held_seat_ = -1;
         return;
     }
     auto& hover = world_.resource<components::HoverTarget>();
-    if (hover.prompt_key == 0 || !world_.alive(hover.entity)) {
+
+    // --- 1. ЖИВОЙ ПРИЦЕЛ: ЧТО ПОД ПЕРЕКРЕСТЬЕМ ПРЯМО СЕЙЧАС ---------------
+    int seen = -1;
+    if (hover.prompt_key != 0 && world_.alive(hover.entity)) {
+        for (std::size_t i = 0; i < seats_.size(); ++i) {
+            if (seats_[i].entity != hover.entity) {
+                continue;
+            }
+            // ЛУЧ ПОПАЛ В ТЕЛО — И ЭТОГО МАЛО, ровно как у дверей: коробка
+            // прицела шире предмета на SEAT_AIM_PAD_M, и попадание в её кромку
+            // из-за спины зажигало бы «Сесть» у стоящего к лавке спиной.
+            if (seat_aim_now(seats_[i]).ok) {
+                seen = static_cast<int>(i);
+            } else {
+                hover = components::HoverTarget{};
+            }
+            break;
+        }
+    }
+
+    // --- 2. ПРИЦЕЛ ЗАМИРАЕТ, ПОКА КЛАВИША ЛЕЖИТ --------------------------
+    // ЗДЕСЬ ЖИВЁТ «САДИТСЯ НЕ КАЖДЫЙ РАЗ», и это НЕ гонка, а РАЗРЫВ В ТИКАХ,
+    // который можно предъявить числом. Короткое нажатие E приложение
+    // возвращает не в тот тик, в котором нажали, а в тот, в котором ОТПУСТИЛИ:
+    // AppProps::grab_input делит клавишу на короткое и долгое и держит защёлку
+    // всё время, пока палец лежит (GrabDrive.h). Между этими двумя тиками рука
+    // на мыши продолжает вести перекрестье — и вердикт выносится по прицелу
+    // ОТПУСКАНИЯ, а не нажатия. Замер этого рукава: подвели к лавке, нажали и
+    // за время нажатия увели взгляд на N градусов — при N >= 20 посадка
+    // пропадала, при N < 20 случалась, то есть исход решал жребий руки.
+    //
+    // ПОЧЕМУ ЗАМОРОЗКА, А НЕ «ЗАПОМНИТЬ НАЖАТИЕ». Второй ответ на «целюсь ли
+    // я» запрещён шапкой этого файла: подсказка и клавиша обязаны читать ОДИН
+    // HoverTarget. Поэтому чинится не клавиша, а прицел — и ровно на то время,
+    // пока лежит клавиша, которая по нему сработает.
+    const bool down_now = (input_ != nullptr && input_->is_down(platform::Key::E))
+                       || grab_probe_key_;
+    // ...И ТИК ОТПУСКАНИЯ ТОЖЕ, и это не «на всякий случай», а РОВНО ТОТ ТИК,
+    // РАДИ КОТОРОГО ЗАМОРОЗКА ЗАВЕДЕНА: защёлка возвращается ИМЕННО НА
+    // ОТПУСКАНИИ (grab_input), а к этому мигу клавиша уже не лежит. Замерено
+    // на себе: заморозка «пока клавиша лежит» дала те же 2 посадки из 10, что
+    // и без неё, потому что гасла ровно за один тик до того, как её спросили.
+    const bool key_down = seat_approach_enabled() && (down_now || aim_key_was_down_);
+    aim_key_was_down_ = down_now;
+    if (!key_down || seen >= 0) {
+        aim_held_seat_ = seen;
         return;
     }
-    for (const SeatLink& link : seats_) {
-        if (link.entity != hover.entity) {
-            continue;
-        }
-        // ЛУЧ ПОПАЛ В ТЕЛО — И ЭТОГО МАЛО, ровно как у дверей: коробка прицела
-        // шире предмета на SEAT_AIM_PAD_M, и попадание в её кромку из-за спины
-        // зажигало бы «Сесть» у человека, стоящего к лавке спиной.
-        if (!seat_aim_now(link).ok) {
-            hover = components::HoverTarget{};
-        }
+    if (aim_held_seat_ < 0
+        || static_cast<std::size_t>(aim_held_seat_) >= seats_.size()) {
         return;
     }
+    const SeatLink& held = seats_[static_cast<std::size_t>(aim_held_seat_)];
+    // ДЕРЖИМ, ПОКА ОН В РАДИУСЕ РУКИ, а не «пока клавиша лежит»: отвернуться
+    // законно, УЙТИ — нет. Иначе человек, зажавший E и убежавший в соседнюю
+    // комнату, сел бы там на лавку, которой не видит.
+    if (!world_.alive(held.entity) || !seat_aim_now(held).in_reach) {
+        aim_held_seat_ = -1;
+        return;
+    }
+    // ...И ТОЛЬКО ЕСЛИ ПОД ПЕРЕКРЕСТЬЕМ НЕ ОКАЗАЛОСЬ ЧЕГО-ТО ДРУГОГО: живая
+    // цель главнее замороженной, иначе замок на двери стал бы недоступен тому,
+    // кто стоит у лавки.
+    if (hover.prompt_key != 0) {
+        return;
+    }
+    const gameplay::InteractionOffer offer = gameplay::offer_for(world_, held.entity);
+    if (offer.verb == gameplay::InteractionVerb::None) {
+        aim_held_seat_ = -1;
+        return;
+    }
+    hover.entity = held.entity;
+    hover.verb = static_cast<std::uint8_t>(offer.verb);
+    hover.prompt_key = offer.prompt_key;
 }
 
 // ---------------------------------------------------------------------------
@@ -378,16 +477,224 @@ void App::take_seat() {
         leave_posture();
         return;
     }
+    // ПОВТОРНОЕ E НА ПОДХОДЕ — ОТМЕНА, а не второй подход. Та же клавиша, тем
+    // же смыслом, что и у сидящего: E — это переключатель намерения, и
+    // намерение, которое нельзя отменить, человек отменяет ногами.
+    if (approach_seat_ >= 0) {
+        cancel_approach("повторное нажатие E");
+        return;
+    }
+    for (std::size_t i = 0; i < seats_.size(); ++i) {
+        if (seats_[i].action == action) {
+            if (seat_approach_enabled()) {
+                begin_approach(i);
+            } else {
+                enter_posture(i);
+            }
+            return;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ПОДХОД К ТОЧКЕ СТАРТА (заказ владельца 28.08, пункт 4)
+// ---------------------------------------------------------------------------
+
+void App::begin_approach(std::size_t index) {
+    if (index >= seats_.size()) {
+        return;
+    }
+    const auto* tr = world_.get<components::Transform>(player_);
+    if (tr == nullptr) {
+        return;
+    }
+    const FurnitureSpot& spot = seats_[index].spot;
+    const PostureStart start = posture_start(spot, tr->position);
+    if (!start.valid) {
+        std::fprintf(stderr, "[поза] %s: точки старта у этой меты нет — не сажусь\n",
+                     spot.source.c_str());
+        return;
+    }
+    const glm::vec3 d{start.at.x - tr->position.x, 0.0f, start.at.z - tr->position.z};
+    const float walk_m = glm::length(d);
+    if (walk_m > SEAT_APPROACH_MAX_M) {
+        // ВСЛУХ, А НЕ МОЛЧА. Дверь, которая молча ничего не делает, для
+        // игрока неотличима от сломанной (тот же довод, что у DFN_SHOT_AFTER).
+        std::fprintf(stderr,
+                     "[поза] %s: до точки старта %.2f м, автопилот ведёт не "
+                     "дальше %.2f м — E не срабатывает, подойдите ближе\n",
+                     spot.source.c_str(), static_cast<double>(walk_m),
+                     static_cast<double>(SEAT_APPROACH_MAX_M));
+        return;
+    }
+    approach_seat_ = static_cast<int>(index);
+    approach_start_ = start;
+    approach_s_ = 0.0f;
+    approach_stall_s_ = 0.0f;
+    approach_best_m_ = walk_m;
+    approach_stall_said_ = false;
+    std::fprintf(stderr,
+                 "[поза] ПОДХОД к %s: точка старта (%.2f %.2f %.2f), рыск %.3f, "
+                 "идти %.2f м\n",
+                 spot.source.c_str(), static_cast<double>(start.at.x),
+                 static_cast<double>(start.at.y), static_cast<double>(start.at.z),
+                 static_cast<double>(start.yaw), static_cast<double>(walk_m));
+}
+
+void App::cancel_approach(const char* why) {
+    if (approach_seat_ < 0) {
+        return;
+    }
+    const std::string name = static_cast<std::size_t>(approach_seat_) < seats_.size()
+                                 ? seats_[static_cast<std::size_t>(approach_seat_)]
+                                       .spot.source
+                                 : std::string("?");
+    approach_seat_ = -1;
+    const float spent = approach_s_;
+    approach_s_ = 0.0f;
+    if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+        ps->move_axes = glm::vec2{0.0f};
+    }
+    // С ЧИСЛАМИ, А НЕ ПРОСТО «БРОШЕН»: у отказа обязана быть измеримая
+    // причина, иначе «упёрся» и «не туда шёл» читаются одинаково (правило 30).
+    const auto* tr = world_.get<components::Transform>(player_);
+    const auto* ps2 = world_.get<gameplay::PlayerState>(player_);
+    const float left = tr != nullptr
+                           ? glm::length(glm::vec3{approach_start_.at.x - tr->position.x,
+                                                   0.0f,
+                                                   approach_start_.at.z - tr->position.z})
+                           : -1.0f;
+    const float yaw_left =
+        ps2 != nullptr ? std::fabs(shortest_arc(ps2->yaw, approach_start_.yaw)) : -1.0f;
+    std::fprintf(stderr,
+                 "[поза] подход к %s брошен: %s (оставалось %.3f м при пороге "
+                 "%.3f, доворота %.3f рад при пороге %.3f, шли %.2f с)\n",
+                 name.c_str(), why, static_cast<double>(left),
+                 static_cast<double>(SEAT_ARRIVE_M), static_cast<double>(yaw_left),
+                 static_cast<double>(SEAT_ALIGN_RAD), static_cast<double>(spent));
+}
+
+void App::approach_step(float dt) {
+    if (approach_seat_ < 0) {
+        return;
+    }
+    if (in_posture() || static_cast<std::size_t>(approach_seat_) >= seats_.size()) {
+        cancel_approach("список точек сменился");
+        return;
+    }
+    auto* ps = world_.get<gameplay::PlayerState>(player_);
+    const auto* tr = world_.get<components::Transform>(player_);
+    if (ps == nullptr || tr == nullptr) {
+        cancel_approach("игрока нет");
+        return;
+    }
+    approach_s_ += dt;
+    if (approach_s_ > SEAT_APPROACH_TIMEOUT_S) {
+        cancel_approach("не дошёл за отведённое время (упёрся?)");
+        return;
+    }
+
+    const glm::vec3 d{approach_start_.at.x - tr->position.x, 0.0f,
+                      approach_start_.at.z - tr->position.z};
+    const float left = glm::length(d);
+    // ЧЕЛОВЕК ГЛАВНЕЕ АВТОПИЛОТА — НО «ПЕРЕДУМАЛ» ЗНАЧИТ ПОЙТИ ПРОЧЬ, А НЕ
+    // ПРОСТО ДЕРЖАТЬ КЛАВИШУ. Живой игрок подходит к лавке НА ХОДУ и жмёт E,
+    // не отпуская W; отмена по «есть ввод» отменяла бы каждую вторую посадку
+    // человека, идущего к лавке. Поэтому судит ЗНАК: ввод, у которого
+    // проекция на направление к точке отрицательна, — это уход. У стоящего
+    // (дошёл или упёрся) направления уже нет, и тогда любой ввод — уход.
+    // Порог тот же и по той же причине, что у выхода из позы: POSTURE_WALK_OUT.
+    if (glm::length(ps->move_axes) > POSTURE_WALK_OUT || ps->jump_pressed) {
+        const glm::vec3 fwd{std::sin(ps->yaw), 0.0f, -std::cos(ps->yaw)};
+        const glm::vec3 rgt{std::cos(ps->yaw), 0.0f, std::sin(ps->yaw)};
+        const glm::vec3 want = fwd * ps->move_axes.y + rgt * ps->move_axes.x;
+        if (ps->jump_pressed || left <= SEAT_ARRIVE_M || glm::dot(want, d) <= 0.0f) {
+            cancel_approach("игрок пошёл сам");
+            return;
+        }
+    }
+    // УПЁРСЯ — ЗНАЧИТ ПРИШЁЛ, НАСКОЛЬКО ЭТА КОМНАТА ПОЗВОЛЯЕТ. Не поблажка, а
+    // ЗАМЕР: у лавки, приставленной к столу (а так они и стоят — seat_facing
+    // разворачивает сидящего ЛИЦОМ К СТОЛУ), точка старта лежит В СТОЛЕ.
+    // Замерено на x112z271: стол на z=2.50, лавка на z=2.00, между их телами
+    // 0.10 м — капсула радиусом 0.35 туда не входит и встаёт на 0.10 м раньше
+    // точки, а автопилот без этой ветки толкался в стол все 4.15 с и бросал
+    // подход (числа его же следа). Место, дальше которого человека не пускают,
+    // и ЕСТЬ место, с которого на эту лавку садятся: доворот и поза идут
+    // оттуда, и посадка не зависит от того, поместился он или нет.
+    if (left <= approach_best_m_ - SEAT_STALL_EPS_M) {
+        approach_best_m_ = left;
+        approach_stall_s_ = 0.0f;
+    } else {
+        approach_stall_s_ += dt;
+    }
+    const bool stalled = approach_stall_s_ >= SEAT_STALL_S;
+    if (left > SEAT_ARRIVE_M && !stalled) {
+        // ИДЁМ — И ИМЕННО ВВОДОМ. Оси и рыск это ТЕ ЖЕ намерения, которые
+        // пишет клавиатура и очередь стенда (AppStand.h): дальше работает
+        // настоящая локомоция, настоящая физика и настоящая походка. Автопилот
+        // на Transform телепортировал бы человека мимо всего этого — ровно то,
+        // что владелец велел убрать.
+        ps->yaw = turn_body_toward(ps->yaw, std::atan2(d.x, -d.z), dt,
+                                   static_cast<float>(config::BODY_TURN_RATE));
+        ps->move_axes = glm::vec2{0.0f, 1.0f};
+        if (posture_trace_on() && approach_trace_left_ == 0) {
+            approach_trace_left_ = 60;
+            std::fprintf(stderr,
+                         "[поза-подход] t=%.2f (%.3f %.3f %.3f) рыск %.3f -> %.3f, "
+                         "осталось %.3f м, скорость %.2f м/с\n",
+                         static_cast<double>(approach_s_),
+                         static_cast<double>(tr->position.x),
+                         static_cast<double>(tr->position.y),
+                         static_cast<double>(tr->position.z),
+                         static_cast<double>(ps->yaw),
+                         static_cast<double>(approach_start_.yaw),
+                         static_cast<double>(left),
+                         static_cast<double>(ps->stride_speed));
+        }
+        if (approach_trace_left_ > 0) {
+            --approach_trace_left_;
+        }
+        ps->jog = false;
+        ps->run = false;
+        ps->crouch_held = false;
+        return;
+    }
+    // ДОШЁЛ: СТОИМ И ДОВОРАЧИВАЕМСЯ. Доворот отдельной фазой, а не вместе с
+    // ходьбой, потому что рыск точки старта смотрит ОТ предмета, а шёл человек
+    // К предмету: развернуться на ходу значило бы уйти с точки.
+    ps->move_axes = glm::vec2{0.0f};
+    if (stalled && left > SEAT_ARRIVE_M && !approach_stall_said_) {
+        approach_stall_said_ = true;
+        std::fprintf(stderr,
+                     "[поза] упёрся в %.3f м от точки старта (порог %.3f) — "
+                     "сажусь отсюда: ближе эта комната не пускает\n",
+                     static_cast<double>(left), static_cast<double>(SEAT_ARRIVE_M));
+    }
+    if (std::fabs(shortest_arc(ps->yaw, approach_start_.yaw)) > SEAT_ALIGN_RAD) {
+        ps->yaw = turn_body_toward(ps->yaw, approach_start_.yaw, dt,
+                                   static_cast<float>(config::BODY_TURN_RATE));
+        return;
+    }
+    ps->yaw = approach_start_.yaw;
+    const std::size_t index = static_cast<std::size_t>(approach_seat_);
+    approach_seat_ = -1;
+    approach_s_ = 0.0f;
+    enter_posture(index);
+}
+
+void App::enter_posture(std::size_t index) {
+    if (index >= seats_.size()) {
+        return;
+    }
     auto* ps = world_.get<gameplay::PlayerState>(player_);
     auto* drive = world_.get<anim::BodyDrive>(player_);
     const auto* tr = world_.get<components::Transform>(player_);
     if (ps == nullptr || drive == nullptr || tr == nullptr) {
         return;
     }
-    for (std::size_t i = 0; i < seats_.size(); ++i) {
-        if (seats_[i].action != action) {
-            continue;
-        }
+    {
+        const std::size_t i = index;
         const FurnitureSpot& spot = seats_[i].spot;
         posture_exit_ = tr->position;
         posture_exit_yaw_ = ps->yaw;
@@ -454,7 +761,6 @@ void App::take_seat() {
                      static_cast<double>(posture_exit_.x),
                      static_cast<double>(posture_exit_.y),
                      static_cast<double>(posture_exit_.z));
-        return;
     }
 }
 
@@ -488,6 +794,12 @@ void App::leave_posture() {
 // ---------------------------------------------------------------------------
 
 void App::park_posture() {
+    // ПОДХОД ЖИВЁТ В ЭТОМ ЖЕ МЕСТЕ ТИКА, И ЭТО НЕ УДОБСТВО. Он ПИШЕТ
+    // намерения (оси и рыск), а превращает их в перемещение player_pre_step —
+    // значит слот ровно один: после того, как ввод накоплен, и до того, как
+    // он потрачен. Тот же слот, в котором поза намерения ГАСИТ. Отдельный
+    // вызов из App.cpp был бы вторым описанием одного и того же места.
+    approach_step(static_cast<float>(timestep_.step_dt()));
     if (!in_posture()) {
         return;
     }
@@ -523,11 +835,7 @@ void App::park_posture() {
 }
 
 void App::posture_trace_step(float dt) {
-    static const bool on = [] {
-        const char* v = door_value("DFN_POSTURE_TRACE");
-        return v != nullptr && v[0] != '\0' && v[0] != '0';
-    }();
-    if (!on) {
+    if (!posture_trace_on()) {
         return;
     }
     const auto* drive = world_.get<anim::BodyDrive>(player_);
@@ -622,6 +930,23 @@ void App::probe_seats() {
                  "[поза] прибор по %zu точкам: смотрю в предмет %zu, мимо %zu, "
                  "спиной %zu, издали %zu (ждём %zu/0/0/0)\n",
                  seats_.size(), ok_front, ok_side, ok_back, ok_far, seats_.size());
+    // ...И ТОЧКА СТАРТА КАЖДОЙ, потому что подход меряется ею, а не прицелом:
+    // «подсказка горит» и «есть куда встать» — два разных утверждения, и
+    // прибор, печатающий только первое, второго не измеряет.
+    const auto* ptr = world_.get<components::Transform>(player_);
+    const glm::vec3 from = ptr != nullptr ? ptr->position : glm::vec3{0.0f};
+    for (const SeatLink& link : seats_) {
+        const PostureStart st = posture_start(link.spot, from);
+        std::fprintf(stderr,
+                     "[поза] %s: старт (%.2f %.2f %.2f), рыск %.3f, от игрока "
+                     "%.2f м%s\n",
+                     link.spot.source.c_str(), static_cast<double>(st.at.x),
+                     static_cast<double>(st.at.y), static_cast<double>(st.at.z),
+                     static_cast<double>(st.yaw),
+                     static_cast<double>(glm::length(
+                         glm::vec3{st.at.x - from.x, 0.0f, st.at.z - from.z})),
+                     st.valid ? "" : " — ТОЧКИ НЕТ");
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -636,8 +961,43 @@ void App::drive_seat_take() {
     if (want.empty() || seat_take_stage_ >= 3 || mode_ != AppMode::Playing) {
         return;
     }
+    // --- КЛАВИША ЛЕЖИТ: КАЖДЫЙ КАДР, ДО СЧЁТЧИКА ФАЗ ----------------------
+    // Держать её через фазовый счётчик нельзя: он пропускает кадры, а палец
+    // на клавише кадров не пропускает.
+    if (seat_take_hold_left_ > 0) {
+        auto* hps = world_.get<gameplay::PlayerState>(player_);
+        // ВЗГЛЯД УХОДИТ, ПОКА ПАЛЕЦ ЛЕЖИТ — это и есть рука на мыши, которую
+        // мерит рукав: живой человек, нажав E, взгляд не замораживает.
+        if (hps != nullptr && seat_take_hold_frames_ > 0) {
+            hps->pitch += seat_take_hand_turn_deg_ * 3.14159265358979f / 180.0f
+                        / static_cast<float>(seat_take_hold_frames_);
+        }
+        --seat_take_hold_left_;
+        if (seat_take_hold_left_ == 0) {
+            grab_probe_key_ = false; // ОТПУСТИЛ: здесь защёлка и возвращается
+            std::fprintf(stderr, "[поза] дверь DFN_SEAT_TAKE: отпустил E\n");
+        }
+        return;
+    }
     if (seat_take_frames_ == 0) {
         seat_take_lie_ = want.rfind("lie", 0) == 0;
+        // РУКА, КОТОРАЯ ДЕРЖИТ (DFN_SEAT_TAKE=sit+24@30): 24 кадра лежит
+        // клавиша, за них взгляд уходит на 30°. Именно этой парой меряется
+        // «садится не каждый раз», и обе половины названы числом, потому что
+        // жребий живой руки числом не назван (правило 30).
+        if (const std::size_t plus = want.find('+'); plus != std::string::npos) {
+            char* rest = nullptr;
+            seat_take_hold_frames_ =
+                std::strtoull(want.c_str() + plus + 1, &rest, 10);
+            if (rest != nullptr && *rest == '@') {
+                seat_take_hand_turn_deg_ = std::strtof(rest + 1, nullptr);
+            }
+            std::fprintf(stderr,
+                         "[поза] дверь DFN_SEAT_TAKE: рука держит E %llu кадров, "
+                         "уводя взгляд на %.1f°\n",
+                         static_cast<unsigned long long>(seat_take_hold_frames_),
+                         static_cast<double>(seat_take_hand_turn_deg_));
+        }
         // ДОВОРОТ ВЗГЛЯДА ПОСЛЕ ПОСАДКИ (DFN_SEAT_TAKE=lie:-35), градусы.
         // Нужен ровно затем же, зачем DFN_INTERIOR_TURN: в позе взгляд
         // СВОБОДЕН, и третье лицо разворачивает стрелу вокруг него — у
@@ -692,6 +1052,15 @@ void App::drive_seat_take() {
         // переход, начатый в тот же тик, стартует из проваленного таза.
         std::fprintf(stderr, "[поза] дверь DFN_SEAT_TAKE: жму E\n");
         ps->interact_pressed = true;
+        if (seat_take_hold_frames_ > 0) {
+            // ...И ДЕРЖУ, КАК ДЕРЖИТ РУКА. Обе половины нажатия сразу: сырое
+            // состояние клавиши (grab_probe_key_ — та же рука, которую читает
+            // grab_input) и защёлка. Приложение заберёт защёлку себе на всё
+            // время лежания и вернёт её на отпускании — ровно то, что делает
+            // живой палец.
+            grab_probe_key_ = true;
+            seat_take_hold_left_ = seat_take_hold_frames_;
+        }
         seat_take_frames_ = SEAT_TAKE_HOLD_FRAMES;
         seat_take_stage_ = 2;
         return;
@@ -724,13 +1093,16 @@ void App::drive_seat_take() {
     // ПОДВОД: встать перед предметом со стороны ПОДХОДА и развернуться на него.
     // У сиденья сторона подхода — та, куда смотрит сидящий (лицом к лавке);
     // у лежака — бок кровати, потому что в изголовье не подходят.
-    const glm::vec3 up{0.0f, 1.0f, 0.0f};
-    const glm::vec3 n = kind == SpotKind::Lie
-                            ? glm::normalize(glm::cross(best->spot.facing, up))
-                            : best->spot.facing;
-    const float depth = kind == SpotKind::Lie ? best->spot.aim.half.x
-                                              : best->spot.aim.half.z;
-    const glm::vec3 stand = best->spot.floor_at - n * (depth + 0.55f);
+    // ...И СО СТОРОНЫ ПОДХОДА, а не с противоположной. Знак здесь стоял
+    // минусом и ставил руку ЗА лавку — там, куда сидящий смотрит спиной; в
+    // комнате это стена. Сторона берётся у той же меты, что и точка старта
+    // (posture_start), и рука встаёт ДАЛЬШЕ неё на SEAT_TAKE_STANDOFF_M,
+    // чтобы подходу было что пройти: прибор, ставящий руку ровно в точку
+    // старта, мерил бы подход, которого не было (правило 47).
+    const PostureStart hand_start = posture_start(best->spot, from);
+    const float depth = seat_aim_support(best->spot.aim, hand_start.facing);
+    const glm::vec3 stand =
+        best->spot.floor_at + hand_start.facing * (depth + SEAT_TAKE_STANDOFF_M);
     if (physics_ != nullptr) {
         physics_->teleport_character(ps->character, stand);
     }

@@ -3,8 +3,9 @@ Module: engine/app
 File: engine/app/sources/FurnitureSeats.cpp
 
 Responsibility:
-- Правило «самая широкая горизонтальная площадка», классификатор сиденье/лежак
-  и перенос найденной площадки в мировую точку позы (контракт в заголовке).
+- Правило «самая широкая горизонтальная площадка», классификатор сиденье/лежак,
+  перенос найденной площадки в мировую точку позы и ТОЧКА СТАРТА ПОЗЫ — где
+  человек стоит, чтобы сесть (лечь) без перекоса (контракт в заголовке).
 
 Dependencies:
 - Uses: FurnitureSeats.h, SeatAim.h, glm.
@@ -161,6 +162,54 @@ FurnitureSpot furniture_spot(const FurnSurface& s, SpotKind kind,
     spot.aim.yaw = yaw;
     spot.aim.reach_m = SEAT_REACH_M;
     return spot;
+}
+
+PostureStart posture_start(const FurnitureSpot& spot, const glm::vec3& from) {
+    PostureStart out;
+    if (spot.kind != SpotKind::Seat && spot.kind != SpotKind::Lie) {
+        return out;
+    }
+    glm::vec3 n{spot.facing.x, 0.0f, spot.facing.z};
+    if (glm::length(n) < 1.0e-4f) {
+        return out;
+    }
+    n = glm::normalize(n);
+    if (spot.kind == SpotKind::Lie) {
+        // К ЛЕЖАКУ ПОДХОДЯТ БОКОМ. `facing` у лежака — куда уходит ГОЛОВА, а
+        // в изголовье не подходят: там столбики, а у кровати в комнате — ещё
+        // и стена. Сторон две, и выбирает между ними ТА, НА КОТОРОЙ ЧЕЛОВЕК
+        // УЖЕ СТОИТ: занятую стеной сторону он занять не мог.
+        const glm::vec3 side = glm::normalize(glm::cross(n, glm::vec3{0.0f, 1.0f, 0.0f}));
+        const glm::vec3 to_man{from.x - spot.floor_at.x, 0.0f, from.z - spot.floor_at.z};
+        n = glm::dot(to_man, side) >= 0.0f ? side : -side;
+    }
+    // ОТ СЕРЕДИНЫ ГАБАРИТА, А НЕ ОТ СЕРЕДИНЫ ПЛОЩАДКИ: касается предмета
+    // капсула, а предмет — это его тело (у кровати рама и столбики шире
+    // матраса). Разность двух середин вдоль подхода вычитается, чтобы точка
+    // легла ровно на нужном расстоянии от ТЕЛА, оставшись на оси площадки.
+    const float support = seat_aim_support(spot.aim, n);
+    const float pad_offset = (spot.floor_at.x - spot.aim.centre.x) * n.x
+                           + (spot.floor_at.z - spot.aim.centre.z) * n.z;
+    // ...И ЧЕРЕЗ КОРОБКУ ПРИЦЕЛА, А НЕ ЧЕРЕЗ ГОЛЫЙ ГАБАРИТ. Капсулу
+    // останавливает не чертёж, а ТЕЛО, которым мебель стоит в физике, — а
+    // оно шире габарита на SEAT_AIM_PAD_M (App::spawn_furniture_seats кладёт
+    // коробку прицела именно так). ЗАМЕРЕНО, а не выведено на бумаге: точка,
+    // посчитанная без этого слагаемого, оказалась НЕДОСТИЖИМОЙ — человек
+    // упирался на 0.10 м раньше неё (замер лавки в x112z271: подошвы встали
+    // на z=258.800 при точке 258.700), и автопилот бросал подход по таймауту.
+    const float step = support + SEAT_AIM_PAD_M
+                     + static_cast<float>(config::PLAYER_CAPSULE_RADIUS)
+                     - pad_offset;
+    out.valid = true;
+    out.at = glm::vec3{spot.floor_at.x + n.x * step, spot.floor_at.y,
+                       spot.floor_at.z + n.z * step};
+    out.facing = n;
+    // ТА ЖЕ ФОРМУЛА РЫСКА, ЧТО У ПОЗЫ СИДЯЩЕГО (take_seat: atan2(facing.x,
+    // -facing.z)). Совпадение не случайно, оно и есть починка перекоса: у
+    // сиденья `n` == `spot.facing`, значит после доворота защёлке позы
+    // ДОВОРАЧИВАТЬ УЖЕ НЕЧЕГО и рывка на 180° в тик посадки не остаётся.
+    out.yaw = std::atan2(n.x, -n.z);
+    return out;
 }
 
 glm::vec3 seat_facing(const glm::vec3& seat_xz, const glm::vec3& cross,
