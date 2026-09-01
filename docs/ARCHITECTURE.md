@@ -252,6 +252,17 @@ PRE-DEFINED clip/effect sequence, so every run frames the same thing. Stand maps
 live under assets/maps/stands/ and are the only maps such frames may come from.
 The owner watches the world; he must never meet a test figure there.
 
+### Rule 17b — Background game runs open stands only (owner's order 01.09.2026)
+While a line of work is about the character (or any other single subsystem),
+no agent launches world maps (whiterun, cornhall, forests, valleys) in the
+background — the owner sees those windows and reads them as work on the wrong
+thing. Background runs of the game are stand maps only (assets/maps/stands/),
+short, and driven by capture doors. The unattended frame-determinism tests
+(label `unattended_frames`, they open city and forest recipes) are OPT-IN:
+they are DISABLED unless CMake is configured with `-DDFN_WORLD_TESTS=ON`, and
+`ctest` runs by agents exclude them regardless
+(`-E "sim_tunnel_walk|unattended|frame_determinism|tour"`).
+
 ### Rule 18 — Per-module docs reflect current code
 Each module keeps `docs/README.md` describing its **current** state. Read it before
 modifying the module; update it in the same changeset. See `rules/documentation.md`.
