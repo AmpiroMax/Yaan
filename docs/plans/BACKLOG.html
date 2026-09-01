@@ -21,7 +21,7 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 </style></head><body>
 <h1>Бэклог проекта — эпики, задачи, подзадачи</h1>
 <p>Состояние на 29.08.2026. Порядок эпиков и задач: сначала блокеры, затем по важности и размеру. Ключи задач — по образцу Jira: <code>E4-2</code> — задача, <code>E4-2.3</code> — подзадача.</p>
-<p><b>Итого: 15 эпиков, 91 задач, 394 подзадач — 485 тикетов.</b></p>
+<p><b>Итого: 15 эпиков, 91 задач, 395 подзадач — 486 тикетов.</b></p>
 <table><tr><th>Эпик</th><th>Задач</th><th>Подзадач</th><th>Блокеров</th></tr>
 <tr><td><a href="#E13">E13. Решения владельца (открытые)</a></td><td>3</td><td>15</td><td>3</td></tr>
 <tr><td><a href="#E1">E1. Единый игровой объект и уровни детализации</a></td><td>3</td><td>17</td><td>3</td></tr>
@@ -33,7 +33,7 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 <tr><td><a href="#E7">E7. Флора и биомы</a></td><td>4</td><td>13</td><td>0</td></tr>
 <tr><td><a href="#E8">E8. Звук: Steam Audio и мир источников</a></td><td>2</td><td>12</td><td>0</td></tr>
 <tr><td><a href="#E9">E9. Музыка</a></td><td>3</td><td>12</td><td>0</td></tr>
-<tr><td><a href="#E10">E10. Убранство, предметы, книги</a></td><td>3</td><td>11</td><td>0</td></tr>
+<tr><td><a href="#E10">E10. Убранство, предметы, книги</a></td><td>3</td><td>12</td><td>0</td></tr>
 <tr><td><a href="#E11">E11. Меню, интерфейс, сохранения, загрузка</a></td><td>4</td><td>12</td><td>0</td></tr>
 <tr><td><a href="#E12">E12. Лор, сюжет, квесты, RPG</a></td><td>7</td><td>30</td><td>0</td></tr>
 <tr><td><a href="#E14">E14. Графика уровня Skyrim — чего не хватает</a></td><td>19</td><td>77</td><td>1</td></tr>
@@ -412,9 +412,10 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 </ol></div>
 <div class="task" id="E10-3"><h3><span class="key">E10-3</span>Физика предметов — хвосты<span class="badge" style="background:#777">Низкий</span><span class="st">в работе</span></h3><ol>
 <li><span class="key">E10-3.1</span>Исполнить §10 после решения (E13-3): стулья, сила толчка, заполнение → в кузницу</li>
-<li><span class="key">E10-3.2</span>БАГ 01.09: отпущенный из рук предмет на уличной карте проваливается сквозь землю (кувшин 21.8 при настиле 25.5; DFN_SEAT_MAP=0 не влияет) — тела предметов не видят рельеф улицы</li>
-<li><span class="key">E10-3.3</span>БАГ 01.09: плоские предметы (миска, каравай) не берутся при честной дистанции — подозрение на hull_points</li>
-<li><span class="key">E10-3.4</span>Звук и частицы при ударах (E8)</li>
+<li><span class="key">E10-3.2</span>ПРИБОР-ХВОСТ 02.09: character_stance/the_hilt_lies_in_the_hand ищет гарду argmax поперечного радиуса клинка — почти ничья, 0.4 мкм ладони перекидывают 14.61→16.41 см и красят тест; искать перекрестье по РАЗРЫВУ радиуса, не по максимуму</li>
+<li><span class="key">E10-3.3</span>БАГ 01.09: отпущенный из рук предмет на уличной карте проваливается сквозь землю (кувшин 21.8 при настиле 25.5; DFN_SEAT_MAP=0 не влияет) — тела предметов не видят рельеф улицы</li>
+<li><span class="key">E10-3.4</span>БАГ 01.09: плоские предметы (миска, каравай) не берутся при честной дистанции — подозрение на hull_points</li>
+<li><span class="key">E10-3.5</span>Звук и частицы при ударах (E8)</li>
 </ol><div class="note">Владелец принял основное.</div></div>
 <h2 id="E11">E11. Меню, интерфейс, сохранения, загрузка</h2><p class="why">Оболочка игры; частично сделана (меню, интро, настройки).</p>
 <div class="task" id="E11-1"><h3><span class="key">E11-1</span>Сохранения<span class="badge" style="background:#c60">Высокий</span><span class="st">к работе</span></h3><ol>
