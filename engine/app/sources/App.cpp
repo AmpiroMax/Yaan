@@ -1024,6 +1024,29 @@ bool App::init(const AppConfig& config) {
 
     bool editor_door = door_value("DFN_EDITOR") != nullptr;
 
+    // (A0) СМОТРОВАЯ ОДНОЙ ДВЕРЬЮ (DFN_VIEWER=1). Отдельная дверь, а не
+    // DFN_OPEN_MAP=stands/viewer: рецепт приёмки называет РЕЖИМ, и переезд
+    // файла карты не должен ломать записанные рецепты. Промах громкий и
+    // смертельный по той же причине, что у DFN_OPEN_MAP: беспилотный прогон,
+    // тихо открывший НЕ ту карту, снимет правдоподобный и не тот кадр.
+    if (const char* v = door_value("DFN_VIEWER"); v != nullptr && *v != '\0' && *v != '0') {
+        const MapManifest* m = catalog_.find(VIEWER_MAP_CATEGORY, VIEWER_MAP_STEM);
+        if (m == nullptr) {
+            std::fprintf(stderr,
+                         "[смотровая] DFN_VIEWER=1, но карты %s/%s.map нет под "
+                         "assets/maps — ОТКАЗ\n",
+                         VIEWER_MAP_CATEGORY, VIEWER_MAP_STEM);
+            return false;
+        }
+        if (!open_map(*m)) {
+            return false; // open_map reported the reason
+        }
+        set_editor_session(false, "дверь DFN_VIEWER");
+        mode_ = AppMode::Playing;
+        input_->set_cursor_captured(!unattended_run());
+        return true;
+    }
+
     // (A) THE CONCRETE-MAP DOOR (DFN_OPEN_MAP=<category>/<map>). Automated: load
     // exactly this .map, bypassing the browser, and enter Editor if DFN_EDITOR
     // is set or Playing otherwise. A miss is loud and fatal -- an automated run
@@ -1972,6 +1995,18 @@ bool App::open_map(const MapManifest& manifest) {
             return false;
         }
         current_map_ = manifest; // for current_manifest() (chat path derivation)
+        // СМОТРОВАЯ ОТКРЫВАЕТСЯ САМОЙ КАРТОЙ, а не вторым входом в мир (заказ
+        // владельца 01.09). Признак — манифест, и никакого второго флага рядом
+        // с ним: карта stands/viewer И ЕСТЬ смотровая, поэтому режим не может
+        // включиться посреди Вайтрана и не может остаться включённым после
+        // ухода с неё (unload_world зовёт viewer_leave).
+        //
+        // ПОСЛЕ enter_world, а не внутри: список моделей строится один раз, а
+        // постамент стоит на земле, которой до постройки мира ещё нет.
+        if (manifest.category == VIEWER_MAP_CATEGORY
+            && manifest.file_stem == VIEWER_MAP_STEM) {
+            viewer_enter();
+        }
         return true;
     }
     if (scheme == "dfw") {
@@ -4199,7 +4234,17 @@ int App::run() {
             // ровно накопленный ВЗГЛЯД, ровно так же, как это делала прежняя
             // ветка обвода.
             gameplay::player_accumulate_input(world_, *input_);
-            if (third_person_) {
+            // СМОТРОВАЯ ЗАБИРАЕТ МЫШЬ У ВЗГЛЯДА И ОТДАЁТ ЕЁ ОБЛЁТУ. Накопленный
+            // взгляд гасится ровно так же, как его гасит третье лицо, и по той
+            // же причине: два автора одного угла — это рывок на каждом кадре, где
+            // они разошлись. Ходить телу при этом никто не мешает — оси движения
+            // доходят как обычно, — но тело стоит в стороне и в кадр не попадает.
+            if (viewer_active()) {
+                viewer_mouse();
+                if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                    ps->pending_look = glm::vec2{0.0f};
+                }
+            } else if (third_person_) {
                 const glm::vec2 d = input_->mouse_delta();
                 const float sens = static_cast<float>(config::MOUSE_SENSITIVITY);
                 cam_yaw_ += d.x * sens;
@@ -4662,7 +4707,18 @@ int App::run() {
         const float alpha = static_cast<float>(timestep_.alpha());
         const auto* pose = world_.get<components::CameraPose>(player_);
         const auto* prev_pose = world_.get<components::PreviousCameraPose>(player_);
-        if (replaying_) {
+        if (components::CameraPose vp{}; viewer_camera_pose(vp)) {
+            // СМОТРОВАЯ ВЛАДЕЕТ ГЛАЗОМ ЦЕЛИКОМ, и prev == curr — как у
+            // редакторского облёта и у тура. Камера здесь не следует за телом:
+            // она обходит ПОСТАМЕНТ, а тело стоит в двадцати пяти метрах и в
+            // кадр не входит. Интерполировать нечего: обе руки одного кадра
+            // равны, поэтому любое alpha даёт ровно ту позу, которую посчитал
+            // облёт, и два прогона одной дозы снимают один кадр.
+            camera_.set_poses(vp, vp);
+            camera_.set_projection(static_cast<float>(config::CAMERA_FOV_Y),
+                                   camera_.aspect_ratio(), camera_.near_plane(),
+                                   camera_.far_plane());
+        } else if (replaying_) {
             // TRAJECTORY REPLAY drives the eye from the file. prev == curr so any
             // alpha reproduces the recorded pose exactly, and the recorded fov is
             // applied (the run fov-kick changes the image, so it is reproduced,
@@ -5196,7 +5252,29 @@ int App::run() {
                 frame.editor_block = &ed;
             }
             frame.chat = &chat_overlay_;
-            render_system_.set_hud_visible(compose_hud(hud, frame));
+            // НА СМОТРОВОЙ ИГРОВОЙ СЛОЙ ГАСИТСЯ ЦЕЛИКОМ — ни компаса, ни полос
+            // состояния, ни прицела. Тот же довод, что у двери DFN_HUD=0, и он
+            // здесь сильнее: панель поверх картинки — это не информация, а
+            // мусор, когда предмет кадра ровно один и подписан своими четырьмя
+            // строками. Полем HudFrame, а не вторым решением: «рисовать или
+            // нет» живёт в compose_hud, где его видно (AppHud.h).
+            if (viewer_active()) {
+                frame.hud_off = true;
+            }
+            // ПОДПИСИ СМОТРОВОЙ — ТЕМ ЖЕ ИГРОВЫМ ТЕКСТОМ И НА ТОТ ЖЕ ХОЛСТ, что
+            // и подсказка взаимодействия (заказ 01.09: «никакого ImGui в
+            // игровом режиме»). Своим вызовом, а не полем HudFrame: compose_hud
+            // собирает ПОСТОЯННЫЕ части слоя — компас, полосы, прицел, — а это
+            // подпись одного режима, и полем она вошла бы в раскладку каждого
+            // кадра игры, включая те, где смотровой нет.
+            //
+            // ИЛИ, А НЕ «ВМЕСТО»: слой показывается, если на него лёг хоть кто
+            // -то. Иначе DFN_HUD=0 (compose_hud возвращает false) погасил бы и
+            // подпись модели, то есть ровно тот текст, ради которого режим и
+            // существует.
+            const bool hud_any = compose_hud(hud, frame);
+            const bool viewer_any = viewer_draw(hud);
+            render_system_.set_hud_visible(hud_any || viewer_any);
         }
 
         // RECORDED BEFORE render(), which is the only window there is: both
@@ -5435,7 +5513,14 @@ int App::run() {
         // есть на костях тела, поэтому меч не может отстать от кулака на кадр
         // — как и хитбоксы ниже, и по той же причине.
         std::array<render::RenderSystem::SkinnedDraw, 2> skinned_draws{};
-        if (skinned_character_.ready()) {
+        if (viewer_active()) {
+            // НА СМОТРОВОЙ ФИГУРЫ ИГРОКА В КАДРЕ НЕТ, И ЭТО НЕ КОСМЕТИКА:
+            // предмет кадра ровно один — модель на постаменте, и вторая фигура
+            // в нём была бы вторым предметом сравнения. Пустой список, а не
+            // «не звать»: несозванный set_skinned_bodies оставил бы список
+            // ПРОШЛОГО кадра, то есть фигуру, застывшую там, где она была.
+            render_system_.set_skinned_bodies({});
+        } else if (skinned_character_.ready()) {
             skinned_draws[0] = skinned_character_.build_draw(
                 body_rig_, /*hide_head=*/!third_person_, alpha);
             const std::size_t count = skinned_character_.blade_drawn() ? 2u : 1u;

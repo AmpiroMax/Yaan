@@ -266,6 +266,31 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # The HUD's tests earn their place by proving what a FRAME CANNOT: a compass
     # ribbon running the wrong way looks right in any single screenshot, so the
     # sign is only provable by turning both ways and watching the marks move.
+    # СМОТРОВАЯ: МОДЕЛЬ РЕЖИМА. Цель линкует ТОЛЬКО ModelViewer.cpp и не тянет
+    # ни рендера, ни окна — и это единственная причина, по которой у режима есть
+    # проверяемые утверждения вообще: кадрирование, шаг по списку и множитель
+    # показа были бы иначе арифметикой внутри кадрового цикла App.cpp, который
+    # держит окно (правило 3).
+    #
+    # СКАН ИДЁТ ПО НАСТОЯЩЕМУ ДЕРЕВУ, а не по вымышленной папке (правило 30):
+    # предмет проверки — «список источников собирается», и собраться он обязан
+    # из assets/objects, assets/objects/characters и artifacts/3D, каких их
+    # застал прогон. Числа в наборе — ПОЛЫ, а не равенства: волны добавляют
+    # модели ежедневно, и точное число краснело бы на чужом успехе.
+    add_dfn_test(app_model_viewer app/ModelViewerTests.cpp dfn_core)
+    target_sources(app_model_viewer PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/ModelViewer.cpp)
+
+    # СМОТРОВАЯ: ПРЕОБРАЗОВАНИЕ И ПЕРЕКЛЮЧЕНИЕ. Отдельная цель, потому что здесь
+    # другой предмет и другие зависимости: чтение .stl, кэш и — главное — счёт
+    # ЖИВЫХ МЕШЕЙ на нулевом бэкенде. Утечка при переборе не видна ни на одном
+    # снимке экрана, когда-либо снятом с неё; NullRenderer::live_meshes() —
+    # единственный прибор, который её видит (правило 3).
+    add_dfn_test(app_model_convert app/ModelConvertTests.cpp
+                 dfn_render dfn_platform_render dfn_core)
+    target_sources(app_model_convert PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/ModelConvert.cpp)
+
     add_dfn_test(app_hud_screen app/HudScreenTests.cpp dfn_render dfn_core)
     # СБОРКА КАДРА — на тот же рукав (слой 3 разбора App.cpp). Отдельные куски
     # оверлея уже держат свои наборы; здесь держится то, что происходит, когда

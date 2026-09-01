@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 118> TABLE{{
+constexpr std::array<Door, 120> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -167,6 +167,21 @@ constexpr std::array<Door, 118> TABLE{{
     {"DFN_OPEN_MAP",
      "открыть карту <категория>/<карта> минуя браузер. Названа не DFN_MAP: то занято щупом экрана карты у render.",
      DoorRead::Once, true},
+    {"DFN_VIEWER",
+     "1 — открыть СМОТРОВУЮ (assets/maps/stands/viewer.map) минуя браузер: пустая "
+     "площадка с портретным светом, на которой перебираются все модели дерева. "
+     "Отдельная дверь, а не DFN_OPEN_MAP=stands/viewer: рецепт приёмки называет "
+     "РЕЖИМ, а не путь к файлу, и переезд карты не должен ломать записанные рецепты. "
+     "НЕ беспилотная нарочно: смотровую крутят мышью, а беспилотный прогон не "
+     "захватывает курсор — облёт был бы мёртв ровно у того, кто открыл дверь руками. "
+     "Кадр приёмки снимается ею ВМЕСТЕ с DFN_SHOT_AFTER или DFN_TOUR, и "
+     "беспилотность объявляют они.",
+     DoorRead::Once, false},
+    {"DFN_VIEWER_ITEM",
+     "какую модель показать в смотровой с первого кадра — ИМЯ (oak-forge-v1-a, "
+     "Knight, model). Промах печатает отказ и НЕ подменяет модель первой в списке: "
+     "кадр приёмки не имеет права быть правдоподобным и не тем.",
+     DoorRead::Once, false},
     {"DFN_STAND",
      "какой стенд поднимать, когда меню выключено. Раньше это была DFN_MAP, и маршрут стенда молча схлопывался в один кадр.",
      DoorRead::Once},

@@ -77,6 +77,9 @@ if(DFN_APP_READY)
         sources/Menu.cpp
         sources/MenuArt.cpp
         sources/MenuEmblem.cpp
+        sources/ModelViewer.cpp
+        sources/ModelConvert.cpp
+        sources/AppViewer.cpp
         sources/PngImage.cpp
         sources/TrajectoryRecord.cpp
         sources/UiFont.cpp)

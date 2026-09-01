@@ -156,10 +156,15 @@ TEST_CASE("there is exactly one place a key reaches the app") {
     // доменных файлов — это список, а не исключение: он растёт, а прогулка по
     // таблице остаётся одна и остаётся в AppInput.cpp.
     const std::string poses = read_file("engine/app/sources/AppPoses.cpp");
+    // ...И ЧЕТВЁРТЫЙ, ровно как обещано двумя абзацами выше: смотровая
+    // (стрелки, E/Q, R) держит тела своих методов в AppViewer.cpp. Список
+    // доменных файлов растёт, прогулка по таблице по-прежнему одна.
+    const std::string viewer = read_file("engine/app/sources/AppViewer.cpp");
     REQUIRE_FALSE(app.empty());  // wrong working directory would silently pass
     REQUIRE_FALSE(input.empty());
     REQUIRE_FALSE(house.empty());
     REQUIRE_FALSE(poses.empty());
+    REQUIRE_FALSE(viewer.empty());
 
     // App.cpp may DEFINE action_pressed and must not CALL it: every key edge
     // now goes through dispatch_actions(), which is the single walk.
@@ -186,6 +191,7 @@ TEST_CASE("there is exactly one place a key reaches the app") {
         CHECK(count_of(input, "void App::" + h + "(")
                   + count_of(house, "void App::" + h + "(")
                   + count_of(poses, "void App::" + h + "(")
+                  + count_of(viewer, "void App::" + h + "(")
               == 1);
         // Вызов (метка case) — в AppInput: там единственная прогулка.
         CHECK(count_of(input, h + "(") >= 1);

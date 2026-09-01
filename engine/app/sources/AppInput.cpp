@@ -111,6 +111,9 @@ bool App::dispatch_actions(bool chat_typing) {
         case Action::AxisLock: on_axis_lock(); break;
         case Action::DeleteSelected: on_delete_selected(); break;
         case Action::GridToggle: on_grid_toggle(); break;
+        case Action::ViewerCycle: on_viewer_cycle(); break;
+        case Action::ViewerTurn: on_viewer_turn(); break;
+        case Action::ViewerReset: on_viewer_reset(); break;
         case Action::Count: break; // not a row; route_for() cannot return it
         }
         // THE FRAME IS OVER THE MOMENT ESCAPE OPENS THE PAUSE PAGE. Nothing

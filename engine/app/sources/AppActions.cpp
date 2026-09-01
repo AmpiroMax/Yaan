@@ -58,6 +58,11 @@ constexpr std::array<ActionRoute, static_cast<size_t>(Action::Count)> ROUTES{{
     {Action::DeleteSelected, Gate::TypingEats, "on_delete_selected", 0},
     {Action::GridToggle, Gate::TypingEats, "on_grid_toggle", 0},
     {Action::PoseCycle, Gate::TypingEats, "on_pose_cycle"},
+    // СМОТРОВАЯ (заказ владельца 01.09). Все три под тем же запретом, что и
+    // остальные: пока открыт чат, стрелка — это стрелка в тексте.
+    {Action::ViewerCycle, Gate::TypingEats, "on_viewer_cycle"},
+    {Action::ViewerTurn, Gate::TypingEats, "on_viewer_turn"},
+    {Action::ViewerReset, Gate::TypingEats, "on_viewer_reset"},
 }};
 
 } // namespace

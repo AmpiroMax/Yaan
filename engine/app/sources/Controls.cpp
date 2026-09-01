@@ -58,7 +58,13 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     {Action::Map, K::M, K::UNKNOWN, "controls.map", Scope::Anywhere},
     {Action::MenuPause, K::ESCAPE, K::UNKNOWN, "controls.menu", Scope::Anywhere},
     {Action::Fullscreen, K::F11, K::UNKNOWN, "controls.fullscreen", Scope::Anywhere},
-    {Action::CursorToggle, K::R, K::UNKNOWN, "controls.cursor", Scope::Anywhere},
+    // СУЖЕНА ДО РЕДАКТОРА (01.09) — ПОЧИНКА ПОДПИСИ, А НЕ РАЗМЕН КЛАВИШИ.
+    // Строка объявляла себя Anywhere, а её тело (App::on_cursor_toggle) трогает
+    // только ящик инструментов редактора и печатает «[editor] курсор»: в игре
+    // нажатие R не делало ничего, а экран управления обещал, что делает. Теперь
+    // область говорит то же, что и тело, и освободившаяся в игре R досталась
+    // смотровой — но досталась она ей ПОТОМУ, что была свободна, а не наоборот.
+    {Action::CursorToggle, K::R, K::UNKNOWN, "controls.cursor", Scope::EditorOnly},
     {Action::BuildMenu, K::B, K::UNKNOWN, "controls.build_menu", Scope::EditorOnly},
     {Action::BuildRotate, K::G, K::UNKNOWN, "controls.build_rotate", Scope::EditorOnly},
     {Action::ToolHeight, K::NUM_1, K::UNKNOWN, "controls.tool_height", Scope::EditorOnly},
@@ -92,6 +98,20 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
     // управления при 320x180. Область — тело: в редакторе позировать некому.
     {Action::PoseCycle, K::RIGHT_BRACKET, K::LEFT_BRACKET, "controls.pose_cycle",
      Scope::PlayingOnly, Scope::PlayingOnly},
+    // СТРЕЛКИ — СМОТРОВАЯ. Свободны во всей таблице, и это та пара, которой
+    // листают что угодно. Область — тело: смотровая это игровой режим, а не
+    // редакторский, и в редакторе стрелки принадлежат меню объектов.
+    {Action::ViewerCycle, K::RIGHT, K::LEFT, "controls.viewer_cycle",
+     Scope::PlayingOnly, Scope::PlayingOnly},
+    // E/Q — ПОВОРОТ МОДЕЛИ. Обе заняты у ЖИВОГО тела (E — взаимодействие,
+    // Q — бросить предмет), и это законно ровно потому, что ни того, ни другого
+    // на смотровой нет: там нет ни одного предмета в руках и ни одной точки
+    // взаимодействия. Обработчик всё равно проверяет, что смотровая открыта, —
+    // иначе на боевой карте поворот молча тратил бы нажатие «взять».
+    {Action::ViewerTurn, K::E, K::Q, "controls.viewer_turn",
+     Scope::PlayingOnly, Scope::PlayingOnly},
+    {Action::ViewerReset, K::R, K::UNKNOWN, "controls.viewer_reset",
+     Scope::PlayingOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -215,6 +235,16 @@ const char* key_name(platform::Key key) {
     case K::GRAVE: return "`";
     case K::DELETE: return "Del";
     case K::BACKSPACE: return "Backspace";
+    // СТРЕЛКИ СМОТРОВОЙ — СЛОВАМИ, И ЭТО НЕ ВКУС, А ОХВАТ ШРИФТА. Знак «←»
+    // (U+2190) в испечённом атласе антиквы ОТСУТСТВУЕТ (tools/bake_ui_font.py
+    // печёт «→», но не «←»), и строка с ним потеряла бы половину пары молча:
+    // ui_draw_text пропускает неизвестный знак пробелом. «Left»/«Right» стоят
+    // в одном ряду с «Del», «Esc» и «Backspace» — теми же словами, которыми эта
+    // таблица уже называет клавиши без печатного знака.
+    case K::LEFT: return "Left";
+    case K::RIGHT: return "Right";
+    case K::E: return "E";
+    case K::Q: return "Q";
     default: return "?"; // loud, not blank: a nameless key is a table bug
     }
 }

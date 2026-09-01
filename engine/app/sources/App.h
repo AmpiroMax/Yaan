@@ -54,6 +54,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/TrajectoryRecord.h"
 #include "engine/app/sources/Menu.h"
 #include "engine/app/sources/MenuEmblem.h"
+#include "engine/app/sources/ModelViewer.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/events/sources/EventBus.h"
@@ -307,6 +308,30 @@ private:
     void after_frame(float alpha, float frame_dt);
     // Обработчики, названные строками таблицы. Определены в AppInput.cpp; имя
     // метода И ЕСТЬ поле `handler` в строке, и рукав держит их вместе.
+    // --- СМОТРОВАЯ. Определены в AppViewer.cpp -----------------------------
+    /// Открыта ли смотровая. Один вопрос, много читателей (камера, ввод, HUD,
+    /// подавление фигуры игрока) — и ровно поэтому он метод, а не сравнение
+    /// строк карты, переписанное в четырёх местах.
+    [[nodiscard]] bool viewer_active() const { return viewer_mode_; }
+    /// Собрать список моделей и показать первую (или названную дверью).
+    /// Зовётся из enter_world, когда манифест карты — смотровая.
+    void viewer_enter();
+    /// Снять модель с постамента и погасить режим.
+    void viewer_leave();
+    /// Показать модель №index: преобразовать при надобности, прочитать .dfo,
+    /// собрать потоки и залить их ОДНИМ ключом россыпи (старый меш при этом
+    /// уничтожается — пара на пару).
+    void viewer_show(int index);
+    /// Мышь и колесо в облёт; зовётся из кадрового цикла.
+    void viewer_mouse();
+    /// Поза камеры этого кадра. Возвращает false, если смотровая закрыта.
+    [[nodiscard]] bool viewer_camera_pose(components::CameraPose& out) const;
+    /// Подписи смотровой на холст HUD. Возвращает, легло ли на него что-нибудь.
+    [[nodiscard]] bool viewer_draw(render::PixelCanvas& hud);
+    void on_viewer_cycle();
+    void on_viewer_turn();
+    void on_viewer_reset();
+
     void on_third_person();
     // ДОЗА щупа камеры: DFN_CAM_COLLIDE=0 снимает коллизию, ничего больше не
     // меняя, — контрольная рука приёмки из ТОГО ЖЕ бинарника (Rule 47).
@@ -1001,6 +1026,38 @@ private:
     uint32_t stand_cam_ = 0;         // DFN_STAND_CAM=1..4, 0 — не задана
     bool stand_seq_ = false;         // DFN_STAND_SEQ=1 — играть очередь
     float stand_seq_t_ = 0.0f;       // секунды очереди, ведутся фиксированным тиком
+
+    // --- СМОТРОВАЯ (заказ владельца 01.09) --------------------------------
+    // Режим предпросмотра моделей: пустая площадка, портретный свет, одна
+    // модель на постаменте и стрелки, которыми её меняют. Состояние живёт
+    // здесь, а решения — в ModelViewer.h; в этом файле только то, чему нужен
+    // рендерер и открытая карта (AppViewer.cpp).
+    //
+    // ПРИЗНАК РЕЖИМА — ОТКРЫТАЯ КАРТА, А НЕ ВТОРОЙ ФЛАГ РЯДОМ С НЕЙ. Карта
+    // stands/viewer.map И ЕСТЬ смотровая; поле ниже взводится в enter_world по
+    // манифесту и гаснет там же. Отдельный флаг, который можно было бы
+    // выставить на боевой карте, дал бы режим, в котором стрелки листают
+    // модели посреди Вайтрана.
+    bool viewer_mode_ = false;
+    std::vector<ViewerItem> viewer_items_;
+    int viewer_index_ = 0;
+    ViewerView viewer_view_{};
+    /// Где стоит постамент — середина площадки, взятая у стримера при входе.
+    glm::vec3 viewer_pad_{0.0f};
+    /// Габарит ПОКАЗАННОЙ модели в её собственных единицах и множитель показа.
+    glm::vec3 viewer_lo_{0.0f};
+    glm::vec3 viewer_hi_{0.0f};
+    float viewer_scale_ = 1.0f;
+    std::size_t viewer_triangles_ = 0;
+    /// Почему модель не показана, если не показана. Пустая строка — показана.
+    std::string viewer_error_;
+    /// Куда идти за dfn_import_gltf; пусто — на этой машине его нет, и
+    /// смотровая говорит это вслух вместо того, чтобы показать пустой постамент.
+    std::string viewer_gltf_tool_;
+    /// Сколько раз модель менялась за прогон — счётчик для отчёта приёмки: он
+    /// отвечает на «сколько пар меша создано и уничтожено», чего кадр не
+    /// показывает.
+    std::uint64_t viewer_swaps_ = 0;
     uint64_t cam_probe_frames_ = 0;  // сколько кадров прибор насчитал
     uint64_t cam_probe_outside_ = 0; // на скольких камера оказалась за оболочкой
     float cam_probe_worst_ = 0.0f;   // худший заход за стену, м
