@@ -92,6 +92,34 @@ struct SliderInk {
     render::Color handle{176, 172, 160};
     render::Color label{176, 172, 160};
     render::Color value{120, 118, 112};
+    render::Color notch{120, 118, 112}; ///< ромбик зарубки
+    render::Color band{120, 118, 112};  ///< народный отрезок дорожки
+};
+
+/// ЧТО НАРИСОВАНО НА ДОРОЖКЕ ПОМИМО РУЧКИ. Ноль полей — обычный ползунок;
+/// договор виджета от этого не меняется, поэтому страница громкости, когда
+/// доедет, просто не заполнит ничего.
+///
+/// ЗАЧЕМ ЭТО ВООБЩЕ (CHARGEN_UI.md, Р3). Ползунок телосложения ходит не от
+/// нуля до единицы, а внутри УЗКОЙ ИЗМЕРЕННОЙ полосы, за которой судья
+/// пропорций перестаёт держать фигуру. Игрок про это не знает и не должен
+/// догадываться, почему ручка «упёрлась»: дорожка обязана СКАЗАТЬ, где стоит
+/// нейтраль и где кончается свой народ.
+struct SliderMarks {
+    /// НАРОДНЫЙ ОТРЕЗОК: где сидит большинство своих. `hi <= lo` — нет такого.
+    float band_lo = 0.0f;
+    float band_hi = 0.0f;
+    /// ЗАРУБКА — НЕЙТРАЛЬ ЭТОЙ РУЧКИ, то есть замер нашего же исходного тела,
+    /// а не число из учебника: полоса, центрированная на учебнике, ставила бы
+    /// ручку на старте уже сдвинутой (CHARGEN_UI.md, Р3).
+    float notch = 0.0f;
+    bool has_notch = false;
+    /// СПЛОШНОЙ РОМБ ИЛИ ПОЛЫЙ. Сплошной — полосу МЕРИЛ судья, край есть
+    /// предел канона. Полый — полосу выбрал человек, и судья тут слеп: так
+    /// стоит РОСТ (масштабу судья безразличен по построению) и так будут
+    /// стоять лицевые ручки-«черты». Без этой разницы правило «зарубка =
+    /// измеренная нейтраль» на строке роста тихо врёт.
+    bool measured = true;
 };
 
 /// ЗНАЧЕНИЕ ПОД ТОЧКОЙ, зажатое в [lo, hi]. `px` — координата холста.
@@ -123,6 +151,12 @@ struct SliderInk {
 void draw_slider(render::PixelCanvas& canvas, const SliderTrack& track,
                  std::string_view label, int label_x, std::string_view value_text,
                  int value_right_x, float value, float lo, float hi,
-                 const SliderInk& ink, int label_px, bool selected, bool dragging);
+                 const SliderInk& ink, int label_px, bool selected, bool dragging,
+                 const SliderMarks* marks = nullptr);
+
+/// РОМБИК. Отдельно от ползунка, потому что его же ставит вкладка
+/// происхождения рядом с типажом, а не только дорожка.
+void draw_diamond(render::PixelCanvas& canvas, int cx, int cy, int half,
+                  render::Color colour, bool filled);
 
 } // namespace dfn::app

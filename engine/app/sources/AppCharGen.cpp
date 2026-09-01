@@ -150,10 +150,47 @@ void App::chargen_enter() {
     // приезжают строки телосложения, а вкладки и всё остальное — из
     // chargen_describe(). Дизайн-сессия добавит категорию там, не тронув
     // проводку.
-    chargen_.set_categories(chargen_describe(std::move(rows)));
+    // НАРОДЫ ЧИТАЮТСЯ ЗДЕСЬ И ПРОВЕРЯЮТСЯ ПРОТИВ СУДЬИ ТУТ ЖЕ. Народный край
+    // ОБЯЗАН лежать внутри судейского (CHARGEN_UI.md, Р8), и народ, который
+    // это нарушил, ОТВЕРГАЕТСЯ ГРОМКО, а не обрезается молча: полоса шире
+    // судейской — это ползунок, после которого судья пропорций красный, а
+    // виноват интерфейс.
+    std::vector<PeopleBand> canon;
+    canon.reserve(chargen_body_.morphs().size() + 1);
+    for (const render::MorphTarget& t : chargen_body_.morphs()) {
+        canon.push_back(PeopleBand{t.name, t.lo, t.hi});
+    }
+    canon.push_back(PeopleBand{CHARGEN_HEIGHT_KEY, CHARGEN_HEIGHT_MIN_M,
+                               CHARGEN_HEIGHT_MAX_M});
+    chargen_peoples_.clear();
+    for (People& p : read_peoples(std::filesystem::path(PEOPLES_DIR))) {
+        std::string why;
+        if (!peoples_validate(p, canon, why)) {
+            std::fprintf(stderr, "[создание] народ \"%s\" отвергнут: %s\n",
+                         p.id.c_str(), why.c_str());
+            continue;
+        }
+        chargen_peoples_.push_back(std::move(p));
+    }
+
+    chargen_.set_categories(
+        chargen_describe(std::move(rows), chargen_peoples_));
     chargen_.set_selection(0);
     chargen_.view() = CharGenView{};
-    chargen_.set_status({});
+    chargen_.set_status(chargen_peoples_.empty()
+                            ? std::string(loc("chargen.status.no_peoples"))
+                            : std::string{});
+    chargen_seen_category_ = chargen_.category();
+    chargen_comparing_ = false;
+    // ЗЕРНО «СЛУЧАЙНО». Прибитое дверью — чтобы два прогона одной дозы дали
+    // ОДНО тело (правило 13); без двери — от счётчика заливок и роста, то есть
+    // от чего-то, что у второго нажатия другое.
+    chargen_rng_ = PeopleRng{0x9E3779B97F4A7C15ULL};
+    if (const char* seed = door_value("DFN_CHARGEN_SEED");
+        seed != nullptr && *seed != '\0') {
+        chargen_rng_.state = std::strtoull(seed, nullptr, 10);
+    }
+    chargen_apply_people();
 
     // ПОВТОРНЫЙ ВХОД — ИЗ ПРЕСЕТА. Персонаж, которого уже создали, обязан
     // открыться таким, каким его сделали: экран, который каждый раз начинает
@@ -298,11 +335,48 @@ bool App::chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved
         chargen_.move(1);
     }
     const bool fine = fine_shift(*input_);
+    // ПЕРЕКЛЮЧАТЕЛЬ ПРОИСХОЖДЕНИЯ ТЯНЕТ ЗА СОБОЙ БОЛЬШЕ, ЧЕМ СВОЁ СЛОВО: народ
+    // пересобирает список типажей и сужает дорожки, типаж заполняет все ручки.
+    // Спрашивается это ПОСЛЕ стрелки и ПО ИМЕНИ строки, а не по её номеру:
+    // номер меняется от первой же новой строки в описании.
+    const auto arrow = [&](int delta) {
+        const std::size_t changed = chargen_.adjust(delta, fine);
+        if (changed >= chargen_.row_count()) {
+            return;
+        }
+        const CharGenRow* row = chargen_.row_at_index(changed);
+        if (row != nullptr && row->name == CHARGEN_PEOPLE_ROW) {
+            chargen_apply_people();
+            chargen_apply_archetype();
+            chargen_.set_status(std::string(loc("chargen.status.people")));
+            return;
+        }
+        if (row != nullptr && row->name == CHARGEN_ARCHETYPE_ROW) {
+            chargen_apply_archetype();
+            return;
+        }
+        body_dirty = chargen_apply_row(changed) || body_dirty;
+    };
     if (input_->was_pressed(platform::Key::LEFT)) {
-        body_dirty = chargen_apply_row(chargen_.adjust(-1, fine)) || body_dirty;
+        arrow(-1);
     }
     if (input_->was_pressed(platform::Key::RIGHT)) {
-        body_dirty = chargen_apply_row(chargen_.adjust(+1, fine)) || body_dirty;
+        arrow(+1);
+    }
+
+    // ПРОБЕЛ — ПРИЗРАК «ДО», ПОКА ЕГО ДЕРЖАТ (Р6). Не переключатель: отпустил
+    // — вернулось, и потерять работу нажатием невозможно по построению.
+    // Пока набирают имя, пробел — это пробел.
+    if (!typing) {
+        chargen_show_compare(input_->is_down(platform::Key::SPACE));
+    }
+    // ТОЧКА ОТСЧЁТА БЕРЁТСЯ НА СМЕНЕ ВКЛАДКИ, и заметить смену можно только
+    // сравнив с прошлым кадром: вкладку меняют и Tab, и щелчок мыши, и доза, и
+    // ловить её в каждом из трёх мест значило бы завести три копии одного
+    // решения.
+    if (chargen_.category() != chargen_seen_category_) {
+        chargen_seen_category_ = chargen_.category();
+        chargen_remember();
     }
 
     // МЫШЬ. Наведение двигает выбор только при настоящем движении — тот же
@@ -370,6 +444,23 @@ bool App::chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved
         body_dirty = true;
         chargen_.set_status(std::string(loc("chargen.status.reset")));
         break;
+    case CharGenAction::Random:
+        chargen_random();
+        break;
+    case CharGenAction::RollName:
+        chargen_roll_name();
+        break;
+    case CharGenAction::Presets:
+        // ГЛАГОЛ СЕРЫЙ И СЮДА НЕ ДОХОДИТ (activate() отказывает выключенной
+        // строке); ветка стоит, чтобы компилятор пересчитал перечисление, а
+        // читатель нашёл ответ там же, где искал.
+        chargen_.set_status(std::string(loc("chargen.status.presets")));
+        break;
+    case CharGenAction::Compare:
+        // «СРАВНИТЬ» — ЭТО УДЕРЖАНИЕ, А НЕ НАЖАТИЕ, и щелчок по глаголу это
+        // говорит словами, а не молча ничего не делает.
+        chargen_.set_status(std::string(loc("chargen.hint")));
+        break;
     case CharGenAction::Done:
         chargen_commit();
         break;
@@ -411,6 +502,137 @@ bool App::chargen_push_to_body(const std::string& name) {
     // совпадают ровно до первой категории, вставленной перед телосложением, —
     // то есть до первой правки описания.
     return chargen_body_.set_weight(name, row->value);
+}
+
+// --- НАРОДЫ -----------------------------------------------------------------
+
+const People* App::chargen_people() const {
+    if (chargen_peoples_.empty()) {
+        return nullptr;
+    }
+    const std::size_t i = chargen_.choice_of(CHARGEN_PEOPLE_ROW);
+    return &chargen_peoples_[std::min(i, chargen_peoples_.size() - 1)];
+}
+
+void App::chargen_apply_people() {
+    const People* folk = chargen_people();
+    if (folk == nullptr) {
+        return;
+    }
+    // ТИПАЖИ ПРИНАДЛЕЖАТ НАРОДУ, и список меняется целиком: строка-переключатель
+    // одна, а её содержимое — свойство выбора, сделанного строкой выше.
+    std::vector<std::string> kinds;
+    kinds.reserve(folk->archetypes.size());
+    for (const PeopleArchetype& a : folk->archetypes) {
+        kinds.push_back(a.name_key);
+    }
+    (void)chargen_.set_choices(CHARGEN_ARCHETYPE_ROW, std::move(kinds));
+
+    // НАРОДНАЯ ПОЛОСА — СВЕТЛЫЙ ОТРЕЗОК НА ДОРОЖКЕ, А НЕ ЗАПРЕТ. Выйти за неё
+    // (в пределах судейской) можно: это подсказка «где свои», а не забор
+    // (CHARGEN_UI.md, Р8). Забор здесь означал бы, что игрок не может слепить
+    // высокого венеда, — а лор ровно этого не запрещает.
+    for (const PeopleBand& b : folk->limits) {
+        const CharGenRow* row = chargen_.find(b.name);
+        if (row == nullptr) {
+            continue;
+        }
+        SliderMarks marks = row->marks;
+        marks.band_lo = b.lo;
+        marks.band_hi = b.hi;
+        (void)chargen_.set_marks(b.name, marks);
+    }
+    // ЛОРНАЯ СТРОКА И ПРАВИЛО ИМЕНИ — тоже свойства ВЫБРАННОГО народа, а не
+    // первого в списке: описание ставит их однажды, а меняются они на каждом
+    // щелчке стрелки.
+    (void)chargen_.set_note(CHARGEN_PEOPLE_ROW, folk->blurb_key);
+    (void)chargen_.set_note("roll-name", folk->naming.rule_key);
+}
+
+void App::chargen_apply_archetype() {
+    const People* folk = chargen_people();
+    if (folk == nullptr) {
+        return;
+    }
+    const std::size_t kind = chargen_.choice_of(CHARGEN_ARCHETYPE_ROW);
+    // ВЫБОР ТИПАЖА ЗАПОЛНЯЕТ ВСЕ РУЧКИ РАЗОМ (Р7): с чистого нулевого тела
+    // никто не лепит, лепят поправляя готовое. Центр берётся у типажа, а
+    // молчание типажа про ручку значит «середина народа», а не ноль.
+    for (const PeopleBand& b : folk->limits) {
+        if (chargen_.find(b.name) == nullptr) {
+            continue;
+        }
+        (void)chargen_.set_value(b.name, folk->centre_of(kind, b.name));
+        (void)chargen_push_to_body(b.name);
+    }
+    (void)chargen_body_.apply(*renderer_);
+    chargen_.set_status(std::string(loc("chargen.status.archetype")));
+}
+
+void App::chargen_random() {
+    const People* folk = chargen_people();
+    if (folk == nullptr) {
+        return;
+    }
+    // БРОСОК — УСЕЧЁННАЯ НОРМАЛЬ ВОКРУГ ЦЕНТРА ТИПАЖА, а не равномерное по
+    // полосе: равномерное даёт середнячков и уродов поровну (Р5). Скрытая
+    // связь «крупность» — внутри выборки, и без неё в толпе заводятся
+    // коротышки с руками до колен.
+    const std::size_t kind = chargen_.choice_of(CHARGEN_ARCHETYPE_ROW);
+    for (const auto& [name, value] : people_sample_build(*folk, kind, chargen_rng_)) {
+        if (chargen_.find(name) == nullptr) {
+            continue;
+        }
+        (void)chargen_.set_value(name, value);
+        (void)chargen_push_to_body(name);
+    }
+    (void)chargen_body_.apply(*renderer_);
+    chargen_.set_status(std::string(loc("chargen.status.random")));
+}
+
+void App::chargen_roll_name() {
+    const People* folk = chargen_people();
+    if (folk == nullptr) {
+        return;
+    }
+    const PeopleSex sex = chargen_.choice_of(CHARGEN_SEX_ROW) == 0
+                              ? PeopleSex::Male
+                              : PeopleSex::Female;
+    chargen_.set_name(people_sample_name(*folk, sex, chargen_rng_));
+}
+
+// --- «СРАВНИТЬ» -------------------------------------------------------------
+
+void App::chargen_remember() {
+    // ТОЧКА ОТСЧЁТА БЕРЁТСЯ НА ВХОДЕ В КАТЕГОРИЮ, а не в экран: сравнивать
+    // «нос до и после» полезно, «весь персонаж до и после» — нет (Р6).
+    chargen_before_ = chargen_body_.preset(chargen_.name());
+}
+
+void App::chargen_show_compare(bool on) {
+    if (on == chargen_comparing_ || renderer_ == nullptr) {
+        return;
+    }
+    chargen_comparing_ = on;
+    // ПРИЗРАК — ЭТО БЛЕНД, А НЕ ВТОРАЯ ФИГУРА. Второй портрет стоил бы второго
+    // тела в 13 744 треугольника и второй заливки в видеопамять ради взгляда
+    // на две секунды; бленд туда и обратно — 0.3 мс на нажатие (Р6).
+    //
+    // СТРОКИ ЭКРАНА НЕ ТРОГАЮТСЯ НАРОЧНО: числа на дорожках остаются те, что
+    // игрок накрутил, — иначе «сравнить» выглядело бы как «отменить», и он
+    // отпустил бы Пробел, решив, что работа пропала.
+    if (on) {
+        chargen_body_.apply_preset(chargen_before_);
+    } else {
+        for (const CharGenCategory& c : chargen_.categories()) {
+            for (const CharGenRow& r : c.rows) {
+                if (r.kind == CharGenRowKind::Slider) {
+                    (void)chargen_push_to_body(r.name);
+                }
+            }
+        }
+    }
+    (void)chargen_body_.apply(*renderer_);
 }
 
 // --- «ГОТОВО» ---------------------------------------------------------------

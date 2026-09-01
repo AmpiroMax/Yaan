@@ -69,13 +69,28 @@ const char* BODY_PATH = app::CHARGEN_SOURCE_BODY;
 
 /// Экран, собранный ТЕМ ЖЕ описанием, что и в игре: строки телосложения
 /// приходят снаружи, категории и глаголы — из chargen_describe().
+/// ИМЕНА ЦЕЛЕЙ — НАСТОЯЩИЕ, В ТОМ ЖЕ ПОРЯДКЕ, В КОТОРОМ ИХ РАСКЛАДЫВАЕТ
+/// ОПИСАНИЕ ПО РАЗДЕЛАМ. Выдуманные («belly0», «belly1») набор проходил, а
+/// проверял при этом ХВОСТ описания — ветку «цель, о разделе которой никто не
+/// сказал», — то есть ровно не то, что видит игрок.
+constexpr const char* KNOBS[] = {"weight",   "muscle",     "belly",
+                                 "torso-depth", "buttocks", "hips",
+                                 "age",      "shoulders",  "deltoid",
+                                 "arm-length", "leg-length"};
+/// НОМЕРА ВКЛАДОК В ОПИСАНИИ. Названы один раз: их знают все наборы ниже, а
+/// «вкладка номер 1» в десяти местах разошлась бы с описанием на первой же
+/// новой вкладке.
+constexpr std::size_t TAB_ORIGIN = 0;
+constexpr std::size_t TAB_BODY = 1;
+constexpr std::size_t TAB_NAME = 5;
+
 [[nodiscard]] app::CharGenScreen screen_with(std::size_t morph_count) {
     app::CharGenScreen s;
     std::vector<app::CharGenRow> rows;
-    for (std::size_t i = 0; i < morph_count; ++i) {
+    for (std::size_t i = 0; i < morph_count && i < std::size(KNOBS); ++i) {
         app::CharGenRow r;
         r.kind = app::CharGenRowKind::Slider;
-        r.name = "belly" + std::to_string(i);
+        r.name = KNOBS[i];
         r.lo = -1.0f;
         r.hi = 1.0f;
         rows.push_back(std::move(r));
@@ -88,7 +103,11 @@ const char* BODY_PATH = app::CHARGEN_SOURCE_BODY;
     h.value = app::CHARGEN_BODY_HEIGHT_M;
     h.metres = true;
     rows.push_back(std::move(h));
-    s.set_categories(app::chargen_describe(std::move(rows)));
+    // ОПИСАНИЕ БЕЗ НАРОДОВ — ЗАКОННОЕ СОСТОЯНИЕ, и набор нарочно гоняет
+    // именно его: экран обязан жить на дереве без ассетов народов (вкладка
+    // происхождения тогда серая), а сами народы проверяет свой рукав
+    // (app_peoples).
+    s.set_categories(app::chargen_describe(std::move(rows), {}));
     return s;
 }
 
@@ -158,10 +177,15 @@ TEST_CASE("раскладка: ни одна строка не уходит за
     for (const auto [w, h] : {std::pair{320, 180}, std::pair{1280, 720},
                               std::pair{1920, 1080}}) {
         const app::CharGenScreen s = screen_with(11);
-        const app::CharGenLayout L = app::chargen_layout(w, h, s.row_count());
+        const app::CharGenLayout L = s.layout(w, h);
         CHECK(L.row_y(0) > L.title_y);
-        CHECK(L.row_y(s.row_count() - 1) < h);
-        CHECK(L.step >= 1);
+        // ПОСЛЕДНЯЯ СТРОКА КОЛОНКИ — НЕ ПОСЛЕДНЯЯ СТРОКА ЭКРАНА: глаголы
+        // уехали в подвал, и меряется теперь то, что и должно, — что колонка
+        // кончается ВЫШЕ подвала, а подвал и подсказка стоят в кадре.
+        CHECK(L.row_y(s.rows().size() - 1) < L.footer_rule_y);
+        CHECK(L.verbs_y < L.hint_y);
+        CHECK(L.hint_y < h);
+        CHECK(L.item_px >= 1);
         // Колонка кончается ЛЕВЕЕ фигуры: иначе текст ложился бы на тело.
         CHECK(L.panel_right < static_cast<int>(
                                   static_cast<float>(w) * app::CHARGEN_FIGURE_X_FRAC));
@@ -174,26 +198,50 @@ TEST_CASE("вкладка под указателем — та же, что на
     app::CharGenScreen s = screen_with(11);
     const int w = 1920;
     const int h = 1080;
-    const app::CharGenLayout L = app::chargen_layout(w, h, s.row_count());
-    const int span = L.panel_right - L.label_x;
-    const int each = span / 2;
-    CHECK(s.tab_at(w, h, L.label_x + each / 2, L.tabs_y + 2) == 0);
-    CHECK(s.tab_at(w, h, L.label_x + each + each / 2, L.tabs_y + 2) == 1);
+    const app::CharGenLayout L = s.layout(w, h);
+    const std::vector<app::CharGenTabBox> boxes =
+        app::chargen_tab_boxes(L, s.categories());
+    REQUIRE(boxes.size() == s.categories().size());
+    // ЯЩИК И НАДПИСЬ — ОДНА АРИФМЕТИКА: спрашиваем середину каждого ящика и
+    // требуем ту же вкладку. ВЫКЛЮЧЕННЫЕ («Лицо», «Волосы», «Цвета») обязаны
+    // НЕ отвечать: серая надпись, съевшая клик, — худший вид заглушки.
+    for (std::size_t i = 0; i < boxes.size(); ++i) {
+        const int mid = boxes[i].x + boxes[i].w / 2;
+        const std::size_t hit = s.tab_at(w, h, mid, L.tabs_y + 2);
+        CAPTURE(i);
+        if (s.categories()[i].enabled) {
+            CHECK(hit == i);
+        } else {
+            CHECK(hit == s.categories().size());
+        }
+    }
     // Ниже полосы вкладок — «ни на какой»: иначе щелчок по первой строке
     // молча переключал бы категорию.
-    CHECK(s.tab_at(w, h, L.label_x + each / 2, L.row_y(0)) == s.categories().size());
-    // И щелчок по вкладке ручку не берёт, а вкладку меняет.
-    CHECK(s.press(w, h, L.label_x + each + each / 2, L.tabs_y + 2) == s.row_count());
-    CHECK(s.category() == 1);
+    CHECK(s.tab_at(w, h, boxes[0].x + 1, L.row_y(0)) == s.categories().size());
+    // И щелчок по живой вкладке ручку не берёт, а вкладку меняет.
+    const std::size_t body_tab = 1;
+    REQUIRE(s.categories()[body_tab].enabled);
+    CHECK(s.press(w, h, boxes[body_tab].x + boxes[body_tab].w / 2, L.tabs_y + 2)
+          == s.row_count());
+    CHECK(s.category() == body_tab);
 }
 
 TEST_CASE("раскладка: указатель попадает в ту же строку, на которую смотрит глаз") {
     app::CharGenScreen s = screen_with(11);
     const int w = 1920;
     const int h = 1080;
-    const app::CharGenLayout L = app::chargen_layout(w, h, s.row_count());
-    for (std::size_t i = 0; i < s.row_count(); ++i) {
+    const app::CharGenLayout L = s.layout(w, h);
+    for (std::size_t i = 0; i < s.rows().size(); ++i) {
         CHECK(s.row_at(w, h, L.track_x + 4, L.row_y(i)) == i);
+    }
+    // ГЛАГОЛЫ ПОДВАЛА — ПО СВОИМ ЯЩИКАМ, и это тот же вопрос «строка под
+    // указателем»: они все на одной высоте, и спрашивать про них «в какой
+    // строке колонки лежит y» значило бы всегда получать первый.
+    const std::vector<app::CharGenTabBox> vb = app::chargen_verb_boxes(L, s.verbs());
+    for (std::size_t v = 0; v < vb.size(); ++v) {
+        CAPTURE(v);
+        CHECK(s.row_at(w, h, vb[v].x + vb[v].w / 2, L.verbs_y + 1)
+              == s.rows().size() + v);
     }
     // Правее панели — «ни на чём»: наведение на фигуру не двигает выбор.
     CHECK(s.row_at(w, h, w - 10, L.row_y(0)) == s.row_count());
@@ -203,47 +251,146 @@ TEST_CASE("раскладка: указатель попадает в ту же 
 
 // --- МОДЕЛЬ ЭКРАНА ----------------------------------------------------------
 
-TEST_CASE("описание: две категории, телосложение первое, глаголы под каждой") {
+TEST_CASE("описание: шесть вкладок, три из них честные заглушки") {
     app::CharGenScreen s = screen_with(11);
-    REQUIRE(s.categories().size() == 2);
-    CHECK(s.categories()[0].key == "chargen.tab.body");
-    CHECK(s.categories()[1].key == "chargen.tab.identity");
-    CHECK(s.category() == 0);
-    // Вкладка телосложения: 11 целей + рост + три глагола.
-    REQUIRE(s.row_count() == 15);
+    REQUIRE(s.categories().size() == 6);
+    // ПОРЯДОК ВКЛАДОК — ЭТО ПОРЯДОК ПРИНЯТИЯ РЕШЕНИЙ (CHARGEN_UI.md, Р7), от
+    // крупного к мелкому. Он проверяется, а не подразумевается: перестановка
+    // здесь — это перестановка того, о чём игрока спрашивают первым.
+    CHECK(s.categories()[TAB_ORIGIN].key == "chargen.tab.origin");
+    CHECK(s.categories()[TAB_BODY].key == "chargen.tab.body");
+    CHECK(s.categories()[2].key == "chargen.tab.face");
+    CHECK(s.categories()[3].key == "chargen.tab.hair");
+    CHECK(s.categories()[4].key == "chargen.tab.colours");
+    CHECK(s.categories()[TAB_NAME].key == "chargen.tab.name");
+    // ЛИЦО, ВОЛОСЫ И ЦВЕТА — СЕРЫЕ: фазы не начаты (лицу нужна голова, цветам
+    // — зона материалов). Игрок видит карту дороги, а не пустоту.
+    CHECK_FALSE(s.categories()[2].enabled);
+    CHECK_FALSE(s.categories()[3].enabled);
+    CHECK_FALSE(s.categories()[4].enabled);
+    CHECK(s.categories()[TAB_BODY].enabled);
+    CHECK(s.categories()[TAB_NAME].enabled);
+    // ПРОИСХОЖДЕНИЕ БЕЗ НАРОДОВ — ТОЖЕ ЗАГЛУШКА, и экран открывается НЕ на
+    // ней: открыться на серой вкладке значило бы показать пустую колонку и ни
+    // одной причины.
+    CHECK_FALSE(s.categories()[TAB_ORIGIN].enabled);
+    CHECK(s.category() == TAB_BODY);
+
+    // Вкладка тела: 11 целей + рост + шесть глаголов подвала.
+    REQUIRE(s.verbs().size() == 6);
+    REQUIRE(s.row_count() == 18);
     CHECK(s.row_kind(0) == app::CharGenRowKind::Slider);
     CHECK(s.row_kind(11) == app::CharGenRowKind::Slider); // рост
     CHECK(s.row_kind(12) == app::CharGenRowKind::Button); // сброс
-    CHECK(s.row_kind(14) == app::CharGenRowKind::Button); // назад
     REQUIRE(s.find(app::CHARGEN_HEIGHT_KEY) != nullptr);
     CHECK(s.find(app::CHARGEN_HEIGHT_KEY)->metres);
-    // Вкладка имени: одно поле ввода и те же три глагола.
-    s.set_category(1);
-    REQUIRE(s.row_count() == 4);
+    // РАЗДЕЛЫ СТОЯТ ТАМ, ГДЕ НАЗВАНЫ, и рост — последний: он единственная
+    // ручка с человеческой единицей, и прятать её в середину списка значило
+    // бы, что игрок ищет свой рост среди безразмерных весов.
+    CHECK(s.rows().front().group_key == "chargen.group.trunk");
+    CHECK(s.rows().back().name == app::CHARGEN_HEIGHT_KEY);
+    CHECK(s.rows().back().group_key == "chargen.group.height");
+    // ЗАРУБКА РОСТА — ПОЛАЯ, остальных — сплошная. Полосу роста держит
+    // константа, а не судья: он масштабу безразличен по построению, и без
+    // этой разницы правило «зарубка = измеренная нейтраль» на одной строке
+    // тихо врало бы (CHARGEN_UI.md, Р3).
+    CHECK_FALSE(s.rows().back().marks.measured);
+    CHECK(s.rows().back().marks.has_notch);
+    CHECK(s.rows().front().marks.measured);
+    // СЛОВЕСНАЯ ПАРА ПО КРАЯМ — у каждой дорожки, и ключ строится из имени
+    // цели: новая цель заводит свою пару в локализации, а не в коде.
+    CHECK(s.rows().front().lo_word_key == "morph.edge.weight.lo");
+    CHECK(s.rows().front().hi_word_key == "morph.edge.weight.hi");
+
+    // Вкладка имени: одно поле ввода и те же шесть глаголов.
+    s.set_category(TAB_NAME);
+    REQUIRE(s.row_count() == 7);
     CHECK(s.row_kind(0) == app::CharGenRowKind::Text);
-    CHECK(s.row_kind(1) == app::CharGenRowKind::Button);
-    // ГЛАГОЛЫ ЕСТЬ НА ОБЕИХ ВКЛАДКАХ. «Готово», спрятанное внутрь одной,
+    // ГЛАГОЛЫ ЕСТЬ НА ВСЕХ ВКЛАДКАХ. «Готово», спрятанное внутрь одной,
     // означало бы, что кнопка выхода зависит от того, где стоял игрок.
-    CHECK(s.row_at_index(3)->action == app::CharGenAction::Back);
+    CHECK(s.row_at_index(5)->action == app::CharGenAction::Back);
+    CHECK(s.row_at_index(6)->action == app::CharGenAction::Done);
+    // «ПРЕСЕТЫ» — ЧЕСТНЫЙ СЕРЫЙ ХВОСТ: библиотеки пресетов в дереве нет,
+    // единственные пресеты — это типажи народа. Выключенная строка не
+    // активируется и не берёт на себя выбор.
+    const app::CharGenRow* presets = s.row_at_index(3);
+    REQUIRE(presets != nullptr);
+    CHECK(presets->action == app::CharGenAction::Presets);
+    CHECK_FALSE(presets->enabled);
+    s.set_selection(3);
+    CHECK(s.activate() == app::CharGenAction::None);
 }
 
-TEST_CASE("вкладки: переключение по кругу, и выбор возвращается в начало") {
+TEST_CASE("описание с народами: вкладка происхождения оживает") {
+    // ВКЛАДКА ЖИВА РОВНО ПОКА В ДЕРЕВЕ ЕСТЬ НАРОДЫ. Народ здесь выдуман
+    // нарочно: предмет — «описание принимает народы», а сами четыре народа
+    // проверяет свой рукав (app_peoples) на настоящих файлах.
+    app::People folk;
+    folk.id = "проба";
+    folk.name_key = "chargen.people.venedy";
+    folk.blurb_key = "chargen.people.venedy.blurb";
+    folk.naming.rule_key = "chargen.naming.venedy";
+    app::PeopleArchetype a;
+    a.id = "one";
+    a.name_key = "chargen.archetype.venedy.plowman";
+    a.frequency = 100.0f;
+    folk.archetypes.push_back(a);
+    const std::vector<app::People> peoples{folk};
+
+    std::vector<app::CharGenRow> rows;
+    app::CharGenRow r;
+    r.kind = app::CharGenRowKind::Slider;
+    r.name = "weight";
+    r.lo = -1.0f;
+    r.hi = 1.0f;
+    rows.push_back(std::move(r));
+
+    app::CharGenScreen s;
+    s.set_categories(app::chargen_describe(std::move(rows), peoples));
+    REQUIRE(s.categories().size() == 6);
+    CHECK(s.categories()[TAB_ORIGIN].enabled);
+    // И ЭКРАН ОТКРЫВАЕТСЯ НА НЕЙ: порядок вкладок есть порядок решений.
+    CHECK(s.category() == TAB_ORIGIN);
+    REQUIRE(s.find(app::CHARGEN_PEOPLE_ROW) != nullptr);
+    REQUIRE(s.find(app::CHARGEN_ARCHETYPE_ROW) != nullptr);
+    REQUIRE(s.find(app::CHARGEN_SEX_ROW) != nullptr);
+    CHECK(s.find(app::CHARGEN_PEOPLE_ROW)->choices.size() == 1);
+    CHECK(s.find(app::CHARGEN_ARCHETYPE_ROW)->choices.size() == 1);
+    // ПОЛ ЧЕСТНО ОГРАНИЧЕН ИМЕНЕМ, и это НАПИСАНО СЛОВАМИ, а не спрятано
+    // отсутствием строки (CHARGEN_UI.md, Р9).
+    CHECK(s.find(app::CHARGEN_SEX_ROW)->note_key == "chargen.sex.note");
+    // «СЛУЧАЙНОЕ ИМЯ» СТОИТ НА ВКЛАДКЕ ИМЕНИ, а не в подвале: подвальные
+    // глаголы общие для всех вкладок, а бросок имени принадлежит имени.
+    s.set_category(TAB_NAME);
+    REQUIRE(s.rows().size() == 2);
+    CHECK(s.rows()[1].action == app::CharGenAction::RollName);
+}
+
+TEST_CASE("вкладки: листание ПЕРЕПРЫГИВАЕТ серые, и выбор возвращается в начало") {
     app::CharGenScreen s = screen_with(11);
     s.set_selection(9);
+    // ЖИВЫХ ВКЛАДОК ДВЕ (тело и имя), между ними три серых. Tab, упирающийся
+    // в «Лицо», читался бы как сломанный Tab, а не как ненаписанная фаза.
+    CHECK(s.category() == TAB_BODY);
     s.cycle_category(+1);
-    CHECK(s.category() == 1);
+    CHECK(s.category() == TAB_NAME);
     CHECK(s.selection() == 0); // номер строки на другой вкладке — другая строка
     s.cycle_category(+1);
-    CHECK(s.category() == 0);
+    CHECK(s.category() == TAB_BODY);
     s.cycle_category(-1);
-    CHECK(s.category() == 1);
+    CHECK(s.category() == TAB_NAME);
+    // И ПРЯМОЙ ПЕРЕХОД НА СЕРУЮ ОТКАЗЫВАЕТ, а не тихо соглашается.
+    s.set_category(2);
+    CHECK(s.category() == TAB_NAME);
+    s.set_category(TAB_BODY);
+    CHECK(s.category() == TAB_BODY);
     // Значение, набранное на одной вкладке, ВИДНО с другой: пресет собирается
     // со всего экрана, а не с открытой страницы.
-    s.set_category(0);
-    CHECK(s.set_value("belly3", 0.5f));
-    s.set_category(1);
-    REQUIRE(s.find("belly3") != nullptr);
-    CHECK(s.find("belly3")->value == doctest::Approx(0.5f));
+    s.set_category(TAB_BODY);
+    CHECK(s.set_value("torso-depth", 0.5f));
+    s.set_category(TAB_NAME);
+    REQUIRE(s.find("torso-depth") != nullptr);
+    CHECK(s.find("torso-depth")->value == doctest::Approx(0.5f));
 }
 
 TEST_CASE("переключатель вариантов листает по кругу и НЕ трогает соседей") {
@@ -296,11 +443,11 @@ TEST_CASE("стрелка не выпускает вес за полосу це�
     for (int i = 0; i < 1000; ++i) {
         (void)s.adjust(+1, false);
     }
-    CHECK(s.find("belly0")->value == doctest::Approx(1.0f));
+    CHECK(s.find("weight")->value == doctest::Approx(1.0f));
     for (int i = 0; i < 1000; ++i) {
         (void)s.adjust(-1, false);
     }
-    CHECK(s.find("belly0")->value == doctest::Approx(-1.0f));
+    CHECK(s.find("weight")->value == doctest::Approx(-1.0f));
     // На строке-глаголе стрелка не делает НИЧЕГО и говорит об этом номером.
     s.set_selection(s.row_count() - 1);
     CHECK(s.adjust(+1, false) == s.row_count());
@@ -308,11 +455,11 @@ TEST_CASE("стрелка не выпускает вес за полосу це�
 
 TEST_CASE("сброс: ползунки в ноль, рост в канон, имя НЕ трогается") {
     app::CharGenScreen s = screen_with(2);
-    CHECK(s.set_value("belly0", 0.8f));
+    CHECK(s.set_value("weight", 0.8f));
     CHECK(s.set_value(app::CHARGEN_HEIGHT_KEY, app::CHARGEN_HEIGHT_MAX_M));
     s.set_name("Гуннар");
     s.reset_rows();
-    CHECK(s.find("belly0")->value == doctest::Approx(0.0f));
+    CHECK(s.find("weight")->value == doctest::Approx(0.0f));
     CHECK(s.find(app::CHARGEN_HEIGHT_KEY)->value
           == doctest::Approx(app::CHARGEN_BODY_HEIGHT_M));
     CHECK(s.name() == "Гуннар");
@@ -320,7 +467,7 @@ TEST_CASE("сброс: ползунки в ноль, рост в канон, и�
 
 TEST_CASE("имя: кириллица считается ЗНАКАМИ, а стирается по знаку") {
     app::CharGenScreen s = screen_with(1);
-    s.set_category(1);  // вкладка имени
+    s.set_category(TAB_NAME);
     s.set_selection(0);
     REQUIRE(s.text_focused());
     // «Ярл» — три знака, шесть байт. Предел, посчитанный в байтах, обрезал бы
@@ -354,19 +501,19 @@ TEST_CASE("мышь: щелчок по полосе ставит значени�
     app::CharGenScreen s = screen_with(3);
     const int w = 1920;
     const int h = 1080;
-    const app::CharGenLayout L = app::chargen_layout(w, h, s.row_count());
+    const app::CharGenLayout L = s.layout(w, h);
     const app::SliderTrack track = L.track_of(1);
     const std::size_t grabbed = s.press(w, h, track.x + track.w, track.y);
     CHECK(grabbed == 1);
     CHECK(s.dragging());
-    CHECK(s.find("belly1")->value == doctest::Approx(1.0f));
+    CHECK(s.find("muscle")->value == doctest::Approx(1.0f));
     CHECK(s.drag(w, h, track.x));
-    CHECK(s.find("belly1")->value == doctest::Approx(-1.0f));
+    CHECK(s.find("muscle")->value == doctest::Approx(-1.0f));
     s.release();
     CHECK_FALSE(s.dragging());
     // Нажатие по глаголу ручку НЕ берёт.
-    CHECK(s.press(w, h, L.label_x + 2, L.row_y(s.row_count() - 1))
-          == s.row_count());
+    const std::vector<app::CharGenTabBox> vb = app::chargen_verb_boxes(L, s.verbs());
+    CHECK(s.press(w, h, vb[0].x + 1, L.verbs_y + 1) == s.row_count());
 }
 
 // --- КАМЕРА -----------------------------------------------------------------

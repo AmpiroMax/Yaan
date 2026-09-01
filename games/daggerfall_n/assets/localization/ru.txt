@@ -751,16 +751,124 @@ chargen.title=СОЗДАНИЕ ПЕРСОНАЖА
 # Вкладки экрана. Список категорий приходит из описания (CharGen.cpp:
 # chargen_describe), а не из отрисовки: дизайн-сессия добавит «Лицо», «Кожа
 # и цвета», «Волосы», «Отметины» строкой там и строкой здесь.
-chargen.tab.body=Телосложение
-chargen.tab.identity=Имя
+chargen.tab.origin=ПРОИСХОЖДЕНИЕ
+chargen.tab.body=ТЕЛО
+chargen.tab.face=ЛИЦО
+chargen.tab.hair=ВОЛОСЫ
+chargen.tab.colours=ЦВЕТА
+chargen.tab.name=ИМЯ
+# Заголовки разделов внутри вкладки. Кегль Caption, цвет BLURB: раздел — это
+# воздух и слово, а не пункт, который можно выбрать.
+chargen.group.folk=ПОЯС
+chargen.group.archetype=ТИПАЖ
+chargen.group.trunk=ТУЛОВИЩЕ
+chargen.group.arms=ПЛЕЧИ И РУКИ
+chargen.group.height=РОСТ
+chargen.group.name=ИМЯ
 chargen.name=Имя
 chargen.name.empty=(не названо)
 chargen.reset=Сброс
+chargen.random=Случайно
+chargen.presets=Пресеты
+chargen.compare=Сравнить
 chargen.done=Готово
 chargen.back=Назад
 chargen.unit.metre=м
-chargen.hint.mouse=Мышь по фигуре — облёт, колесо — приближение
-chargen.hint.keys=Стрелки крутят строку, Shift — мелкий шаг; Tab — вкладка
+chargen.hint=Мышь по фигуре — облёт, колесо — приближение · Стрелки крутят ползунок, Shift — мелкий шаг · Пробел — сравнить с исходным
+chargen.hint.short=Мышь — облёт · Стрелки — ползунок · Пробел — сравнить
+# СЛОВЕСНЫЕ ПАРЫ ПО КРАЯМ ДОРОЖКИ (CHARGEN_UI.md, Р3): подпись строки — пара
+# слов, а не число. Ключ строится из ИМЕНИ ЦЕЛИ ("morph.edge.<имя>.lo/.hi"),
+# поэтому новая цель в секции MORF заводит свою пару здесь, а не в коде.
+morph.edge.weight.lo=суше
+morph.edge.weight.hi=полнее
+morph.edge.muscle.lo=мягче
+morph.edge.muscle.hi=суше
+morph.edge.belly.lo=плоский
+morph.edge.belly.hi=полный
+morph.edge.torso-depth.lo=плоский
+morph.edge.torso-depth.hi=бочкой
+morph.edge.buttocks.lo=плоские
+morph.edge.buttocks.hi=круглые
+morph.edge.hips.lo=узкий
+morph.edge.hips.hi=широкий
+morph.edge.age.lo=молод
+morph.edge.age.hi=стар
+morph.edge.shoulders.lo=уже
+morph.edge.shoulders.hi=шире
+morph.edge.deltoid.lo=плоские
+morph.edge.deltoid.hi=шаром
+morph.edge.arm-length.lo=короче
+morph.edge.arm-length.hi=длиннее
+morph.edge.leg-length.lo=короче
+morph.edge.leg-length.hi=длиннее
+morph.edge.stature.lo=ниже
+morph.edge.stature.hi=выше
 chargen.status.reset=Телосложение сброшено к исходному
 chargen.status.done=Персонаж сохранён и выпечен — он ждёт в мире
 chargen.status.failed=Сохранить не удалось: см. поток ошибок
+
+# НАРОДЫ ЯАНА (вкладка «Происхождение»). Слова — сдача лороведа
+# (docs/story/PEOPLES_CHARGEN.md); ЧИСЛА народных полос и центров типажей
+# лежат в assets/characters/peoples/*.people и сюда не попадают ни одним
+# знаком. Строка игроку — та самая, дословно.
+chargen.people.venedy=Венеды
+chargen.people.venedy.blurb=Хлебопашцы и плотогоны сердца империи; терпеливы, тяжелы на подъём и неудержимы, когда поднялись.
+chargen.people.skeldy=Скельды
+chargen.people.skeldy.blurb=Мореходы и китобои студёных фьордов; молчаливы, злопамятны и верны слову крепче, чем клятве.
+chargen.people.markyane=Маркяне
+chargen.people.markyane.blurb=Рудокопы и цеховые мастера западных гор; считают всё, помнят всё и не прощают небрежной работы.
+chargen.people.kaysaki=Кайсаки
+chargen.people.kaysaki.blurb=Конники солёной степи; гость для них свят, обида бессмертна, а дом там, где сегодня трава.
+# ПРАВИЛО ИМЕНИ. Его читает «Случайное имя»: у скельдов родовое СТРОИТСЯ из
+# мужского имени и суффикса, у прочих берётся из списка.
+chargen.naming.venedy=Имя и прозвище по ремеслу, примете или зверю
+chargen.naming.skeldy=Имя и патроним на -сон/-доттер
+chargen.naming.markyane=Имя и цеховая фамилия, наследуется
+chargen.naming.kaysaki=Имя и род через тире
+# ТИПАЖИ. Восемь на народ, слова лороведа.
+chargen.archetype.venedy.plowman=Пахарь
+chargen.archetype.venedy.raftsman=Плотогон
+chargen.archetype.venedy.smith=Кузнец
+chargen.archetype.venedy.fisher=Рыбак
+chargen.archetype.venedy.goodwife=Хозяйка
+chargen.archetype.venedy.scribe=Причетник
+chargen.archetype.venedy.recruit=Рекрут
+chargen.archetype.venedy.healer=Знахарь
+chargen.archetype.skeldy.whaler=Китобой
+chargen.archetype.skeldy.fisher=Рыбак
+chargen.archetype.skeldy.helmsman=Кормчий
+chargen.archetype.skeldy.ice-hunter=Охотник на льду
+chargen.archetype.skeldy.fjord-mistress=Хозяйка фьорда
+chargen.archetype.skeldy.skald=Скальд
+chargen.archetype.skeldy.housecarl=Воин конунга
+chargen.archetype.skeldy.elder=Сказитель
+chargen.archetype.markyane.miner=Рудокоп
+chargen.archetype.markyane.armourer=Оружейник
+chargen.archetype.markyane.guildmaster=Цеховой мастер
+chargen.archetype.markyane.warden=Страж заставы
+chargen.archetype.markyane.innkeeper=Трактирщица
+chargen.archetype.markyane.clerk=Счетовод
+chargen.archetype.markyane.guide=Горный проводник
+chargen.archetype.markyane.student=Студент-дуэлянт
+chargen.archetype.kaysaki.rider=Конник
+chargen.archetype.kaysaki.archer=Лучник
+chargen.archetype.kaysaki.herder=Табунщик
+chargen.archetype.kaysaki.wrestler=Палуан
+chargen.archetype.kaysaki.khansha=Ханша
+chargen.archetype.kaysaki.salt-cutter=Соляной резчик
+chargen.archetype.kaysaki.bard=Жырау
+chargen.archetype.kaysaki.shaman=Бакшы
+# Строки вкладки «Происхождение».
+chargen.row.people=Народ
+chargen.row.archetype=Типаж
+chargen.row.sex=Пол
+chargen.sex.male=мужской
+chargen.sex.female=женский
+chargen.sex.note=Пол пока не меняет фигуру: второй пол — второй базовый меш
+chargen.name.roll=Случайное имя
+chargen.status.people=Народ выбран: ползунки сужены его полосой
+chargen.status.archetype=Типаж применён: ползунки встали в его центры
+chargen.status.random=Брошено в полосе народа
+chargen.status.presets=Пресеты — это типажи народа, вкладка ПРОИСХОЖДЕНИЕ
+chargen.status.no_peoples=Народов в дереве нет: assets/characters/peoples пуст
+chargen.band.note=Полоса — то, где судья пропорций ещё держит канон. Светлый отрезок — полоса вашего народа.

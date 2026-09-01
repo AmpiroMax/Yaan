@@ -69,10 +69,30 @@ bool slider_hit(const SliderTrack& track, int px, int py) {
            && py >= track.y - pad_y && py <= track.y + pad_y;
 }
 
+void draw_diamond(render::PixelCanvas& canvas, int cx, int cy, int half,
+                  render::Color colour, bool filled) {
+    // РОМБ СТРОКАМИ, А НЕ ЧЕТЫРЬМЯ ОТРЕЗКАМИ. Холст умеет только прямоугольник,
+    // и ромб на нём — это лесенка горизонтальных полос: ширина растёт к
+    // середине и падает обратно. Полый — те же строки, но по одному пикселю с
+    // каждого края, потому что «обводка» на растре в два пикселя высотой
+    // сливается в сплошной.
+    const int h = std::max(1, half);
+    for (int dy = -h; dy <= h; ++dy) {
+        const int w = h - std::abs(dy);
+        if (filled || w == 0) {
+            canvas.fill_rect(cx - w, cy + dy, 2 * w + 1, 1, colour);
+            continue;
+        }
+        canvas.fill_rect(cx - w, cy + dy, 1, 1, colour);
+        canvas.fill_rect(cx + w, cy + dy, 1, 1, colour);
+    }
+}
+
 void draw_slider(render::PixelCanvas& canvas, const SliderTrack& track,
                  std::string_view label, int label_x, std::string_view value_text,
                  int value_right_x, float value, float lo, float hi,
-                 const SliderInk& ink, int label_px, bool selected, bool dragging) {
+                 const SliderInk& ink, int label_px, bool selected, bool dragging,
+                 const SliderMarks* marks) {
     const int cap = std::max(1, ui_cap_height(label_px));
     // ПОДПИСЬ И ЧИСЛО СТОЯТ ВЕРХОМ СТРОКИ НА ОДНОЙ ВЫСОТЕ С СЕРЕДИНОЙ ПОЛОСЫ,
     // и это единственная связка между текстом и жёлобом: ui_draw_text кладёт
@@ -101,6 +121,24 @@ void draw_slider(render::PixelCanvas& canvas, const SliderTrack& track,
     canvas.fill_rect(line_x, track.y - thick / 2, line_w, thick, ink.track);
     if (hx > track.x) {
         canvas.fill_rect(line_x, track.y - thick / 2, hx - line_x, thick, ink.fill);
+    }
+
+    // НАРОДНЫЙ ОТРЕЗОК И ЗАРУБКА — МЕЖДУ ДОРОЖКОЙ И РУЧКОЙ, и порядок здесь не
+    // вкусовой: отрезок лежит НА дорожке (иначе его закрасит заливка), а ручка
+    // лежит НА нём (иначе игрок теряет то единственное, что он двигает).
+    if (marks != nullptr) {
+        if (marks->band_hi > marks->band_lo) {
+            const int bx0 = slider_handle_x(track, marks->band_lo, lo, hi);
+            const int bx1 = slider_handle_x(track, marks->band_hi, lo, hi);
+            const int bt = std::max(thick, thick + 1);
+            canvas.fill_rect(bx0, track.y - bt / 2, std::max(1, bx1 - bx0), bt,
+                             ink.band);
+        }
+        if (marks->has_notch) {
+            const int nx = slider_handle_x(track, marks->notch, lo, hi);
+            draw_diamond(canvas, nx, track.y, std::max(2, cap / 4), ink.notch,
+                         marks->measured);
+        }
     }
 
     // РУЧКА — ПРЯМОУГОЛЬНИК, А НЕ КРУЖОК. На 320x180 круг радиусом в два

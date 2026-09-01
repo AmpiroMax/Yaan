@@ -302,10 +302,24 @@ if(TARGET dfn_render AND TARGET dfn_core)
     target_sources(app_chargen PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGen.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/Peoples.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/UiSlider.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/UiFont.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
+
+    # НАРОДЫ КАК РАСПРЕДЕЛЕНИЯ. Предмет тут не «файл читается», а три вещи,
+    # которых кадром не увидеть: народный край ОБЯЗАН лежать внутри судейского
+    # (иначе экран честно нарисует полосу, за которой судья пропорций красный),
+    # выборка обязана попадать в этот край ТЫСЯЧУ раз из тысячи, и типажи
+    # обязаны выпадать по своим частотам, а не по порядку в файле. Данные
+    # берутся НАСТОЯЩИЕ (assets/characters/peoples), потому что предмет
+    # проверки — «эти четыре народа», а не «разбор строки».
+    add_dfn_test(app_peoples app/PeoplesTests.cpp dfn_render dfn_platform_render
+                 dfn_anim dfn_core)
+    target_sources(app_peoples PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/Peoples.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp)
 
     add_dfn_test(app_hud_screen app/HudScreenTests.cpp dfn_render dfn_core)
     # СБОРКА КАДРА — на тот же рукав (слой 3 разбора App.cpp). Отдельные куски
