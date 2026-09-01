@@ -97,6 +97,26 @@ AI Agents Notice (must follow):
 
 namespace dfn::app {
 
+/// РИГ ТЕЛА СТРОИТСЯ ОДИН РАЗ ЗА ПРОГОН, И НЕ ТОЛЬКО ПРИ ВХОДЕ В МИР.
+///
+/// ЭТО ПОЧИНКА, НАЙДЕННАЯ КАДРОМ. Риг — чистая функция свода чисел
+/// (RigProportions::from_config), и до сегодня строка стояла ровно одна, в
+/// enter_world: тело жило только в мире, и спрашивать риг раньше было некому.
+/// Экран создания персонажа открывается ИЗ ГЛАВНОГО МЕНЮ, где мира нет, и
+/// первый его кадр показал дыру целиком: ретаргет лёг на НЕПОСТРОЕННЫЙ риг —
+/// все рест-повороты единичные, — и фигура осталась в позе ПРИВЯЗКИ, то есть
+/// T-позой с разведёнными руками вместо человека с руками вдоль тела.
+/// Молчаливо: имена суставов легли, bound_count был не нулевой, ни одной
+/// жалобы. Один вход вместо двух присваиваний — чтобы «риг уже построен»
+/// нельзя было забыть спросить в третьем месте.
+void App::ensure_body_rig() {
+    if (body_rig_built_) {
+        return;
+    }
+    body_rig_ = anim::Rig::build(anim::RigProportions::from_config());
+    body_rig_built_ = true;
+}
+
 // СНОС МИРА, КОТОРЫЙ УЖЕ СТОИТ. Один список на два вызова: отсюда его зовёт
 // enter_world (перед тем как построить следующий), и отсюда же его зовёт
 // App::shutdown (правило 32 — вторая копия разъехалась бы в тот день, когда у
@@ -1577,7 +1597,7 @@ bool App::enter_world(uint32_t stand) {
     // FIRST-PERSON BODY (character's zone, wired here). Rigid segments through
     // the ordinary render path; the head MESH is hidden because the camera
     // sits inside the skull.
-    body_rig_ = anim::Rig::build(anim::RigProportions::from_config());
+    ensure_body_rig();
     for (uint32_t b = 0; b < anim::BONE_COUNT; ++b) {
         const auto bone = static_cast<anim::Bone>(b);
         const auto seg = anim::build_body_segment_mesh(bone, body_rig_.proportions);
@@ -1621,10 +1641,27 @@ bool App::enter_world(uint32_t stand) {
     const char* body_v1 = door_value("DFN_BODY_V1");
     const char* body_model =
         (body_v1 != nullptr && body_v1[0] == '1') ? "HumanBaseV1.dfo" : "HumanBase.dfo";
+    std::filesystem::path body_path =
+        std::filesystem::path("assets/objects/characters") / body_model;
+    // ИГРОК ХОДИТ ТЕМ ТЕЛОМ, КОТОРОЕ СОЗДАЛ, И ЭТО ФАЙЛ, А НЕ НАСТРОЙКА.
+    // Экран создания печёт .dfo с применёнными ползунками и СНЯТОЙ секцией
+    // MORF — схема Creation Kit: мир грузит обычного персонажа и про ползунки
+    // не знает вовсе. Поэтому здесь нет ни одной строчки про морфы: есть файл
+    // — берём его, нет — берём исходный. Дверь DFN_BODY_V1 старше и остаётся
+    // сильнее: она рука сравнения, и подменять ей тело значило бы сравнивать
+    // не то, что она называет.
+    if (body_v1 == nullptr || body_v1[0] != '1') {
+        std::error_code ec;
+        const std::filesystem::path baked(CHARGEN_BAKED_PATH);
+        if (std::filesystem::exists(baked, ec)) {
+            body_path = baked;
+            std::fprintf(stderr, "[character] тело игрока — выпеченное на экране "
+                                 "создания: %s\n", baked.string().c_str());
+        }
+    }
     if (!body_boxes_
         && skinned_character_.load(render_system_, *renderer_, body_rig_,
-                                   std::filesystem::path("assets/objects/characters")
-                                       / body_model)) {
+                                   body_path)) {
         // ЗЕМЛЯ ПОД СТОПОЙ — ЛУЧОМ, И ЛУЧ ЖИВЁТ ЗДЕСЬ. anim не видит мира
         // (правило 1), поэтому приложение отдаёт ему ФУНКЦИЮ: точка -> высота
         // грунта под ней. Луч пускается СВЕРХУ ВНИЗ из полуметра над стопой:

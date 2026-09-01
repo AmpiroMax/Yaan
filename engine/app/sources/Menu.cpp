@@ -354,6 +354,8 @@ struct Row {
         switch (static_cast<RootRow>(i)) {
         case RootRow::Continue: return {loc("menu.root.continue"), {}};
         case RootRow::NewGame:  return {loc("menu.root.new_game"), {}};
+        case RootRow::CreateCharacter:
+            return {loc("menu.root.chargen"), {}};
         case RootRow::Load:     return {loc("menu.root.load"), {}};
         case RootRow::Settings: return {loc("menu.root.settings"), {}};
         case RootRow::Editor:   return {loc("menu.root.editor"), {}};
@@ -634,6 +636,11 @@ MenuAction MenuModel::activate() {
             // into a map -- the first cut's named mistake (docs/MAP_LAYOUT.md).
             open_browser(BrowseTarget::Play);
             return MenuAction::None;
+        case RootRow::CreateCharacter:
+            // ЭКРАН ОТКРЫВАЕТ ПРИЛОЖЕНИЕ, А НЕ МОДЕЛЬ МЕНЮ: ему нужны тело на
+            // видеокарте и портретный свет, а этот файл не знает ни того, ни
+            // другого — и не должен (он тестируется без окна).
+            return MenuAction::OpenCharGen;
         case RootRow::Load:
             open_stub("menu.stub.no_saves");
             return MenuAction::None;

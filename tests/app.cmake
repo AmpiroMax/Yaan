@@ -291,6 +291,22 @@ if(TARGET dfn_render AND TARGET dfn_core)
     target_sources(app_model_convert PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/ModelConvert.cpp)
 
+    # ЭКРАН СОЗДАНИЯ ПЕРСОНАЖА. Здесь три предмета, которых кадр не видит:
+    # арифметика ползунка и раскладки (мышь попадает туда же, куда смотрит
+    # глаз), КАДРИРОВАНИЕ РОСТА (первая версия сокращала множитель, и ползунок
+    # работал невидимо) и пара create/destroy меша на нулевом бэкенде. Тело
+    # берётся настоящее — HumanBase.dfo с его секцией MORF, — а пишет набор
+    # только во временный каталог.
+    add_dfn_test(app_chargen app/CharGenTests.cpp
+                 dfn_render dfn_platform_render dfn_anim dfn_core)
+    target_sources(app_chargen PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGen.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/UiSlider.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/UiFont.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
+
     add_dfn_test(app_hud_screen app/HudScreenTests.cpp dfn_render dfn_core)
     # СБОРКА КАДРА — на тот же рукав (слой 3 разбора App.cpp). Отдельные куски
     # оверлея уже держат свои наборы; здесь держится то, что происходит, когда

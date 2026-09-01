@@ -742,3 +742,25 @@ morph.slider.torso-depth=Глубина торса
 morph.slider.arm-length=Длина рук
 morph.slider.leg-length=Длина ног
 morph.slider.stature=Рост
+
+# ЭКРАН СОЗДАНИЯ ПЕРСОНАЖА (шаг 2). Подписи ползунков — те же morph.slider.*,
+# что у панели редактора: ручка одна, и вторая подпись к ней разошлась бы с
+# первой на первой же правке.
+menu.root.chargen=СОЗДАТЬ ПЕРСОНАЖА
+chargen.title=СОЗДАНИЕ ПЕРСОНАЖА
+# Вкладки экрана. Список категорий приходит из описания (CharGen.cpp:
+# chargen_describe), а не из отрисовки: дизайн-сессия добавит «Лицо», «Кожа
+# и цвета», «Волосы», «Отметины» строкой там и строкой здесь.
+chargen.tab.body=Телосложение
+chargen.tab.identity=Имя
+chargen.name=Имя
+chargen.name.empty=(не названо)
+chargen.reset=Сброс
+chargen.done=Готово
+chargen.back=Назад
+chargen.unit.metre=м
+chargen.hint.mouse=Мышь по фигуре — облёт, колесо — приближение
+chargen.hint.keys=Стрелки крутят строку, Shift — мелкий шаг; Tab — вкладка
+chargen.status.reset=Телосложение сброшено к исходному
+chargen.status.done=Персонаж сохранён и выпечен — он ждёт в мире
+chargen.status.failed=Сохранить не удалось: см. поток ошибок

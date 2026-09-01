@@ -3293,6 +3293,25 @@ int App::run() {
                 my = static_cast<int>(cursor.y / static_cast<float>(content.y)
                                       * static_cast<float>(hud_h));
             }
+            // ЭКРАН СОЗДАНИЯ ПЕРСОНАЖА СТОИТ РЯДОМ С МЕНЮ, А НЕ ВНУТРИ НЕГО.
+            // Ветка ниже — общая: часы, звук, указатель, пустой кадр ImGui,
+            // окружение экрана и снимок по двери — одинаковы для обоих. Разное
+            // только одно: КТО берёт ввод и КТО рисует холст.
+            // ДОЗА DFN_CHARGEN=1: открыть экран, не нажав ни клавиши.
+            if (!chargen_dose_read_) {
+                chargen_dose_read_ = true;
+                // ЗНАЧЕНИЕ — НОМЕР ВКЛАДКИ, считая с единицы: «1» открывает
+                // экран на телосложении, «2» — на имени. Так каждая вкладка
+                // остаётся снимаемой счётным прогоном, а не только рукой на
+                // клавише Tab (правило 27), и старое DFN_CHARGEN=1 значит
+                // ровно то же, что значило.
+                if (const char* d = door_value("DFN_CHARGEN");
+                    d != nullptr && d[0] >= '1' && d[0] <= '9') {
+                    chargen_enter();
+                    chargen_.set_category(static_cast<std::size_t>(d[0] - '1'));
+                }
+            }
+            const bool chargen_page = chargen_active();
             const size_t hovered = menu_row_at(hud_w, hud_h, menu_, mx, my);
             // HOVER MOVES THE SELECTION ONLY WHEN THE POINTER MOVED. A hand
             // resting on the mouse while the other drives the arrows would
@@ -3300,7 +3319,7 @@ int App::run() {
             // and the keyboard would look broken.
             const bool pointer_moved = std::abs(cursor.x - menu_cursor_.x) > 0.5f
                                        || std::abs(cursor.y - menu_cursor_.y) > 0.5f;
-            if (pointer_moved) {
+            if (pointer_moved && !chargen_page) {
                 menu_cursor_ = cursor;
                 menu_.set_selection(hovered);
             }
@@ -3309,7 +3328,7 @@ int App::run() {
             // because a title card the player cannot dismiss is the first thing
             // he will hate about the game; and it leaves on its own when its
             // time is up.
-            const bool on_splash = menu_.page() == MenuPage::Splash;
+            const bool on_splash = !chargen_page && menu_.page() == MenuPage::Splash;
             if (on_splash) {
                 const bool skip = input_->was_pressed(platform::Key::ENTER)
                                   || input_->was_pressed(platform::Key::ESCAPE)
@@ -3351,7 +3370,7 @@ int App::run() {
             // page changed to the root above, and the same Enter edge is still
             // in this frame's snapshot -- without this guard, launching the
             // game and tapping Enter twice would run the first menu item.
-            if (!on_splash) {
+            if (!on_splash && !chargen_page) {
             if (input_->was_pressed(platform::Key::UP)) {
                 menu_.move(-1);
             }
@@ -3514,6 +3533,12 @@ int App::run() {
                 input_->set_cursor_captured(false);
                 menu_.open(MenuPage::Root);
                 break;
+            case MenuAction::OpenCharGen:
+                // ЭКРАН ОТКРЫВАЕТСЯ ПРЯМО ЗДЕСЬ И БЕЗ СМЕНЫ РЕЖИМА: он живёт в
+                // ветке меню (мира ещё нет), и «режим» ему не нужен — нужен
+                // флаг, который эта же ветка читает первой строкой.
+                chargen_enter();
+                break;
             case MenuAction::None:
                 break;
             }
@@ -3557,7 +3582,20 @@ int App::run() {
             // должен унести видимость с собой: следующий кадр уже не меню,
             // и включить панели больше некому. Видимость = право строить.
             if (mode_ != AppMode::Menu) editor_ui_.set_visible(editor_session_);
-            draw_menu(render_system_.hud(), menu_);
+            // КТО РИСУЕТ ХОЛСТ. Экран создания персонажа берёт ввод и рисует
+            // себя ОДНИМ вызовом: ввод у него и есть отрисовка — ползунок,
+            // который тянут, обязан быть перерисован в том же кадре, в котором
+            // его сдвинули, иначе ручка отстаёт от курсора на кадр. Вернувший
+            // false закрылся в этом кадре, и корень надо нарисовать сразу:
+            // пустой кадр меню между экраном и меню читается как моргание.
+            if (chargen_page) {
+                if (!chargen_frame(hud_w, hud_h, mx, my, pointer_moved)) {
+                    menu_.open(MenuPage::Root);
+                    draw_menu(render_system_.hud(), menu_);
+                }
+            } else {
+                draw_menu(render_system_.hud(), menu_);
+            }
             render_system_.set_hud_visible(true);
 
             // --- ОБЪЁМНЫЙ ГЕРБ ГЛАВНОГО МЕНЮ (заказ владельца 27.08) --------
@@ -3588,7 +3626,7 @@ int App::run() {
             // Все три выходят из ОДНОЙ сборки (правило 47): пара, снятая с
             // двух разных двоичных файлов, доказывает только то, что они
             // разные.
-            const bool oak_page = menu_.page() == MenuPage::Root;
+            const bool oak_page = !chargen_page && menu_.page() == MenuPage::Root;
             const char* oak_door = door_value("DFN_MENU_OAK");
             const bool oak_screen = oak_page
                                     && (oak_door == nullptr
@@ -3598,7 +3636,14 @@ int App::run() {
             platform::RenderEnvironment saved_env{};
             const float saved_fov = camera_.fov_y();
             bool env_saved = false;
-            if (oak_screen) {
+            if (chargen_page && chargen_active()) {
+                // ТОТ ЖЕ МЕХАНИЗМ, ЧТО У ГЕРБА, и то же обещание: окружение
+                // сохраняется и возвращается, потому что меню, открытое из
+                // комнаты, иначе унесло бы её свет с собой.
+                saved_env = render_system_.environment();
+                env_saved = true;
+                chargen_screen_prop();
+            } else if (oak_screen) {
                 saved_env = render_system_.environment();
                 env_saved = true;
                 // ДЛИННЫЙ ОБЪЕКТИВ НА ОДИН КАДР (см. OAK_MENU_FOV_DEG).
@@ -5586,6 +5631,10 @@ int App::run() {
 }
 
 void App::shutdown() {
+    // ЭКРАН СОЗДАНИЯ ОТДАЁТ СВОЙ МЕШ, ЕСЛИ ИГРУ ЗАКРЫЛИ ПРЯМО НА НЁМ. Пара
+    // create/destroy обязана сходиться и на этом пути тоже: без этой строки
+    // прогон с DFN_CHARGEN=1 честно печатал в конце «1 still live».
+    chargen_leave();
     // ИТОГ ПРИБОРА КАМЕРЫ — В shutdown(), А НЕ В КОНЦЕ run(): из run() есть
     // выход по кадру-снимку и по гейту прогулки, и строка, стоящая на одном из
     // них, у остальных не печатается вовсе.

@@ -80,6 +80,14 @@ enum class MenuPage : uint8_t {
 enum class RootRow : size_t {
     Continue = 0, // no save system yet -> the honest stub, never a hidden row
     NewGame,      // the map browser, Play target
+    // СОЗДАНИЕ ПЕРСОНАЖА — СВОЯ СТРОКА, А НЕ ШАГ ВНУТРИ «НОВОЙ ИГРЫ» (заказ
+    // владельца: «пункт рядом с "Новая игра" или внутри неё»). Из двух
+    // разрешённых мест выбрано это, и довод измеримый: «Новая игра» — ЕДИНЫЙ
+    // браузер карт, общий с «Редактором» (В39), и вклинить в него экран
+    // означало бы, что один из двух входов в браузер по дороге печёт тело, а
+    // другой нет. Отдельная строка ещё и повторно входима: персонажа
+    // переделывают, а новую игру начинают один раз.
+    CreateCharacter,
     Load,         // no save system yet -> stub
     Settings,
     Editor,       // the map browser, Editor target (ours, not the reference's)
@@ -183,6 +191,10 @@ enum class MenuAction : uint8_t {
     // meant would guess wrong on the only one that cannot be undone.
     SaveMap,
     DiscardToRoot,
+    // ЭКРАН СОЗДАНИЯ ПЕРСОНАЖА. Действие, а не страница меню: у экрана свой
+    // холст, своя фигура и четыре органа управления вместо списка строк
+    // (довод — в CharGen.h). Меню умеет ровно одно — сказать «открой его».
+    OpenCharGen,
 };
 
 // THE SETTINGS THE PLAYER CAN TURN, and it is exactly the settings.cfg rows

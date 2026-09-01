@@ -1,0 +1,217 @@
+/*
+Module: engine/app
+File: engine/app/sources/CharGenBody.h
+
+Responsibility:
+- ТЕЛО ЭКРАНА СОЗДАНИЯ ПЕРСОНАЖА: одно тело на видеокарте, показанное в
+  РЕСТ-ПОЗЕ, с живым бленДОМ морф-целей и равномерным масштабом роста; плюс
+  два файла, которыми оно уезжает в мир, — пресет (числа) и выпеченный .dfo
+  (геометрия). Ни окна, ни холста, ни ввода: всё это в CharGen.h.
+
+Key items:
+- CharGenBody: load / apply / release, веса ползунков, рост, счётчики заливок.
+- bake(): выпечка .dfo — морфы применены, секция MORF снята, скелет и меш
+  умножены на масштаб роста. Схема Skyrim: в мир уезжает готовый меш.
+- save_preset() / load_preset(): числа ползунков, рост и имя.
+- CHARGEN_* : полоса роста и пути двух файлов.
+
+Dependencies:
+- Uses: engine/render (ObjectRegistry, MorphBlend), engine/platform IRenderer,
+  engine/core skeleton.
+- Used by: engine/app (AppCharGen.cpp), tests/app/CharGenTests.cpp — и тест
+  гоняет ЕГО ЖЕ, с нулевым бэкендом, поэтому «вход-выход не течёт мешами»
+  проверяется счётчиком живых буферов, а не глазами.
+
+Notes:
+- ПОЧЕМУ НЕ SkinnedCharacter. Тот живёт в МИРЕ: ему нужны риг, привязка,
+  клипы, решатель стоп и зарегистрированный скиннованный меш. Экран создания
+  открывается из ГЛАВНОГО МЕНЮ, где мира нет вовсе, и показывает тело в
+  рест-позе — то есть ровно то, что морф и меняет. Здесь нет ни одной кости в
+  движении, и заводить их ради портрета значило бы поднимать мир, чтобы
+  посмотреть на лицо.
+- ПОЧЕМУ РЕСТ-ПОЗА ЧЕСТНА. Рест — это и есть поза привязки: вершины потока
+  SKIN с единичной палитрой. Смотровая показывает скины так же и по той же
+  причине (AppViewer.cpp).
+- ЗАЛИВКА ПАРОЙ. Новый меш создаётся ПЕРЕД тем, как уничтожается старый, и
+  оба счётчика растут в одном месте — утечка становится арифметикой, а не
+  наблюдением.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly. Зона app (lead) владеет этим файлом.
+- Выпечка ДЕТЕРМИНИРОВАНА: одни и те же числа обязаны давать побайтово один
+  файл, иначе приёмка «пресет воспроизводим» меряет погоду. Ничего от часов,
+  ничего от порядка, в котором крутили ручки.
+*/
+
+#pragma once
+
+#include "engine/anim/sources/Rig.h"
+#include "engine/anim/sources/SkinnedBody.h"
+#include "engine/core/skeleton/sources/Skeleton.h"
+#include "engine/platform/render/interfaces/IRenderer.h"
+#include "engine/render/sources/MorphBlend.h"
+#include "engine/render/sources/ObjectRegistry.h"
+#include "engine/render/sources/ProcMesh.h"
+
+#include <glm/vec3.hpp>
+
+#include <cstdint>
+#include <filesystem>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace dfn::app {
+
+// --- РОСТ -------------------------------------------------------------------
+
+/// ИМЯ РУЧКИ РОСТА. Совпадает с ключом локализации `morph.slider.stature`,
+/// заведённым шагом 1 под ползунок, которого тогда не могло быть, и с ключом
+/// пресета: одно слово на подпись, на файл и на дозу (правило 32).
+///
+/// И ЭТО НЕ ЦЕЛЬ MORF. Шаг 1 доказал, что рост чистым морфом невозможен:
+/// судья пропускает ±1 см, потому что морф двигает МЕШ, а не суставы, и
+/// голова отрывается от черепа (6.16 голов в фигуре при +1 и 10.09 при −1
+/// против канона 7.5-8.0). Рост едет РАВНОМЕРНЫМ МАСШТАБОМ рест-скелета,
+/// меша и переносов клипов — то есть тем единственным преобразованием,
+/// которое пропорций не трогает вовсе.
+inline constexpr const char* CHARGEN_HEIGHT_KEY = "stature";
+
+/// РОСТ ФИГУРЫ, КАК ОНА ПРИШЛА. Замер, а не допущение: `dfn_human_scale
+/// assets/objects/characters/HumanBase.dfo` печатает «figure height 1.750 m».
+inline constexpr float CHARGEN_BODY_HEIGHT_M = 1.750f;
+/// ПОЛОСА — ±5 % ОТ ЭТОГО РОСТА. Судья пропорций масштабу безразличен по
+/// построению (все его ориентиры, кроме числа голов, — доли роста), поэтому
+/// полосу держит не он, а канон человеческого роста, названный заказом.
+inline constexpr float CHARGEN_HEIGHT_MIN_M = 1.66f;
+inline constexpr float CHARGEN_HEIGHT_MAX_M = 1.84f;
+
+/// Множитель рест-скелета, меша и переносов клипов, дающий этот рост.
+[[nodiscard]] float chargen_height_scale(float height_m);
+
+// --- ГДЕ ЛЕЖИТ ПРЕСЕТ И ВЫПЕЧЕННОЕ ТЕЛО -------------------------------------
+//
+// РЯДОМ С ТЕМ, ЧТО УЖЕ ПИШЕТ ШАГ 1, И ЭТО ВЫБОР ИЗ ДВУХ, А НЕ УМОЛЧАНИЕ.
+// Заказ предлагал второе место — сейв-профиль, — и его в дереве НЕТ: строка
+// «Загрузить» главного меню ведёт на заглушку `menu.stub.no_saves`, каталога
+// пользователя не существует вовсе (ни одного обращения к HOME или APPDATA во
+// всём engine и tools), а settings.cfg лежит относительным путём в рабочем
+// каталоге. То есть «честнее с зоной сейвов» сегодня означает «нигде».
+// Пресет кладётся туда, куда его уже кладёт панель редактора шага 1
+// (assets/characters/presets/), и ровно двумя именованными строками — чтобы
+// переезд в сейв-профиль, когда та зона появится, был правкой этих двух
+// строк, а не поиском по дереву.
+inline constexpr const char* CHARGEN_PRESET_PATH =
+    "assets/characters/presets/player.json";
+inline constexpr const char* CHARGEN_BAKED_PATH =
+    "assets/characters/presets/player.dfo";
+
+/// ГЛИНА ПОРТРЕТА. Тот же серый, которым смотровая красит скин без текстуры
+/// (AppViewer.cpp): белое альбедо плюс портретный свет дают белый силуэт без
+/// единой складки, а затенение и есть форма.
+inline constexpr glm::vec3 CHARGEN_CLAY{0.60f, 0.58f, 0.55f};
+
+/// ЧИСЛА ПРЕСЕТА, БЕЗ ТЕЛА. Ровно то, что игрок накрутил: имена целей и веса,
+/// рост в метрах и имя персонажа. Тело из этого выводится, а не хранится.
+struct CharGenPreset {
+    std::string name;
+    float height_m = CHARGEN_BODY_HEIGHT_M;
+    std::vector<std::pair<std::string, float>> sliders;
+};
+
+class CharGenBody {
+public:
+    /// Читает .dfo, берёт его цели MORF и заливает рест-позу на видеокарту.
+    /// False (и жалоба в поток ошибок) оставляет объект пустым и безвредным.
+    /// `rig` нужен ровно за одним: перевести привязку модели в НАШУ рест-позу.
+    /// Импортированное тело привязано в T-позе с разведёнными руками, и экран,
+    /// показавший привязку как есть, показал бы манекен из импортёра, а не
+    /// персонажа, которым игрок пойдёт в мир. Ретаргет (anim::bind_skinned_rig)
+    /// на НУЛЕВОЙ позе ставит модель ровно в рест нашего рига — руки вдоль
+    /// тела, ноги сведены, — и это тот же вызов, которым тело гнётся в мире.
+    [[nodiscard]] bool load(platform::IRenderer& renderer, const anim::Rig& rig,
+                            const std::filesystem::path& path);
+    void release(platform::IRenderer& renderer);
+    [[nodiscard]] bool ready() const { return mesh_ != 0 && program_ != 0; }
+
+    [[nodiscard]] const std::vector<render::MorphTarget>& morphs() const {
+        return object_.morphs;
+    }
+    [[nodiscard]] const render::MorphState& weights() const { return weights_; }
+    /// Ставит вес, ЗАЖИМАЯ его в полосу цели (полоса лежит в файле и измерена
+    /// приёмкой шага 1). true — значение изменилось.
+    bool set_weight(std::size_t index, float value);
+    /// То же ПО ИМЕНИ ЦЕЛИ. Экран знает строки по именам (номер строки и
+    /// номер цели совпадают ровно до первой категории, вставленной перед
+    /// телосложением), и связывать их номером значило бы завести
+    /// зависимость между раскладкой экрана и порядком секции MORF.
+    bool set_weight(std::string_view name, float value);
+    void reset();
+
+    [[nodiscard]] float height_m() const { return height_m_; }
+    /// true — рост изменился. Зажимается в канон.
+    bool set_height_m(float metres);
+    [[nodiscard]] float height_scale() const { return chargen_height_scale(height_m_); }
+
+    /// ПЕРЕСЧЁТ И ПЕРЕЗАЛИВКА — на движение ручки, не покадрово (MorphBlend.h:
+    /// 0.146 мс на 8546 вершин и 11 целей). Рост сюда НЕ входит: он живёт в
+    /// матрице кадра, и перепекать меш ради масштаба было бы работой впустую.
+    bool apply(platform::IRenderer& renderer);
+
+    [[nodiscard]] std::uint32_t mesh() const { return mesh_; }
+    [[nodiscard]] std::uint32_t program() const { return program_; }
+    [[nodiscard]] std::size_t triangles() const { return triangles_; }
+    /// Габарит РЕСТ-ПОЗЫ с текущими ползунками, в осях модели.
+    [[nodiscard]] const glm::vec3& lo() const { return lo_; }
+    [[nodiscard]] const glm::vec3& hi() const { return hi_; }
+
+    /// ПРИБОР УТЕЧКИ: сколько буферов создано и сколько уничтожено за жизнь
+    /// объекта. Утечка — это разность, а не впечатление.
+    [[nodiscard]] std::uint32_t uploads() const { return uploads_; }
+    [[nodiscard]] std::uint32_t drops() const { return drops_; }
+
+    /// Пресет из текущего состояния (плюс переданное имя).
+    [[nodiscard]] CharGenPreset preset(std::string name) const;
+    /// Ставит состояние по пресету. Неизвестные имена целей ПРОПУСКАЮТСЯ и
+    /// называются вслух: пресет старше тела — не повод отказать в экране.
+    void apply_preset(const CharGenPreset& preset);
+
+    /// ВЫПЕЧКА. Морфы применены, секция MORF снята, скелет, меш и переносы
+    /// клипов умножены на масштаб роста. Возвращает false и говорит вслух.
+    [[nodiscard]] bool bake(const std::filesystem::path& out) const;
+
+private:
+    render::RegistryObject object_{};
+    std::vector<platform::SkinnedVertex> rest_;   ///< вершины как в файле
+    std::vector<platform::SkinnedVertex> blended_;///< рабочий буфер бленда
+    render::MorphState weights_{};
+    float height_m_ = CHARGEN_BODY_HEIGHT_M;
+    std::uint32_t mesh_ = 0;
+    std::uint32_t program_ = 0;
+    std::size_t triangles_ = 0;
+    glm::vec3 lo_{0.0f};
+    glm::vec3 hi_{0.0f};
+    std::uint32_t uploads_ = 0;
+    std::uint32_t drops_ = 0;
+
+    /// ПАЛИТРА НАШЕЙ РЕСТ-ПОЗЫ (нулевой LocalPose через ретаргет). Считается
+    /// один раз при загрузке: скелет от ползунков не меняется — морф двигает
+    /// МЕШ, а не суставы, и это ровно та причина, по которой рост ползунком
+    /// невозможен.
+    anim::SkinnedRigBinding binding_{};
+    std::vector<glm::mat4> rest_palette_;
+    /// Бленд + скиннинг в рест-позу + заливка нового меша + уничтожение
+    /// старого. Общий хвост load() и apply(): пара create/destroy обязана быть
+    /// в ОДНОМ месте.
+    bool upload(platform::IRenderer& renderer);
+};
+
+/// ЗАПИСЬ И ЧТЕНИЕ ПРЕСЕТА. Отдельно от класса, потому что читать пресет
+/// умеет и тот, у кого тела нет: приложение спрашивает «а есть ли уже
+/// персонаж» до всякой видеокарты.
+[[nodiscard]] bool write_chargen_preset(const std::filesystem::path& out,
+                                        const CharGenPreset& preset);
+[[nodiscard]] bool read_chargen_preset(const std::filesystem::path& in,
+                                       CharGenPreset& out);
+
+} // namespace dfn::app

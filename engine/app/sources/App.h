@@ -30,6 +30,7 @@ AI Agents Notice (must follow):
 #include <chrono>
 
 #include "engine/anim/sources/Rig.h"
+#include "engine/app/sources/CharGen.h"
 #include "engine/app/sources/ChatLog.h"
 #include "engine/app/sources/ChatOverlay.h"
 #include "engine/app/sources/BuildTool.h"
@@ -331,6 +332,33 @@ private:
     void on_viewer_cycle();
     void on_viewer_turn();
     void on_viewer_reset();
+
+    // --- ЭКРАН СОЗДАНИЯ ПЕРСОНАЖА (AppCharGen.cpp) ------------------------
+    /// Открыт ли экран. Один вопрос, три читателя (ввод меню, отрисовка меню,
+    /// кадр меню) — и потому метод, а не сравнение страницы в трёх местах.
+    [[nodiscard]] bool chargen_active() const { return chargen_open_; }
+    /// Загрузить тело, собрать ручки из его секции MORF, поднять пресет, если
+    /// он уже есть. Тихо ничего не делает, если тело не читается: экран без
+    /// фигуры показывать нечестно, и вместо него остаётся главное меню.
+    void chargen_enter();
+    /// Построить риг тела, если он ещё не построен. Довод — у определения
+    /// (AppWorld.cpp): экран создания открывается там, где мира нет.
+    void ensure_body_rig();
+    /// Снять тело с видеокарты и погасить экран. Пара к enter по построению.
+    void chargen_leave();
+    /// Весь кадр экрана: ввод (клавиши, мышь, колесо, буквы), перекладка меша
+    /// на движение ручки, отрисовка холста. Возвращает false, когда экран
+    /// закрылся в этом же кадре.
+    bool chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved);
+    /// Довести ОДНУ сдвинутую строку до тела: вес — в бленд, рост — в
+    /// множитель кадра. Возвращает true, если меш надо перекладывать.
+    bool chargen_apply_row(std::size_t row_index);
+    /// То же ПО ИМЕНИ строки: так его зовут доза и подъём пресета.
+    bool chargen_push_to_body(const std::string& name);
+    /// «Готово»: пресет на диск, тело выпечено, статус на экран.
+    void chargen_commit();
+    /// Свет и фигура этого кадра — то же устройство, что у герба меню.
+    void chargen_screen_prop();
 
     void on_third_person();
     // ДОЗА щупа камеры: DFN_CAM_COLLIDE=0 снимает коллизию, ничего больше не
@@ -1058,6 +1086,26 @@ private:
     /// отвечает на «сколько пар меша создано и уничтожено», чего кадр не
     /// показывает.
     std::uint64_t viewer_swaps_ = 0;
+
+    // --- ЭКРАН СОЗДАНИЯ ПЕРСОНАЖА ----------------------------------------
+    // ФЛАГ, А НЕ СТРАНИЦА МЕНЮ, и это то же различение, что у смотровой выше:
+    // MenuPage — это СПИСОК СТРОК, и вся арифметика меню построена на нём. У
+    // этого экрана органов управления четыре (см. CharGen.h), и он живёт
+    // рядом с меню, а не внутри него.
+    bool chargen_open_ = false;
+    CharGenScreen chargen_{};
+    CharGenBody chargen_body_{};
+    /// Где был указатель на прошлом кадре экрана — облёт считается разностью.
+    glm::vec2 chargen_cursor_{-1.0f, -1.0f};
+    /// Тянем ли сейчас облёт (левая кнопка зажата НА ФИГУРЕ, не на ручке).
+    bool chargen_orbiting_ = false;
+    /// Доза DFN_CHARGEN читается ОДИН раз за прогон, и этот флаг — её
+    /// защёлка. Дверь опрашивается в ветке меню, а не в init(): экрану
+    /// нужны видеокарта и испечённый шрифт, а на месте init() ещё не
+    /// готово ни то, ни другое.
+    bool chargen_dose_read_ = false;
+    /// Построен ли body_rig_ (см. ensure_body_rig).
+    bool body_rig_built_ = false;
     uint64_t cam_probe_frames_ = 0;  // сколько кадров прибор насчитал
     uint64_t cam_probe_outside_ = 0; // на скольких камера оказалась за оболочкой
     float cam_probe_worst_ = 0.0f;   // худший заход за стену, м
