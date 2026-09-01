@@ -1221,8 +1221,16 @@ bool App::init(const AppConfig& config) {
     // is the third time a refactor swept a menu-shot door into the menu-SKIP: it
     // gates the cursor, it does NOT gate the menu (see the note at
     // unattended_run()).
+    //
+    // DFN_CHARGEN — ЧЕТВЁРТЫЙ РАЗ ТА ЖЕ БЕДА, и потому она названа здесь.
+    // Экран создания персонажа ЖИВЁТ В ВЕТКЕ МЕНЮ (мира при этом нет вовсе), и
+    // его доза читается ВНУТРИ неё. Поставленная рядом с любой беспилотной
+    // дверью — а снимок кадра беспилотен по определению — она молча теряла
+    // экран: прогон уходил в мир и снимал не то, о чём его просили. Строка
+    // здесь значит ровно одно: «эта дверь просит ЭКРАН, а не мир».
     const bool wants_menu_screen = door_value("DFN_MENU_PAGE") != nullptr
-                                   || door_value("DFN_MENU_SHOT") != nullptr;
+                                   || door_value("DFN_MENU_SHOT") != nullptr
+                                   || door_value("DFN_CHARGEN") != nullptr;
     if (config_.show_menu || wants_menu_screen) {
         mode_ = AppMode::Menu;
         input_->set_cursor_captured(false);
@@ -3707,6 +3715,45 @@ int App::run() {
                                  static_cast<double>(tail.front()),
                                  oak_on ? "есть" : "снят",
                                  menu_emblem_.triangles());
+                    window_->request_close();
+                }
+            }
+            // DFN_SHOT_AFTER РАБОТАЕТ И ЗДЕСЬ, И ЭТО НЕ УДОБСТВО.
+            //
+            // ЧТО БЫЛО. Счётчик этой двери стоит в игровом кадре, на двести
+            // строк НИЖЕ `continue` этой ветки, а снимок пишет after_frame() —
+            // ещё ниже. То есть в ветке меню дверь не тикала НИ РАЗУ: прогон
+            // печатал всю свою диагностику и молча висел, пока его не убьют.
+            // Хуже отсутствия двери: рецепт приёмки, написанный с ней,
+            // выглядит правильным и не даёт кадра.
+            //
+            // ПОЧЕМУ КАДР СНИМАЕТСЯ ИМЕННО ОТСЮДА. Кадр приёмки обязан быть
+            // ТЕМ, ЧТО ВИДИТ ИГРОК (правило 47), а игрок в этой ветке видит
+            // холст меню или экран создания персонажа — мира тут нет вовсе, и
+            // снять его нечем. Пишется тем же write_capture, что и в мире:
+            // одно имя файла, один каталог DFN_CAPTURE_DIR, один сайдкар, и
+            // рецепты, написанные для мира, читаются здесь без перевода.
+            //
+            // СНИМОК ЖИВЁТ ТУТ ЖЕ, А НЕ ЧЕРЕЗ chat_pending_: цепочка «взвести
+            // флаг -> after_frame -> запись» проходит через код, которого в
+            // этой ветке нет, и тянуть её сюда значило бы поднять пол-игрового
+            // кадра ради одной картинки.
+            if (shot_after_frames_ > 0) {
+                ++shot_after_frames_seen_;
+                if (shot_after_frames_seen_ >= shot_after_frames_) {
+                    shot_after_frames_ = 0;
+                    DebugSnapshot snap{};
+                    write_capture(snap);
+                    menu_shot_frames_ = 1; // ниже досчитает кадры до сброса
+                }
+            }
+            // ФЛЕШ ПОСЛЕ СНИМКА. Бэкенд снимает кадр ПОСЛЕ текущего
+            // end_frame() и ему нужно несколько кадров, чтобы выложить его на
+            // диск (тур выучил это дорого); закрыться в тот же кадр значит
+            // закрыться до записи.
+            if (menu_shot_frames_ > 0 && shot_after_frames_ == 0
+                && door_value("DFN_MENU_SHOT") == nullptr) {
+                if (++menu_shot_frames_ > 5) {
                     window_->request_close();
                 }
             }

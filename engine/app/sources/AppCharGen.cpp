@@ -200,12 +200,73 @@ void App::chargen_enter() {
     if (read_chargen_preset(std::filesystem::path(CHARGEN_PRESET_PATH), preset)) {
         chargen_body_.apply_preset(preset);
         chargen_.set_name(preset.name);
+        // НАРОД И ТИПАЖ ВОССТАНАВЛИВАЮТСЯ ПО id, А НЕ ПО НОМЕРУ: номер в
+        // списке меняется от первого нового файла в каталоге народов, и
+        // персонаж, созданный вчера, оказался бы завтра другого народа.
+        for (std::size_t i = 0; i < chargen_peoples_.size(); ++i) {
+            if (chargen_peoples_[i].id != preset.people) {
+                continue;
+            }
+            (void)chargen_.set_choice(CHARGEN_PEOPLE_ROW, i);
+            chargen_apply_people();
+            const std::size_t kind =
+                chargen_peoples_[i].archetype_index(preset.archetype);
+            if (kind < chargen_peoples_[i].archetypes.size()) {
+                (void)chargen_.set_choice(CHARGEN_ARCHETYPE_ROW, kind);
+            }
+            break;
+        }
         for (std::size_t i = 0; i < chargen_body_.morphs().size(); ++i) {
             (void)chargen_.set_value(chargen_body_.morphs()[i].name,
                                      chargen_body_.weights().weights[i]);
         }
         (void)chargen_.set_value(CHARGEN_HEIGHT_KEY, chargen_body_.height_m());
         from_preset = true;
+    }
+
+    // ДОЗА DFN_CHARGEN_PICK=<народ>[:<типаж>] — ПРОИСХОЖДЕНИЕ БЕЗ РУК. Читается
+    // ДО DFN_MORPH нарочно: типаж заполняет ВСЕ ручки разом, и доза морфа,
+    // выставленная явно, обязана лечь ПОВЕРХ него, а не под ним.
+    if (const char* pick = door_value("DFN_CHARGEN_PICK");
+        pick != nullptr && *pick != '\0') {
+        const std::string text(pick);
+        const std::size_t colon = text.find(':');
+        const std::string folk_id = text.substr(0, colon);
+        const std::string kind_id =
+            colon == std::string::npos ? std::string{} : text.substr(colon + 1);
+        std::size_t found = chargen_peoples_.size();
+        for (std::size_t i = 0; i < chargen_peoples_.size(); ++i) {
+            if (chargen_peoples_[i].id == folk_id) {
+                found = i;
+            }
+        }
+        if (found >= chargen_peoples_.size()) {
+            // ПРОМАХ НЕ ПОДМЕНЯЕТ НАРОД ПЕРВЫМ В СПИСКЕ: кадр приёмки не имеет
+            // права быть правдоподобным и не тем.
+            std::fprintf(stderr, "[создание] DFN_CHARGEN_PICK: народа \"%s\" нет\n",
+                         folk_id.c_str());
+        } else {
+            (void)chargen_.set_choice(CHARGEN_PEOPLE_ROW, found);
+            chargen_apply_people();
+            if (!kind_id.empty()) {
+                const std::size_t kind =
+                    chargen_peoples_[found].archetype_index(kind_id);
+                if (kind >= chargen_peoples_[found].archetypes.size()) {
+                    std::fprintf(stderr,
+                                 "[создание] DFN_CHARGEN_PICK: у народа \"%s\" нет "
+                                 "типажа \"%s\"\n",
+                                 folk_id.c_str(), kind_id.c_str());
+                } else {
+                    (void)chargen_.set_choice(CHARGEN_ARCHETYPE_ROW, kind);
+                }
+            }
+            chargen_apply_archetype();
+        }
+    }
+    if (const char* roll = door_value("DFN_CHARGEN_ROLL");
+        roll != nullptr && roll[0] == '1') {
+        chargen_random();
+        chargen_roll_name();
     }
 
     // ДОЗА DFN_MORPH — ТА ЖЕ, ЧТО У ТЕЛА В МИРЕ (шаг 1), и намеренно та же:
@@ -640,8 +701,15 @@ void App::chargen_show_compare(bool on) {
 void App::chargen_commit() {
     const std::filesystem::path preset_path(CHARGEN_PRESET_PATH);
     const std::filesystem::path baked_path(CHARGEN_BAKED_PATH);
-    const bool wrote = write_chargen_preset(preset_path,
-                                            chargen_body_.preset(chargen_.name()));
+    CharGenPreset preset = chargen_body_.preset(chargen_.name());
+    if (const People* folk = chargen_people(); folk != nullptr) {
+        preset.people = folk->id;
+        const std::size_t kind = chargen_.choice_of(CHARGEN_ARCHETYPE_ROW);
+        if (kind < folk->archetypes.size()) {
+            preset.archetype = folk->archetypes[kind].id;
+        }
+    }
+    const bool wrote = write_chargen_preset(preset_path, preset);
     const bool baked = chargen_body_.bake(baked_path);
     std::string status(loc(wrote && baked ? "chargen.status.done"
                                           : "chargen.status.failed"));

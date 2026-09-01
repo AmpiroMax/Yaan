@@ -754,12 +754,19 @@ TEST_CASE("пресет: имя, рост и ползунки переживаю
     const fs::path out = fs::temp_directory_path() / "dfn_chargen_preset.json";
     app::CharGenPreset p;
     p.name = "Гуннар \"Рыжий\"";
+    // НАРОД И ТИПАЖ ЕДУТ В ФАЙЛЕ, и это условие того, что генератор населения
+    // ест выход экрана создания без переходника (CHARGEN_UI.md, раздел 4):
+    // один формат на пресет игрока, типаж народа и запись НПС.
+    p.people = "skeldy";
+    p.archetype = "whaler";
     p.height_m = 1.712f;
     p.sliders = {{"belly", 0.31f}, {"hips", -0.75f}, {"weight", 0.0f}};
     REQUIRE(app::write_chargen_preset(out, p));
     app::CharGenPreset back;
     REQUIRE(app::read_chargen_preset(out, back));
     CHECK(back.name == p.name);
+    CHECK(back.people == p.people);
+    CHECK(back.archetype == p.archetype);
     CHECK(back.height_m == doctest::Approx(p.height_m));
     REQUIRE(back.sliders.size() == p.sliders.size());
     for (std::size_t i = 0; i < p.sliders.size(); ++i) {

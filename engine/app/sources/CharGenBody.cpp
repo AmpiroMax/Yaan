@@ -309,6 +309,9 @@ CharGenPreset CharGenBody::preset(std::string name) const {
 
 void CharGenBody::apply_preset(const CharGenPreset& preset) {
     reset();
+    // НАРОД И ТИПАЖ ТЕЛО НЕ ТРОГАЮТ: они запись о том, откуда взялись числа, а
+    // сами числа уже лежат в `sliders`. Восстанавливает их на экране тот, кто
+    // знает список народов.
     (void)set_height_m(preset.height_m);
     for (const auto& [name, value] : preset.sliders) {
         const int slot = render::morph_index(object_.morphs, name);
@@ -376,6 +379,10 @@ bool write_chargen_preset(const std::filesystem::path& out,
         f << c;
     }
     f << "\",\n";
+    // НАРОД И ТИПАЖ — ПОСЛЕ ИМЕНИ И ДО ЧИСЕЛ, потому что читаются они глазами
+    // чаще, чем одиннадцать весов.
+    f << "  \"people\": \"" << preset.people << "\",\n";
+    f << "  \"archetype\": \"" << preset.archetype << "\",\n";
     char buf[64] = {};
     std::snprintf(buf, sizeof(buf), "%.6f", static_cast<double>(preset.height_m));
     f << "  \"height_m\": " << buf << ",\n";
@@ -424,6 +431,23 @@ bool read_chargen_preset(const std::filesystem::path& in, CharGenPreset& out) {
             }
         }
     }
+    // ПРОСТАЯ СТРОКА БЕЗ ЭКРАНИРОВАНИЯ: id народа и типажа — это латинские
+    // слова из имени файла, а не то, что вводит игрок.
+    const auto plain = [&](std::string_view key, std::string& into) {
+        const std::size_t at = field(key);
+        if (at == std::string::npos) {
+            return;
+        }
+        const std::size_t open = text.find('"', at);
+        const std::size_t close = open == std::string::npos
+                                      ? std::string::npos
+                                      : text.find('"', open + 1);
+        if (close != std::string::npos) {
+            into = text.substr(open + 1, close - open - 1);
+        }
+    };
+    plain("people", out.people);
+    plain("archetype", out.archetype);
     out.height_m = CHARGEN_BODY_HEIGHT_M;
     if (const std::size_t at = field("height_m"); at != std::string::npos) {
         const std::size_t colon = text.find(':', at);
