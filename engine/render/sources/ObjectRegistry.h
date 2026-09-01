@@ -11,6 +11,8 @@ Responsibility:
 
 Key items:
 - RegistryObject: name/kind/source + the three mesh streams + content hash.
+- MorphTarget / MorphDelta: один ползунок редактора персонажа — имя, полоса и
+  разреженная дельта на вершинах SKIN (секция MORF).
 - write_object() / read_object(): one object per .dfo file.
 - object_content_hash(): the FROZEN fnv1a64 identity of the payload.
 
@@ -40,6 +42,7 @@ AI Agents Notice (must follow):
 #include "engine/render/sources/ProcFlora.h" // MeshData
 
 #include <glm/vec2.hpp>
+#include <glm/vec3.hpp>
 
 #include <cstdint>
 #include <filesystem>
@@ -105,6 +108,40 @@ struct SkinMesh {
     [[nodiscard]] bool empty() const { return vertices.empty() || indices.empty(); }
 };
 
+/// ОДНА СДВИНУТАЯ ВЕРШИНА МОРФ-ЦЕЛИ (.dfo, секция MORF): её номер в потоке
+/// SKIN и сдвиг в МЕТРАХ, в той же системе координат, в которой лежит сама
+/// вершина, — то есть в рест-позе модели, ДО скиннинга.
+///
+/// РАЗРЕЖЕННОСТЬ — СВОЙСТВО ЯВЛЕНИЯ, А НЕ ЭКОНОМИЯ. Цель «живот» трогает
+/// восьмую часть тела; плотный массив на 8546 вершин хранил бы нули там, где
+/// цель по построению ничего не говорит, и стирал бы разницу между «эта
+/// вершина не двигается» и «эта вершина двигается на ноль» — а именно на этой
+/// разнице стоит приёмка «дельта не течёт из региона».
+struct MorphDelta {
+    std::uint32_t index = 0;
+    glm::vec3 offset{0.0f};
+};
+
+/// ОДИН ПОЛЗУНОК РЕДАКТОРА ПЕРСОНАЖА: имя, полоса допустимых значений и
+/// разреженная дельта на вершинах ЭТОГО скина.
+///
+/// ПОЛОСА ЛЕЖИТ В ФАЙЛЕ, А НЕ В КОДЕ, потому что она — свойство ЦЕЛИ, а не
+/// интерфейса: «рост» ходит в узкой полосе канона пропорций, «живот» — от нуля
+/// до единицы, и ползунок, который умеет вывести тело за канон, — это ползунок,
+/// после которого судья dfn_human_scale обязан краснеть. Кто печёт цель, тот и
+/// знает, докуда её можно тянуть.
+///
+/// НОРМАЛЕЙ ЗДЕСЬ НЕТ НАРОЧНО. Пересчёт нормалей по сдвинутой геометрии — та же
+/// работа, что и сам бленд, и делается он раз на движение ползунка, а не раз в
+/// кадр; хранить вторую дельту значило бы удвоить файл ради работы, которая уже
+/// оплачена (docs/research/CHARACTER_EDITOR_TOOLS.md §3б).
+struct MorphTarget {
+    std::string name;   ///< "belly", "shoulders" — имя ползунка, оно же ключ пресета
+    float lo = 0.0f;    ///< нижний конец полосы (значение ползунка, не метры)
+    float hi = 1.0f;    ///< верхний конец полосы
+    std::vector<MorphDelta> deltas;
+};
+
 /// One baked object of the registry. The three streams mirror FloraMesh on
 /// purpose: `wood` draws with the "prop" program, `cards` with "foliage" plus
 /// the leaf atlas, `ground` draws with the wood and never reaches collision —
@@ -144,6 +181,17 @@ struct RegistryObject {
     SkinMesh skin;
     skel::Skeleton skeleton;
     std::vector<skel::AnimClip> clips;
+    /// МОРФ-ЦЕЛИ ПЕРСОНАЖА (секция MORF). Пусты у всего, что не персонаж, и у
+    /// персонажа, уже ВЫПЕЧЕННОГО с применёнными ползунками: пустой список в
+    /// личность объекта не входит — четвёртый случай того же довода, что у
+    /// HOUS, MTRL и SKIN.
+    ///
+    /// ПОРЯДОК СПИСКА — ЧАСТЬ ФОРМАТА. Бленд складывает дельты в этом порядке,
+    /// и сложение float не ассоциативно: переставь цели местами — и тот же
+    /// пресет даст другой файл выпечки, то есть приёмка «пресет воспроизводим
+    /// байт-в-байт» проверяла бы удачу. Экспортёр пишет цели ОТСОРТИРОВАННЫМИ
+    /// ПО ИМЕНИ, читатель порядок файла не трогает.
+    std::vector<MorphTarget> morphs;
     /// fnv1a64 over the payload streams (see object_content_hash). Stored in
     /// the file AND recomputed on read; a mismatch is a refused file, because
     /// a registry whose identities cannot be trusted indexes nothing.

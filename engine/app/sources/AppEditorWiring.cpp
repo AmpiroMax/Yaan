@@ -30,11 +30,13 @@ AI Agents Notice (must follow):
 // Картинки деталей в меню объектов. Включено ЗДЕСЬ, а не в App.h: имя знает
 // только эта функция, и App.h остаётся самым широким заголовком дерева.
 #include "engine/editor/sources/EditorPaletteThumb.h"
+#include "engine/editor/sources/EditorMorphView.h"
 #include "engine/editor/sources/EditorToolPath.h"
 
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/world/sources/Scene.h"
 
+#include <filesystem>
 #include <fstream>
 #include <algorithm>
 #include <cstdio>
@@ -186,6 +188,92 @@ void App::wire_editor_panels() {
             draw_house_properties_panel(house_, &editor_ui_.tool_world());
         };
         editor_ui_.add_panel(std::move(props));
+    }
+    // ПАНЕЛЬ ТЕЛОСЛОЖЕНИЯ (редактор персонажа, шаг 1). Закрыта при старте:
+    // панель, которую человек не просил, — это отнятая полоса экрана.
+    //
+    // МОДЕЛЬ ПАНЕЛИ ЖИВЁТ В ЗАМЫКАНИИ, А НЕ В App. Это не хитрость ради
+    // хитрости: единственная правда о ползунках — веса внутри
+    // SkinnedCharacter (их читают доза DFN_MORPH, пресет и выпечка), а здесь
+    // нужен лишь буфер, который ImGui правит на месте. Заведи он поле в App —
+    // и появилась бы вторая копия состояния, расходящаяся с первой ровно в тот
+    // момент, когда ползунок двинули не мышью.
+    {
+        auto model = std::make_shared<MorphModel>();
+        EditorPanel morph;
+        morph.id = MORPH_PANEL_ID;
+        morph.title_key = "editor.panel.morph";
+        morph.side = EditorPanelSide::Right;
+        morph.extent_px = 420.0f;
+        morph.open = false;
+        MorphHooks mh;
+        mh.set = [this, model](std::size_t i, float v) {
+            skinned_character_.set_morph_weight(i, v);
+            if (i < model->sliders.size() && i < skinned_character_.morph_state().weights.size()) {
+                // ЧТО ТЕЛО ПРИНЯЛО, ТО И ПОКАЗЫВАЕМ. Вес зажат полосой у тела,
+                // и ручка обязана вернуться туда же, куда вернулось тело, —
+                // иначе ползунок стоит там, где фигуры нет.
+                model->sliders[i].value = skinned_character_.morph_state().weights[i];
+            }
+            if (renderer_) {
+                (void)skinned_character_.apply_morphs(render_system_, *renderer_);
+            }
+        };
+        mh.reset = [this, model]() {
+            skinned_character_.reset_morphs();
+            for (MorphSliderModel& s : model->sliders) {
+                s.value = 0.0f;
+            }
+            if (renderer_) {
+                (void)skinned_character_.apply_morphs(render_system_, *renderer_);
+            }
+            model->status.clear();
+        };
+        mh.save_preset = [this, model]() {
+            const std::filesystem::path out =
+                std::filesystem::path("assets") / "characters" / "presets"
+                / "editor.json";
+            model->status = skinned_character_.save_preset(out)
+                                ? out.string()
+                                : std::string("не записан: ") + out.string();
+        };
+        mh.bake = [this, model]() {
+            const std::filesystem::path out =
+                std::filesystem::path("assets") / "characters" / "presets"
+                / "editor-baked.dfo";
+            model->status = skinned_character_.bake_morphs(out)
+                                ? out.string()
+                                : std::string("не выпечено: ") + out.string();
+        };
+        morph.draw = [this, model, mh] {
+            // СПИСОК РУЧЕК ЗАПОЛНЯЕТСЯ ИЗ ТЕЛА, а не при объявлении панели:
+            // персонаж грузится ПОЗЖЕ, чем объявляются панели, и список,
+            // снятый на объявлении, был бы пустым навсегда.
+            if (model->sliders.size() != skinned_character_.morphs().size()) {
+                model->sliders.clear();
+                const auto& weights = skinned_character_.morph_state().weights;
+                for (std::size_t i = 0; i < skinned_character_.morphs().size(); ++i) {
+                    const render::MorphTarget& t = skinned_character_.morphs()[i];
+                    MorphSliderModel s;
+                    s.name = t.name;
+                    s.lo = t.lo;
+                    s.hi = t.hi;
+                    s.value = i < weights.size() ? weights[i] : 0.0f;
+                    // ХОД РУЧКИ НА ЕДИНИЦЕ ВЕСА, миллиметры — тот же прибор,
+                    // что печатает `dfn_morph report`, только без второго
+                    // определения: длиннейшая дельта цели и есть её ход.
+                    float travel = 0.0f;
+                    for (const render::MorphDelta& d : t.deltas) {
+                        travel = std::max(travel, glm::length(d.offset));
+                    }
+                    s.travel_mm = travel * 1000.0f;
+                    model->sliders.push_back(std::move(s));
+                }
+            }
+            model->body_ready = skinned_character_.ready();
+            draw_morph_panel(*model, mh);
+        };
+        editor_ui_.add_panel(std::move(morph));
     }
     tw.terrain_dab = [this](const TerrainBrush& brush, glm::vec2 centre, float dt_s) {
         return apply_terrain_dab(brush, centre, dt_s);

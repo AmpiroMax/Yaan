@@ -1098,6 +1098,37 @@ bool RenderSystem::register_skinned_mesh(
     return true;
 }
 
+bool RenderSystem::replace_skinned_mesh(
+    platform::IRenderer& renderer, uint32_t mesh_asset,
+    std::span<const platform::SkinnedVertex> vertices,
+    std::span<const uint32_t> indices) {
+    if (mesh_asset == 0 || vertices.empty() || indices.empty()) {
+        std::fprintf(stderr, "[render] replace_skinned_mesh REFUSED id %u: %s.\n",
+                     mesh_asset,
+                     mesh_asset == 0 ? "id 0 is not a mesh id" : "empty geometry");
+        return false;
+    }
+    const auto it = mesh_cache_.find(mesh_asset);
+    if (it == mesh_cache_.end()) {
+        // НЕ «тогда просто зарегистрируем». Замена того, чего нет, — это опечатка
+        // в номере, и она обязана быть слышна ЗДЕСЬ, а не проявиться потом
+        // призрачным телом, которое никто не рисует.
+        std::fprintf(stderr,
+                     "[render] replace_skinned_mesh REFUSED id %u: ничего под этим "
+                     "номером не зарегистрировано\n", mesh_asset);
+        return false;
+    }
+    // НОВЫЙ РАНЬШЕ СТАРОГО. Откажи создание после уничтожения — и кадр остался
+    // бы без тела с записью в кэше, указывающей в никуда.
+    const platform::MeshHandle fresh = renderer.create_skinned_mesh(vertices, indices);
+    if (!fresh.valid()) {
+        return false;
+    }
+    renderer.destroy_mesh(platform::MeshHandle{it->second});
+    it->second = fresh.id;
+    return true;
+}
+
 void RenderSystem::set_skinned_bodies(std::span<const SkinnedDraw> bodies) {
     skinned_bodies_.assign(bodies.begin(), bodies.end());
 }

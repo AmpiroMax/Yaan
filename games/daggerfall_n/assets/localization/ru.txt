@@ -720,3 +720,25 @@ viewer.keys=Left Right — модель · с Shift — полка · Q E — п
 viewer.empty=Показывать нечего: ни одной модели не найдено
 viewer.failed=Не показано
 viewer.converting=Преобразую…
+
+# ПОЛЗУНКИ ТЕЛА (редактор персонажа, шаг 1). Имена ручек — имена целей секции
+# MORF: они же ключи пресета и имена в дозе DFN_MORPH, поэтому подпись здесь, а
+# идентификатор — в файле тела.
+editor.panel.morph=Телосложение
+morph.no.body=Персонаж не загружен: ползункам нечего крутить.
+morph.no.targets=У этого тела нет секции MORF — оно уже выпечено или цели не напечены (tools/make_body_targets.py).
+morph.reset=Сброс
+morph.preset.save=Сохранить пресет
+morph.bake=Выпечь .dfo
+morph.slider.weight=Полнота
+morph.slider.muscle=Мускулатура
+morph.slider.age=Возраст
+morph.slider.belly=Живот
+morph.slider.shoulders=Плечи
+morph.slider.deltoid=Дельтовидные
+morph.slider.hips=Таз
+morph.slider.buttocks=Ягодицы
+morph.slider.torso-depth=Глубина торса
+morph.slider.arm-length=Длина рук
+morph.slider.leg-length=Длина ног
+morph.slider.stature=Рост

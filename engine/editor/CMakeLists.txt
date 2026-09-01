@@ -43,7 +43,8 @@ add_library(dfn_editor STATIC
     sources/EditorPaletteThumb.cpp
     sources/EditorPaletteThumbCache.cpp
     sources/EditorPaletteView.cpp
-    sources/EditorPropsView.cpp)
+    sources/EditorPropsView.cpp
+    sources/EditorMorphView.cpp)
 target_link_libraries(dfn_editor
     # dfn_world is PUBLIC because EditorBrush.h names its types in its own
     # interface (ReliefLayer, ScenePad): anyone who includes the brush needs

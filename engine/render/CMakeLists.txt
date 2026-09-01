@@ -28,6 +28,7 @@ add_library(dfn_render STATIC
     sources/LoadingScreen.cpp
     sources/LodTerrain.cpp
     sources/MapScreen.cpp
+    sources/MorphBlend.cpp
     sources/PartsMaterial.cpp
     sources/ObjectRegistry.cpp
     sources/PartForge.cpp

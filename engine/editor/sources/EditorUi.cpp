@@ -958,10 +958,43 @@ void EditorUi::end_frame() {
     frame_open_ = false;
 }
 
+/// DFN_UI_PANEL=<id>[,<id>...] — РАСКРЫТЬ НАЗВАННЫЕ ПАНЕЛИ С ПЕРВОГО КАДРА.
+///
+/// ТА ЖЕ ГРАНИЦА, ЧТО У DFN_UI_PROBE, И ПО ТОМУ ЖЕ ДОВОДУ. Дверь делает РОВНО
+/// то, что делает щелчок по фишке панели на полосе инструментов, — зовёт
+/// set_panel_open, — и НИЧЕГО больше: не поднимает visible_, не вызывает draw,
+/// не обходит раскладку. Кадр, снятый ею, приходит тем же путём, каким пришёл
+/// бы кадр, снятый рукой; если панель нарисует пустоту, это будет видно.
+///
+/// ЧИТАЕТСЯ В add_panel, А НЕ В init, потому что панели объявляются ПОЗЖЕ
+/// инициализации (их приносит App), и дверь, прочитанная в init, открывала бы
+/// список, которого ещё нет.
+[[nodiscard]] static bool door_wants_panel(const std::string& id) {
+    static const std::string wanted = [] {
+        const char* v = std::getenv("DFN_UI_PANEL");
+        return std::string(v != nullptr ? v : "");
+    }();
+    if (wanted.empty()) {
+        return false;
+    }
+    std::size_t at = 0;
+    while (at < wanted.size()) {
+        const std::size_t comma = std::min(wanted.find(',', at), wanted.size());
+        if (wanted.compare(at, comma - at, id) == 0) {
+            return true;
+        }
+        at = comma + 1;
+    }
+    return false;
+}
+
 void EditorUi::add_panel(EditorPanel panel) {
+    if (door_wants_panel(panel.id)) {
+        panel.open = true;
+    }
     for (EditorPanel& p : panels_) {
         if (p.id == panel.id) {
-            const bool was_open = p.open;
+            const bool was_open = p.open || panel.open;
             p = std::move(panel);
             p.open = was_open; // re-registering must not slam a panel shut
             return;

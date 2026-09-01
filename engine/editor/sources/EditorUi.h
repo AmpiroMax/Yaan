@@ -52,8 +52,8 @@ AI Agents Notice (must follow):
 
 A DOOR THAT TAKES A SHORTCUT THE REAL CALLER CANNOT TAKE PROVES NOTHING, and
 the doors below (DFN_UI_PROBE, DFN_UI_PROBE_MOUSE, DFN_UI_PROBE_CLICK,
-DFN_UI_PROBE_KEYS) are written to obey that. Read this before you add the next
-one.
+DFN_UI_PROBE_KEYS, DFN_UI_PANEL) are written to obey that. Read this before you
+add the next one.
 
 The first version of DFN_UI_PROBE flipped `visible_` itself and then opened its
 panel. Every frame shipped as evidence therefore came up through a path no real

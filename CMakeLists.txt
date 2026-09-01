@@ -232,6 +232,13 @@ endif()
 add_executable(dfn_human_scale tools/check_human_scale.cpp)
 target_link_libraries(dfn_human_scale PRIVATE dfn_render dfn_anim dfn_core)
 
+# МОРФЫ ТЕЛА (dfn_morph, волна «редактор персонажа, шаг 1»). Четыре глагола
+# вокруг секции MORF: rest (выдать экспортёру рест-позу), attach (вписать цели),
+# bake (применить ползунки и снять секцию), report (прибор утечки). См. шапку
+# tools/morph_tool.cpp — там довод, почему это не ключ импортёра.
+add_executable(dfn_morph tools/morph_tool.cpp)
+target_link_libraries(dfn_morph PRIVATE dfn_render dfn_anim dfn_core)
+
 # ВЫПЕЧКА ПЕРСОНАЖЕЙ (dfn_characters). Правило дерева: исходник в git, выпечка
 # производная (.gitignore, решение владельца 17.08) — значит .glb лежит в
 # репозитории с лицензией рядом, а .dfo печётся здесь и в git не едет.
@@ -297,6 +304,28 @@ if(TARGET dfn_import_gltf)
             list(APPEND DFN_CHAR_OUTPUTS "${DFN_CHAR_DIR}/${_stem}.dfo")
         endif()
     endforeach()
+    # МОРФ-ЦЕЛИ ВПИСЫВАЮТСЯ В ВЫПЕЧКУ, А НЕ ЛЕЖАТ РЯДОМ. Файл целей .morf —
+    # ИСХОДНИК (лежит в git: он выпечен из ассетов MPFB2 под CC0, как .glb
+    # лежит с лицензией); секция MORF — производная, и появляется она ровно там
+    # же, где появляется сам .dfo. Отдельным шагом ПОСЛЕ импорта, а не ключом
+    # импортёра: цели напечены на РЕСТ-ПОЗУ этой выпечки, и знает её только
+    # dfn_morph (см. шапку tools/morph_tool.cpp).
+    #
+    # Сторож несовпадения стоит внутри dfn_morph: цели, напечённые на другое
+    # число вершин, отвергаются вслух, а не прикладываются к чужой геометрии.
+    if(TARGET dfn_morph AND EXISTS "${DFN_CHAR_DIR}/HumanBase.morf"
+       AND "${DFN_CHAR_DIR}/HumanBase.dfo" IN_LIST DFN_CHAR_OUTPUTS)
+        add_custom_command(
+            OUTPUT "${DFN_CHAR_DIR}/HumanBase.morphed"
+            COMMAND dfn_morph attach "${DFN_CHAR_DIR}/HumanBase.dfo"
+                    --morf "${DFN_CHAR_DIR}/HumanBase.morf"
+            COMMAND ${CMAKE_COMMAND} -E touch "${DFN_CHAR_DIR}/HumanBase.morphed"
+            DEPENDS dfn_morph "${DFN_CHAR_DIR}/HumanBase.dfo"
+                    "${DFN_CHAR_DIR}/HumanBase.morf"
+            COMMENT "attach MORF -> HumanBase.dfo"
+            VERBATIM)
+        list(APPEND DFN_CHAR_OUTPUTS "${DFN_CHAR_DIR}/HumanBase.morphed")
+    endif()
     if(DFN_CHAR_OUTPUTS)
         add_custom_target(dfn_characters ALL DEPENDS ${DFN_CHAR_OUTPUTS})
     endif()
@@ -327,6 +356,29 @@ if(TARGET dfn_human_scale AND TARGET dfn_characters)
     set_tests_properties(human_scale_player human_scale_chibi_rejected
                          human_scale_shape_v1_rejected
                          PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
+# ПОЛЗУНКИ НА КРАЙНИХ ПОЛОЖЕНИЯХ (приёмка волны морфов, пункт 5 заказа). Судья
+# пропорций прогоняется на ОБОИХ концах КАЖДОГО ползунка — 22 тела, — и красная
+# строка означает ровно одно: полоса ползунка шире канона, то есть её надо
+# сузить в tools/make_body_targets.py, а не тереть тест.
+#
+# ЗАЧЕМ ЭТО В ctest, А НЕ В ОТЧЁТЕ. Полосы полос — числа, замеренные один раз;
+# без теста они остаются верными до первой перепечки тела и молча перестают быть
+# верными после неё, а узнать об этом было бы некому.
+if(TARGET dfn_morph AND TARGET dfn_human_scale AND TARGET dfn_characters
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/objects/characters/HumanBase.morf")
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME morph_bands
+                 COMMAND ${Python3_EXECUTABLE}
+                         "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_morph_bands.py"
+                         --morph $<TARGET_FILE:dfn_morph>
+                         --judge $<TARGET_FILE:dfn_human_scale>
+                         --body assets/objects/characters/HumanBase.dfo)
+        set_tests_properties(morph_bands PROPERTIES
+                             WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
 endif()
 
 # КУЗНИЦА ЯРУСОВ ФЛОРЫ (dfn_forge_tiers, 28.08): подрост и платы ковра в свою

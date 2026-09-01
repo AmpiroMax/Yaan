@@ -13,6 +13,9 @@ Key items:
   snapshots the tick's pose beside the previous one.
 - SkinnedCharacter::build_draw(): alpha -> RenderSystem::SkinnedDraw, the pose
   interpolated between the two ticks the way render interpolates a Transform.
+- morphs() / set_morph_weight() / apply_morphs() / bake_morphs(): ползунки тела
+  (секция MORF). Состояние живёт ЗДЕСЬ: у него три потребителя — доза
+  DFN_MORPH, панель редактора и выпечка, — и ни один из них не окно.
 - SKINNED_CHARACTER_MESH_ID: the RenderMesh id this occupies (50).
 
 Dependencies:
@@ -57,6 +60,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
+#include "engine/render/sources/MorphBlend.h"
 #include "engine/render/sources/RenderSystem.h"
 
 #include "engine/platform/render/interfaces/IRenderer.h"
@@ -133,6 +137,42 @@ public:
     [[nodiscard]] render::RenderSystem::SkinnedDraw build_draw(
         const anim::Rig& rig, bool hide_head, float alpha);
 
+    // --- МОРФЫ ТЕЛА (редактор персонажа, шаг 1) ---------------------------
+    //
+    // ЗДЕСЬ, А НЕ В ПАНЕЛИ, потому что состояние ползунков — свойство ТЕЛА, а
+    // не окна: доза DFN_MORPH правит его без всякого окна, пресет пишется из
+    // него же, и выпечка читает его. Панель — один из трёх потребителей и
+    // самый поздний.
+
+    /// Что за ползунки есть у этого тела (секция MORF). Пусто у выпеченного.
+    [[nodiscard]] const std::vector<render::MorphTarget>& morphs() const {
+        return morphs_;
+    }
+    /// Веса ползунков. Читается панелью и дозой; писать — только через
+    /// set_morph_weight, потому что запись обязана пометить тело грязным.
+    [[nodiscard]] const render::MorphState& morph_state() const { return morph_; }
+    /// Ставит вес одного ползунка, ЗАЖИМАЯ его в полосу цели. Полоса лежит в
+    /// файле (MorphTarget::lo/hi) и измерена приёмкой на крайних положениях:
+    /// ползунок, умеющий выйти за неё, — это ползунок, после которого судья
+    /// пропорций красный, а виноват интерфейс.
+    void set_morph_weight(std::size_t index, float value);
+    void reset_morphs();
+    /// Есть ли несданная правка ползунков. Отдельный флаг, а не сравнение
+    /// векторов: бленд стоит 0.03 мс, но перекладка меша на GPU — нет, и
+    /// делать её на каждом кадре неподвижного ползунка незачем.
+    [[nodiscard]] bool morphs_dirty() const { return morph_dirty_; }
+    /// ПЕРЕСЧЁТ И ПЕРЕКЛАДКА. Зовётся НА ДВИЖЕНИЕ ПОЛЗУНКА (и один раз после
+    /// загрузки, если доза что-то накрутила), а не покадрово — см. MorphBlend.h.
+    /// Возвращает false и говорит вслух, если перекладка не удалась.
+    bool apply_morphs(render::RenderSystem& render_system,
+                      platform::IRenderer& renderer);
+    /// ВЫПЕЧКА ПО «ГОТОВО»: тело с применёнными ползунками и БЕЗ секции MORF,
+    /// как Creation Kit пишет FaceGeom. Мир грузит обычного персонажа и про
+    /// ползунки не знает.
+    [[nodiscard]] bool bake_morphs(const std::filesystem::path& out) const;
+    /// Пресет — ТОЛЬКО ЧИСЛА ПОЛЗУНКОВ (json). Тем же порядком, что в файле.
+    [[nodiscard]] bool save_preset(const std::filesystem::path& out) const;
+
     /// IS THERE A BLADE IN THE HAND THIS FRAME. The pose crosses over at
     /// WEAPON_CROSSFADE_S; the sword is not faded with it, because a blade
     /// half-drawn is a blade half-INSIDE the hand and there is nothing to see
@@ -166,6 +206,18 @@ private:
     /// one far away look the same, which is exactly the confusion that cost
     /// this wave an hour.
     std::vector<platform::SkinnedVertex> bind_vertices_;
+    /// ЦЕЛИ, ВЕСА И РЕЗУЛЬТАТ БЛЕНДА. `morphed_` — рабочий буфер, а не вторая
+    /// правда: истина — это bind_vertices_ плюс веса, и buffer существует лишь
+    /// затем, чтобы не выделять восемь тысяч вершин на каждое движение ручки.
+    /// ИНДЕКСЫ СКИНА, оставленные ради НОРМАЛЕЙ бленда. Без них морф двигал бы
+    /// вершины и оставлял свет от прежней формы — тот самый «всё кривенько»,
+    /// за который импортёр уже пересчитывал нормали после --reshape.
+    std::vector<uint32_t> skin_indices_;
+    std::vector<render::MorphTarget> morphs_;
+    render::MorphState morph_{};
+    std::vector<platform::SkinnedVertex> morphed_;
+    bool morph_dirty_ = false;
+    std::filesystem::path source_path_;
     std::vector<skel::AnimClip> clips_;
     anim::SkinnedRigBinding binding_;
     anim::ClipLibrary library_{};

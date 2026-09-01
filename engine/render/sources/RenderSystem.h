@@ -299,6 +299,26 @@ public:
         std::span<const platform::SkinnedVertex> vertices,
         std::span<const uint32_t> indices);
 
+    /// ТА ЖЕ ГЕОМЕТРИЯ ПОД ТЕМ ЖЕ НОМЕРОМ, ПЕРЕЛОЖЕННАЯ ЗАНОВО. Нужна ровно
+    /// одному потребителю — редактору персонажа: человек тянет ползунок, тело
+    /// пересчитывается на CPU в рест-позе (MorphBlend.h) и обязано доехать до
+    /// GPU, не меняя номера, потому что номер меша — это то, чем его зовёт
+    /// список отрисовки, хитбоксы и клинок в руке.
+    ///
+    /// ПОЧЕМУ ЭТО НЕ «register_skinned_mesh, который разрешает замену». Замена
+    /// молча — худший из вариантов: сегодняшний отказ («уже занят, ничего не
+    /// заменено») ловит настоящую ошибку — двух хозяев одного номера, — и
+    /// снять его значило бы разменять этот сторож на удобство одного вызова.
+    /// ОТДЕЛЬНЫЙ ГЛАГОЛ ГОВОРИТ, ЧТО ЗАМЕНА НАМЕРЕННАЯ.
+    ///
+    /// Старый буфер уничтожается ЗДЕСЬ. Не уничтожить его — значит платить по
+    /// мешу за каждое движение ползунка; уничтожить раньше, чем создан новый, —
+    /// значит на один кадр остаться без тела, если создание откажет.
+    [[nodiscard]] bool replace_skinned_mesh(
+        platform::IRenderer& renderer, uint32_t mesh_asset,
+        std::span<const platform::SkinnedVertex> vertices,
+        std::span<const uint32_t> indices);
+
     /// ONE SKINNED DRAW, submitted this frame. `palette` is borrowed for the
     /// duration of the render() call and nothing else -- render owns no bones.
     struct SkinnedDraw {

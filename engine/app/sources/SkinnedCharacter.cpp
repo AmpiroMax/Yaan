@@ -24,6 +24,7 @@ AI Agents Notice (must follow):
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -111,6 +112,10 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
         return false;
     }
     bind_vertices_ = obj->skin.vertices;
+    skin_indices_ = obj->skin.indices;
+    morphs_ = obj->morphs;
+    morph_.resize_for(morphs_);
+    source_path_ = path;
     name_ = obj->name;
     triangles_ = obj->skin.indices.size() / 3;
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
@@ -166,6 +171,60 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     } else {
         blade_ready_ = true;
     }
+    // ДОЗА DFN_MORPH=имя=вес,... — приёмка БЕЗ ОКНА. Кадр правила 47
+    // снимается счётным прогоном, у которого нет ни мыши, ни панели; ползунок,
+    // до которого нельзя дотянуться из рецепта, — это ползунок, чей результат
+    // нельзя сравнить с вчерашним.
+    {
+        const char* recipe = door_value("DFN_MORPH");
+        if (recipe != nullptr && recipe[0] != '\0') {
+            if (morphs_.empty()) {
+                std::fprintf(stderr,
+                             "[character] DFN_MORPH задана, а у \"%s\" нет секции "
+                             "MORF — крутить нечего\n", path.string().c_str());
+            } else {
+                std::string text = recipe;
+                std::size_t at = 0;
+                while (at < text.size()) {
+                    const std::size_t comma = std::min(text.find(',', at), text.size());
+                    const std::size_t eq = text.find('=', at);
+                    if (eq == std::string::npos || eq > comma) {
+                        std::fprintf(stderr,
+                                     "[character] DFN_MORPH: «%s» не имя=число\n",
+                                     text.substr(at, comma - at).c_str());
+                        at = comma + 1;
+                        continue;
+                    }
+                    const std::string key = text.substr(at, eq - at);
+                    const float value =
+                        std::strtof(text.c_str() + eq + 1, nullptr);
+                    const int slot = render::morph_index(morphs_, key);
+                    if (slot < 0) {
+                        // ГРОМКО И БЕЗ ПОДМЕНЫ. Опечатка в рецепте обязана
+                        // остаться видимой: кадр, снятый «почти по рецепту», —
+                        // это кадр, который нельзя сравнить ни с чем.
+                        std::fprintf(stderr,
+                                     "[character] DFN_MORPH: ползунка \"%s\" у тела "
+                                     "нет; есть:", key.c_str());
+                        for (const render::MorphTarget& t : morphs_) {
+                            std::fprintf(stderr, " %s", t.name.c_str());
+                        }
+                        std::fprintf(stderr, "\n");
+                    } else {
+                        set_morph_weight(static_cast<std::size_t>(slot), value);
+                        std::fprintf(stderr, "[character] DFN_MORPH %s=%.3f\n",
+                                     key.c_str(),
+                                     static_cast<double>(
+                                         morph_.weights[static_cast<std::size_t>(slot)]));
+                    }
+                    at = comma + 1;
+                }
+                if (morph_dirty_) {
+                    (void)apply_morphs(render_system, renderer);
+                }
+            }
+        }
+    }
     ready_ = true;
     std::fprintf(stderr,
                  "[character] \"%s\": %zu joints (%u of %u rig bones bound), "
@@ -209,6 +268,108 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
                  static_cast<double>(library_.relax.reference_m),
                  static_cast<double>(library_.relax.target_m),
                  library_.relax.finger.size());
+    return true;
+}
+
+// ------------------------------------------------------ МОРФЫ ТЕЛА ---------
+
+void SkinnedCharacter::set_morph_weight(std::size_t index, float value) {
+    if (index >= morphs_.size() || index >= morph_.weights.size()) {
+        return;
+    }
+    // ЗАЖИМ В ПОЛОСУ ЦЕЛИ, И ОН ЗДЕСЬ, А НЕ В ПАНЕЛИ. Полоса — свойство ЦЕЛИ
+    // (замерена приёмкой tools/check_morph_bands.py), и потребителей у неё
+    // трое: ползунок, доза и пресет. Зажим в одном из трёх — это два пути,
+    // которыми канон обходится.
+    const render::MorphTarget& t = morphs_[index];
+    const float clamped = std::clamp(value, t.lo, t.hi);
+    if (clamped == morph_.weights[index]) {
+        return;
+    }
+    morph_.weights[index] = clamped;
+    morph_dirty_ = true;
+}
+
+void SkinnedCharacter::reset_morphs() {
+    for (std::size_t i = 0; i < morph_.weights.size(); ++i) {
+        if (morph_.weights[i] != 0.0f) {
+            morph_.weights[i] = 0.0f;
+            morph_dirty_ = true;
+        }
+    }
+}
+
+bool SkinnedCharacter::apply_morphs(render::RenderSystem& render_system,
+                                    platform::IRenderer& renderer) {
+    if (morphs_.empty() || bind_vertices_.empty()) {
+        morph_dirty_ = false;
+        return false;
+    }
+    render::blend_morphs(bind_vertices_, morphs_, morph_.weights, skin_indices_,
+                         morphed_);
+    if (!render_system.replace_skinned_mesh(renderer, SKINNED_CHARACTER_MESH_ID,
+                                            morphed_, skin_indices_)) {
+        // ГРЯЗНЫМ ОСТАВЛЯЕМ НАРОЧНО: неудачная перекладка — это тело, которое
+        // на экране не то, что в состоянии, и следующий вызов обязан
+        // попробовать ещё раз, а не считать себя сделанным.
+        return false;
+    }
+    morph_dirty_ = false;
+    return true;
+}
+
+bool SkinnedCharacter::bake_morphs(const std::filesystem::path& out) const {
+    // ЧИТАЕМ ИСХОДНЫЙ ФАЙЛ ЗАНОВО, а не пишем то, что держим в памяти. В памяти
+    // у нас скин, скелет и клипы — но НЕ материалы кусков, не происхождение и
+    // не всё, что читатель мог принести; выпечка, потерявшая половину объекта,
+    // была бы «почти тем же телом», а такого не бывает.
+    const auto obj = render::read_object(source_path_);
+    if (!obj.has_value()) {
+        std::fprintf(stderr, "[character] выпечка: не читается \"%s\"\n",
+                     source_path_.string().c_str());
+        return false;
+    }
+    render::RegistryObject baked = *obj;
+    std::vector<platform::SkinnedVertex> blended;
+    render::blend_morphs(baked.skin.vertices, baked.morphs, morph_.weights,
+                         baked.skin.indices, blended);
+    baked.skin.vertices = std::move(blended);
+    // СЕКЦИЯ СНИМАЕТСЯ — схема Skyrim: ползунки живут только в редакторе, в мир
+    // уезжает выпеченное (docs/research/CHARACTER_EDITOR_TOOLS.md §1.3).
+    baked.morphs.clear();
+    baked.source += " morph:baked";
+    if (!render::write_object(baked, out)) {
+        std::fprintf(stderr, "[character] выпечка: не пишется \"%s\"\n",
+                     out.string().c_str());
+        return false;
+    }
+    std::fprintf(stderr, "[character] выпечено \"%s\" (hash %016llx)\n",
+                 out.string().c_str(),
+                 static_cast<unsigned long long>(render::object_content_hash(baked)));
+    return true;
+}
+
+bool SkinnedCharacter::save_preset(const std::filesystem::path& out) const {
+    std::error_code ec;
+    std::filesystem::create_directories(out.parent_path(), ec);
+    std::FILE* f = std::fopen(out.string().c_str(), "wb");
+    if (f == nullptr) {
+        std::fprintf(stderr, "[character] пресет: не пишется \"%s\"\n",
+                     out.string().c_str());
+        return false;
+    }
+    // ПРЕСЕТ — ТОЛЬКО ЧИСЛА. Ни вершин, ни хэша тела: тело выпекается ИЗ чисел,
+    // и ровно поэтому один пресет даёт один файл на любой машине.
+    std::fprintf(f, "{\n  \"version\": 1,\n  \"sliders\": {\n");
+    for (std::size_t i = 0; i < morphs_.size(); ++i) {
+        std::fprintf(f, "    \"%s\": %.6f%s\n", morphs_[i].name.c_str(),
+                     static_cast<double>(i < morph_.weights.size()
+                                             ? morph_.weights[i] : 0.0f),
+                     i + 1 == morphs_.size() ? "" : ",");
+    }
+    std::fprintf(f, "  }\n}\n");
+    std::fclose(f);
+    std::fprintf(stderr, "[character] пресет -> \"%s\"\n", out.string().c_str());
     return true;
 }
 

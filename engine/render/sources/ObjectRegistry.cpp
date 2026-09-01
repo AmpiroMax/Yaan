@@ -61,6 +61,19 @@ inline constexpr serialization::SectionTag SKIN = serialization::make_tag('S', '
 inline constexpr serialization::SectionTag SKEL = serialization::make_tag('S', 'K', 'E', 'L');
 /// КЛИПЫ (v5): каналы T/R/S по ключам.
 inline constexpr serialization::SectionTag ANIM = serialization::make_tag('A', 'N', 'I', 'M');
+/// МОРФ-ЦЕЛИ РЕДАКТОРА ПЕРСОНАЖА: имя ползунка, его полоса и РАЗРЕЖЕННЫЙ список
+/// (номер вершины, сдвиг) на потоке SKIN.
+///
+/// ПОЧЕМУ ВЕРСИЯ КОНТЕЙНЕРА ОСТАЛАСЬ ПЯТОЙ. Соблазн назвать это «v6» велик, но
+/// номер контейнера здесь ничего не решает и одно ломает. Не решает: ворота
+/// версии сняты с контейнера нарочно (см. read_object ниже), незнакомую секцию
+/// читатель пропускает по длине, а хэш ветвится по `container_version() >= 2`,
+/// то есть шестёрка и пятёрка для него один и тот же случай. Ломает: 2544
+/// закоммиченных .dfo полок написаны пятёркой, и повышение номера сменило бы
+/// четыре байта в каждом при первой же перепечке — диff на всю полку ради поля,
+/// которого никто не читает. Версия живёт ТАМ, ГДЕ ОНА ЧЕСТНА, — на самой
+/// секции (SECTION_VERSION и section_version_understood).
+inline constexpr serialization::SectionTag MORF = serialization::make_tag('M', 'O', 'R', 'F');
 } // namespace section
 
 inline constexpr uint16_t SECTION_VERSION = 1;
@@ -74,7 +87,7 @@ inline constexpr uint16_t SECTION_VERSION = 1;
     if (tag == section::INFO || tag == section::WOOD || tag == section::CARD
         || tag == section::GRND || tag == section::BARK || tag == section::HOUS
         || tag == section::MTRL || tag == section::SKIN || tag == section::SKEL
-        || tag == section::ANIM) {
+        || tag == section::ANIM || tag == section::MORF) {
         return version <= SECTION_VERSION;
     }
     return true; // незнакомая: её и так пропустят
@@ -312,6 +325,22 @@ void hash_clips(serialization::Fnv1a64& h, const std::vector<skel::AnimClip>& cl
     }
 }
 
+void hash_morphs(serialization::Fnv1a64& h, const std::vector<MorphTarget>& morphs) {
+    h.update_u64(morphs.size());
+    for (const MorphTarget& m : morphs) {
+        h.update_length_prefixed(m.name);
+        h.update_u64(std::bit_cast<uint32_t>(m.lo));
+        h.update_u64(std::bit_cast<uint32_t>(m.hi));
+        h.update_u64(m.deltas.size());
+        for (const MorphDelta& d : m.deltas) {
+            h.update_u64(d.index);
+            h.update_u64(std::bit_cast<uint32_t>(d.offset.x));
+            h.update_u64(std::bit_cast<uint32_t>(d.offset.y));
+            h.update_u64(std::bit_cast<uint32_t>(d.offset.z));
+        }
+    }
+}
+
 /// НАЗВАЛ ЛИ ОБЪЕКТ ХОТЬ ОДНО ВЕЩЕСТВО. Одно определение на запись, чтение и
 /// хэш (правило 39): разойдись эти три ответа, файл писался бы с секцией, а
 /// сверялся бы без неё — и полка отказала бы себе самой.
@@ -374,6 +403,14 @@ uint64_t object_content_hash(const RegistryObject& obj) {
     }
     if (!obj.clips.empty()) {
         hash_clips(h, obj.clips);
+    }
+    // МОРФЫ ВХОДЯТ В ЛИЧНОСТЬ, ТОЛЬКО ЕСЛИ ОНИ ЕСТЬ — четвёртый случай довода,
+    // разобранного выше у HOUS, MTRL и персонажа. И на этот раз у него есть
+    // ВТОРОЙ потребитель: выпеченное по «Готово» тело — это тот же скин БЕЗ
+    // секции MORF (схема Skyrim, §1.3 записки), и его личность обязана
+    // совпадать с личностью тела, которое никогда морфов и не носило.
+    if (!obj.morphs.empty()) {
+        hash_morphs(h, obj.morphs);
     }
     return h.digest();
 }
@@ -492,6 +529,26 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
                     w.write_f32(ch.values[k].z);
                     w.write_f32(ch.values[k].w);
                 }
+            }
+        }
+        w.end_section();
+    }
+    // --- МОРФ-ЦЕЛИ. Пишутся последними и только когда есть: тело, УЖЕ
+    // выпеченное с применёнными ползунками, обязано быть побайтово тем же
+    // файлом, каким было бы тело, слепленное без редактора вовсе.
+    if (!obj.morphs.empty()) {
+        w.begin_section(section::MORF, SECTION_VERSION);
+        w.write_u32(static_cast<uint32_t>(obj.morphs.size()));
+        for (const MorphTarget& m : obj.morphs) {
+            w.write_string(m.name);
+            w.write_f32(m.lo);
+            w.write_f32(m.hi);
+            w.write_u32(static_cast<uint32_t>(m.deltas.size()));
+            for (const MorphDelta& d : m.deltas) {
+                w.write_u32(d.index);
+                w.write_f32(d.offset.x);
+                w.write_f32(d.offset.y);
+                w.write_f32(d.offset.z);
             }
         }
         w.end_section();
@@ -647,6 +704,28 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
                     }
                 }
             }
+        } else if (s->tag == section::MORF) {
+            const uint32_t count = r.read_u32();
+            if (static_cast<uint64_t>(count) > MAX_ELEMENTS) {
+                return std::nullopt;
+            }
+            obj.morphs.resize(count);
+            for (MorphTarget& m : obj.morphs) {
+                m.name = r.read_string();
+                m.lo = r.read_f32();
+                m.hi = r.read_f32();
+                const uint32_t verts = r.read_u32();
+                if (static_cast<uint64_t>(verts) > MAX_ELEMENTS) {
+                    return std::nullopt;
+                }
+                m.deltas.resize(verts);
+                for (MorphDelta& d : m.deltas) {
+                    d.index = r.read_u32();
+                    d.offset.x = r.read_f32();
+                    d.offset.y = r.read_f32();
+                    d.offset.z = r.read_f32();
+                }
+            }
         }
         // Unknown tags: next_section() steps over them (Rule 7).
     }
@@ -666,6 +745,25 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
         obj.house[i].material = std::move(materials[i].name);
         obj.house[i].span_m = materials[i].span_m;
         obj.house[i].wear = materials[i].wear;
+    }
+    // МОРФ АДРЕСУЕТ ВЕРШИНУ SKIN ПО НОМЕРУ, и номер за краем потока — это не
+    // «одна кривая вершина», а чтение чужой памяти в бленде: проверка стоит
+    // ЗДЕСЬ, после цикла, потому что порядок секций в файле наш, а читатель на
+    // него не опирается (тот же довод, по которому MTRL разносится после цикла).
+    // Отказ, а не отбрасывание: цель, у которой выкинули часть вершин, — это
+    // ДРУГАЯ цель под тем же именем, и она не имеет права выглядеть как та.
+    for (const MorphTarget& m : obj.morphs) {
+        for (const MorphDelta& d : m.deltas) {
+            if (d.index >= obj.skin.vertices.size()) {
+                std::fprintf(stderr,
+                             "[dfo] \"%s\": морф \"%s\" адресует вершину %u при "
+                             "%zu в SKIN -- ОТКАЗ\n",
+                             path.string().c_str(), m.name.c_str(),
+                             static_cast<unsigned>(d.index),
+                             obj.skin.vertices.size());
+                return std::nullopt;
+            }
+        }
     }
     // THE HASH IS VERIFIED ON EVERY READ. A registry is an index of
     // identities; an object whose bytes disagree with its stored identity is
