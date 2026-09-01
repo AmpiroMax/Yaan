@@ -145,6 +145,140 @@ HitboxSet build_hitboxes(const RigProportions& p) {
     return set;
 }
 
+void fit_hitboxes_to_skin(HitboxSet& set, const Rig& rig,
+                          const skel::Skeleton& skeleton,
+                          const SkinnedRigBinding& binding,
+                          std::span<const platform::SkinnedVertex> vertices) {
+    const std::size_t n = skeleton.size();
+    if (n == 0 || vertices.empty()) {
+        return;
+    }
+    // THE BODY IN ITS REST POSE, which is the pose the table's lengths already
+    // describe. Measuring on a CLIP's pose would fold that frame's bend into a
+    // number the box carries into every other frame.
+    std::vector<JointLocal> rest(n);
+    pose_local_transforms(rig, skeleton, binding, LocalPose{}, rest);
+    std::vector<glm::mat4> palette(n);
+    skinning_palette(rig, skeleton, binding, LocalPose{}, palette);
+    std::vector<glm::vec3> pos(vertices.size());
+    for (std::size_t i = 0; i < vertices.size(); ++i) {
+        pos[i] = cpu_skin_position(vertices[i], palette);
+    }
+    // WHICH RIG BONE A VERTEX BELONGS TO: its heaviest joint's nearest BOUND
+    // ancestor. The same rule the proportion judge uses, and for the same
+    // reason -- an unbound spine link is trunk, a finger is hand.
+    std::vector<int> bone_of(n, -1);
+    for (uint32_t b = 0; b < BONE_COUNT; ++b) {
+        const int32_t j = binding.names.joint[b];
+        if (j >= 0) {
+            bone_of[static_cast<std::size_t>(j)] = static_cast<int>(b);
+        }
+    }
+    for (std::size_t j = 0; j < n; ++j) {
+        if (bone_of[j] < 0) {
+            const int32_t par = skeleton.joints[j].parent;
+            if (par >= 0) {
+                bone_of[j] = bone_of[static_cast<std::size_t>(par)];
+            }
+        }
+    }
+    std::vector<int> vbone(vertices.size(), -1);
+    for (std::size_t i = 0; i < vertices.size(); ++i) {
+        int best = -1;
+        float bw = -1.0f;
+        for (int k = 0; k < 4; ++k) {
+            if (vertices[i].weights[k] > bw) {
+                bw = vertices[i].weights[k];
+                best = static_cast<int>(vertices[i].joints[k]);
+            }
+        }
+        vbone[i] = best >= 0 && static_cast<std::size_t>(best) < n
+                       ? bone_of[static_cast<std::size_t>(best)]
+                       : -1;
+    }
+    const auto bi = [](Bone b) { return static_cast<int>(bone_index(b)); };
+    /// WHOSE FLESH EACH BOX IS MADE OF. The trunk's three boxes share one set
+    /// of vertices and are separated by the y-span they already carry, which
+    /// is what makes them contiguous in the first place.
+    const auto owns = [&](BodyPart part, int b) {
+        switch (part) {
+        case BodyPart::Head: return b == bi(Bone::Head);
+        case BodyPart::Chest:
+        case BodyPart::Abdomen:
+        case BodyPart::Hips:
+            return b == bi(Bone::Torso) || b == bi(Bone::Pelvis);
+        case BodyPart::UpperArmL: return b == bi(Bone::UpperArmL);
+        case BodyPart::ForearmL: return b == bi(Bone::ForearmL);
+        case BodyPart::HandL: return b == bi(Bone::HandL);
+        case BodyPart::UpperArmR: return b == bi(Bone::UpperArmR);
+        case BodyPart::ForearmR: return b == bi(Bone::ForearmR);
+        case BodyPart::HandR: return b == bi(Bone::HandR);
+        case BodyPart::ThighL: return b == bi(Bone::ThighL);
+        case BodyPart::ShinL: return b == bi(Bone::ShinL);
+        case BodyPart::FootL: return b == bi(Bone::FootL);
+        case BodyPart::ThighR: return b == bi(Bone::ThighR);
+        case BodyPart::ShinR: return b == bi(Bone::ShinR);
+        case BodyPart::FootR: return b == bi(Bone::FootR);
+        default: return false;
+        }
+    };
+    const HitboxPose posed = hitbox_pose(set, skeleton, binding, rest);
+    // A BOX THAT ALMOST NO VERTEX VOTES FOR KEEPS THE CANON'S SIZE. Ten is not
+    // a tuned number: it is "more than a stray seam vertex", and a part with
+    // fewer than that on a body of thousands is a part this model does not
+    // really have.
+    constexpr std::size_t MIN_VOTES = 10;
+    for (uint32_t i = 0; i < HITBOX_COUNT; ++i) {
+        HitboxSlot& s = set.slot[i];
+        if (s.part == BodyPart::None || posed.valid[i] == 0) {
+            continue;
+        }
+        // ТРИ КОРОБКИ НЕ ПОДГОНЯЮТСЯ, И ЭТО НЕ ИСКЛЮЧЕНИЕ, А ОПРЕДЕЛЕНИЕ.
+        // Череп, кисть и стопа — единственные, чей ЦЕНТР лежит ЗА концом
+        // сегмента, вдоль которого они заданы (t0 > 1): у них поперечная
+        // полуось не «толщина части», а «докуда часть дотянулась от чужого
+        // сустава». Замерено, что бывает, если этого не заметить: стопа
+        // получает полуглубину 0.232 м — коробку в 46 см, покрывающую носок
+        // ВПЕРЁД и столько же пустоты НАЗАД, — а кисть 0.086 вместо 0.045.
+        // Канонный размер у этих трёх честнее замера: он хотя бы про часть.
+        if (s.t0 >= 1.0f - 1.0e-4f) {
+            continue;
+        }
+        const glm::mat4 inv = glm::inverse(posed.frame[i]);
+        const float half_y = posed.half[i].y;
+        float mx = 0.0f;
+        float mz = 0.0f;
+        float mr = 0.0f;
+        std::size_t votes = 0;
+        for (std::size_t v = 0; v < pos.size(); ++v) {
+            if (!owns(s.part, vbone[v])) {
+                continue;
+            }
+            const glm::vec3 p{inv * glm::vec4{pos[v], 1.0f}};
+            if (s.shape == HitShape::Sphere) {
+                mr = std::max(mr, glm::length(p));
+                ++votes;
+                continue;
+            }
+            if (std::abs(p.y) > half_y) {
+                continue; // outside this box's span: it is a neighbour's flesh
+            }
+            mx = std::max(mx, std::abs(p.x));
+            mz = std::max(mz, std::abs(p.z));
+            ++votes;
+        }
+        if (votes < MIN_VOTES) {
+            continue;
+        }
+        if (s.shape == HitShape::Sphere) {
+            s.radius = mr;
+        } else {
+            s.half_x = mx;
+            s.half_z = mz;
+        }
+    }
+}
+
 HitboxPose hitbox_pose(const HitboxSet& set, const skel::Skeleton& skeleton,
                        const SkinnedRigBinding& binding,
                        std::span<const JointLocal> sample) {
@@ -327,6 +461,96 @@ float hitbox_distance(const HitboxSet& set, const HitboxPose& pose, BodyPart par
         // сантиметр» одинаково означают, что клиренса нет.
         const glm::vec3 d = glm::max(glm::abs(p) - pose.half[i], glm::vec3{0.0f});
         best = std::min(best, glm::length(d));
+    }
+    return best;
+}
+
+namespace {
+
+/// One posed slot as a convex box: centre, three unit axes, three half extents.
+/// A sphere is the degenerate box with zero extents and a radius carried
+/// separately -- which is exactly how the separating-axis test wants it, since
+/// a sphere's "support" in any direction is its centre plus the radius.
+struct Convex {
+    glm::vec3 c{0.0f};
+    glm::vec3 ax[3]{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+    glm::vec3 half{0.0f};
+    float radius = 0.0f;
+};
+
+[[nodiscard]] Convex convex_of(const HitboxSet& set, const HitboxPose& pose,
+                               uint32_t i) {
+    Convex k;
+    k.c = glm::vec3{pose.frame[i][3]};
+    for (int a = 0; a < 3; ++a) {
+        const glm::vec3 col{pose.frame[i][a]};
+        const float len = glm::length(col);
+        k.ax[a] = len > 1e-8f ? col / len : glm::vec3{a == 0, a == 1, a == 2};
+    }
+    if (set.slot[i].shape == HitShape::Sphere) {
+        k.radius = pose.half[i].x;
+    } else {
+        k.half = pose.half[i];
+    }
+    return k;
+}
+
+/// How far the body reaches along `n` from its centre. `n` need not be unit;
+/// the caller divides by its length once.
+[[nodiscard]] float extent_along(const Convex& k, const glm::vec3& n) {
+    return std::abs(glm::dot(k.ax[0], n)) * k.half.x
+           + std::abs(glm::dot(k.ax[1], n)) * k.half.y
+           + std::abs(glm::dot(k.ax[2], n)) * k.half.z
+           + k.radius * glm::length(n);
+}
+
+/// The gap between two convex bodies along one axis: positive means this axis
+/// separates them, and its value is a LOWER BOUND on the true distance.
+[[nodiscard]] float gap_along(const Convex& a, const Convex& b, const glm::vec3& n) {
+    const float len = glm::length(n);
+    if (len < 1e-8f) {
+        return -1.0f; // a degenerate axis separates nothing
+    }
+    const float centres = std::abs(glm::dot(b.c - a.c, n));
+    return (centres - extent_along(a, n) - extent_along(b, n)) / len;
+}
+
+[[nodiscard]] float convex_distance(const Convex& a, const Convex& b) {
+    // THE FIFTEEN AXES. Six face normals and nine edge-edge cross products:
+    // the complete set for two boxes, so "no axis separates them" IS
+    // "they intersect" and not "we did not look hard enough".
+    float best = -std::numeric_limits<float>::infinity();
+    for (int i = 0; i < 3; ++i) {
+        best = std::max(best, gap_along(a, b, a.ax[i]));
+        best = std::max(best, gap_along(a, b, b.ax[i]));
+    }
+    for (int i = 0; i < 3; ++i) {
+        for (int j = 0; j < 3; ++j) {
+            best = std::max(best, gap_along(a, b, glm::cross(a.ax[i], b.ax[j])));
+        }
+    }
+    // The centre line, which is the exact axis for two spheres and a decent
+    // one for the corner-to-corner case the fifteen underestimate.
+    best = std::max(best, gap_along(a, b, b.c - a.c));
+    return std::max(0.0f, best);
+}
+
+} // namespace
+
+float hitbox_pair_distance(const HitboxSet& set, const HitboxPose& pose, BodyPart a,
+                           BodyPart b) {
+    float best = std::numeric_limits<float>::infinity();
+    for (uint32_t i = 0; i < HITBOX_COUNT; ++i) {
+        if (pose.valid[i] == 0 || set.slot[i].part != a) {
+            continue;
+        }
+        const Convex ka = convex_of(set, pose, i);
+        for (uint32_t j = 0; j < HITBOX_COUNT; ++j) {
+            if (pose.valid[j] == 0 || set.slot[j].part != b || i == j) {
+                continue;
+            }
+            best = std::min(best, convex_distance(ka, convex_of(set, pose, j)));
+        }
     }
     return best;
 }

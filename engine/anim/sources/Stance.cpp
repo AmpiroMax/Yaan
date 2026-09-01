@@ -284,6 +284,45 @@ void apply_stance(const skel::Skeleton& skeleton, const StanceLayer& layer,
     //    first, because straightening it moves the foot the stance width is
     //    then measured to.
     if (stand > 0.001f) {
+        // 2a. ТАЗ КВАДРАТНЫЙ — ПЕРВЫМ, И ЭТО ОТВЕТ НА «НОГИ СТОЯТ КРИВО»
+        //     (владелец, 01.09, на сыром теле). Разбор: ассетовский Idle_Loop
+        //     разворачивает ТАЗ, а суставы бёдер отстоят от него не только вбок,
+        //     но и назад (в бинде на 4.9 см), поэтому рыск таза съезжает вбок
+        //     СЕРЕДИНУ линии бёдер. Замерено на позе: таз стоит в x = +0.0023,
+        //     а середина бёдер — в +0.0133, то есть левое бедро отстоит от таза
+        //     на 7.2 см, правое на 9.4. Ниже стойка разводила ЛОДЫЖКИ
+        //     симметрично относительно ТАЗА и добивалась нуля на них — а ноги
+        //     при этом оставались разной длины по горизонтали и с разным
+        //     наклоном. Симметричные лодыжки на несимметричных бёдрах и есть
+        //     «кривые ноги»: править надо выше по цепи.
+        //
+        //     ДВА УГЛА И НИ ОДНОГО ТРЕТЬЕГО. Крен (линия бёдер не горизонтальна)
+        //     и рыск (линия бёдер не поперёк тела) — то, что делает ноги
+        //     несимметричными; НАКЛОН таза вперёд-назад не трогается вовсе, он
+        //     часть осанки и им занят пункт 1.
+        refresh();
+        {
+            const glm::vec3 hips = pos(layer.thigh[1]) - pos(layer.thigh[0]);
+            const float side = std::sqrt(hips.x * hips.x + hips.z * hips.z);
+            if (side > 1e-4f) {
+                // Поворот вокруг +Z на φ даёт y' = x·sinφ + y·cosφ; ноль по
+                // y' — это φ = −atan2(y, x). Знак выписан, а не подобран.
+                const float roll = -std::atan2(hips.y, side);
+                turn_joint(skeleton, model, layer.pelvis,
+                           glm::angleAxis(roll * stand, AXIS_Z), sample);
+            }
+            refresh();
+            const glm::vec3 h2 = pos(layer.thigh[1]) - pos(layer.thigh[0]);
+            if (std::abs(h2.x) > 1e-4f) {
+                // Поворот вокруг +Y на θ даёт z' = −x·sinθ + z·cosθ; ноль по
+                // z' — это θ = atan2(z, x), и x у линии «левое бедро → правое»
+                // положителен по построению.
+                const float yaw = std::atan2(h2.z, std::abs(h2.x));
+                turn_joint(skeleton, model, layer.pelvis,
+                           glm::angleAxis(yaw * stand, glm::vec3{0.0f, 1.0f, 0.0f}),
+                           sample);
+            }
+        }
         refresh();
         const auto knee_target = static_cast<float>(config::STANCE_KNEE_STAND);
         for (int i = 0; i < 2; ++i) {
@@ -294,7 +333,12 @@ void apply_stance(const skel::Skeleton& skeleton, const StanceLayer& layer,
             turn_joint(skeleton, model, layer.shin[k], glm::angleAxis(d, f.axis), sample);
         }
         refresh();
-        const glm::vec3 pelvis = pos(layer.pelvis);
+        // КОЛЕЯ ОТСЧИТЫВАЕТСЯ ОТ СЕРЕДИНЫ ЛИНИИ БЁДЕР, А НЕ ОТ СУСТАВА ТАЗА, и
+        // это вторая половина той же починки: сустав таза на купленном скелете
+        // не обязан лежать посередине между бёдрами, а стойка — это то, на чём
+        // тело СТОИТ, то есть свойство линии бёдер.
+        const glm::vec3 hip_mid =
+            0.5f * (pos(layer.thigh[0]) + pos(layer.thigh[1]));
         const float shoulders =
             std::abs(pos(layer.upper_arm[0]).x - pos(layer.upper_arm[1]).x);
         const float half =
@@ -303,11 +347,50 @@ void apply_stance(const skel::Skeleton& skeleton, const StanceLayer& layer,
             const auto k = static_cast<std::size_t>(i);
             const glm::vec3 hip = pos(layer.thigh[k]);
             const glm::vec3 foot = pos(layer.foot[k]);
-            const float side = foot.x >= pelvis.x ? 1.0f : -1.0f;
-            const float want_x = pelvis.x + side * half - hip.x;
+            // НА КАКОЙ СТОРОНЕ ЭТА НОГА — СПРАШИВАЕТСЯ У БЕДРА, А НЕ У СТОПЫ.
+            // Здесь стояло `foot.x >= pelvis.x`, и на сыром теле это ловушка:
+            // его ретаргетнутая рест-поза сводит лодыжки ВНУТРЬ оси (левая в
+            // x = +0.017 при левом бедре в −0.085), так что признак «где стопа
+            // сейчас» объявлял левую ногу правой и уводил её ДАЛЬШЕ вбок.
+            // Сторона ноги — свойство скелета, а не позы.
+            const float side = hip.x >= hip_mid.x ? 1.0f : -1.0f;
+            const float want_x = hip_mid.x + side * half - hip.x;
             const float a = turn_to_reach(foot - hip, AXIS_Z, AXIS_X, want_x);
             turn_joint(skeleton, model, layer.thigh[k],
                        glm::angleAxis(a * stand, AXIS_Z), sample);
+        }
+        // 2b. СТОПЫ ПАРАЛЛЕЛЬНО (заказ 01.09). Разворот стопы берётся от её
+        //     СОБСТВЕННОГО носка — первого ребёнка сустава стопы в купленном
+        //     скелете, — и гасится в ноль: «носки врозь» и «носки внутрь» это
+        //     одно и то же число с разным знаком, и оба видны на кадре сразу.
+        refresh();
+        for (int i = 0; i < 2; ++i) {
+            const auto k = static_cast<std::size_t>(i);
+            const int32_t f = layer.foot[k];
+            if (f < 0) {
+                continue;
+            }
+            int32_t toe = -1;
+            for (std::size_t j = 0; j < skeleton.size(); ++j) {
+                if (skeleton.joints[j].parent == f) {
+                    toe = static_cast<int32_t>(j);
+                    break;
+                }
+            }
+            if (toe < 0) {
+                continue;
+            }
+            const glm::vec3 dir = pos(toe) - pos(f);
+            const float flat = std::sqrt(dir.x * dir.x + dir.z * dir.z);
+            if (flat < 1e-4f) {
+                continue;
+            }
+            // Тело смотрит в −Z (docs/RIG.md), значит носок стоит прямо, когда
+            // его боковая составляющая ноль.
+            const float yaw = std::atan2(dir.x, -dir.z);
+            turn_joint(skeleton, model, f,
+                       glm::angleAxis(-yaw * stand, glm::vec3{0.0f, 1.0f, 0.0f}),
+                       sample);
         }
     }
 

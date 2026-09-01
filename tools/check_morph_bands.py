@@ -25,10 +25,21 @@
 # - Uses: собранные dfn_morph и dfn_human_scale; тело с секцией MORF.
 # - Used by: ctest (цель morph_bands), рука, отчёт волны.
 #
+# ОТ ЧЕГО СУДЬЯ ОТСЧИТЫВАЕТ (правка 01.09, решение владельца). Отгружаемое
+# тело печётся СЫРЫМ и само лежит мимо канона пятнадцатью строками, поэтому
+# канон отверг бы и НЕЙТРАЛЬ — то есть каждая полоса ужалась бы в ноль, и
+# пункт 2 выше поймал бы это как «двадцать неподвижных ручек». Судья зовётся с
+# --baseline нейтрали и с КАНОНИЧЕСКОЙ ШИРИНОЙ полосы (5 % суставы, 15 %
+# силуэт — умолчания судьи): утверждение стало «ползунок не уводит тело от
+# СВОЕЙ нейтрали дальше, чем канон разрешает уходить от канона». Ширина
+# осталась канонической и в ДОЛЯХ — ползунок, доехавший до края, обязан всё
+# ещё выглядеть человеком.
+#
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
 # - КРАСНАЯ СТРОКА ЗДЕСЬ ЗНАЧИТ «СУЗЬ ПОЛОСУ В tools/make_body_targets.py»,
-#   а не «ослабь допуск судьи». Судья — канон, полоса — наше решение.
+#   а не «ослабь допуск судьи». Судья — полоса вокруг нейтрали, ширина полосы —
+#   канон, значение полосы ползунка — наше решение.
 
 import argparse
 import filecmp
@@ -65,12 +76,20 @@ def main():
     ap.add_argument("--morph", required=True)
     ap.add_argument("--judge", required=True)
     ap.add_argument("--body", required=True)
+    # ЗАМЕР НЕЙТРАЛИ, от которого отсчитываются крайние положения. Без него
+    # судья мерил бы от канона, а канон отгружаемое тело не пропускает вовсе.
+    ap.add_argument("--baseline", default="")
     # СКОЛЬКО ДОЛЖЕН ДВИГАТЬ ЖИВОЙ ПОЛЗУНОК, метры. 2 мм на фигуре 1.75 м — это
     # чуть больше сантиметра на реальном человеке: меньше не увидит ни глаз, ни
     # судья, и такой ползунок правильнее убрать, чем оставить.
     ap.add_argument("--threshold", type=float, default=0.002)
     opt = ap.parse_args()
 
+    # Ширина полосы — каноническая (умолчания судьи 5 % / 15 %), точка отсчёта
+    # — baseline нейтрали, если он дан.
+    judge_bands = ["--tolerance", "0.05", "--silhouette-tolerance", "0.15"]
+    if opt.baseline:
+        judge_bands = ["--baseline", opt.baseline] + judge_bands
     rows = read_targets(opt.morph, opt.body)
     if not rows:
         raise SystemExit("у %s нет ни одной морф-цели — приёмке нечего мерить"
@@ -86,7 +105,7 @@ def main():
             if b.returncode != 0:
                 bad.append("%s=%g: выпечка отказала\n%s" % (name, value, b.stderr))
                 continue
-            j = run([opt.judge, out_path, "--tolerance", "0.05"])
+            j = run([opt.judge, out_path] + judge_bands)
             outs = [l.strip() for l in j.stdout.splitlines() if "<-- OUT" in l]
             moved = 0.0
             r = run([opt.morph, "report", opt.body, "--threshold",
@@ -97,8 +116,8 @@ def main():
                     moved = float(m.group(3)) / 1000.0
             status = "OK  "
             if j.returncode != 0:
-                status = "КАНОН"
-                bad.append("%s=%g вне канона: %s" % (name, value, "; ".join(outs)))
+                status = "ПОЛОСА"
+                bad.append("%s=%g вне полосы нейтрали: %s" % (name, value, "; ".join(outs)))
             if value != 0.0 and moved * abs(value) < opt.threshold:
                 status = "МЁРТВ"
                 bad.append("%s=%g двигает %.1f мм — это не ползунок"
@@ -135,7 +154,7 @@ def main():
         for line in bad:
             print("  " + line)
         return 1
-    print("[bands] все крайние положения в каноне, все ползунки живые, "
+    print("[bands] все крайние положения в полосе нейтрали, все ползунки живые, "
           "выпечка воспроизводима")
     return 0
 

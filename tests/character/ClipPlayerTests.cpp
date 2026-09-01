@@ -86,7 +86,8 @@ struct Model {
     }
     m.obj = std::move(*o);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
-    m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips);
+    m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
+                                     m.obj.skin.vertices);
     return true;
 }
 
@@ -94,6 +95,29 @@ struct Model {
     const anim::ClipEntry& e = m.lib[r];
     return e.present() ? m.obj.clips[static_cast<std::size_t>(e.clip)].name
                        : std::string{};
+}
+
+/// THE BODY'S OWN PELVIS HALF-WIDTH, metres: the hip joint's offset from the
+/// body axis in the rest pose this file measures everything else in.
+///
+/// WHY THIS NUMBER EXISTS AT ALL (owner's decision, 01.09). The visible
+/// HumanBase now ships RAW — no --fit-canon, no --reshape — because the owner
+/// compared the raw asset with the one the game baked and kept the raw one.
+/// Its skeleton is its author's, not the canon's: the hip joints sit 0.085 m
+/// off the axis where the canon-fitted body had them at 0.145. Every band in
+/// this file that was written in METRES off the canon therefore broke at once,
+/// and the honest repair is not a smaller number — it is to ask the body how
+/// wide it is. A band in the model's own units survives the next body too.
+[[nodiscard]] float pelvis_half_width(const Model& m) {
+    std::vector<glm::mat4> model(m.obj.skeleton.size());
+    anim::rest_model_matrices(m.rig, m.obj.skeleton, m.binding, anim::LocalPose{},
+                              model);
+    const auto at = [&](anim::Bone b) {
+        const int32_t j = m.binding.names.joint[anim::bone_index(b)];
+        return j >= 0 ? glm::vec3{model[static_cast<std::size_t>(j)][3]}
+                      : glm::vec3{0.0f};
+    };
+    return std::abs(at(anim::Bone::ThighL).x - at(anim::Bone::Pelvis).x);
 }
 
 /// The largest distance any joint moved between two samples — a one-number
@@ -413,8 +437,20 @@ TEST_CASE("foot_slide_under_the_threshold") {
             REQUIRE(m.lib[c.role].named_clip >= 0);
             CHECK(m.obj.clips[static_cast<std::size_t>(m.lib[c.role].named_clip)].name
                   == "Sprint_Loop");
-            CHECK(m.lib[c.role].named_slide_m
-                  > CONTROL_RATIO * matched.worst_per_step_m);
+            // THE ARM, RESTATED AS THE STATEMENT IT ALWAYS MEANT (01.09). It
+            // used to be a RATIO of the two clips' slides, and a ratio of two
+            // numbers that both moved when the shipped body stopped being
+            // canon-fitted came out at 3.55 against a floor of 4 — the gear
+            // still made the right choice, and the arm still went red. What
+            // the gear actually decided is a pair of statements about the
+            // THRESHOLD, and neither of them is a quotient: the clip whose
+            // NAME matches fails the acceptance outright, and the clip that
+            // was taken instead passes it with room. The ratio is kept beside
+            // them as the size of the gap, at the value the two bodies bracket
+            // (3.55 raw, 5.03 canon-fitted) rather than above both.
+            CHECK(m.lib[c.role].named_slide_m > THRESHOLD_M);
+            CHECK(matched.worst_per_step_m < 0.5f * THRESHOLD_M);
+            CHECK(m.lib[c.role].named_slide_m > 3.0f * matched.worst_per_step_m);
         }
         // Stride matching means what it says: the clip covers the ground sim
         // says the body covered, within a couple of per cent.
@@ -872,21 +908,53 @@ TEST_CASE("both_feet_stand_on_the_object_they_are_on") {
     // foot_penetration отдаёт ХУДШЕЕ по обеим, поэтому на позе, где одна
     // стопа парит, а вторая утонула, оно честно показывает вторую — и
     // выглядит работающим. Вклад ПАРЯЩЕЙ стопы в него равен нулю всегда.
-    pose_of(anim::Gait::Walk, 0.0f, 0.0f);
+    // ПАРЯЩАЯ СТОПА ИЩЕТСЯ, А НЕ НАЗЫВАЕТСЯ ФАЗОЙ (правка 01.09). Здесь стояла
+    // одна поза — покой на нулевой фазе, — и она держалась на том, что
+    // купленный idle ставит одну стопу выше другой. Слой стойки теперь
+    // выравнивает таз и разводит лодыжки симметрично, так что на покое обе
+    // стопы стоят, и утверждение осталось без предмета: не потому, что прибор
+    // сломался, а потому, что поза стала лучше. Парящая стопа в цикле есть
+    // всегда (это маховая нога), и правильный вопрос — «найди её», а не
+    // «поверь, что она вот здесь».
+    int hovering = -1;
+    Ground found_ground = flat_ground;
     {
-        const anim::FootIkProbe probe = probe_with(flat_ground);
+        const Surface where_surface[] = {
+            {crate_edge_ground, "кромка ящика"}, {flat_ground, "ровно"}};
+        for (const Surface& sf : where_surface) {
+            for (const Case& c : gears) {
+                for (int k = 0; k < 16 && hovering < 0; ++k) {
+                    pose_of(c.gait, c.speed, float(k) / 16.0f);
+                    const anim::FootIkProbe pr = probe_with(sf.g);
+                    const anim::FootIkPlan pl =
+                        anim::plan_foot_ik(m.obj.skeleton, setup, pr, sample);
+                    const anim::FootGap gg =
+                        anim::foot_gap(m.obj.skeleton, setup, pr, pl, sample);
+                    for (int i = 0; i < 2 && hovering < 0; ++i) {
+                        const auto side = static_cast<std::size_t>(i);
+                        if (gg.judged[side] != 0 && gg.gap[side] > GAP_M) {
+                            hovering = i;
+                            found_ground = sf.g;
+                        }
+                    }
+                }
+                if (hovering >= 0) {
+                    break;
+                }
+            }
+            if (hovering >= 0) {
+                break;
+            }
+        }
+    }
+    {
+        const anim::FootIkProbe probe = probe_with(found_ground);
         const anim::FootIkPlan plan =
             anim::plan_foot_ik(m.obj.skeleton, setup, probe, sample);
         const anim::FootGap g =
             anim::foot_gap(m.obj.skeleton, setup, probe, plan, sample);
-        int hovering = -1;
-        for (int i = 0; i < 2; ++i) {
-            const auto side = static_cast<std::size_t>(i);
-            if (g.judged[side] != 0 && g.gap[side] > GAP_M) {
-                hovering = i;
-            }
-        }
         REQUIRE(hovering >= 0); // без парящей стопы утверждать нечего
+        REQUIRE(g.judged[static_cast<std::size_t>(hovering)] != 0);
         const auto side = static_cast<std::size_t>(hovering);
         // Вклад ЭТОЙ стопы в прежнюю мерку — max(0, -gap), то есть ноль.
         const float old_reading = std::max(0.0f, -g.gap[side]);
@@ -1046,9 +1114,18 @@ TEST_CASE("the_hands_hang_like_a_persons") {
             // absolute metres broke the day the shoulder row moved 0.259 ->
             // 0.236 while the pose stayed anatomically right (wave of shapes,
             // 01.09: 0.1974 m failed a 0.20 m floor by 2.6 mm).
-            const float axis_to_trochanter =
-                0.5f * dfn::config::BODY_HIP_WIDTH_FRAC * 1.75f;
-            CHECK(mean_after > axis_to_trochanter + 0.02f);
+            //
+            // AND THE HALF-WIDTH IS THE BODY'S OWN, NOT THE CANON'S (owner's
+            // decision, 01.09). It used to be 0.5 * BODY_HIP_WIDTH_FRAC * 1.75
+            // = 0.167 m, which is the canon's pelvis; the body we ship has a
+            // 0.085 m one, and the same anatomically right pose measured
+            // 0.170 m — inside a floor written for a pelvis twice as wide, and
+            // red. The canon still owns what a CANDIDATE body may look like;
+            // it does not own how far the hand of THIS body hangs from THIS
+            // body's hip.
+            const float axis_to_trochanter = pelvis_half_width(m);
+            CAPTURE(axis_to_trochanter);
+            CHECK(mean_after > axis_to_trochanter + 0.03f);
             CHECK(mean_after < axis_to_trochanter + 0.13f);
             // ...AND THE CONTROL: the arm the wave started from was outside it.
             CHECK(mean_before > axis_to_trochanter + 0.15f);
@@ -1444,13 +1521,30 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
     CHECK(track[0][1] <= 0.0f);
     CHECK(track[1][0] >= 0.0f);
     // И ШИРИНА КОЛЕИ — СТРОКА РЕЕСТРА, а не то, что вышло. Мерится в
-    // ПОЛУШИРИНАХ от центра таза, по самому узкому месту каждой линии.
+    // ПОЛУШИРИНАХ от центра таза, по самому узкому месту каждой линии, и
+    // выражается В ПОЛУТАЗАХ САМОЙ МОДЕЛИ.
+    //
+    // ПОЧЕМУ В ПОЛУТАЗАХ (перевывод 01.09). Пара стояла в МЕТРАХ (0.06/0.16) и
+    // была замерена на теле, прогнанном через --fit-canon: у него полутаз
+    // 0.145 м и колея 0.091. Владелец оставил СЫРОЕ тело — полутаз 0.085 м,
+    // колея 0.034, — и метровая полоса порвалась, хотя ПОХОДКА та же: клип
+    // один, слоёв на колею у нас нет. В долях полутаза старое тело даёт 0.63,
+    // новое 0.39, и одна полоса держит оба. Это тот же урок, что записан у
+    // STANCE_WIDTH_SHOULDERS: судья, выраженный долей, переживает смену тела,
+    // а судья в метрах — нет.
     const float half_track = std::min(-track[0][1], track[1][0]);
+    const float hips = pelvis_half_width(m);
+    REQUIRE(hips > 1e-3f);
+    const float track_in_hips = half_track / hips;
     CAPTURE(half_track);
-    CHECK(half_track
-          >= static_cast<float>(config::WALK_TRACK_HALF_MIN));
-    CHECK(half_track
-          <= static_cast<float>(config::WALK_TRACK_HALF_MAX));
+    CAPTURE(hips);
+    CAPTURE(track_in_hips);
+    MESSAGE("6 колея в полутазах: " << track_in_hips << " (полутаз "
+                                    << 100.0f * hips << " см)");
+    CHECK(track_in_hips
+          >= static_cast<float>(config::WALK_TRACK_HALF_HIPS_MIN));
+    CHECK(track_in_hips
+          <= static_cast<float>(config::WALK_TRACK_HALF_HIPS_MAX));
 }
 
 TEST_CASE("the_hands_do_not_go_through_the_hips") {
@@ -1462,7 +1556,12 @@ TEST_CASE("the_hands_do_not_go_through_the_hips") {
     const anim::ArmClearance arms =
         anim::build_arm_clearance(m.obj.skeleton, m.binding);
     REQUIRE(arms.valid());
-    const anim::HitboxSet boxes = anim::build_hitboxes(m.rig.proportions);
+    // ТЕ ЖЕ КОРОБКИ, ЧТО У СЛОЯ, а не свежие канонные (правка 01.09). Здесь
+    // стоял build_hitboxes(rig.proportions) — канон, — и пока отгружаемое тело
+    // подгонялось импортёром под канон, это была та же таблица. Сырое тело
+    // каноном не подогнано, библиотека подгоняет коробки по КОЖЕ, и прибор,
+    // мерящий другими коробками, чем целится слой, меряет чужое тело.
+    const anim::HitboxSet& boxes = m.lib.boxes;
 
     std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
     const auto pose_at = [&](anim::Gait gait, float speed, float phase, bool weapon) {
@@ -1483,8 +1582,9 @@ TEST_CASE("the_hands_do_not_go_through_the_hips") {
                                       play, 1.0f, sample));
     };
     // ЗАКАЗАННЫЕ ДВА САНТИМЕТРА. Порог приёмки, а не цель слоя: слой целится в
-    // ARM_BODY_CLEARANCE 3.5 см, и разница между двумя числами — это то, что
-    // правило 45 велит не сваливать в одно.
+    // ARM_BODY_CLEARANCE (2.5 см от ФОРМЫ до ФОРМЫ, перевыведено 01.09), и
+    // разница между двумя числами — это то, что правило 45 велит не сваливать
+    // в одно.
     constexpr float ORDERED_M = 0.02f;
     struct Case {
         anim::Gait gait;

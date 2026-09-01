@@ -65,7 +65,8 @@ struct Model {
     }
     m.obj = std::move(*o);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
-    m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips);
+    m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
+                                     m.obj.skin.vertices);
     m.set = anim::build_hitboxes(m.rig.proportions);
     return true;
 }

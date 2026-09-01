@@ -732,7 +732,8 @@ void measure_travel(const skel::Skeleton& skeleton, const SkinnedRigBinding& bin
 
 ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                                const SkinnedRigBinding& binding,
-                               std::span<const skel::AnimClip> clips) {
+                               std::span<const skel::AnimClip> clips,
+                               std::span<const platform::SkinnedVertex> skin) {
     ClipLibrary lib;
     lib.contacts = build_contacts(rig, skeleton, binding);
     for (const RoleNames& row : ROLE_NAMES) {
@@ -1022,6 +1023,14 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     lib.arms = build_arm_clearance(skeleton, binding);
     lib.mirror = build_mirror_map(skeleton);
     lib.boxes = build_hitboxes(rig.proportions);
+    // ...И ПОДОГНАНЫ ПО КОЖЕ ЭТОГО ТЕЛА, если она пришла. Канонные размеры
+    // остаются отправной точкой (у части, за которую не голосует ни одна
+    // вершина, они и остаются), но на сыром теле бедро на треть толще канона,
+    // а талия на пятую часть уже — и слой клиренса ниже мерит именно этими
+    // коробками.
+    if (!skin.empty()) {
+        fit_hitboxes_to_skin(lib.boxes, rig, skeleton, binding, skin);
+    }
     // WHAT EACH CLIP SWINGS ON ITS OWN, so the stance layer's gains have a
     // denominator that is a measurement (ClipEntry::arm_swing_peak_rad). Over
     // the clip's OWN cycle and at stride scale 1: the gains multiply a shape,

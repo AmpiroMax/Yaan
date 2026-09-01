@@ -120,7 +120,7 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     triangles_ = obj->skin.indices.size() / 3;
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
     sample_.assign(skeleton_.size(), anim::JointLocal{});
-    library_ = anim::build_clip_library(rig, skeleton_, binding_, clips_);
+    library_ = anim::build_clip_library(rig, skeleton_, binding_, clips_, bind_vertices_);
     foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
     {
         // ЧЕРЕЗ door_value, А НЕ getenv (AppDoors.h): дверь, прочитанная мимо
@@ -138,7 +138,12 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
                                  "выключен (контрольная рука)\n");
         }
     }
+    // ХИТБОКСЫ ПО КОЖЕ ЭТОГО ТЕЛА, а не по канону (решение владельца 01.09:
+    // отгружается СЫРОЕ тело, у которого бедро на треть толще канона, а талия
+    // на пятую часть уже). Луч, спрошенный «во что попал», обязан спрашивать
+    // про то тело, которое нарисовано.
     hitboxes_ = anim::build_hitboxes(rig.proportions);
+    anim::fit_hitboxes_to_skin(hitboxes_, rig, skeleton_, binding_, bind_vertices_);
     tick_sample_.assign(skeleton_.size(), anim::JointLocal{});
     // THE BLADE, uploaded beside the body. LOUD when it cannot be built: a
     // drawn weapon that draws as nothing is exactly the state the comparison

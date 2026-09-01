@@ -38,6 +38,7 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/HeldBlade.h"
+#include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/PoseLayers.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
@@ -47,10 +48,13 @@ AI Agents Notice (must follow):
 
 #include <cmath>
 #include <cstdio>
+#include <limits>
+#include <span>
 #include <filesystem>
 #include <string>
 #include <vector>
 #include <glm/gtc/matrix_transform.hpp>
+
 
 using namespace dfn;
 
@@ -87,11 +91,26 @@ struct Model {
     }
     m.obj = std::move(*o);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
-    m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips);
+    m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
+                                     m.obj.skin.vertices);
     m.bare = m.lib;
     m.bare.relax = anim::ArmRelax{};
     m.bare.stance = anim::StanceLayer{};
     return true;
+}
+
+/// THE MODEL'S OWN THIGH, metres: pelvis joint down to knee joint in the rest
+/// pose. The unit the hand's hang is written in, and it is the BODY'S and not
+/// the canon's on purpose — see the band that uses it.
+[[nodiscard]] float thigh_length(const Model& m) {
+    std::vector<glm::mat4> model(m.obj.skeleton.size());
+    anim::rest_model_matrices(m.rig, m.obj.skeleton, m.binding, anim::LocalPose{},
+                              model);
+    const auto y = [&](anim::Bone b) {
+        const int32_t j = m.binding.names.joint[anim::bone_index(b)];
+        return j >= 0 ? model[static_cast<std::size_t>(j)][3][1] : 0.0f;
+    };
+    return y(anim::Bone::Pelvis) - y(anim::Bone::ShinL);
 }
 
 /// One pose off the real playback path, at a stride phase.
@@ -329,16 +348,34 @@ TEST_CASE("the_reference_bands") {
     CHECK(run_elbow > idle_elbow + 0.4f);
 
     // 4. THE HANDS. Mid-thigh, not chest — the number the report added.
+    //
+    // WRITTEN IN THE BODY'S OWN THIGH, NOT IN METRES (01.09). The band used to
+    // be 0.03-0.13 m and it was measured on a body the importer had fitted to
+    // the canon, whose upper arm is 19 % longer than the one we now ship: the
+    // owner kept the RAW asset, its shorter arm puts the same anatomically
+    // right wrist 1.2 cm below the hip instead of 4, and a floor in metres
+    // went red on a pose nobody changed. What survives a change of body is the
+    // pair of statements the metres were standing in for — the wrist hangs
+    // BELOW the hip line (it is not held at the belt) and stays ABOVE
+    // mid-thigh (it is a hanging arm, not a reach) — plus how far the layer
+    // had to move it to get there.
+    const float thigh = thigh_length(m);
+    REQUIRE(thigh > 0.1f);
     const float drop = 0.5f * (idle.mid.hand_drop_m[0] + idle.mid.hand_drop_m[1]);
     const float bare_drop =
         0.5f * (idle_bare.mid.hand_drop_m[0] + idle_bare.mid.hand_drop_m[1]);
+    CAPTURE(thigh);
     CAPTURE(drop);
+    CAPTURE(drop / thigh);
     CAPTURE(bare_drop);
-    CHECK(drop > 0.03f);
-    CHECK(drop < 0.13f);
-    // The control: the bought hand hangs 1.6 cm below the pelvis, i.e. level
-    // with it — the "hands at the belt" the comparison frames show.
-    CHECK(bare_drop < 0.03f);
+    CHECK(drop > 0.0f);
+    CHECK(drop < 0.35f * thigh);
+    // The control, and it is the same statement with its sign flipped: the
+    // bought hand hangs ABOVE the pelvis — the "hands at the belt" the
+    // comparison frames show — so the layer had to carry the wrist across the
+    // hip line, not merely lower it a little.
+    CHECK(bare_drop < 0.0f);
+    CHECK(drop > bare_drop + 0.03f);
     const float spread =
         0.5f * (idle.mid.hand_spread_m[0] + idle.mid.hand_spread_m[1]);
     CAPTURE(spread);
@@ -350,7 +387,20 @@ TEST_CASE("the_reference_bands") {
     CAPTURE(idle_bare.mid.stance_in_shoulders());
     CHECK(idle.mid.stance_in_shoulders() > 0.70f);
     CHECK(idle.mid.stance_in_shoulders() < 1.00f);
-    CHECK(idle_bare.mid.stance_in_shoulders() > 1.05f); // the control
+    // THE CONTROL, MOVED TO THE POSE THAT ACTUALLY FAILS THE BAND (01.09), and
+    // this is the same correction this file already made once for the trunk.
+    // The bought UNARMED idle of the raw asset stands at 0.98 shoulders, which
+    // is INSIDE the 0.70-1.00 band: a control aimed at a number that is not
+    // true goes red on correct code, which is the one thing a control may not
+    // do. The bought DRAWN idle stands at 1.13 and is outside it — that is the
+    // wide stance the owner complained about — and the layer brings it to the
+    // same 0.85 as the unarmed one. The unarmed arm keeps a weaker but honest
+    // claim: the layer narrowed it, and by more than noise.
+    const Reading idle_drawn_bare = read(m, m.bare, SHOTS[3]);
+    CAPTURE(idle_drawn_bare.mid.stance_in_shoulders());
+    CHECK(idle_drawn_bare.mid.stance_in_shoulders() > 1.05f); // the control
+    CHECK(idle_bare.mid.stance_in_shoulders() > idle.mid.stance_in_shoulders()
+                                                   + 0.10f);
     const float knee = 0.5f * (idle.mid.knee_rad[0] + idle.mid.knee_rad[1]);
     const float bare_knee =
         0.5f * (idle_bare.mid.knee_rad[0] + idle_bare.mid.knee_rad[1]);
@@ -711,4 +761,237 @@ TEST_CASE("the_hilt_lies_in_the_hand") {
     CHECK(wrist_at > 0.0f);
     CAPTURE(guard_span);
     CHECK(guard_span > 0.05f); // перекрестье найдено, а не спутано с клинком
+}
+
+TEST_CASE("no_part_of_the_body_passes_through_another") {
+    Model m;
+    REQUIRE(load(m));
+    // ЗАКАЗ ВЛАДЕЛЬЦА 01.09, ТРЕТЬИМ ПУНКТОМ И САМЫМ ОБЩИМ: «у всех частей
+    // тела хитбоксы, и стойка решается С ЗАПРЕТОМ ВЗАИМОПРОНИКНОВЕНИЯ». Первые
+    // два пункта — «ноги стоят криво и слишком близко» и «руки не вдоль
+    // боков» — этим прибором И БЫЛИ НАЙДЕНЫ, а не подтверждены: до него зона
+    // умела спросить «далеко ли ТОЧКА сустава от коробки», и на этот вопрос
+    // рука, вошедшая в бедро ладонью, отвечала «3.5 см, всё хорошо».
+    //
+    // ДВА ПРИБОРА, И ВТОРОЙ НЕ ДУБЛИРУЕТ ПЕРВЫЙ.
+    //   КОРОБКИ (hitbox_pair_distance) — то, чем ПОЛЬЗУЕТСЯ игра: слой обхода
+    //   целится в них, луч попадания спрашивает их. Коробка выпуклая и
+    //   прямоугольная, поэтому её угол «касается» там, где мясо от мяса ещё
+    //   далеко.
+    //   МЕШ (минимум по парам вершин) — то, что ВИДИТ владелец. Он медленнее и
+    //   он здесь именно поэтому: заявление «меши бёдер пересекаются» проверяется
+    //   мешами, а не их приближением.
+    // Расхождение между ними — не шум, а свойство коробки, и оно печатается.
+    anim::HitboxSet boxes = anim::build_hitboxes(m.rig.proportions);
+    anim::fit_hitboxes_to_skin(boxes, m.rig, m.obj.skeleton, m.binding,
+                               m.obj.skin.vertices);
+
+    // Вершины по частям тела: ближайший СВЯЗАННЫЙ предок самой тяжёлой кости —
+    // то же правило, что у судьи пропорций и у подгонки коробок.
+    const std::size_t n = m.obj.skeleton.size();
+    std::vector<int> bone_of(n, -1);
+    for (uint32_t b = 0; b < anim::BONE_COUNT; ++b) {
+        const int32_t j = m.binding.names.joint[b];
+        if (j >= 0) {
+            bone_of[static_cast<std::size_t>(j)] = static_cast<int>(b);
+        }
+    }
+    for (std::size_t j = 0; j < n; ++j) {
+        if (bone_of[j] < 0) {
+            const int32_t par = m.obj.skeleton.joints[j].parent;
+            if (par >= 0) {
+                bone_of[j] = bone_of[static_cast<std::size_t>(par)];
+            }
+        }
+    }
+    std::vector<int> vbone(m.obj.skin.vertices.size(), -1);
+    for (std::size_t i = 0; i < vbone.size(); ++i) {
+        const platform::SkinnedVertex& v = m.obj.skin.vertices[i];
+        int best = -1;
+        float bw = -1.0f;
+        for (int k = 0; k < 4; ++k) {
+            if (v.weights[k] > bw) {
+                bw = v.weights[k];
+                best = static_cast<int>(v.joints[k]);
+            }
+        }
+        vbone[i] = best >= 0 && static_cast<std::size_t>(best) < n
+                       ? bone_of[static_cast<std::size_t>(best)]
+                       : -1;
+    }
+    const auto group = [&](std::initializer_list<anim::Bone> bs) {
+        std::vector<std::size_t> out;
+        for (std::size_t i = 0; i < vbone.size(); ++i) {
+            for (const anim::Bone b : bs) {
+                if (vbone[i] == static_cast<int>(anim::bone_index(b))) {
+                    out.push_back(i);
+                    break;
+                }
+            }
+        }
+        return out;
+    };
+    const std::vector<std::size_t> leg_l =
+        group({anim::Bone::ThighL, anim::Bone::ShinL});
+    const std::vector<std::size_t> leg_r =
+        group({anim::Bone::ThighR, anim::Bone::ShinR});
+    const std::vector<std::size_t> hand_l = group({anim::Bone::HandL});
+    const std::vector<std::size_t> hand_r = group({anim::Bone::HandR});
+    const std::vector<std::size_t> fore_l = group({anim::Bone::ForearmL});
+    const std::vector<std::size_t> trunk =
+        group({anim::Bone::Pelvis, anim::Bone::Torso});
+    const std::vector<std::size_t> thigh_l = group({anim::Bone::ThighL});
+    const std::vector<std::size_t> thigh_r = group({anim::Bone::ThighR});
+    REQUIRE(leg_l.size() > 50);
+    REQUIRE(hand_l.size() > 50);
+    REQUIRE(trunk.size() > 50);
+
+    std::vector<glm::vec3> skinned(m.obj.skin.vertices.size());
+    const auto mesh_gap = [&](const std::vector<std::size_t>& a,
+                              const std::vector<std::size_t>& b) {
+        float best = std::numeric_limits<float>::max();
+        for (const std::size_t i : a) {
+            const glm::vec3 p = skinned[i];
+            for (const std::size_t j : b) {
+                best = std::min(best, glm::dot(skinned[j] - p, skinned[j] - p));
+            }
+        }
+        return std::sqrt(best);
+    };
+
+    struct Row {
+        float legs_box = 1e9f;
+        float hand_thigh_box = 1e9f;
+        float hand_hips_box = 1e9f;
+        float fore_abdomen_box = 1e9f;
+        float legs_mesh = 1e9f;
+        float hand_thigh_mesh = 1e9f;
+        float fore_trunk_mesh = 1e9f;
+    };
+    const auto sweep = [&](const anim::ClipLibrary& lib, const Shot& s) {
+        Row r;
+        std::vector<anim::JointLocal> pose;
+        // ДВЕНАДЦАТЬ ФАЗ, А НЕ ОДНА: пересечение — событие ЦИКЛА. Поза в
+        // середине шага ничего не говорит о том, задевает ли маховая нога
+        // опорную в момент проноса.
+        constexpr int N = 12;
+        for (int i = 0; i < N; ++i) {
+            sample_shot(m, lib, s, float(i) / float(N), pose);
+            const anim::HitboxPose hp =
+                anim::hitbox_pose(boxes, m.obj.skeleton, m.binding, pose);
+            using P = anim::BodyPart;
+            const auto d = [&](P a, P b) {
+                return anim::hitbox_pair_distance(boxes, hp, a, b);
+            };
+            r.legs_box = std::min({r.legs_box, d(P::ThighL, P::ThighR),
+                                   d(P::ShinL, P::ShinR)});
+            r.hand_thigh_box = std::min({r.hand_thigh_box, d(P::HandL, P::ThighL),
+                                         d(P::HandR, P::ThighR)});
+            r.hand_hips_box = std::min({r.hand_hips_box, d(P::HandL, P::Hips),
+                                        d(P::HandR, P::Hips)});
+            r.fore_abdomen_box =
+                std::min({r.fore_abdomen_box, d(P::ForearmL, P::Abdomen),
+                          d(P::ForearmR, P::Abdomen)});
+            std::vector<glm::mat4> palette(n);
+            anim::sample_palette(m.obj.skeleton, pose, palette);
+            for (std::size_t v = 0; v < skinned.size(); ++v) {
+                skinned[v] =
+                    anim::cpu_skin_position(m.obj.skin.vertices[v], palette);
+            }
+            r.legs_mesh = std::min(r.legs_mesh, mesh_gap(leg_l, leg_r));
+            r.hand_thigh_mesh = std::min({r.hand_thigh_mesh,
+                                          mesh_gap(hand_l, thigh_l),
+                                          mesh_gap(hand_r, thigh_r)});
+            r.fore_trunk_mesh = std::min(r.fore_trunk_mesh, mesh_gap(fore_l, trunk));
+        }
+        return r;
+    };
+
+    const Shot gaits[] = {SHOTS[0], SHOTS[1], SHOTS[2]};
+    for (const Shot& g : gaits) {
+        const Row full = sweep(m.lib, g);
+        CAPTURE(std::string(g.label));
+        MESSAGE("клиренсы «" << std::string(g.label) << "», см — КОРОБКИ: нога-нога "
+                             << 100.0f * full.legs_box << ", кисть-бедро "
+                             << 100.0f * full.hand_thigh_box << ", кисть-таз "
+                             << 100.0f * full.hand_hips_box
+                             << ", предплечье-живот "
+                             << 100.0f * full.fore_abdomen_box
+                             << " | МЕШ: нога-нога " << 100.0f * full.legs_mesh
+                             << ", кисть-бедро " << 100.0f * full.hand_thigh_mesh
+                             << ", предплечье-туловище "
+                             << 100.0f * full.fore_trunk_mesh);
+        // 1. НИЧТО НЕ ПРОХОДИТ СКВОЗЬ НИЧЕГО — по мешу, потому что заявление
+        //    владельца («меши бёдер и голеней пересекаются») про меш.
+        CHECK(full.legs_mesh > 0.0f);
+        CHECK(full.hand_thigh_mesh > 0.0f);
+        CHECK(full.fore_trunk_mesh > 0.0f);
+        // 2. И НЕ ПРОСТО НЕ ПЕРЕСЕКАЕТСЯ, А С ЗАЗОРОМ. Сантиметр — нижний край
+        //    заказанной вилки «1-2 см»; замерено 1.66-3.23 (ноги) и 1.66-6.41
+        //    (кисть о бедро) на трёх походках.
+        CHECK(full.legs_mesh > 0.01f);
+        CHECK(full.hand_thigh_mesh > 0.01f);
+        // 3. КОРОБКИ — ТО, ЧЕМ ПОЛЬЗУЕТСЯ ИГРА, и у них своя, более грубая
+        //    полоса: угол прямоугольной коробки вылезает за скруглённое мясо,
+        //    поэтому ноль по коробкам ещё не пересечение по мешу. Ноги и кисть
+        //    судятся строго; предплечье о живот только ПЕЧАТАЕТСЯ — на ходьбе
+        //    его коробки пересекаются при 5.4 см между мясом, и это свойство
+        //    формы, а не позы (см. body_gap в PoseLayers.cpp).
+        CHECK(full.legs_box > 0.0f);
+        CHECK(full.hand_thigh_box > 0.01f);
+        CHECK(full.hand_hips_box > 0.01f);
+    }
+
+    // КОНТРОЛЬНАЯ РУКА (правило 30): та же мера на позе БЕЗ наших слоёв. Она
+    // обязана быть хуже — иначе прибор меряет тело, а не работу слоёв.
+    // НА ПОКОЕ, потому что именно покой владелец и смотрел: купленный idle
+    // ставит ноги в 3.66 см асимметрии по лодыжкам и разворачивает таз на
+    // 13.3 градуса, и обе цифры видны в кадре.
+    {
+        std::vector<anim::JointLocal> bare_pose;
+        sample_shot(m, m.bare, SHOTS[0], 0.0f, bare_pose);
+        std::vector<anim::JointLocal> full_pose;
+        sample_shot(m, m.lib, SHOTS[0], 0.0f, full_pose);
+        const auto hips_and_ankles = [&](std::span<const anim::JointLocal> pose,
+                                         float& yaw_deg, float& asym_mm) {
+            std::vector<glm::mat4> mats(n);
+            for (std::size_t j = 0; j < n; ++j) {
+                mats[j] = glm::translate(glm::mat4{1.0f}, pose[j].translation)
+                          * glm::mat4_cast(glm::normalize(pose[j].rotation))
+                          * glm::scale(glm::mat4{1.0f}, pose[j].scale);
+            }
+            skel::skeleton_model_matrices(m.obj.skeleton, mats, mats);
+            const auto at = [&](anim::Bone b) {
+                const int32_t j = m.binding.names.joint[anim::bone_index(b)];
+                return j >= 0 ? glm::vec3{mats[static_cast<std::size_t>(j)][3]}
+                              : glm::vec3{0.0f};
+            };
+            const glm::vec3 hips = at(anim::Bone::ThighR) - at(anim::Bone::ThighL);
+            yaw_deg = DEG * std::atan2(hips.z, std::abs(hips.x));
+            const float mid = 0.5f * (at(anim::Bone::ThighL).x + at(anim::Bone::ThighR).x);
+            asym_mm = 1000.0f
+                      * std::abs(std::abs(at(anim::Bone::FootL).x - mid)
+                                 - std::abs(at(anim::Bone::FootR).x - mid));
+        };
+        float bare_yaw = 0.0f;
+        float bare_asym = 0.0f;
+        float full_yaw = 0.0f;
+        float full_asym = 0.0f;
+        hips_and_ankles(bare_pose, bare_yaw, bare_asym);
+        hips_and_ankles(full_pose, full_yaw, full_asym);
+        MESSAGE("покой: рыск линии бёдер " << bare_yaw << " -> " << full_yaw
+                                           << " град; асимметрия лодыжек "
+                                           << bare_asym << " -> " << full_asym
+                                           << " мм");
+        CAPTURE(bare_yaw);
+        CAPTURE(full_yaw);
+        CAPTURE(bare_asym);
+        CAPTURE(full_asym);
+        // ТАЗ КВАДРАТНЫЙ И НОГИ СИММЕТРИЧНЫ — заказанные ±1 мм.
+        CHECK(std::abs(full_yaw) < 0.1f);
+        CHECK(full_asym < 1.0f);
+        // ...И КОНТРОЛЬ: купленная поза этого не делает ни по одному из двух.
+        CHECK(std::abs(bare_yaw) > 5.0f);
+        CHECK(bare_asym > 10.0f);
+    }
 }

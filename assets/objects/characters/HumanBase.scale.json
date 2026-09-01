@@ -1,0 +1,33 @@
+{
+  "schema": "dfn.body-scale-baseline",
+  "version": 1,
+  "body": "human-base",
+  "source": "assets/objects/characters/HumanBase.dfo",
+  "decision": "owner 01.09: the visible HumanBase ships RAW; docs/design/HUMAN_SCALE.md stays the band for CANDIDATES",
+  "height_m": 1.745897,
+  "heads": 7.013504,
+  "joints": {
+    "head height (crown - neck)": 0.142582,
+    "neck height": 0.857418,
+    "shoulder height": 0.785827,
+    "hip height": 0.499819,
+    "knee height": 0.290657,
+    "ankle height": 0.057198,
+    "upper arm": 0.150425,
+    "forearm": 0.149439,
+    "shoulder width": 0.210367
+  },
+  "silhouette": {
+    "hand length (wrist-tip)": 0.127907,
+    "fingertip height": 0.358067,
+    "arm span": 1.065910,
+    "shoulders (bideltoid)": 0.293198,
+    "hip breadth (mesh)": 0.181317,
+    "chest width": 0.188281,
+    "chest depth": 0.157349,
+    "waist breadth (navel)": 0.141690,
+    "waist depth (navel)": 0.115454,
+    "upper arm diameter": 0.086216,
+    "thigh diameter": 0.111520
+  }
+}

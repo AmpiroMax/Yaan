@@ -140,9 +140,19 @@ def log(*a):
 #   note    что это за ручка на человеческом языке (идёт в отчёт).
 #
 # ПОЛОСЫ РОСТА И ДЛИН НАРОЧНО УЗКИЕ. Судья держит суставы в ±5 %, силуэт в
-# ±15 %; ползунок, которым можно выйти за канон, — это ползунок, после которого
-# приёмка красная, а виноват интерфейс. Числа полос — ЗДЕСЬ, потому что здесь
-# они и проверяются приёмкой на крайних положениях (пункт 5 заказа).
+# ±15 %; ползунок, которым можно выйти за полосу, — это ползунок, после
+# которого приёмка красная, а виноват интерфейс. Числа полос — ЗДЕСЬ, потому
+# что здесь они и проверяются приёмкой на крайних положениях (пункт 5 заказа).
+#
+# ОТ ЧЕГО ОТСЧИТЫВАЕТСЯ ПОЛОСА (перемер 01.09). Первый раз полосы мерились от
+# КАНОНА, и тело под ними было прогнано через --fit-canon и --reshape. Владелец
+# сравнил его с сырым ассетом и оставил сырой; сырое тело само лежит мимо
+# канона (7.01 головы, пятнадцать строк), так что канон отверг бы и НЕЙТРАЛЬ —
+# каждая полоса ужалась бы в ноль. Отсчёт теперь от BASELINE нейтрали
+# (assets/objects/characters/HumanBase.scale.json), ШИРИНА полосы осталась
+# канонической: 5 % на суставах, 15 % на силуэте. Результат перемера
+# показателен: на своей нейтрали ползунки ходят ШИРЕ, чем ходили вокруг чужой
+# — семь из одиннадцати проходят полный ход, и упор остался только у трёх.
 
 MACRO_NEUTRAL = {
     "gender": 0.9, "age": 0.5385, "muscle": 0.40, "weight": 0.58,
@@ -164,18 +174,20 @@ LEG_PARTS = ("pelvis", "thigh.L", "thigh.R", "shin.L", "shin.R", "foot.L", "foot
 # это самое полезное число здесь: оно говорит, во что ручка упирается.
 SLIDERS = [
     dict(name="weight", kind="macro", two=True, key="weight", lo=0.30, hi=0.86,
-         parts=ALL_BUT_HANDS, range=(-1.0, 0.65),
-         note="полнота: от сухого к плотному (вверх упирается в глубину груди)"),
+         parts=ALL_BUT_HANDS,
+         note="полнота: от сухого к плотному (полный ход: 01.09 упор в глубину "
+              "груди снялся вместе с --reshape, который её и раздувал)"),
     dict(name="muscle", kind="macro", two=True, key="muscle", lo=0.12, hi=0.78,
-         parts=ALL_BUT_HANDS, range=(-0.40, 1.0),
-         note="мускулатура (вниз упирается в глубину груди)"),
+         parts=ALL_BUT_HANDS,
+         note="мускулатура (полный ход, 01.09)"),
     dict(name="age", kind="macro", two=False, key="age", lo=0.5385, hi=0.95,
-         parts=ALL_BUT_HANDS, range=(0.0, 0.55),
-         note="возраст: сутулость и оплывший силуэт"),
+         parts=ALL_BUT_HANDS, range=(0.0, 0.75),
+         note="возраст: сутулость и оплывший силуэт (упирается в ГОЛОВЫ НА "
+              "ФИГУРУ: сутулость опускает макушку, а сустав шеи стоит)"),
     dict(name="belly", kind="target", two=False,
          hi_targets=("stomach-pregnant-incr",),
          parts=("torso", "pelvis"), band=(0.545, 0.700, 0.055),
-         range=(0.0, 0.45),
+         range=(0.0, 0.43),
          note="вынос живота (упирается в СВОЙ же ориентир — глубину на пупке)"),
     dict(name="shoulders", kind="target", two=True,
          hi_targets=("measure-shoulder-dist-incr",),
@@ -192,7 +204,9 @@ SLIDERS = [
     dict(name="hips", kind="target", two=True,
          hi_targets=("hip-scale-horiz-incr",), lo_targets=("hip-scale-horiz-decr",),
          parts=("pelvis", "torso", "thigh.L", "thigh.R"),
-         band=(0.410, 0.640, 0.060), range=(-0.75, 1.0), note="ширина таза"),
+         band=(0.410, 0.640, 0.060), range=(-0.85, 0.85),
+         note="ширина таза (упирается в СВОЙ ориентир — ширину таза по мешу, "
+              "и теперь СИММЕТРИЧНО: нейтраль своя, а не чужая)"),
     dict(name="buttocks", kind="target", two=True,
          hi_targets=("buttocks-volume-incr",), lo_targets=("buttocks-volume-decr",),
          parts=("pelvis", "thigh.L", "thigh.R"),
@@ -200,8 +214,9 @@ SLIDERS = [
     dict(name="torso-depth", kind="target", two=True,
          hi_targets=("torso-scale-depth-incr",), lo_targets=("torso-scale-depth-decr",),
          parts=("torso", "pelvis", "neck"),
-         band=(0.420, 0.910, 0.070), range=(-1.0, 0.25),
-         note="глубина туловища (вверх её почти нет: база уже +11 % к канону)"),
+         band=(0.420, 0.910, 0.070),
+         note="глубина туловища (полный ход: +11 % к канону база даёт и сырая, "
+              "но полоса теперь считается от НЕЁ, а не от канона)"),
     # ДЛИНЫ — «ЧУТЬ-ЧУТЬ» ПО ЗАКАЗУ, и величина этого «чуть-чуть» стоит в
     # amount: цель берётся не на единице, а на 0.35 своего хода. Длина звена —
     # это то, что судья мерит В ПЕРВУЮ ОЧЕРЕДЬ (девять суставных ориентиров
@@ -209,9 +224,9 @@ SLIDERS = [
     dict(name="arm-length", kind="target", two=True, amount=0.35,
          hi_targets=("measure-upperarm-length-incr", "measure-lowerarm-length-incr"),
          lo_targets=("measure-upperarm-length-decr", "measure-lowerarm-length-decr"),
-         parts=ARM_PARTS, range=(-0.65, 1.0),
-         note="длина руки (вниз упирается в длину кисти: запястье — СУСТАВ, а "
-              "сустав морфом не двигается)"),
+         parts=ARM_PARTS,
+         note="длина руки (полный ход; прежний упор вниз был в длину кисти по "
+              "канону, а кисть сырого тела мерится от своей же нейтрали)"),
     dict(name="leg-length", kind="target", two=True, amount=0.35,
          hi_targets=("measure-upperleg-height-incr", "measure-lowerleg-height-incr"),
          lo_targets=("measure-upperleg-height-decr", "measure-lowerleg-height-decr"),

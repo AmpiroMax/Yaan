@@ -13,10 +13,13 @@ Key items:
 - BodyPart: the closed set of answers a hit can have. A CHANNEL, not a
   cosmetic label: damage tables, aim assist and the crosshair all ask this.
 - HitShape / HitboxSlot / HitboxSet / build_hitboxes(): the table.
+- fit_hitboxes_to_skin(): the same table, sized off THIS body's skin.
 - HitboxPose / hitbox_pose(): slot -> model-space frame + half extents for a
   posed skeleton.
 - hitbox_raycast(): a ray against the posed set; returns the part and where.
 - hitbox_contains(): the same question about a point.
+- hitbox_distance() / hitbox_pair_distance(): how far a point, or another
+  part, is from a part -- 0 when they touch or overlap.
 
 Dependencies:
 - Uses: Rig, SkinnedBody (JointLocal, the binding), core skeleton, glm.
@@ -131,6 +134,28 @@ struct HitboxSet {
 /// the header note on why nothing here is typed in.
 [[nodiscard]] HitboxSet build_hitboxes(const RigProportions& p);
 
+/// ТЕ ЖЕ КОРОБКИ, ПОДОГНАННЫЕ ПО КОЖЕ ЭТОГО ТЕЛА: поперечные полуразмеры
+/// (и радиус черепа) берутся из САМОГО МЕША в рест-позе, а не из канона.
+/// Длины вдоль сегментов не трогаются — они и так свойство скелета.
+///
+/// ЗАЧЕМ (решение владельца 01.09 «тело отгружается сырым» + его же заказ
+/// «хитбоксы у всех частей и никакого взаимопроникновения»). build_hitboxes()
+/// сверху берёт РАЗМЕРЫ ИЗ КАНОНА — arm_thickness, leg_thickness,
+/// shoulder_width, torso_depth, — и пока отгружаемое тело подгонялось под
+/// канон импортёром, это было одно и то же. Сырое тело каноном не подогнано:
+/// судья мерит на нём бедро +31 %, плечо +57 % к канону, а талию −17…−20 %.
+/// То есть канонная коробка бедра ТОНЬШЕ мяса, а коробка живота ШИРЕ его:
+/// прибор клиренса, стоящий на таких коробках, разрешает ладони войти в бедро
+/// и запрещает предплечью пройти мимо талии. Оба ответа неверны, и оба — не
+/// про позу, а про то, чьё тело описывает таблица.
+///
+/// РАСШИРЯЕТ И СУЖАЕТ, а не только расширяет: коробка, которая больше тела,
+/// врёт ровно так же, как и меньшая, — просто в другую сторону.
+void fit_hitboxes_to_skin(HitboxSet& set, const Rig& rig,
+                          const skel::Skeleton& skeleton,
+                          const SkinnedRigBinding& binding,
+                          std::span<const platform::SkinnedVertex> vertices);
+
 /// WHERE THE SHAPES ARE FOR ONE POSE, in the IMPORTED SKELETON'S MODEL SPACE
 /// (the space `sample_palette` works in). Multiply a frame by the body's world
 /// transform for a world one.
@@ -182,5 +207,29 @@ struct HitboxHit {
 /// далеко» — разные ответы, и ноль сказал бы третье.
 [[nodiscard]] float hitbox_distance(const HitboxSet& set, const HitboxPose& pose,
                                     BodyPart part, const glm::vec3& point);
+
+/// СКОЛЬКО МЕЖДУ ДВУМЯ ЧАСТЯМИ ТЕЛА, метры; РОВНО 0, когда они пересекаются.
+///
+/// ЗАЧЕМ ЭТО ЕСТЬ, И ПОЧЕМУ ТОЧКИ БЫЛО МАЛО (заказ владельца 01.09: «ноги
+/// стоят криво и слишком близко, меши бёдер и голеней пересекаются»).
+/// hitbox_distance() отвечает на вопрос «далеко ли ТОЧКА от части» — этого
+/// хватило кисти, потому что кисть маленькая и её центр представляет её всю.
+/// Бедро не представляется точкой ни одной: два бедра могут пересечься серединами
+/// при том, что все восемь углов каждого лежат снаружи другого. Вопрос «эти два
+/// тела пересекаются» — про ТЕЛА, и ответ на него даёт теорема о разделяющей оси.
+///
+/// ЧТО ЗДЕСЬ ТОЧНО, А ЧТО ОЦЕНКА, и это стоит знать заранее. ПЕРЕСЕЧЕНИЕ
+/// определяется ТОЧНО: у двух выпуклых коробок разделяющая ось, если она есть,
+/// всегда найдётся среди пятнадцати (шесть нормалей граней и девять векторных
+/// произведений рёбер). А ВЕЛИЧИНА зазора — НИЖНЯЯ ОЦЕНКА: она равна истинной,
+/// когда ближайшие элементы это грань-точка, грань-грань или ребро-ребро, и
+/// занижает её на угол-угол. Занижение — та сторона, в которую прибору
+/// ошибаться можно: он скажет «зазор 1.2 см» там, где на деле 1.4, и никогда
+/// наоборот.
+///
+/// Бесконечность, если у модели нет одной из частей: «формы нет» и «формы
+/// далеко» — разные ответы (тот же довод, что у hitbox_distance выше).
+[[nodiscard]] float hitbox_pair_distance(const HitboxSet& set, const HitboxPose& pose,
+                                         BodyPart a, BodyPart b);
 
 } // namespace dfn::anim

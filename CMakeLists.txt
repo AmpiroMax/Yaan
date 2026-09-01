@@ -249,25 +249,26 @@ if(TARGET dfn_import_gltf)
     set(DFN_CHAR_OUTPUTS)
     # <исходник> <имя> <высота, м> <рыск, град> <канон?> <имя выпечки>
     #
-    # ВИДИМЫЙ ПЕРСОНАЖ — ТОЛЬКО HumanBase, и только с --fit-canon и --reshape.
-    # --fit-canon (заказ владельца 30.08 «пропорции тела делать сразу») ставит
-    # СУСТАВЫ по docs/design/HUMAN_SCALE.md; --reshape (заказ 31.08 «чрезмерно
-    # перекачен, слишком длинные руки, живота нет») правит МЯСО. Два разных
-    # заказа и два разных прохода, потому что на этой модели все девять
-    # суставных ориентиров лежали внутри 2 % от канона ровно тогда, когда все
-    # три жалобы были про неё правдой: у сустава нет радиуса, последний сустав
-    # руки — запястье, а живот лежит МЕЖДУ суставами.
+    # ВИДИМЫЙ ПЕРСОНАЖ — HumanBase КАК ЕСТЬ (решение владельца 01.09).
+    # История: 30.08 выпечка получила --fit-canon (суставы по HUMAN_SCALE:
+    # голова +17 %, ноги −9 %), 31.08 — --reshape (мясо: живот, плечи, кисти).
+    # 01.09 владелец сравнил сырой HumanBase.glb из галереи фигурок (T-поза,
+    # «выглядит ахуенно, надолго бы хватило») с тем, что печёт игра
+    # («несуразный пузатый карлик») — и назвал причину точно: ассет тот же,
+    # разница ровно в этих двух проходах. Оба сняты: HumanBase печётся сырым —
+    # равномерный масштаб к 1.75 м и --skin-palette (перекраска манекенных
+    # материалов), ни одного сдвига сустава или вершины. Канон HUMAN_SCALE
+    # остаётся СПРАВОЧНЫМ: судья меряет и печатает, а полосу для ОТГРУЖЕННОГО
+    # тела задаёт глаз владельца (tests/character, human_scale_player).
     #
-    # HumanBaseV1 — ТА ЖЕ МОДЕЛЬ БЕЗ --reshape, и она печётся не «на всякий
-    # случай»: приёмка «до/после» обязана выходить из одной сборки (правило 47),
-    # а судья, который пропускает всех, неотличим от судьи, который ничего не
-    # мерит. Она стоит в ctest ОТВЕРГНУТОЙ — это контрольная рука волны формы
-    # (правило 30) — и она же «до» на кадрах отчёта.
+    # HumanBaseV1 — та же модель С --fit-canon (без --reshape): контрольная
+    # рука приёмки «канон против глаза» и «до» на старых кадрах; в ctest
+    # стоит как есть.
     #
     # Knight и RiggedFigure — ФИКСТУРЫ ИМПОРТЁРА: рыцарь стилизован (2.11
     # головы), фигурка мала (19 костей) — обе прекрасно ловят дефекты читателя
     # и обе отвергаются судьёй пропорций, что и есть их вторая работа.
-    foreach(spec "HumanBase.glb;human-base;1.75;180;shape;HumanBase"
+    foreach(spec "HumanBase.glb;human-base;1.75;180;palette;HumanBase"
                  "HumanBase.glb;human-base-v1;1.75;180;canon;HumanBaseV1"
                  "Knight.glb;knight-reference;2.0;180;raw;Knight"
                  "RiggedFigure.gltf;reference-figure;1.8;0;raw;RiggedFigure")
@@ -278,6 +279,9 @@ if(TARGET dfn_import_gltf)
         list(GET spec 4 _fit)
         list(GET spec 5 _stem)
         set(_extra)
+        if(_fit STREQUAL "palette")
+            set(_extra --skin-palette)
+        endif()
         if(_fit STREQUAL "canon" OR _fit STREQUAL "shape")
             # ВИДИМЫЙ ПЕРСОНАЖ ПЕРЕКРАШИВАЕТСЯ ПО ЧАСТЯМ ТЕЛА. Собственные
             # материалы HumanBase — манекенные (M_Main оранжевый, M_Joints
@@ -336,9 +340,27 @@ endif()
 # пропускает, неотличим от судьи, который ничего не мерит. Рядом стоит рыцарь
 # KayKit — 2.11 головы, — и он ОБЯЗАН быть отвергнут.
 if(TARGET dfn_human_scale AND TARGET dfn_characters)
+    # ПОЛОСУ ОТГРУЖЕННОГО ТЕЛА ЗАДАЁТ ГЛАЗ ВЛАДЕЛЬЦА, А НЕ КАНОН (решение
+    # 01.09). Строка судит HumanBase по BASELINE — записанному замеру этого
+    # самого тела (assets/objects/characters/HumanBase.scale.json, в git рядом
+    # с .glb), — и ловит она ровно одно: молчаливый сдвиг тела. Канон при этом
+    # МЕРИТСЯ И ПЕЧАТАЕТСЯ в той же таблице со всеми отклонениями: сырой
+    # HumanBase промахивается мимо него пятнадцатью строками (7.01 головы при
+    # 7.5-8.0), и это НЕ ломает приёмку, потому что тело выбрал владелец.
+    # Допуск 2 %: перепечка того же .glb обязана воспроизвести себя, а подмена
+    # тела двигает строки на 10-40 %.
     add_test(NAME human_scale_player
              COMMAND dfn_human_scale assets/objects/characters/HumanBase.dfo
-                     --tolerance 0.05)
+                     --baseline assets/objects/characters/HumanBase.scale.json
+                     --tolerance 0.02 --silhouette-tolerance 0.02)
+    # КОНТРОЛЬНАЯ РУКА САМОГО BASELINE (правило 30), и она ближе всех: тот же
+    # .glb, тот же импортёр, разница только в --fit-canon. Если бы baseline
+    # пропускал ЛЮБОЕ тело, зелёная строка выше не значила бы ничего.
+    add_test(NAME human_scale_baseline_rejects_v1
+             COMMAND dfn_human_scale assets/objects/characters/HumanBaseV1.dfo
+                     --baseline assets/objects/characters/HumanBase.scale.json
+                     --tolerance 0.02 --silhouette-tolerance 0.02)
+    set_tests_properties(human_scale_baseline_rejects_v1 PROPERTIES WILL_FAIL TRUE)
     add_test(NAME human_scale_chibi_rejected
              COMMAND dfn_human_scale assets/objects/characters/Knight.dfo
                      --tolerance 0.05)
@@ -355,13 +377,22 @@ if(TARGET dfn_human_scale AND TARGET dfn_characters)
     set_tests_properties(human_scale_shape_v1_rejected PROPERTIES WILL_FAIL TRUE)
     set_tests_properties(human_scale_player human_scale_chibi_rejected
                          human_scale_shape_v1_rejected
+                         human_scale_baseline_rejects_v1
                          PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
 # ПОЛЗУНКИ НА КРАЙНИХ ПОЛОЖЕНИЯХ (приёмка волны морфов, пункт 5 заказа). Судья
 # пропорций прогоняется на ОБОИХ концах КАЖДОГО ползунка — 22 тела, — и красная
-# строка означает ровно одно: полоса ползунка шире канона, то есть её надо
+# строка означает ровно одно: полоса ползунка шире допустимого, то есть её надо
 # сузить в tools/make_body_targets.py, а не тереть тест.
+#
+# ОТ ЧЕГО ОТСЧИТЫВАЕТСЯ «ДОПУСТИМОЕ» (правка 01.09). Раньше — от канона; но
+# отгружаемое тело теперь сырое и само мимо канона, так что канон отверг бы и
+# нейтраль, то есть ползунок с полосой в НОЛЬ. Отсчёт идёт от BASELINE
+# нейтрали, а ШИРИНА полосы остаётся канонической (5 % суставы / 15 % силуэт,
+# умолчания судьи): «ползунок не уводит тело от своей нейтрали дальше, чем
+# канон разрешает уходить от канона». Полоса в долях, а не в метрах, — по той
+# же причине, по которой STANCE_WIDTH_SHOULDERS в плечах.
 #
 # ЗАЧЕМ ЭТО В ctest, А НЕ В ОТЧЁТЕ. Полосы полос — числа, замеренные один раз;
 # без теста они остаются верными до первой перепечки тела и молча перестают быть
@@ -375,7 +406,9 @@ if(TARGET dfn_morph AND TARGET dfn_human_scale AND TARGET dfn_characters
                          "${CMAKE_CURRENT_SOURCE_DIR}/tools/check_morph_bands.py"
                          --morph $<TARGET_FILE:dfn_morph>
                          --judge $<TARGET_FILE:dfn_human_scale>
-                         --body assets/objects/characters/HumanBase.dfo)
+                         --body assets/objects/characters/HumanBase.dfo
+                         --baseline
+                         assets/objects/characters/HumanBase.scale.json)
         set_tests_properties(morph_bands PROPERTIES
                              WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     endif()
@@ -727,3 +760,14 @@ set_tests_properties(frame_determinism_stand frame_determinism_city
                      frame_determinism_city_wallclock
                      PROPERTIES LABELS unattended_frames TIMEOUT 900
                      RUN_SERIAL TRUE)
+# ПРАВИЛО 17b (владелец 01.09): карты мира в фоне — только по явному желанию.
+# Эти три теста открывают лес и город окном; во время работы над персонажем
+# владелец видит «демку с Вайтраном» и читает её как работу не над тем. Они
+# ВЫКЛЮЧЕНЫ, пока сборка не настроена с -DDFN_WORLD_TESTS=ON: DISABLED — это
+# «Not Run», а не красное, и никакая волна их не запустит случайно.
+option(DFN_WORLD_TESTS "Run the unattended world-map frame tests (open city/forest windows)" OFF)
+if(NOT DFN_WORLD_TESTS)
+    set_tests_properties(frame_determinism_stand frame_determinism_city
+                         frame_determinism_city_wallclock
+                         PROPERTIES DISABLED TRUE)
+endif()

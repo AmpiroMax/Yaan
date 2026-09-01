@@ -343,10 +343,17 @@ struct ClipLibrary {
 /// phase its left foot plants at, the pelvis rest, and the stride curve. The
 /// travel is measured on the body AS DRAWN — the same sampling path the frame
 /// uses — so a change to playback moves the measurement with it.
-[[nodiscard]] ClipLibrary build_clip_library(const Rig& rig,
-                                             const skel::Skeleton& skeleton,
-                                             const SkinnedRigBinding& binding,
-                                             std::span<const skel::AnimClip> clips);
+///
+/// `skin` IS THE BODY'S OWN VERTICES, and it is optional only because a caller
+/// that has no mesh (a pose fixture, a rig-only test) still needs a library.
+/// Given, the hitbox table is sized off THIS body instead of off the canon
+/// (fit_hitboxes_to_skin), which is what the arm-clearance layer inside this
+/// library measures against — see the header note there for why a canon-sized
+/// box on a raw body lets a hand into a thigh.
+[[nodiscard]] ClipLibrary build_clip_library(
+    const Rig& rig, const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
+    std::span<const skel::AnimClip> clips,
+    std::span<const platform::SkinnedVertex> skin = {});
 
 /// One clip at one time as the imported skeleton's local TRS. Joints the clip
 /// does not key keep their BIND values (skel::sample_clip's contract).

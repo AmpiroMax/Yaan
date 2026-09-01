@@ -308,7 +308,7 @@ void apply_arm_relax(const skel::Skeleton& skeleton, const ArmRelax& relax,
 /// же корне), поэтому одна поправка в цель не попадает; ЗАМЕРЕНО на этом
 /// ассете: за один заход клиренс ходьбы доходит до 2.5 см при цели 3.5, за три
 /// — до цели, четвёртый не меняет ничего.
-constexpr int CLEARANCE_PASSES = 3;
+constexpr int CLEARANCE_PASSES = 12;
 
 ArmClearance build_arm_clearance(const skel::Skeleton& skeleton,
                                  const SkinnedRigBinding& binding) {
@@ -341,13 +341,41 @@ ArmClearance build_arm_clearance(const skel::Skeleton& skeleton,
 namespace {
 
 /// Ближайшая из трёх форм, которые рука обходит: таз и оба бедра. ИМЕННО ТРИ,
-/// и это то, что назвал заказ («ягодицы/бедро»): грудь рука на ходу не задевает
-/// (её обходит собственная длина плеча), а голень к ней не поднимается.
+/// и это то, что назвал заказ («ягодицы/бедро»): грудь рука не задевает (её
+/// обходит собственная длина плеча, а коробка плеча ВСЕГДА пересекает коробку
+/// груди — плечевой сустав лежит ВНУТРИ грудной клетки, и это свойство
+/// таблицы, а не позы), голень к руке не поднимается.
+///
+/// ЖИВОТ В СПИСОК НЕ ВЗЯТ, И ЭТО ЗАМЕР, А НЕ НЕДОСМОТР. Заказ 01.09 просит
+/// «рука↔корпус ≥ 1-2 см»; поставленный сюда четвёртой формой, живот при тех
+/// же 3.5 см уводит кисть на 0.34 м от оси — это не «руки вдоль боков», это
+/// горилла (замерено: кисть 0.331/0.351 против 0.18 без него). Причина в
+/// коробке, а не в позе: у скруглённого предплечья прямоугольная коробка
+/// вылезает углами, и её угол «касается» талии, когда мясо от мяса стоит в
+/// 9 см. Живот МЕРИТСЯ приёмкой (character_stance) и по мешу, и по коробкам —
+/// но целятся руки в таз и бёдра, то есть в то, чего рука действительно
+/// касается.
+///
+/// ФОРМА ДО ФОРМЫ, А НЕ СУСТАВ ДО ФОРМЫ — И ЭТО ПОЧИНКА, А НЕ УТОЧНЕНИЕ (заказ
+/// владельца 01.09: «кисть↔бедро ≥ 1-2 см»). Здесь стояло расстояние от ТОЧКИ
+/// сустава запястья до коробок таза, и оно честно держало заказанные 3.5 см —
+/// у ЗАПЯСТЬЯ. Кисть на этом теле тянется от запястья ещё на 12.8 см, то есть
+/// прибор мерил ту единственную точку руки, которая до бедра не достаёт;
+/// замерено на мешах: при «клиренсе» 3.5 см ладонь стояла в 0.15 мм... в 1.5 мм
+/// от бедра, а на правой стороне и вовсе касалась. Ровно тот же класс ошибки,
+/// что судья пропорций поймал у себя год назад: у сустава нет радиуса.
 [[nodiscard]] float body_gap(const HitboxSet& boxes, const HitboxPose& posed,
-                             const glm::vec3& p) {
-    return std::min({hitbox_distance(boxes, posed, BodyPart::Hips, p),
-                     hitbox_distance(boxes, posed, BodyPart::ThighL, p),
-                     hitbox_distance(boxes, posed, BodyPart::ThighR, p)});
+                             BodyPart limb) {
+    return std::min({hitbox_pair_distance(boxes, posed, limb, BodyPart::Hips),
+                     hitbox_pair_distance(boxes, posed, limb, BodyPart::ThighL),
+                     hitbox_pair_distance(boxes, posed, limb, BodyPart::ThighR)});
+}
+
+[[nodiscard]] BodyPart hand_part(int side) {
+    return side == 0 ? BodyPart::HandL : BodyPart::HandR;
+}
+[[nodiscard]] BodyPart forearm_part(int side) {
+    return side == 0 ? BodyPart::ForearmL : BodyPart::ForearmR;
 }
 
 } // namespace
@@ -371,13 +399,9 @@ ArmBodyGap measure_arm_body_gap(const skel::Skeleton& skeleton, const ArmClearan
     model_matrices(skeleton, sample, local, model);
     for (int s = 0; s < 2; ++s) {
         const auto k = static_cast<std::size_t>(s);
-        out.hand[k] = body_gap(
-            boxes, posed,
-            glm::vec3{model[static_cast<std::size_t>(arms.hand[k])][3]});
+        out.hand[k] = body_gap(boxes, posed, hand_part(s));
         if (arms.forearm[k] >= 0) {
-            out.forearm[k] = body_gap(
-                boxes, posed,
-                glm::vec3{model[static_cast<std::size_t>(arms.forearm[k])][3]});
+            out.forearm[k] = body_gap(boxes, posed, forearm_part(s));
         }
     }
     return out;
@@ -407,14 +431,9 @@ void apply_arm_clearance(const skel::Skeleton& skeleton, const ArmClearance& arm
             if (j < 0 || arms.arm_len[k] <= 1.0e-4f) {
                 continue;
             }
-            float gap = body_gap(
-                boxes, posed,
-                glm::vec3{model[static_cast<std::size_t>(arms.hand[k])][3]});
+            float gap = body_gap(boxes, posed, hand_part(s));
             if (arms.forearm[k] >= 0) {
-                gap = std::min(gap,
-                               body_gap(boxes, posed,
-                                        glm::vec3{model[static_cast<std::size_t>(
-                                            arms.forearm[k])][3]}));
+                gap = std::min(gap, body_gap(boxes, posed, forearm_part(s)));
             }
             const float need = want_m - gap;
             if (!(need > 0.0f)) {

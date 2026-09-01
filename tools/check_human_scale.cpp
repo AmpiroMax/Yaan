@@ -9,13 +9,18 @@ Responsibility:
   the band.
 
 Key items:
-- main(): <file.dfo> [--tolerance FRAC] [--silhouette-tolerance FRAC] [--quiet].
+- main(): <file.dfo> [--tolerance FRAC] [--silhouette-tolerance FRAC]
+          [--baseline FILE] [--write-baseline FILE] [--quiet].
 - The JOINT landmarks: total height, head height (and heads-per-figure),
   shoulder / hip / knee / ankle heights, shoulder width, upper arm, forearm.
 - The SILHOUETTE landmarks, measured on the rest-posed SKIN: hand length,
   fingertip height, arm span, bideltoid shoulders, hip breadth, chest width
   and depth, waist breadth and depth at the navel, upper arm and thigh
   diameters -- plus the trunk's profile in metres at five heights.
+- TWO MODES, ONE TABLE. Without --baseline the verdict is the CANON's, which
+  is what a CANDIDATE model is judged by. With --baseline the verdict is the
+  recorded measurement of the SHIPPED body, and the canon is still measured
+  and still printed -- with its deviations -- as reference.
 
 Dependencies:
 - Uses: engine/render (.dfo reader), engine/anim (bone map, RigProportions),
@@ -23,6 +28,27 @@ Dependencies:
 - Used by: ctest (human_scale_* rows), the character wave's report.
 
 Notes:
+- WHOSE BAND IS ON THE SHIPPED BODY (owner's decision, 01.09). The canon in
+  docs/design/HUMAN_SCALE.md is what a CANDIDATE is measured against: it
+  answers "could this model be our man". It is NOT what the man we already
+  ship is judged by, because the owner looked at the raw HumanBase and at the
+  same asset run through --fit-canon and --reshape, and kept the first. A
+  judge that keeps failing the body the owner chose is not measuring the body,
+  it is arguing with him -- and it goes red every day, which is the same as
+  going red never. So the visible character gets a BASELINE: its own
+  measurement, recorded once beside the asset, with the canon printed next to
+  it.
+- WHY THE BASELINE IS A FILE BESIDE THE ASSET AND NOT A SECTION INSIDE THE
+  .dfo. A baseline stored in the bake would be REWRITTEN BY EVERY BAKE, so it
+  could never catch the thing it exists to catch: it would move with the body
+  and report agreement forever. The file is written only by an explicit
+  --write-baseline, lives in git next to the .glb, and a body that drifts
+  fails against the version a person last approved.
+- THE BASELINE DOES NOT LOOSEN ANYTHING. It is judged with the SAME two
+  tolerance knobs, so the caller says in one place how tight the band is:
+  ctest's regression row asks for 2 % (a re-bake of the same asset must
+  reproduce itself), and the morph wave's slider ends ask for the canon's own
+  5 % / 15 % around the neutral, so a slider cannot sculpt a monster.
 - THE CANON IS NOT RETYPED HERE. Every expected fraction is read from
   anim::RigProportions::from_config(), i.e. from the BODY_*_FRAC rows of
   NUMBERS.md, which docs/design/HUMAN_SCALE.md §"Наши строки против канона"
@@ -58,6 +84,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/config/sources/Constants.h"
+#include "engine/core/serialization/sources/Json.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
@@ -66,7 +93,9 @@ AI Agents Notice (must follow):
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <initializer_list>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -82,6 +111,110 @@ struct Landmark {
     return j >= 0 ? glm::vec3{model[static_cast<std::size_t>(j)][3]} : glm::vec3{0.0f};
 }
 
+/// THE RECORDED MEASUREMENT OF THE SHIPPED BODY. Every row this judge prints,
+/// stored under the row's own name, so a landmark that is renamed or added
+/// makes the baseline STALE OUT LOUD instead of being silently skipped.
+struct Baseline {
+    bool loaded = false;
+    std::string body;    ///< the .dfo's own name field, as recorded
+    float height = 0.0f;
+    float heads = 0.0f;
+    std::vector<std::pair<std::string, float>> joints;
+    std::vector<std::pair<std::string, float>> silhouette;
+
+    [[nodiscard]] const float* find(bool sil, const char* name) const {
+        for (const auto& r : sil ? silhouette : joints) {
+            if (r.first == name) {
+                return &r.second;
+            }
+        }
+        return nullptr;
+    }
+};
+
+/// Written by hand and not by json_write() on purpose: this file is READ by a
+/// machine and REVIEWED by a person in a diff, so it is laid out one row per
+/// line. The strict side -- the parser -- is the shared one (json_parse).
+[[nodiscard]] bool write_baseline_file(const std::string& out,
+                                       const std::string& source,
+                                       const std::string& body, float height,
+                                       float heads, const std::vector<Landmark>& joints,
+                                       const std::vector<Landmark>& silhouette) {
+    std::ostringstream o;
+    o.setf(std::ios::fixed);
+    o.precision(6);
+    o << "{\n";
+    o << "  \"schema\": \"dfn.body-scale-baseline\",\n";
+    o << "  \"version\": 1,\n";
+    o << "  \"body\": \"" << body << "\",\n";
+    o << "  \"source\": \"" << source << "\",\n";
+    o << "  \"decision\": \"owner 01.09: the visible HumanBase ships RAW; "
+         "docs/design/HUMAN_SCALE.md stays the band for CANDIDATES\",\n";
+    o << "  \"height_m\": " << height << ",\n";
+    o << "  \"heads\": " << heads << ",\n";
+    const auto table = [&o](const char* key, const std::vector<Landmark>& rows,
+                            bool last) {
+        o << "  \"" << key << "\": {\n";
+        for (std::size_t i = 0; i < rows.size(); ++i) {
+            o << "    \"" << rows[i].name << "\": " << rows[i].measured
+              << (i + 1 == rows.size() ? "\n" : ",\n");
+        }
+        o << (last ? "  }\n" : "  },\n");
+    };
+    table("joints", joints, false);
+    table("silhouette", silhouette, true);
+    o << "}\n";
+    std::ofstream f(out, std::ios::binary);
+    if (!f) {
+        return false;
+    }
+    const std::string text = o.str();
+    f.write(text.data(), static_cast<std::streamsize>(text.size()));
+    return static_cast<bool>(f);
+}
+
+[[nodiscard]] bool read_baseline_file(const std::string& in, Baseline& out,
+                                      std::string& err) {
+    std::ifstream f(in, std::ios::binary);
+    if (!f) {
+        err = "не открывается";
+        return false;
+    }
+    std::ostringstream buf;
+    buf << f.rdbuf();
+    const dfn::serialization::JsonParseResult r =
+        dfn::serialization::json_parse(buf.str());
+    if (!r.ok) {
+        err = "строка " + std::to_string(r.error.line) + ": " + r.error.message;
+        return false;
+    }
+    if (r.root.get("schema").as_string() != "dfn.body-scale-baseline") {
+        err = "не тот файл: schema != dfn.body-scale-baseline";
+        return false;
+    }
+    out.body = std::string{r.root.get("body").as_string()};
+    out.height = static_cast<float>(r.root.get("height_m").as_number());
+    out.heads = static_cast<float>(r.root.get("heads").as_number());
+    const auto take = [&r](const char* key,
+                           std::vector<std::pair<std::string, float>>& into) {
+        const dfn::serialization::JsonValue* t = r.root.find(key);
+        if (t == nullptr) {
+            return;
+        }
+        for (const dfn::serialization::JsonMember& m : t->members()) {
+            into.emplace_back(m.key, static_cast<float>(m.value.as_number()));
+        }
+    };
+    take("joints", out.joints);
+    take("silhouette", out.silhouette);
+    if (out.joints.empty() || out.silhouette.empty() || out.heads < 1e-3f) {
+        err = "пустой: ни одной строки замера";
+        return false;
+    }
+    out.loaded = true;
+    return true;
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -89,19 +222,35 @@ int main(int argc, char** argv) {
     // 5 % is the owner's own band (order of 30.08: "если доли модели расходятся
     // с каноном > 5 %"). Kept as a flag so a stricter reading can be asked for
     // without editing the judge -- but never defaulted looser.
-    float tolerance = 0.05f;
+    // THE CANON'S OWN TWO BANDS, named because they are used TWICE: as the
+    // default verdict band, and -- when the verdict has been handed to a
+    // baseline -- as the band the canon's reference column is still marked up
+    // with. Judging the reference column at the baseline's much tighter band
+    // would print "the canon is missed" beside rows that sit well inside it.
+    constexpr float CANON_JOINT_BAND = 0.05f;
+    constexpr float CANON_SILHOUETTE_BAND = 0.15f;
+    float tolerance = CANON_JOINT_BAND;
     // THE SKIN'S OWN BAND. Wider than the skeleton's on purpose and for a
     // stated reason (see the silhouette block below): the canon gives the same
     // shoulders as 0.259 and 0.29 depending on whether bone or skin is meant,
     // so three digits of agreement is precision the source does not have.
-    float silhouette_tolerance = 0.15f;
+    float silhouette_tolerance = CANON_SILHOUETTE_BAND;
     bool quiet = false;
+    // THE BASELINE FILE. Given, the verdict comes from it and the canon is
+    // printed as reference; asked to be written, the judge records what it
+    // measured and says nothing about whether it likes it.
+    std::string baseline_path;
+    std::string write_baseline;
     for (int i = 1; i < argc; ++i) {
         const std::string a = argv[i];
         if (a == "--tolerance" && i + 1 < argc) {
             tolerance = std::strtof(argv[++i], nullptr);
         } else if (a == "--silhouette-tolerance" && i + 1 < argc) {
             silhouette_tolerance = std::strtof(argv[++i], nullptr);
+        } else if (a == "--baseline" && i + 1 < argc) {
+            baseline_path = argv[++i];
+        } else if (a == "--write-baseline" && i + 1 < argc) {
+            write_baseline = argv[++i];
         } else if (a == "--quiet") {
             quiet = true;
         } else if (path.empty()) {
@@ -110,7 +259,14 @@ int main(int argc, char** argv) {
     }
     if (path.empty()) {
         std::fprintf(stderr, "dfn_human_scale <character.dfo> [--tolerance 0.05] "
-                             "[--silhouette-tolerance 0.15] [--quiet]\n");
+                             "[--silhouette-tolerance 0.15] [--baseline f.json] "
+                             "[--write-baseline f.json] [--quiet]\n");
+        return 2;
+    }
+    if (!baseline_path.empty() && !write_baseline.empty()) {
+        std::fprintf(stderr, "[scale] --baseline и --write-baseline вместе не "
+                             "имеют смысла: файл нельзя одновременно писать и "
+                             "судить по нему\n");
         return 2;
     }
     const auto obj = dfn::render::read_object(path);
@@ -491,25 +647,119 @@ int main(int argc, char** argv) {
     };
 
     const float heads = height / std::max(hi - neck.y, 1e-4f);
+
+    // === THE BASELINE ====================================================
+    // Recording it is a separate errand and it ENDS HERE: writing a file and
+    // then passing judgement in the same run would make "what does this body
+    // measure" and "is this body allowed" one command, and the first is
+    // exactly what you reach for when the second is refusing.
+    if (!write_baseline.empty()) {
+        if (!write_baseline_file(write_baseline, path, obj->name, height, heads, rows,
+                                 mesh_rows)) {
+            std::fprintf(stderr, "[scale] не пишется baseline \"%s\"\n",
+                         write_baseline.c_str());
+            return 1;
+        }
+        std::printf("[scale] baseline записан: %s — \"%s\", %.3f м, %.2f головы, "
+                    "%zu суставных строк, %zu силуэтных\n",
+                    write_baseline.c_str(), obj->name.c_str(),
+                    static_cast<double>(height), static_cast<double>(heads),
+                    rows.size(), mesh_rows.size());
+        return 0;
+    }
+    Baseline base;
+    if (!baseline_path.empty()) {
+        std::string err;
+        if (!read_baseline_file(baseline_path, base, err)) {
+            std::fprintf(stderr,
+                         "[scale] baseline \"%s\": %s\n"
+                         "        пересоздаётся ЯВНО: dfn_human_scale %s "
+                         "--write-baseline %s\n",
+                         baseline_path.c_str(), err.c_str(), path.c_str(),
+                         baseline_path.c_str());
+            return 1;
+        }
+    }
+    const bool by_baseline = base.loaded;
+
     int failures = 0;
+    int canon_out = 0;
     if (!quiet) {
         std::printf("[scale] \"%s\": %s\n", path.c_str(), obj->name.c_str());
         std::printf("[scale] figure height %.3f m (model units), %.2f heads "
                     "(canon 7.5-8.0)\n",
                     static_cast<double>(height), static_cast<double>(heads));
-        std::printf("        %-28s %8s %8s %9s\n", "landmark", "model", "canon",
-                    "delta");
-    }
-    for (const Landmark& r : rows) {
-        const float rel = r.canon > 1e-6f ? (r.measured - r.canon) / r.canon : 0.0f;
-        const bool bad = std::fabs(rel) > tolerance;
-        failures += bad ? 1 : 0;
-        if (!quiet) {
-            std::printf("        %-28s %8.3f %8.3f %+8.1f%% %s\n", r.name,
-                        static_cast<double>(r.measured), static_cast<double>(r.canon),
-                        static_cast<double>(rel * 100.0f), bad ? "<-- OUT" : "");
+        if (by_baseline) {
+            // THE ONE LINE THAT SAYS WHO IS JUDGING. A reader who sees a green
+            // verdict under a table full of "<-- CANON" has to be told, in the
+            // report itself, which column the exit code came from.
+            std::printf("[scale] ВЕРДИКТ ПО BASELINE \"%s\" (тело \"%s\", %.3f м, "
+                        "%.2f головы); канон печатается СПРАВОЧНО\n",
+                        baseline_path.c_str(), base.body.c_str(),
+                        static_cast<double>(base.height),
+                        static_cast<double>(base.heads));
+            if (base.body != obj->name) {
+                std::printf("[scale] ВНИМАНИЕ: baseline снят с тела \"%s\", а мерится "
+                            "\"%s\" — судим по числам, но это разные тела\n",
+                            base.body.c_str(), obj->name.c_str());
+            }
+            std::printf("        %-28s %8s %8s %9s %9s %9s\n", "landmark", "model",
+                        "canon", "d.canon", "baseline", "d.base");
+        } else {
+            std::printf("        %-28s %8s %8s %9s\n", "landmark", "model", "canon",
+                        "delta");
         }
     }
+    /// One table, judged by whichever column is authoritative. `measurable`
+    /// keeps the n/a rows of a model with no hand bones out of both counts.
+    const auto judge = [&](const std::vector<Landmark>& table, float band,
+                           float canon_band, bool silhouette) {
+        for (const Landmark& r : table) {
+            const bool measurable = !silhouette || r.measured > 1e-6f;
+            const float rel_c =
+                r.canon > 1e-6f ? (r.measured - r.canon) / r.canon : 0.0f;
+            const bool bad_c = measurable && std::fabs(rel_c) > canon_band;
+            canon_out += bad_c ? 1 : 0;
+            if (!by_baseline) {
+                failures += bad_c ? 1 : 0;
+                if (!quiet) {
+                    std::printf("        %-28s %8.3f %8.3f %+8.1f%% %s\n", r.name,
+                                static_cast<double>(r.measured),
+                                static_cast<double>(r.canon),
+                                static_cast<double>(rel_c * 100.0f),
+                                bad_c ? "<-- OUT" : (measurable ? "" : "(n/a)"));
+                }
+                continue;
+            }
+            const float* want = base.find(silhouette, r.name);
+            if (want == nullptr) {
+                // A ROW THE BASELINE HAS NEVER SEEN IS A FAILURE, not a skip:
+                // the instrument grew a landmark and nobody re-approved the
+                // body against it.
+                ++failures;
+                if (!quiet) {
+                    std::printf("        %-28s %8.3f %8.3f %+8.1f%% %9s %9s <-- НЕТ В "
+                                "BASELINE\n", r.name, static_cast<double>(r.measured),
+                                static_cast<double>(r.canon),
+                                static_cast<double>(rel_c * 100.0f), "-", "-");
+                }
+                continue;
+            }
+            const float rel_b = *want > 1e-6f ? (r.measured - *want) / *want : 0.0f;
+            const bool bad_b = std::fabs(rel_b) > band;
+            failures += bad_b ? 1 : 0;
+            if (!quiet) {
+                std::printf("        %-28s %8.3f %8.3f %+8.1f%% %9.3f %+8.1f%% %s\n",
+                            r.name, static_cast<double>(r.measured),
+                            static_cast<double>(r.canon),
+                            static_cast<double>(rel_c * 100.0f),
+                            static_cast<double>(*want),
+                            static_cast<double>(rel_b * 100.0f),
+                            bad_b ? "<-- OUT" : (bad_c ? "(канон мимо)" : ""));
+            }
+        }
+    };
+    judge(rows, tolerance, CANON_JOINT_BAND, false);
     if (!quiet) {
         std::printf("        %s\n", "-- silhouette (rest-posed MESH, not joints) "
                                      "-------------------");
@@ -518,19 +768,7 @@ int main(int argc, char** argv) {
         std::printf("        (this model weights no vertex to a HAND bone: the "
                     "hand, fingertip and span rows read 0 and are NOT judged)\n");
     }
-    for (const Landmark& r : mesh_rows) {
-        const bool measurable = r.measured > 1e-6f;
-        const float rel =
-            r.canon > 1e-6f ? (r.measured - r.canon) / r.canon : 0.0f;
-        const bool bad = measurable && std::fabs(rel) > silhouette_tolerance;
-        failures += bad ? 1 : 0;
-        if (!quiet) {
-            std::printf("        %-28s %8.3f %8.3f %+8.1f%% %s\n", r.name,
-                        static_cast<double>(r.measured), static_cast<double>(r.canon),
-                        static_cast<double>(rel * 100.0f),
-                        bad ? "<-- OUT" : (measurable ? "" : "(n/a)"));
-        }
-    }
+    judge(mesh_rows, silhouette_tolerance, CANON_SILHOUETTE_BAND, true);
     // THREE RATIOS, PRINTED AND NOT JUDGED, and the honesty is in the second
     // half of that sentence. Each is a quotient of two rows already judged
     // above, so failing them again would count one defect twice; they are here
@@ -615,27 +853,63 @@ int main(int argc, char** argv) {
     // (HUMAN_SCALE.md: 7.5-8 heads), not a percentage of a fraction: it is the
     // single number a person reads off a silhouette, and the stylised chibi
     // that started this rule fails HERE first and by a mile.
-    const bool heads_bad = heads < 7.5f || heads > 8.0f;
-    failures += heads_bad ? 1 : 0;
-    if (heads_bad && !quiet) {
-        std::printf("        %-28s %8.2f %8s %9s <-- OUT\n", "heads per figure",
-                    static_cast<double>(heads), "7.5-8.0", "");
+    const bool heads_canon_bad = heads < 7.5f || heads > 8.0f;
+    canon_out += heads_canon_bad ? 1 : 0;
+    bool heads_bad = heads_canon_bad;
+    if (by_baseline) {
+        heads_bad = base.heads > 1e-3f
+                    && std::fabs(heads - base.heads) / base.heads > tolerance;
     }
+    failures += heads_bad ? 1 : 0;
+    if (!quiet && (heads_bad || heads_canon_bad)) {
+        std::printf("        %-28s %8.2f %8s %9s %s\n", "heads per figure",
+                    static_cast<double>(heads), by_baseline ? "baseline" : "7.5-8.0",
+                    "", heads_bad ? "<-- OUT" : "(канон мимо: 7.5-8.0)");
+    }
+    if (!by_baseline) {
+        if (failures > 0) {
+            std::fprintf(stderr,
+                         "[scale] %d landmark(s) outside the canon's band "
+                         "(+-%.0f%% on joints, +-%.0f%% on the silhouette) "
+                         "(docs/design/HUMAN_SCALE.md) — REFUSED as a VISIBLE "
+                         "character. A model may still be a fine test fixture.\n",
+                         failures, static_cast<double>(tolerance * 100.0f),
+                         static_cast<double>(silhouette_tolerance * 100.0f));
+            return 1;
+        }
+        if (!quiet) {
+            std::printf("[scale] every landmark within its band (+-%.0f%% joints, "
+                        "+-%.0f%% silhouette)\n",
+                        static_cast<double>(tolerance * 100.0f),
+                        static_cast<double>(silhouette_tolerance * 100.0f));
+        }
+        return 0;
+    }
+    // THE BASELINE'S VERDICT, and the canon's count printed BESIDE it rather
+    // than swallowed. "Green here, twelve rows off the canon" is the honest
+    // description of the body the owner chose, and hiding the second half
+    // would turn this judge back into a rubber stamp.
     if (failures > 0) {
         std::fprintf(stderr,
-                     "[scale] %d landmark(s) outside the canon's band "
-                     "(+-%.0f%% on joints, +-%.0f%% on the silhouette) "
-                     "(docs/design/HUMAN_SCALE.md) — REFUSED as a VISIBLE "
-                     "character. A model may still be a fine test fixture.\n",
-                     failures, static_cast<double>(tolerance * 100.0f),
-                     static_cast<double>(silhouette_tolerance * 100.0f));
+                     "[scale] %d строк(и) вне BASELINE \"%s\" (+-%.0f%% суставы, "
+                     "+-%.0f%% силуэт) — ТЕЛО СДВИНУЛОСЬ. Если сдвиг намеренный, "
+                     "baseline пересоздаётся явно: dfn_human_scale %s "
+                     "--write-baseline %s\n",
+                     failures, baseline_path.c_str(),
+                     static_cast<double>(tolerance * 100.0f),
+                     static_cast<double>(silhouette_tolerance * 100.0f), path.c_str(),
+                     baseline_path.c_str());
         return 1;
     }
     if (!quiet) {
-        std::printf("[scale] every landmark within its band (+-%.0f%% joints, "
-                    "+-%.0f%% silhouette)\n",
+        std::printf("[scale] BASELINE: все строки внутри +-%.0f%% (суставы) / "
+                    "+-%.0f%% (силуэт). КАНОН СПРАВОЧНО: %d строк(и) вне полосы "
+                    "(±%.0f%% / ±%.0f%%) — решение владельца 01.09, тело "
+                    "отгружается сырым\n",
                     static_cast<double>(tolerance * 100.0f),
-                    static_cast<double>(silhouette_tolerance * 100.0f));
+                    static_cast<double>(silhouette_tolerance * 100.0f), canon_out,
+                    static_cast<double>(CANON_JOINT_BAND * 100.0f),
+                    static_cast<double>(CANON_SILHOUETTE_BAND * 100.0f));
     }
     return 0;
 }
