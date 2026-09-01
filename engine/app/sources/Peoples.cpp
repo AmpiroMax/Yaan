@@ -336,6 +336,21 @@ std::vector<People> read_peoples(const std::filesystem::path& dir) {
     return out;
 }
 
+void peoples_fill_from_canon(People& people, const std::vector<PeopleBand>& canon) {
+    for (const PeopleBand& c : canon) {
+        if (people.band(c.name) == nullptr) {
+            people.limits.push_back(c);
+        }
+    }
+    // ПО АЛФАВИТУ, потому что порядок полос ЕСТЬ порядок вызовов генератора, а
+    // дополненные ручки пришли в конец. Без сортировки одно зерно давало бы
+    // разные тела у народа, который сузил три ручки, и у народа, который сузил
+    // четыре (правило 13). Выборка сортирует и сама, но пусть здесь тоже:
+    // читатель, глядящий на limits, видит их в том же порядке.
+    std::sort(people.limits.begin(), people.limits.end(),
+              [](const PeopleBand& a, const PeopleBand& b) { return a.name < b.name; });
+}
+
 bool peoples_validate(const People& people, const std::vector<PeopleBand>& canon,
                       std::string& why) {
     const auto canon_band = [&](std::string_view knob) -> const PeopleBand* {

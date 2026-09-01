@@ -163,9 +163,15 @@ void App::chargen_enter() {
     canon.push_back(PeopleBand{CHARGEN_HEIGHT_KEY, CHARGEN_HEIGHT_MIN_M,
                                CHARGEN_HEIGHT_MAX_M});
     chargen_peoples_.clear();
+    int rejected = 0;
     for (People& p : read_peoples(std::filesystem::path(PEOPLES_DIR))) {
+        // РУЧКА, КОТОРУЮ НАРОД НЕ НАЗВАЛ, БЕРЁТ ПОЛОСУ СУДЬИ ЦЕЛИКОМ — до
+        // проверки, потому что проверять надо то, чем экран потом и будет
+        // пользоваться.
+        peoples_fill_from_canon(p, canon);
         std::string why;
         if (!peoples_validate(p, canon, why)) {
+            ++rejected;
             std::fprintf(stderr, "[создание] народ \"%s\" отвергнут: %s\n",
                          p.id.c_str(), why.c_str());
             continue;
@@ -177,9 +183,18 @@ void App::chargen_enter() {
         chargen_describe(std::move(rows), chargen_peoples_));
     chargen_.set_selection(0);
     chargen_.view() = CharGenView{};
-    chargen_.set_status(chargen_peoples_.empty()
-                            ? std::string(loc("chargen.status.no_peoples"))
-                            : std::string{});
+    // ПУСТАЯ ВКЛАДКА ОБЯЗАНА СКАЗАТЬ ИГРОКУ, ПОЧЕМУ ОНА ПУСТА, а не выглядеть
+    // сломанным экраном. Оба случая ниже — законные состояния дерева на
+    // середине чужой волны (тело перепекают, цели MORF ещё от старого), и
+    // молчание в них читалось бы как «ползунки пропали».
+    std::string status;
+    if (chargen_body_.morphs().empty()) {
+        status = std::string(loc("chargen.status.no_morphs"));
+    } else if (chargen_peoples_.empty()) {
+        status = std::string(loc(rejected > 0 ? "chargen.status.peoples_refused"
+                                              : "chargen.status.no_peoples"));
+    }
+    chargen_.set_status(std::move(status));
     chargen_seen_category_ = chargen_.category();
     chargen_comparing_ = false;
     // ЗЕРНО «СЛУЧАЙНО». Прибитое дверью — чтобы два прогона одной дозы дали
@@ -263,6 +278,20 @@ void App::chargen_enter() {
             chargen_apply_archetype();
         }
     }
+    // ТОЧКА ОТСЧЁТА «СРАВНИТЬ» БЕРЁТСЯ ЗДЕСЬ, И МЕСТО ВЫБРАНО, А НЕ УДОБНО.
+    //
+    // ПОЗЖЕ НЕЛЬЗЯ: отсчёт снимается на СМЕНЕ вкладки, а первая вкладка не
+    // менялась ни разу — без этой строки призрак «до» был бы ПУСТЫМ пресетом,
+    // а пустой пресет это все ползунки в ноль. Пробел, зажатый на первой
+    // вкладке, СТИРАЛ БЫ РАБОТУ — ровно то, чего «Сравнить» и заведено не
+    // делать.
+    //
+    // РАНЬШЕ ТОЖЕ НЕЛЬЗЯ: «до» — это персонаж, каким он ВОШЁЛ, то есть после
+    // пресета, народа и типажа, но ДО первой правки. Дозы ниже (бросок и
+    // DFN_MORPH) — это и есть правки, сделанные вместо руки игрока, и
+    // включить их в отсчёт значило бы сравнивать состояние само с собой.
+    chargen_remember();
+
     if (const char* roll = door_value("DFN_CHARGEN_ROLL");
         roll != nullptr && roll[0] == '1') {
         chargen_random();
@@ -300,6 +329,16 @@ void App::chargen_enter() {
             chargen_push_to_body(name);
         }
         (void)chargen_body_.apply(*renderer_);
+    }
+
+    // ДОЗА DFN_CHARGEN_COMPARE=1: держать призрак «до» с первого кадра. Без
+    // неё «Сравнить» проверяется только зажатым Пробелом, то есть рукой, то
+    // есть НЕ ПРОВЕРЯЕТСЯ ни одним прогоном (правило 27).
+    chargen_compare_forced_ = false;
+    if (const char* cmp = door_value("DFN_CHARGEN_COMPARE");
+        cmp != nullptr && cmp[0] == '1') {
+        chargen_compare_forced_ = true;
+        chargen_show_compare(true);
     }
 
     // ДОЗА DFN_CHARGEN_VIEW=<рыскание>,<тангаж>,<приближение> — кадрирование
@@ -429,7 +468,8 @@ bool App::chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved
     // — вернулось, и потерять работу нажатием невозможно по построению.
     // Пока набирают имя, пробел — это пробел.
     if (!typing) {
-        chargen_show_compare(input_->is_down(platform::Key::SPACE));
+        chargen_show_compare(chargen_compare_forced_
+                             || input_->is_down(platform::Key::SPACE));
     }
     // ТОЧКА ОТСЧЁТА БЕРЁТСЯ НА СМЕНЕ ВКЛАДКИ, и заметить смену можно только
     // сравнив с прошлым кадром: вкладку меняют и Tab, и щелчок мыши, и доза, и

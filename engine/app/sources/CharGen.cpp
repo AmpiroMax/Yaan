@@ -769,8 +769,22 @@ CharGenLayout CharGenScreen::layout(int canvas_w, int canvas_h) const {
     // ГЛАГОЛЫ СЖИМАЮТСЯ ЗДЕСЬ, А НЕ В chargen_layout: там нет НАДПИСЕЙ, а
     // «влезли ли шесть слов» — вопрос про буквы, а не про строки. Одна точка
     // на глаз и на указатель: оба зовут этот метод.
-    if (!verbs_fit(L, verbs_, L.verbs_px)) {
-        L.verbs_px = L.caption_px;
+    //
+    // СПУСК ПО ВСЕЙ ЛЕСТНИЦЕ, А НЕ НА ОДНУ СТУПЕНЬ. Первая версия падала с
+    // Item на Caption и останавливалась — и на короткой вкладке, где лестница
+    // кегля не сработала вовсе и шрифт остался самым крупным, шесть надписей
+    // слипались в «СброСлучайнПресетСравнитНазаГотово». Кадр это и показал.
+    // Спуск кончается либо тем, что влезло, либо самой мелкой испечённой
+    // ступенью: мельче испечённого не бывает, и рисовать блочным игроку
+    // нельзя.
+    int ladder = canvas_h;
+    while (!verbs_fit(L, verbs_, L.verbs_px) && L.verbs_px > 1) {
+        ladder = ladder * 4 / 5;
+        const int smaller = ui_px(ladder, UiText::Item);
+        if (smaller >= L.verbs_px) {
+            break;
+        }
+        L.verbs_px = smaller;
     }
     return L;
 }
@@ -1084,7 +1098,8 @@ std::size_t CharGenScreen::row_at(int canvas_w, int canvas_h, int x, int y) cons
     // ГЛАГОЛЫ — В ПОДВАЛЕ, И У НИХ ЯЩИК ПО ШИРИНЕ НАДПИСИ. Спрашивать про них
     // «в какой строке колонки лежит y» нельзя: они все на одной высоте, и
     // ответ был бы «в первом», куда бы ни целился игрок.
-    if (y >= L.verbs_y - cap / 2 && y <= L.verbs_y + cap + cap / 2) {
+    const int verb_cap = std::max(1, ui_cap_height(L.verbs_px));
+    if (y >= L.verbs_y - verb_cap / 2 && y <= L.verbs_y + verb_cap + verb_cap / 2) {
         const std::vector<CharGenTabBox> boxes = chargen_verb_boxes(L, verbs_);
         // ТОЧНОЕ ПОПАДАНИЕ СНАЧАЛА, ПОЛЯ — ПОТОМ, и порядок здесь не
         // вкусовой: поля соседних надписей ПЕРЕКРЫВАЮТСЯ, и цикл, который
@@ -1388,11 +1403,17 @@ void CharGenScreen::draw(render::PixelCanvas& canvas) const {
         const render::Color colour = !verbs_[v].enabled ? BLURB
                                      : sel              ? ITEM_SELECTED
                                                         : ITEM;
+        // КЕГЛЬ ТОТ ЖЕ, ЧТО У ЯЩИКА (verbs_px), А НЕ item_px. Первая версия
+        // считала ящики сжатым кеглем, а рисовала полным — и надписи налезали
+        // друг на друга ровно настолько, насколько разошлись эти два числа.
+        // Ящик и надпись обязаны считаться ОДНОЙ арифметикой, и кегль — её
+        // часть.
+        const int verb_cap = std::max(1, ui_cap_height(L.verbs_px));
         ui_draw_text(canvas, verb_boxes[v].x, L.verbs_y, row_label(verbs_[v]),
-                     colour, L.item_px, /*shadow=*/true);
+                     colour, L.verbs_px, /*shadow=*/true);
         if (sel) {
-            canvas.fill_rect(verb_boxes[v].x, L.verbs_y + cap + cap / 3,
-                             verb_boxes[v].w, std::max(1, L.item_px / 12),
+            canvas.fill_rect(verb_boxes[v].x, L.verbs_y + verb_cap + verb_cap / 3,
+                             verb_boxes[v].w, std::max(1, L.verbs_px / 12),
                              ITEM_SELECTED);
         }
     }

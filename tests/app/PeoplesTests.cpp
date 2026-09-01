@@ -53,6 +53,15 @@ namespace fs = std::filesystem;
     return fs::is_directory(app::PEOPLES_DIR, ec);
 }
 
+/// ЕСТЬ ЛИ У ТЕЛА СЕКЦИЯ MORF. Тело без неё — законное состояние дерева
+/// (выпеченный персонаж, перепечка целей), и наборы, которым нужны СУДЕЙСКИЕ
+/// ПОЛОСЫ, в нём бессодержательны: полос нет ни одной, кроме роста. Такие
+/// наборы пропускаются ВСЛУХ, а не краснеют чужой бедой.
+[[nodiscard]] bool morphs_present() {
+    const auto obj = render::read_object(fs::path(app::CHARGEN_SOURCE_BODY));
+    return obj && !obj->morphs.empty();
+}
+
 /// СУДЕЙСКИЕ ПОЛОСЫ: секция MORF настоящего тела плюс полоса роста из
 /// константы. Ровно тот набор, против которого экран рисует дорожки.
 [[nodiscard]] std::vector<app::PeopleBand> canon_bands() {
@@ -126,12 +135,53 @@ TEST_CASE("народный край лежит ВНУТРИ судейског�
     if (!peoples_present()) {
         return;
     }
+    if (!morphs_present()) {
+        MESSAGE("у HumanBase.dfo нет секции MORF — судейских полос нет, набор пропущен");
+        return;
+    }
     const std::vector<app::PeopleBand> canon = canon_bands();
     REQUIRE(canon.size() >= 2); // рост плюс хотя бы одна цель MORF
-    for (const app::People& p : app::read_peoples(app::PEOPLES_DIR)) {
+    for (app::People p : app::read_peoples(app::PEOPLES_DIR)) {
+        // ТА ЖЕ ПОДГОТОВКА, ЧТО У ЭКРАНА: ручка, которую народ не назвал,
+        // берёт судейскую полосу целиком. Набор, проверяющий НЕ то, что потом
+        // работает, проверяет чужой предмет.
+        app::peoples_fill_from_canon(p, canon);
         std::string why;
         CAPTURE(p.id);
         CHECK_MESSAGE(app::peoples_validate(p, canon, why), why);
+        // И ПОСЛЕ ДОПОЛНЕНИЯ У НАРОДА ЕСТЬ ПОЛОСА НА КАЖДУЮ СУДЕЙСКУЮ РУЧКУ:
+        // ползунок, о котором народ молчит, обязан всё равно бросаться.
+        for (const app::PeopleBand& c : canon) {
+            CAPTURE(c.name);
+            REQUIRE(p.band(c.name) != nullptr);
+        }
+    }
+}
+
+TEST_CASE("молчание файла = судейская полоса целиком, и сужение переживает её") {
+    // ДЕФЕКТ, КОТОРЫЙ ЭТО ДЕРЖИТ, БЫЛ НАСТОЯЩИМ И СЛУЧИЛСЯ В ЭТУ ЖЕ ВОЛНУ:
+    // три файла из четырёх писали «вся судейская полоса: лор её не сужает» и
+    // ПОВТОРЯЛИ её числа рядом с комментарием. Судья перепёк цели, сузил belly
+    // с 0.45 до 0.43 — и два народа были громко отвергнуты за полосу ШИРЕ
+    // судейской, которую никто не собирался расширять.
+    app::People p;
+    p.id = "проба";
+    p.limits.push_back(app::PeopleBand{"belly", 0.0f, 0.2f}); // народ СУЗИЛ
+    const std::vector<app::PeopleBand> canon{
+        app::PeopleBand{"belly", 0.0f, 0.43f},
+        app::PeopleBand{"weight", -1.0f, 1.0f},
+        app::PeopleBand{"age", 0.0f, 0.75f}};
+    app::peoples_fill_from_canon(p, canon);
+    REQUIRE(p.limits.size() == 3);
+    // Названная ручка НЕ ТРОНУТА — сужение остаётся явным.
+    CHECK(p.band("belly")->hi == doctest::Approx(0.2f));
+    // Неназванные взяли судейскую полосу целиком.
+    CHECK(p.band("age")->hi == doctest::Approx(0.75f));
+    CHECK(p.band("weight")->lo == doctest::Approx(-1.0f));
+    // ПО АЛФАВИТУ: порядок полос есть порядок вызовов генератора, и
+    // дополненные ручки не имеют права приехать в конец (правило 13).
+    for (std::size_t i = 1; i < p.limits.size(); ++i) {
+        CHECK(p.limits[i - 1].name < p.limits[i].name);
     }
 }
 
@@ -283,7 +333,15 @@ TEST_CASE("скрытая связь «крупность» есть, и она 
     // смешана с разницей их центров и мерила бы не то).
     const std::vector<app::People> peoples = app::read_peoples(app::PEOPLES_DIR);
     REQUIRE_FALSE(peoples.empty());
-    const app::People& p = peoples[0];
+    // ТА ЖЕ ПОДГОТОВКА, ЧТО У ЭКРАНА: живот в файле не назван (лор его не
+    // сужает), и полосу он берёт у судьи. Без дополнения контрольной руки
+    // просто не существует.
+    app::People p = peoples[0];
+    if (!morphs_present()) {
+        MESSAGE("у HumanBase.dfo нет секции MORF — набор пропущен");
+        return;
+    }
+    app::peoples_fill_from_canon(p, canon_bands());
     app::PeopleRng rng{4242ULL};
     constexpr int N = 2000;
     std::map<std::string, std::vector<double>> knob;

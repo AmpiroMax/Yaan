@@ -871,4 +871,6 @@ chargen.status.archetype=Типаж применён: ползунки вста�
 chargen.status.random=Брошено в полосе народа
 chargen.status.presets=Пресеты — это типажи народа, вкладка ПРОИСХОЖДЕНИЕ
 chargen.status.no_peoples=Народов в дереве нет: assets/characters/peoples пуст
+chargen.status.peoples_refused=Народы отвергнуты: их полосы не сходятся с целями тела — см. поток ошибок
+chargen.status.no_morphs=У тела нет секции MORF: ползунков телосложения не будет — цели перепекаются
 chargen.band.note=Полоса — то, где судья пропорций ещё держит канон. Светлый отрезок — полоса вашего народа.
