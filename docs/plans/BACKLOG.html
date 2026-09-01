@@ -21,12 +21,12 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 </style></head><body>
 <h1>Бэклог проекта — эпики, задачи, подзадачи</h1>
 <p>Состояние на 29.08.2026. Порядок эпиков и задач: сначала блокеры, затем по важности и размеру. Ключи задач — по образцу Jira: <code>E4-2</code> — задача, <code>E4-2.3</code> — подзадача.</p>
-<p><b>Итого: 15 эпиков, 91 задач, 384 подзадач — 475 тикетов.</b></p>
+<p><b>Итого: 15 эпиков, 91 задач, 386 подзадач — 477 тикетов.</b></p>
 <table><tr><th>Эпик</th><th>Задач</th><th>Подзадач</th><th>Блокеров</th></tr>
 <tr><td><a href="#E13">E13. Решения владельца (открытые)</a></td><td>3</td><td>14</td><td>3</td></tr>
 <tr><td><a href="#E1">E1. Единый игровой объект и уровни детализации</a></td><td>3</td><td>17</td><td>3</td></tr>
 <tr><td><a href="#E2">E2. Порядок в инструментах и репозитории</a></td><td>11</td><td>32</td><td>3</td></tr>
-<tr><td><a href="#E3">E3. Человек как мера: пропорции, персонажи, анимации, бой</a></td><td>7</td><td>41</td><td>4</td></tr>
+<tr><td><a href="#E3">E3. Человек как мера: пропорции, персонажи, анимации, бой</a></td><td>7</td><td>43</td><td>4</td></tr>
 <tr><td><a href="#E4">E4. Небо, облака, погода, свет</a></td><td>6</td><td>19</td><td>0</td></tr>
 <tr><td><a href="#E5">E5. Материалы и текстуры</a></td><td>3</td><td>12</td><td>0</td></tr>
 <tr><td><a href="#E6">E6. Рельеф провинции и большой мир</a></td><td>9</td><td>47</td><td>1</td></tr>
@@ -164,10 +164,12 @@ table{border-collapse:collapse;margin:1em 0} td,th{border:1px solid #ccc;padding
 <div class="task" id="E3-2"><h3><span class="key">E3-2</span>Модель персонажа и скелет<span class="badge" style="background:#b22">Блокер</span><span class="st">к работе</span></h3><ol>
 <li><span class="key">E3-2.1</span>Референс-ресёрч: скелеты Skyrim/Gothic, риг humanoid (glTF), число костей</li>
 <li><span class="key">E3-2.2</span>Видимая модель по канону: база Quaternius (6,58 голов; правка масштабом костей: голова +17 %, нога −9 %) → своя; KayKit (2,1 головы) — только тесты импортёра; Шаг 0: Blender headless (открывает MPFB2 CC0 и .blend-базы OGA)</li>
-<li><span class="key">E3-2.3</span>Скиннинг в рендере (матрицы костей в шейдере) вместо 15 жёстких коробок на кость; интеграция IAnim/ozz</li>
-<li><span class="key">E3-2.4</span>Пальцы и лицевые кости</li>
-<li><span class="key">E3-2.5</span>NPC-риг на шесть типажей; CharacterController для НПС в физике</li>
-<li><span class="key">E3-2.6</span>Одежда/броня как сменные части на одном скелете</li>
+<li><span class="key">E3-2.3</span>ФИДБЕК 01.09 утро: --reshape «испортил персонажа, ещё страшнее» — зонное масштабирование мнёт меш; НОРМАЛЬНОЕ тело как у людей: генерация MPFB2 (Blender стоит, HumanCommoner.glb уже есть) с нормальной топологией, ретаргет наших клипов UAL на него, судьи пропорций/меша зелёные, кадры против V1/reshape/референсов</li>
+<li><span class="key">E3-2.4</span>ЗАКАЗ 01.09: механика тканей и натяжения кожи на теле — ресёрч (как в играх: cloth sim верлетом на костях юбок/плащей как в Skyrim SkirtBones, jiggle/tension кожи, шейдерное натяжение по деформации) и первая реализация на нашем персонаже</li>
+<li><span class="key">E3-2.5</span>Скиннинг в рендере (матрицы костей в шейдере) вместо 15 жёстких коробок на кость; интеграция IAnim/ozz</li>
+<li><span class="key">E3-2.6</span>Пальцы и лицевые кости</li>
+<li><span class="key">E3-2.7</span>NPC-риг на шесть типажей; CharacterController для НПС в физике</li>
+<li><span class="key">E3-2.8</span>Одежда/броня как сменные части на одном скелете</li>
 </ol></div>
 <div class="task" id="E3-3"><h3><span class="key">E3-3</span>Анимации движения<span class="badge" style="background:#b22">Блокер</span><span class="st">в работе</span></h3><ol>
 <li><span class="key">E3-3.1</span>Ретаргет импортированных клипов (E1-3) на наш скелет</li>
