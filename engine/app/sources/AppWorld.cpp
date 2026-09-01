@@ -1638,11 +1638,14 @@ bool App::enter_world(uint32_t stand) {
     }
     // ФИГУРА «ДО» ЗА ДВЕРЬЮ: HumanBaseV1.dfo — та же модель без --reshape
     // (волна форм тела, 01.09). Кадры «до/после» одной сборкой — правило 47.
+    // ИМЯ ФАЙЛА — ОДНО НА МИР И НА ЭКРАН СОЗДАНИЯ (CHARGEN_SOURCE_BODY,
+    // CharGenBody.h). Здесь стояла своя половина строки, склеенная из каталога
+    // и имени, и пока обе половины совпадали, «игрок ходит тем телом, которое
+    // видел на экране создания» было правдой ПО СОВПАДЕНИЮ.
     const char* body_v1 = door_value("DFN_BODY_V1");
-    const char* body_model =
-        (body_v1 != nullptr && body_v1[0] == '1') ? "HumanBaseV1.dfo" : "HumanBase.dfo";
-    std::filesystem::path body_path =
-        std::filesystem::path("assets/objects/characters") / body_model;
+    std::filesystem::path body_path((body_v1 != nullptr && body_v1[0] == '1')
+                                        ? CHARGEN_SOURCE_BODY_V1
+                                        : CHARGEN_SOURCE_BODY);
     // ИГРОК ХОДИТ ТЕМ ТЕЛОМ, КОТОРОЕ СОЗДАЛ, И ЭТО ФАЙЛ, А НЕ НАСТРОЙКА.
     // Экран создания печёт .dfo с применёнными ползунками и СНЯТОЙ секцией
     // MORF — схема Creation Kit: мир грузит обычного персонажа и про ползунки

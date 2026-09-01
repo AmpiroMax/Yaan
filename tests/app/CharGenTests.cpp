@@ -44,6 +44,7 @@ AI Agents Notice (must follow):
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -56,7 +57,10 @@ namespace {
 
 namespace fs = std::filesystem;
 
-const char* BODY_PATH = "assets/objects/characters/HumanBase.dfo";
+/// ТА ЖЕ СТРОКА, ЧТО У ЭКРАНА И У МИРА, а не четвёртая её копия: набор,
+/// назвавший путь своими буквами, проверяет тело, которое в игру может и не
+/// попасть (правило 32).
+const char* BODY_PATH = app::CHARGEN_SOURCE_BODY;
 
 [[nodiscard]] bool body_present() {
     std::error_code ec;
@@ -450,6 +454,87 @@ TEST_CASE("тело: движение ручки — это ПАРА созда�
     CHECK(body.uploads() == body.drops());
 }
 
+TEST_CASE("тело экрана — ТОТ ЖЕ ФАЙЛ, что грузит мир, и он СКИНИРОВАННЫЙ") {
+    // ЧТО ЗДЕСЬ ПРОВЕРЯЕТСЯ И ПОЧЕМУ ЭТО НЕ ОЧЕВИДНО. Владелец 01.09 увидел на
+    // экране создания фигуру, которую назвал «сегментной болванкой», и спросил,
+    // не рисуется ли там запасное тело из пятнадцати коробок вместо
+    // скинированной модели. Ответ «нет, тот же файл» стоит ровно столько,
+    // сколько стоит прибор, которым он получен: экран и мир называют ОДНУ
+    // строку (CHARGEN_SOURCE_BODY), и то, что по ней лежит, — это поток SKIN с
+    // тысячами треугольников и секцией MORF, а не коробки.
+    //
+    // ГРАНИЦА ВЗЯТА НЕ С ПОТОЛКА: тело из коробок (anim::build_body_segment_mesh,
+    // рука двери DFN_BODY_BOXES) — это пятнадцать параллелепипедов, то есть
+    // 15 x 12 = 180 треугольников. Тысяча отделяет одно от другого с запасом в
+    // пять раз и не привязывает набор к точному числу вершин модели, которое
+    // меняет каждая правка импортёра.
+    if (!body_present()) {
+        MESSAGE("HumanBase.dfo нет в дереве — набор пропущен");
+        return;
+    }
+    const auto obj = render::read_object(fs::path(app::CHARGEN_SOURCE_BODY));
+    REQUIRE(obj);
+    CHECK_FALSE(obj->skin.empty());
+    CHECK(obj->skin.indices.size() / 3 > 1000);
+    CHECK_FALSE(obj->morphs.empty());
+    CHECK_FALSE(obj->skeleton.empty());
+
+    // ХЭШ: «один файл» — утверждение о байтах, и оно проверяется байтами.
+    // Ноль значил бы «файла нет», и тогда равенство двух нулей ничего бы не
+    // доказывало — поэтому ноль отвергается отдельной строкой.
+    const std::uint64_t hash =
+        app::chargen_body_hash(fs::path(app::CHARGEN_SOURCE_BODY));
+    CHECK(hash != 0);
+    CHECK(hash == app::chargen_body_hash(fs::path(BODY_PATH)));
+
+    // И ТО, ЧТО ЭКРАН ДЕЙСТВИТЕЛЬНО ЗАЛИЛ ИМЕННО ЭТУ ГЕОМЕТРИЮ, а не «тоже
+    // что-то»: число треугольников экрана равно числу треугольников файла.
+    platform::NullRenderer renderer;
+    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    app::CharGenBody body;
+    REQUIRE(body.load(renderer, rig, app::CHARGEN_SOURCE_BODY));
+    CHECK(body.triangles() == obj->skin.indices.size() / 3);
+    CHECK(body.morphs().size() == obj->morphs.size());
+    body.release(renderer);
+}
+
+TEST_CASE("MORF-бленд ЖИВОЙ: вес двигает вершины, а не только число на экране") {
+    // ПОЛЗУНОК, КОТОРЫЙ КРУТИТСЯ И НЕ ЛЕПИТ, — это худший из отказов экрана
+    // создания: он выглядит рабочим. Прибор — ГАБАРИТ рест-позы: он считается
+    // после бленда и скиннинга, то есть меряет то самое, что уходит на
+    // видеокарту.
+    if (!body_present()) {
+        return;
+    }
+    platform::NullRenderer renderer;
+    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    app::CharGenBody body;
+    REQUIRE(body.load(renderer, rig, app::CHARGEN_SOURCE_BODY));
+    const glm::vec3 lo0 = body.lo();
+    const glm::vec3 hi0 = body.hi();
+    int moved = 0;
+    for (std::size_t i = 0; i < body.morphs().size(); ++i) {
+        const render::MorphTarget& t = body.morphs()[i];
+        app::CharGenBody one;
+        REQUIRE(one.load(renderer, rig, app::CHARGEN_SOURCE_BODY));
+        // КРАЙ ПОЛОСЫ, А НЕ СЕРЕДИНА: у половины целей нейтраль стоит НА краю
+        // (belly [0, 0.45], age [0, 0.55]), и «сдвинуть в середину» для них
+        // значит сдвинуть меньше, чем позволяет цель.
+        const float far_end = (std::fabs(t.hi) > std::fabs(t.lo)) ? t.hi : t.lo;
+        REQUIRE(one.set_weight(i, far_end));
+        REQUIRE(one.apply(renderer));
+        if (glm::length(one.lo() - lo0) + glm::length(one.hi() - hi0) > 1e-4f) {
+            ++moved;
+        }
+        one.release(renderer);
+    }
+    // НЕ «ХОТЬ ОДНА»: цель, которая не двигает габарит, ещё может двигать
+    // вершины внутри силуэта (мускулатура), поэтому порог — большинство, а не
+    // все. Ноль сдвинувших значил бы, что бленда нет вовсе.
+    CHECK(moved >= static_cast<int>(body.morphs().size()) / 2);
+    body.release(renderer);
+}
+
 TEST_CASE("тело: вес зажимается ПОЛОСОЙ ЦЕЛИ из файла") {
     if (!body_present()) {
         return;
@@ -464,6 +549,56 @@ TEST_CASE("тело: вес зажимается ПОЛОСОЙ ЦЕЛИ из ф
     (void)body.set_weight(0, -1e6f);
     CHECK(body.weights().weights[0] == doctest::Approx(t.lo));
     body.release(renderer);
+}
+
+// --- ПУТЬ ИГРОКА ЧИСТ -------------------------------------------------------
+
+TEST_CASE("диагностика редактора не печатается на пути игрока") {
+    // ДЕФЕКТ, КОТОРЫЙ ЭТО ДЕРЖИТ. Интерфейс редактора поднимается в App::init —
+    // раньше, чем решено, игра этот запуск или редактор, — и печатал двенадцать
+    // строк («шрифт: …», «атлас шрифта …», восемь «знак U+…»). Владелец 01.09
+    // открыл главное меню, нажал «Создание персонажа» и получил их в терминал
+    // рядом с игрой. Родня того же дефекта, что панели редактора, остававшиеся
+    // на экране при выходе в меню: и там, и здесь редакторское живёт выше
+    // решения о режиме, и лечится это ОДНОЙ точкой, а не «убрать эту строку».
+    //
+    // ПОЧЕМУ НАБОР ЧИТАЕТ ИСХОДНИК, А НЕ ЗАПУСКАЕТ ИГРУ. Печать происходит
+    // внутри инициализации ImGui на живом бэкенде bgfx: под нулевым рендером
+    // она не выполняется вовсе, то есть «молчит» здесь было бы правдой по
+    // причине, не имеющей отношения к починке (правило 30b). Прибор, который
+    // видит настоящий предмет, — это то, что КАЖДАЯ такая печать стоит за
+    // выключателем; его и меряем.
+    struct Guarded {
+        const char* file;
+        const char* literal;
+        const char* guard;
+    };
+    static const Guarded WATCHED[] = {
+        {"engine/editor/sources/EditorUi.cpp", "[editor-ui] знак U+", "diagnostics()"},
+        {"engine/editor/sources/EditorUi.cpp", "[editor-ui] шрифт: ", "diagnostics()"},
+        {"engine/editor/sources/EditorUi.cpp", "[editor-ui] знаки домешаны",
+         "diagnostics()"},
+        {"engine/platform/render/sources/bgfx/ImGuiBackend.cpp",
+         "[imgui] атлас шрифта", "g_diagnostics"},
+    };
+    for (const Guarded& g : WATCHED) {
+        const std::string text = read_bytes(g.file);
+        if (text.empty()) {
+            MESSAGE("не прочитан: " << g.file);
+            continue;
+        }
+        const std::size_t at = text.find(g.literal);
+        REQUIRE_MESSAGE(at != std::string::npos,
+                        "строка исчезла из " << g.file << ": " << g.literal);
+        // ВЫКЛЮЧАТЕЛЬ ОБЯЗАН СТОЯТЬ ВЫШЕ ПЕЧАТИ И БЛИЗКО. Восемьсот знаков —
+        // это около двадцати строк кода: дальше него условие принадлежит уже
+        // не этой печати, и «нашлось где-то в файле» перестало бы что-либо
+        // значить.
+        const std::size_t from = at > 800 ? at - 800 : 0;
+        const std::string before = text.substr(from, at - from);
+        CHECK_MESSAGE(before.find(g.guard) != std::string::npos,
+                      "печать без выключателя в " << g.file << ": " << g.literal);
+    }
 }
 
 // --- ПРЕСЕТ И ВЫПЕЧКА -------------------------------------------------------

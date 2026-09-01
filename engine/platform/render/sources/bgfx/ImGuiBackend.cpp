@@ -72,7 +72,11 @@ constexpr uint64_t TEX_OWNED_BIT = 1ull << 17;
     return bgfx::TextureHandle{static_cast<uint16_t>(packed & 0xFFFFull)};
 }
 
+bool g_diagnostics = false;
+
 } // namespace
+
+void imgui_backend_set_diagnostics(bool on) { g_diagnostics = on; }
 
 bool imgui_backend_init() {
     State& s = state();
@@ -117,8 +121,12 @@ bool imgui_backend_init() {
             bgfx::copy(pixels, static_cast<uint32_t>(width) * height * 4));
         io.Fonts->SetTexID(
             to_imgui_id(static_cast<uint64_t>(s.font.idx) | TEX_VALID_BIT));
-        std::fprintf(stderr, "[imgui] атлас шрифта %dx%d, глифов %d\n", width, height,
-                     io.Fonts->Fonts.empty() ? 0 : io.Fonts->Fonts[0]->Glyphs.Size);
+        if (g_diagnostics) {
+            std::fprintf(stderr, "[imgui] атлас шрифта %dx%d, глифов %d\n", width,
+                         height,
+                         io.Fonts->Fonts.empty() ? 0
+                                                 : io.Fonts->Fonts[0]->Glyphs.Size);
+        }
     }
     s.ready = true;
     return true;

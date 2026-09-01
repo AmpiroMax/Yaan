@@ -59,10 +59,6 @@ namespace dfn::app {
 
 namespace {
 
-/// ГДЕ ЛЕЖИТ ИСХОДНОЕ ТЕЛО С ПОЛЗУНКАМИ. То же, что грузит мир (AppWorld);
-/// секция MORF есть только у него.
-constexpr const char* CHARGEN_SOURCE_BODY = "assets/objects/characters/HumanBase.dfo";
-
 /// ДЛИННЫЙ ОБЪЕКТИВ НА ВРЕМЯ ЭКРАНА. Игровые 60° — это ±30° на краю кадра, и
 /// лицо, занимающее две трети высоты, разъезжается по лучам: нос вылезает,
 /// уши уходят назад. Портрет снимают длинным стеклом ровно поэтому. 28° —
@@ -225,10 +221,19 @@ void App::chargen_enter() {
         chargen_zoom(view, 0.0f);
     }
 
+    // ЖУРНАЛ НАЗЫВАЕТ ФАЙЛ И ЕГО ХЭШ, а не только счётчики. Владелец 01.09
+    // спросил, почему на экране создания не тот человек, которого он видел в
+    // смотровой, и ответить на это счётчиком треугольников нельзя: разошлись
+    // бы ФАЙЛЫ — счётчик бы и не дрогнул. Файл, хэш и число целей MORF в одной
+    // строке — это ровно тот набор, которым «тело экрана = тело мира»
+    // проверяется без второго прогона (CharGenBody.h, CHARGEN_SOURCE_BODY).
     std::fprintf(stderr,
-                 "[создание] экран открыт: %zu ползунков телосложения, %zu "
-                 "треугольников, рост %.3f м%s\n",
-                 chargen_body_.morphs().size(), chargen_body_.triangles(),
+                 "[создание] экран открыт: тело %s (хэш %016llx), %zu "
+                 "треугольников, %zu целей MORF, рост %.3f м%s\n",
+                 CHARGEN_SOURCE_BODY,
+                 static_cast<unsigned long long>(
+                     chargen_body_hash(std::filesystem::path(CHARGEN_SOURCE_BODY))),
+                 chargen_body_.triangles(), chargen_body_.morphs().size(),
                  static_cast<double>(chargen_body_.height_m()),
                  from_preset ? ", поднят пресет" : "");
 

@@ -50,6 +50,16 @@ namespace dfn::platform {
 /// is unavailable (non-Apple builds ship no embedded shaders this stage), in
 /// which case every other call here is a no-op and the app runs without an
 /// editor interface rather than crashing.
+/// СЛОВООХОТЛИВОСТЬ ЗАПУСКА, и по умолчанию её НЕТ.
+///
+/// ПОТОМУ ЧТО ПУТЬ ИГРОКА ЧИСТ. Строка про атлас шрифта — это ответ на вопрос
+/// «влезли ли глифы», который задаёт тот, кто правит панель редактора; игроку,
+/// открывшему главное меню, она приезжает в терминал вместе с восемью строками
+/// EditorUi и читается как сообщение об ошибке. Один выключатель на всю
+/// диагностику интерфейса — здесь и в EditorUi::set_diagnostics, которая его
+/// же и щёлкает: два выключателя на одно решение разошлись бы первым же.
+void imgui_backend_set_diagnostics(bool on);
+
 [[nodiscard]] bool imgui_backend_init();
 
 void imgui_backend_shutdown();

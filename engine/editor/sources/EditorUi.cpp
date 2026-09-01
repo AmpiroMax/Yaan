@@ -43,6 +43,24 @@ AI Agents Notice (must follow):
 namespace dfn::app {
 namespace {
 
+/// ДИАГНОСТИКА ЗАПУСКА РЕДАКТОРА: печатать или молчать. ПО УМОЛЧАНИЮ МОЛЧАТЬ.
+///
+/// ПРАВИЛО «ПУТЬ ИГРОКА ЧИСТ», И ЭТО НЕ КОСМЕТИКА. Интерфейс редактора
+/// поднимается в App::init — то есть ДО того, как решено, будет ли этот
+/// запуск игрой или редактором, и задолго до всякого мира. Двенадцать строк
+/// про шрифт, атлас и восемь знаков печатались поэтому ВСЕГДА: владелец
+/// открыл главное меню, нажал «Создание персонажа» — и получил их в терминал
+/// рядом с игрой. Родня того же дефекта, что панели, остававшиеся на экране
+/// при выходе в меню: и там, и здесь редакторское живёт выше решения о режиме.
+///
+/// ВЫКЛЮЧАТЕЛЬ ОДИН И СТАТИЧЕСКИЙ — по той же причине, что у text_source():
+/// engine/editor не вправе включать engine/app (граф идёт в другую сторону),
+/// поэтому решение приезжает вызовом, а не чтением двери.
+bool& diagnostics() {
+    static bool on = false;
+    return on;
+}
+
 /// THE GLYPH RANGE, AND IT IS NOT ImGui's.
 ///
 /// ImFontAtlas::GetGlyphRangesCyrillic() asks for 0x0400-0x044F, which stops
@@ -103,6 +121,9 @@ void report_mark_glyphs() {
     };
     const ImGuiIO& io = ImGui::GetIO();
     if (io.Fonts->Fonts.empty()) {
+        return;
+    }
+    if (!diagnostics()) {
         return;
     }
     ImFont* font = io.Fonts->Fonts[0];
@@ -355,9 +376,11 @@ bool EditorUi::init(platform::IRenderer& renderer) {
         if (io.Fonts->AddFontFromFileTTF(path, FONT_POINTS * 2.0f, nullptr,
                                          cyrillic_ranges()) != nullptr) {
             io.FontGlobalScale = 0.5f;
-            std::fprintf(stderr, "[editor-ui] шрифт: %s (%.0f px, диапазон "
-                                 "0x0400-0x045F — со строчной «ё»)\n",
-                         path, static_cast<double>(FONT_POINTS * 2.0f));
+            if (diagnostics()) {
+                std::fprintf(stderr, "[editor-ui] шрифт: %s (%.0f px, диапазон "
+                                     "0x0400-0x045F — со строчной «ё»)\n",
+                             path, static_cast<double>(FONT_POINTS * 2.0f));
+            }
             font_loaded = true;
             break;
         }
@@ -404,7 +427,8 @@ bool EditorUi::init(platform::IRenderer& renderer) {
             // second font only fills what the first left empty, and the probe
             // below is what says whether it did.
             if (io.Fonts->AddFontFromFileTTF(path, FONT_POINTS * 2.0f, &cfg,
-                                             SYMBOL_RANGES) != nullptr) {
+                                             SYMBOL_RANGES) != nullptr
+                && diagnostics()) {
                 std::fprintf(stderr, "[editor-ui] знаки домешаны из %s\n", path);
             }
         }
@@ -1092,6 +1116,15 @@ bool EditorUi::image_button(const char* id, EditorTexture texture, float w, floa
         return ImGui::Button(id, ImVec2(w, h));
     }
     return ImGui::ImageButton(id, to_imgui_id(texture), ImVec2(w, h));
+}
+
+void EditorUi::set_diagnostics(bool on) {
+    diagnostics() = on;
+    // И БЭКЕНД ТОЖЕ. Строка про атлас шрифта печатается НЕ здесь, а в
+    // platform/render/.../ImGuiBackend.cpp — но решение у неё то же самое, и
+    // два выключателя на одно решение расходятся ровно в тот день, когда
+    // кто-то щёлкнет один.
+    platform::imgui_backend_set_diagnostics(on);
 }
 
 void EditorUi::set_text_source(EditorTextSource source) {

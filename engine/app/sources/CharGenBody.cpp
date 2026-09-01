@@ -17,6 +17,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/CharGenBody.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -133,6 +134,27 @@ void grow_bound(glm::vec3& lo, glm::vec3& hi, const render::MeshData& mesh) {
 }
 
 } // namespace
+
+std::uint64_t chargen_body_hash(const std::filesystem::path& path) {
+    // ПОТОКОМ, А НЕ ЦЕЛИКОМ В ПАМЯТЬ: файл тела весит 7.6 МБ, и держать его
+    // вторую копию рядом с уже прочитанной геометрией незачем. Хэш — тот же
+    // fnv1a64, которым дерево считает всё остальное (правило 35).
+    std::ifstream in(path, std::ios::binary);
+    if (!in) {
+        return 0;
+    }
+    std::uint64_t hash = 1469598103934665603ULL; // FNV offset basis
+    std::array<char, 64 * 1024> buffer{};
+    while (in.read(buffer.data(), static_cast<std::streamsize>(buffer.size()))
+           || in.gcount() > 0) {
+        const std::size_t got = static_cast<std::size_t>(in.gcount());
+        for (std::size_t i = 0; i < got; ++i) {
+            hash ^= static_cast<std::uint64_t>(static_cast<unsigned char>(buffer[i]));
+            hash *= 1099511628211ULL; // FNV prime
+        }
+    }
+    return hash;
+}
 
 float chargen_height_scale(float height_m) {
     const float clamped = std::clamp(height_m, CHARGEN_HEIGHT_MIN_M,

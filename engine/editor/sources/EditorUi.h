@@ -351,6 +351,14 @@ public:
     /// arrives as a function rather than as an include.
     static void set_text_source(EditorTextSource source);
 
+    /// ПЕЧАТАТЬ ЛИ ДИАГНОСТИКУ ЗАПУСКА (шрифт, атлас, проба знаков). ПО
+    /// УМОЛЧАНИЮ НЕТ, и это правило «путь игрока чист»: интерфейс редактора
+    /// поднимается в App::init, то есть раньше, чем решено, игра этот запуск
+    /// или редактор, — и двенадцать строк редакторской диагностики приезжали
+    /// в терминал игроку, открывшему главное меню. Щёлкает и выключатель
+    /// бэкенда (ImGuiBackend), потому что решение одно.
+    static void set_diagnostics(bool on);
+
     /// The interface's own pixel scale (Retina). Panels sizing anything in
     /// pixels should multiply by it; most panels should size in em instead.
     [[nodiscard]] float scale() const { return scale_; }

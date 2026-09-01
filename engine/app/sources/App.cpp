@@ -495,6 +495,15 @@ bool App::init(const AppConfig& config) {
     // without a graphics device — headless tests and DFN_NULL_RENDER=1. A
     // feature that dies under a null backend is a bug, so it simply does not
     // start there, and the editor behaves exactly as it did before this module.
+    // ДИАГНОСТИКА РЕДАКТОРА МОЛЧИТ, ПОКА ЕЁ НЕ СПРОСИЛИ (правило «путь игрока
+    // чист»). Двенадцать строк про шрифт, атлас и пробу знаков печатались
+    // ЗДЕСЬ — то есть до того, как решено, игра этот запуск или редактор, — и
+    // владелец 01.09 увидел их рядом с экраном создания персонажа. Дверь
+    // DFN_EDITOR_UI_LOG=1 возвращает их тому, кто чинит шрифт панели.
+    if (const char* log = door_value("DFN_EDITOR_UI_LOG");
+        log != nullptr && log[0] == '1') {
+        EditorUi::set_diagnostics(true);
+    }
     if (!config.use_null_renderer && !editor_ui_.init(*renderer_)) {
         std::fprintf(stderr, "[editor-ui] интерфейс редактора не поднялся — "
                              "редактор работает как раньше\n");
