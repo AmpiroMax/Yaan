@@ -20,7 +20,10 @@ Key items:
   DFN_MORPH, панель редактора и выпечка, — и ни один из них не окно.
 - attach_parts() / part_draws(): части на теле (волосы, глаза, одежда —
   CharacterParts): та же палитра, та же матрица; треугольники тела, закрытые
-  частью, не рисуются (draw_indices_).
+  частью, не рисуются (draw_indices_). Части СЛЕДУЮТ МОРФАМ: нейтраль —
+  <тело>.dfo рядом с набором (из памяти, если это тело и есть нейтраль, иначе
+  кэш процесса), и каждый apply_morphs / replace_vertices сажает части на
+  новую кожу (CharacterParts::follow).
 - socket_frame(): сокет тела (секция SOCK) в модельном пространстве по
   последней палитре — точка позируется как вершина с одним весом.
 - SKINNED_CHARACTER_MESH_ID: the RenderMesh id this occupies (50).
@@ -357,6 +360,16 @@ private:
     /// Перекладка индексов тела после attach_parts; false — сказано вслух.
     bool rebuild_draw_indices(render::RenderSystem& render_system,
                               platform::IRenderer& renderer);
+    /// <тело>.parts.dfo / <тело>.clothes.dfo → <тело>.dfo (нейтраль, к которой
+    /// части печены --like); пусто — имя не того вида.
+    [[nodiscard]] static std::filesystem::path
+    neutral_body_path(const std::filesystem::path& parts);
+    /// Скин нейтрали по пути, прочитанный один раз на процесс; nullptr — не
+    /// прочитался (вслух, тоже один раз).
+    [[nodiscard]] static const std::vector<platform::SkinnedVertex>*
+    neutral_skin_cached(const std::filesystem::path& path);
+    /// Маски лица (FACE_MASKS_PATH), один раз на процесс; nullptr — их нет.
+    [[nodiscard]] static const FaceMasks* face_masks_cached();
     std::vector<render::MorphTarget> morphs_;
     render::MorphState morph_{};
     std::vector<platform::SkinnedVertex> morphed_;

@@ -25,6 +25,9 @@ AI Agents Notice (must follow):
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
+#include <map>
+#include <memory>
 #include <cstdlib>
 #include <string>
 #include <glm/gtc/constants.hpp>
@@ -431,6 +434,11 @@ bool SkinnedCharacter::apply_morphs(render::RenderSystem& render_system,
         return false;
     }
     morph_dirty_ = false;
+    // ЧАСТИ — ЗА ТЕЛОМ, ТЕМ ЖЕ ДВИЖЕНИЕМ РУЧКИ: волосы над сдвинутым лбом, глаза
+    // в уехавшей глазнице. Отказ перекладки части сказан вслух там, а тело
+    // считается сделанным — часть, отставшая на кадр, лучше тела, повторяющего
+    // бленд каждый кадр.
+    (void)parts_.follow(render_system, renderer, morphed_);
     return true;
 }
 
@@ -481,6 +489,8 @@ bool SkinnedCharacter::replace_vertices(render::RenderSystem& render_system,
     bind_vertices_.assign(vertices.begin(), vertices.end());
     morphed_.clear();
     morph_dirty_ = false;
+    // Части — за новой кожей (экран создания тянет ползунок этим путём).
+    (void)parts_.follow(render_system, renderer, bind_vertices_);
     // THE BOXES FOLLOW THE FLESH: a wider hip is a wider hip box, on the same
     // rest the rest of the table was fitted on.
     hitboxes_ = anim::build_hitboxes(rig_.proportions);
@@ -510,11 +520,90 @@ bool SkinnedCharacter::attach_parts(render::RenderSystem& render_system,
                              "прикреплены\n", path.string().c_str());
         return false;
     }
+    // НЕЙТРАЛЬ ДЛЯ СЛЕДОВАНИЯ — ТЕЛО, К КОТОРОМУ ЧАСТИ ПЕЧЕНЫ (--like
+    // <тело>.dfo рядом с <тело>.parts.dfo), ИЗ ФАЙЛА и в масштабе файла:
+    // множитель по костям части приложат сами. Не из памяти этого тела —
+    // оно могло прийти уже вылепленным (экран после settle, мир из выпечки)
+    // или масштабированным ростом (scale_registry_object), и «это тело и
+    // есть нейтраль» не проверить ничем. Файл читается один раз на процесс.
+    std::span<const platform::SkinnedVertex> neutral;
+    const std::filesystem::path neutral_path = neutral_body_path(path);
+    if (neutral_path.empty()) {
+        std::fprintf(stderr, "[parts] \"%s\": не <тело>.parts/.clothes.dfo — нейтраль "
+                             "неизвестна, части морфам не следуют\n",
+                     path.string().c_str());
+    } else if (const auto* cached = neutral_skin_cached(neutral_path); cached != nullptr) {
+        neutral = *cached;
+    }
+    if (!neutral.empty() && neutral.size() != bind_vertices_.size()) {
+        std::fprintf(stderr,
+                     "[parts] \"%s\": нейтраль %s на %zu вершин против %zu у тела — не то "
+                     "тело, части морфам не следуют\n",
+                     path.string().c_str(), neutral_path.string().c_str(), neutral.size(),
+                     bind_vertices_.size());
+        neutral = {};
+    }
     if (!parts_.attach(render_system, renderer, *obj, path, skeleton_, first_mesh_id,
-                       max_parts, selection)) {
+                       max_parts, selection, neutral,
+                       neutral.empty() ? std::span<const uint32_t>{} : skin_indices_,
+                       face_masks_cached())) {
         return false;
     }
+    // Тело могло прийти уже вылепленным (экран после settle, мир из выпечки):
+    // части садятся на него сразу, а не при первом движении ручки.
+    (void)parts_.follow(render_system, renderer, current_vertices());
     return rebuild_draw_indices(render_system, renderer);
+}
+
+std::filesystem::path SkinnedCharacter::neutral_body_path(const std::filesystem::path& parts) {
+    std::string stem = parts.stem().string();
+    for (const char* suffix : {".parts", ".clothes"}) {
+        const std::size_t n = std::strlen(suffix);
+        if (stem.size() > n && stem.compare(stem.size() - n, n, suffix) == 0) {
+            stem.erase(stem.size() - n);
+            std::filesystem::path out = parts;
+            out.replace_filename(stem + parts.extension().string());
+            return out;
+        }
+    }
+    return {};
+}
+
+const std::vector<platform::SkinnedVertex>*
+SkinnedCharacter::neutral_skin_cached(const std::filesystem::path& path) {
+    // КЭШ НА ПРОЦЕСС, по пути: экран перестраивает тело на каждом отпускании
+    // ручки, и читать 5 МБ нейтрали на каждый settle — 30 мс, которых у
+    // settle нет. Нейтраль неизменна, пока жив процесс (перепечка — новый
+    // запуск), поэтому кэш без инвалидации честен.
+    static std::map<std::string, std::unique_ptr<std::vector<platform::SkinnedVertex>>>
+        cache;
+    const std::string key = path.string();
+    if (const auto it = cache.find(key); it != cache.end()) {
+        return it->second.get();
+    }
+    std::unique_ptr<std::vector<platform::SkinnedVertex>> skin;
+    if (const auto obj = render::read_object(path); obj.has_value() && !obj->skin.empty()) {
+        skin = std::make_unique<std::vector<platform::SkinnedVertex>>(obj->skin.vertices);
+        std::fprintf(stderr, "[parts] нейтраль частей: \"%s\", %zu вершин (кэш процесса)\n",
+                     key.c_str(), skin->size());
+    } else {
+        std::fprintf(stderr, "[parts] нейтраль частей \"%s\" не прочиталась — части "
+                             "морфам не следуют\n", key.c_str());
+    }
+    return cache.emplace(key, std::move(skin)).first->second.get();
+}
+
+const FaceMasks* SkinnedCharacter::face_masks_cached() {
+    static const std::unique_ptr<FaceMasks> masks = [] {
+        auto m = std::make_unique<FaceMasks>();
+        if (!read_face_masks(FACE_MASKS_PATH, *m)) {
+            return std::unique_ptr<FaceMasks>{};
+        }
+        std::fprintf(stderr, "[parts] маски лица: %zu областей на %u вершин\n",
+                     m->masks.size(), m->verts);
+        return m;
+    }();
+    return masks.get();
 }
 
 bool SkinnedCharacter::rebuild_draw_indices(render::RenderSystem& render_system,

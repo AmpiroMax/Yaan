@@ -34,6 +34,8 @@ AI Agents Notice (must follow):
 
 #include "engine/app/sources/CharGen.h"
 #include "engine/app/sources/CharGenBody.h"
+#include "engine/app/sources/CharacterParts.h"
+#include "engine/render/sources/MorphFollow.h"
 #include "engine/app/sources/UiSlider.h"
 
 #include "engine/anim/sources/Rig.h"
@@ -1405,4 +1407,94 @@ TEST_CASE("пресет с лицом: чтение-запись пережив�
     fs::remove(a, ec);
     fs::remove(b, ec);
     fs::remove(json, ec);
+}
+
+TEST_CASE("части следуют морфам на пути экрана: на перетаскивании (apply) и после пересборки (settle) волосы стоят над сдвинутым лбом") {
+    // ЭКРАН СТРОИТ ТЕЛО ИЗ ВЫПЕЧКИ (settle: baked_object без MORF), и нейтраль
+    // для частей приходит из файла HumanBase.dfo (кэш процесса), а не из
+    // памяти тела. Без этого волосы после отпускания ручки вернулись бы в
+    // рест над уехавшим черепом — ровно хвост отчёта лица (13.7 мм).
+    if (!body_has_morphs()) {
+        MESSAGE("у HumanBase.dfo нет секции MORF — набор пропущен");
+        return;
+    }
+    platform::NullRenderer renderer;
+    render::RenderSystem rs;
+    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    app::CharGenBody body;
+    REQUIRE(body.load(rs, renderer, nullptr, rig, app::CHARGEN_SOURCE_BODY));
+    const app::CharacterParts& parts = body.character().parts();
+    if (parts.empty()) {
+        MESSAGE("частей у тела экрана нет (нет HumanBase.parts.dfo) — набор пропущен");
+        body.release(rs, renderer, nullptr);
+        return;
+    }
+    REQUIRE(parts.following());
+    const auto hair = [&]() -> const app::AttachedPart* {
+        for (const app::AttachedPart& p : parts.parts()) {
+            if (p.name == "hair") {
+                return &p;
+            }
+        }
+        return nullptr;
+    };
+    REQUIRE(hair() != nullptr);
+    const std::size_t hair_under_rest = [&] {
+        for (const app::PartFollowReport& r :
+             parts.follow_report(body.character().current_vertices())) {
+            if (r.name == "hair") {
+                return r.under_skin_rest;
+            }
+        }
+        return std::size_t{0};
+    }();
+    const int forehead = render::morph_index(body.morphs(), "forehead-scale-vert");
+    REQUIRE(forehead >= 0);
+    const float hi = body.morphs()[static_cast<std::size_t>(forehead)].hi;
+    REQUIRE(hi > 0.0f);
+
+    // Прибор: волосы не отстают и череп не проступает; контроль — волосы в ресте.
+    const auto judge = [&](const char* stage) {
+        const auto& now = body.character().current_vertices();
+        REQUIRE(now.size() == parts.neutral().size());
+        float moved = 0.0f;
+        for (std::size_t i = 0; i < now.size(); ++i) {
+            moved = std::max(moved, glm::length(now[i].position - parts.neutral()[i].position));
+        }
+        float grow = 0.0f;
+        std::size_t under = 0;
+        for (const app::PartFollowReport& r : parts.follow_report(now)) {
+            if (r.name == "hair") {
+                grow = r.gap_grow_m;
+                under = r.under_skin_now;
+            }
+        }
+        const std::size_t control = render::follow_penetrations(
+            now, parts.neutral_indices(), hair()->map, hair()->rest, 0.001f);
+        MESSAGE(std::string(stage) << ": body moved " << moved * 1000.0f << " mm vs neutral; hair gap growth "
+                      << grow * 1000.0f << " mm, under skin " << under << " (rest "
+                      << hair_under_rest << "), control (hair in rest) " << control);
+        CHECK(moved > 0.005f);
+        CHECK(grow <= 0.001f);
+        CHECK(under <= hair_under_rest + 10);
+        CHECK(control >= hair_under_rest + 40);
+        // Волосы на GPU — те, что после follow: рест и «сейчас» разошлись.
+        REQUIRE(hair()->now.size() == hair()->rest.size());
+        float hair_moved = 0.0f;
+        for (std::size_t i = 0; i < hair()->now.size(); ++i) {
+            hair_moved = std::max(hair_moved, glm::length(hair()->now[i].position
+                                                          - hair()->rest[i].position));
+        }
+        CHECK(hair_moved > 0.005f);
+    };
+    REQUIRE(body.set_weight(static_cast<std::size_t>(forehead), hi));
+    REQUIRE(body.apply(rs, renderer));
+    judge("apply");
+    REQUIRE(body.settle(rs, renderer, nullptr));
+    judge("settle");
+    // Рост меняет масштаб тела — нейтраль частей едет тем же множителем.
+    REQUIRE(body.set_height_m(app::CHARGEN_HEIGHT_MAX_M));
+    REQUIRE(body.settle(rs, renderer, nullptr));
+    judge("settle, height max");
+    body.release(rs, renderer, nullptr);
 }

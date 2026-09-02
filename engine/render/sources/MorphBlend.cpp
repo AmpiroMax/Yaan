@@ -59,7 +59,16 @@ void blend_morphs(std::span<const platform::SkinnedVertex> rest,
             moved_any = true;
         }
     }
-    if (!moved_any || indices.size() < 3) {
+    if (!moved_any) {
+        return;
+    }
+    shift_normals_by_difference(rest, indices, out);
+}
+
+void shift_normals_by_difference(std::span<const platform::SkinnedVertex> before,
+                                 std::span<const std::uint32_t> indices,
+                                 std::vector<platform::SkinnedVertex>& out) {
+    if (indices.size() < 3 || out.size() != before.size()) {
         return;
     }
     // --- НОРМАЛИ: НЕ ЗАМЕНА, А РАЗНИЦА. Площадно-взвешенная сумма нормалей
@@ -96,7 +105,7 @@ void blend_morphs(std::span<const platform::SkinnedVertex> rest,
     };
     std::vector<glm::vec3> n0;
     std::vector<glm::vec3> n1;
-    accumulate(rest, n0);
+    accumulate(before, n0);
     accumulate(out, n1);
     for (std::size_t i = 0; i < out.size(); ++i) {
         // ВЫРОЖДЕННАЯ ВЕРШИНА ОСТАЁТСЯ СО СВОЕЙ НОРМАЛЬЮ. Нуль в нормали — это

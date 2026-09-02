@@ -12,6 +12,16 @@ Responsibility:
   три вершины которых закрыты; сокет (секция SOCK) едет с костью в клипе:
   расстояние «точка сокета — сустав» постоянно, а сама точка движется.
   Контрольные руки (правило 30): «none» и Knight обязаны дать ноль.
+- ЧАСТИ СЛЕДУЮТ МОРФАМ (волна «части следуют морфам»): на ОБОИХ концах полос
+  всех целей MORF тела расстояние «вершина части ↔ её опорная вершина тела»
+  растёт не больше 1 мм против реста (волосы над черепом, брови над кожей,
+  ресницы у век, костюм на животе); глаза, зубы и язык — жёстко: центр группы
+  против центроида маски не уходит дальше 1 мм; под кожу (глубже 1 мм до
+  ближайшей грани) не уходит больше вершин части, чем в ресте (+10); при
+  нулевых весах части побитово равны ресту. Контрольная рука — часть, оставленная в ресте, тем же
+  прибором по тем же парам вершин (правило 47): лоб +0.5 уводит череп из-под
+  волос на ≥ 10 мм, eyebrows-angle отрывает брови на ≥ 5 мм, head-scale-horiz
+  уводит глазницу от яблока на ≥ 3 мм. Цена follow() — миллисекунды вслух.
 
 Dependencies:
 - Uses: engine/app CharacterFactory, SkinnedCharacter, CharacterParts,
@@ -41,7 +51,9 @@ AI Agents Notice (must follow):
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <map>
 #include <set>
+#include <string>
 #include <vector>
 
 #include <glm/geometric.hpp>
@@ -336,4 +348,320 @@ TEST_CASE("сокет едет с костью: расстояние до сус
             << travelled << " m over 60 ticks");
     CHECK(worst < 1e-4f);     // сокет пришит к кости жёстко
     CHECK(travelled > 0.01f); // и кисть в ходьбе движется — точка едет с ней
+}
+
+// ------------------------------------------------ ЧАСТИ СЛЕДУЮТ МОРФАМ ---
+
+namespace {
+
+/// РУКА БЕЗ ПЕРЕНОСА тем же прибором: часть стоит в ресте, тело ушло.
+/// Наибольшее изменение расстояния до кожи в любую сторону у части, оставленной
+/// в ресте: череп, ушедший ВВЕРХ сквозь волосы, читается сжатием, а не ростом.
+[[nodiscard]] float control_gap_change(const app::CharacterParts& parts,
+                                       const app::AttachedPart& p,
+                                       std::span<const platform::SkinnedVertex> body_now) {
+    float grow = 0.0f;
+    float shrink = 0.0f;
+    render::follow_gap_change(parts.neutral(), parts.neutral_indices(), body_now, p.map,
+                              p.rest, p.rest, grow, shrink);
+    return std::max(grow, shrink);
+}
+[[nodiscard]] float control_vertex_gap(const app::CharacterParts& parts,
+                                       const app::AttachedPart& p,
+                                       std::span<const platform::SkinnedVertex> body_now) {
+    return render::follow_vertex_gap_error(parts.neutral(), body_now, p.map, p.rest, p.rest);
+}
+[[nodiscard]] std::size_t control_under_skin(const app::CharacterParts& parts,
+                                             const app::AttachedPart& p,
+                                             std::span<const platform::SkinnedVertex> body_now) {
+    return render::follow_penetrations(body_now, parts.neutral_indices(), p.map, p.rest,
+                                       0.001f);
+}
+/// Сдвиг центроида маски жёсткой группы против реста (глазница уехала).
+[[nodiscard]] float control_rigid_shift(const app::CharacterParts& parts,
+                                        const app::AttachedPart& p,
+                                        std::span<const platform::SkinnedVertex> body_now) {
+    float worst = 0.0f;
+    for (const app::RigidGroup& g : p.rigid) {
+        const render::RigidFrame now = render::rigid_frame(body_now, g.mask);
+        worst = std::max(worst, glm::length(now.centroid - g.rest.centroid));
+    }
+    return worst;
+}
+[[nodiscard]] const app::AttachedPart* part_named(const app::CharacterParts& parts,
+                                                  std::string_view name) {
+    for (const app::AttachedPart& p : parts.parts()) {
+        if (p.name == name) {
+            return &p;
+        }
+    }
+    return nullptr;
+}
+
+constexpr float FOLLOW_TOL_M = 0.001f;
+
+} // namespace
+
+TEST_CASE("части следуют морфам: на краях полос всех целей часть не отстаёт от тела дальше 1 мм; контроль в ресте отстаёт") {
+    if (!present(BODY) || !present(PARTS) || !present(CLOTHES)) {
+        MESSAGE("no baked files -- skipped");
+        return;
+    }
+    REQUIRE(app::parts_follow_door());
+    Harness h;
+    REQUIRE(h.ok);
+    REQUIRE(!h.body.morphs().empty());
+    REQUIRE(h.attach(PARTS));
+    REQUIRE(h.attach(CLOTHES));
+    const app::CharacterParts& parts = h.body.parts();
+    REQUIRE(parts.following());
+    REQUIRE(parts.neutral().size() == h.body.current_vertices().size());
+    // Кто как следует: глаза/зубы/язык жёстко (маски есть), остальное переносом.
+    for (const app::AttachedPart& p : parts.parts()) {
+        INFO(p.name);
+        CHECK(p.follow != app::PartFollow::None);
+        CHECK(p.map.binds.size() == p.rest.size());
+        if (p.name == "eyes" || p.name == "teeth" || p.name == "tongue") {
+            CHECK(p.follow == app::PartFollow::Rigid);
+            CHECK(!p.rigid.empty());
+        } else {
+            CHECK(p.follow == app::PartFollow::Transfer);
+        }
+        if (p.name == "eyes") {
+            CHECK(p.rigid.size() == 2);
+            CHECK(p.rigid[0].scale);
+        }
+    }
+    // Ноль — рест побитово (веса нули, тело = нейтраль).
+    REQUIRE(h.body.apply_morphs(h.rs, h.renderer));
+    for (const app::AttachedPart& p : parts.parts()) {
+        INFO(p.name);
+        REQUIRE(p.now.size() == p.rest.size());
+        bool same = true;
+        for (std::size_t i = 0; i < p.now.size(); ++i) {
+            same = same && p.now[i].position == p.rest[i].position
+                   && p.now[i].normal == p.rest[i].normal;
+        }
+        CHECK(same);
+    }
+    // Оба конца полосы каждой цели. Худшее — по каждой части отдельно:
+    // порог у волос и костюма один и тот же, а места разные.
+    struct Worst {
+        float gap = 0.0f;
+        std::string gap_at;
+        float shrink = 0.0f;
+        std::string shrink_at;
+        float vgap = 0.0f;
+        std::string vgap_at;
+        float rigid = 0.0f;
+        std::string rigid_at;
+        std::size_t under_rest = 0;
+        std::size_t under = 0;
+        std::string under_at;
+        std::size_t vertices = 0;
+    };
+    std::map<std::string, Worst> worst;
+    float control_hair_forehead = 0.0f;
+    std::size_t control_hair_under = 0;
+    std::size_t hair_under_rest = 0;
+    float control_brows_angle = 0.0f;
+    float control_brows_vertex = 0.0f;
+    float control_eyes_horiz = 0.0f;
+    double ms_sum = 0.0;
+    double ms_max = 0.0;
+    std::size_t ends = 0;
+    const auto& targets = h.body.morphs();
+    for (std::size_t t = 0; t < targets.size(); ++t) {
+        for (const float w : {targets[t].lo, targets[t].hi}) {
+            if (w == 0.0f) {
+                continue;
+            }
+            h.body.reset_morphs();
+            h.body.set_morph_weight(t, w);
+            REQUIRE(h.body.apply_morphs(h.rs, h.renderer));
+            ++ends;
+            ms_sum += parts.last_follow_ms();
+            ms_max = std::max(ms_max, parts.last_follow_ms());
+            const auto& now = h.body.current_vertices();
+            const std::string tag = targets[t].name + (w > 0 ? " hi" : " lo");
+            for (const app::PartFollowReport& r : parts.follow_report(now)) {
+                Worst& w = worst[r.name];
+                w.vertices = r.vertices;
+                w.under_rest = r.under_skin_rest;
+                if (r.follow == app::PartFollow::Transfer && r.gap_grow_m > w.gap) {
+                    w.gap = r.gap_grow_m;
+                    w.gap_at = tag;
+                }
+                if (r.follow == app::PartFollow::Transfer && r.gap_shrink_m > w.shrink) {
+                    w.shrink = r.gap_shrink_m;
+                    w.shrink_at = tag;
+                }
+                if (r.follow == app::PartFollow::Transfer && r.vertex_gap_error_m > w.vgap) {
+                    w.vgap = r.vertex_gap_error_m;
+                    w.vgap_at = tag;
+                }
+                if (r.follow == app::PartFollow::Rigid && r.rigid_offset_m > w.rigid) {
+                    w.rigid = r.rigid_offset_m;
+                    w.rigid_at = tag;
+                }
+                if (r.under_skin_now > w.under) {
+                    w.under = r.under_skin_now;
+                    w.under_at = tag;
+                }
+            }
+            if (targets[t].name == "forehead-scale-vert" && w > 0) {
+                const app::AttachedPart& hair = *part_named(parts, "hair");
+                control_hair_forehead = control_gap_change(parts, hair, now);
+                control_hair_under = control_under_skin(parts, hair, now);
+                hair_under_rest = worst["hair"].under_rest;
+            }
+            if (targets[t].name == "eyebrows-angle") {
+                control_brows_angle = std::max(
+                    control_brows_angle,
+                    control_gap_change(parts, *part_named(parts, "eyebrows"), now));
+                control_brows_vertex = std::max(
+                    control_brows_vertex,
+                    control_vertex_gap(parts, *part_named(parts, "eyebrows"), now));
+            }
+            if (targets[t].name == "head-scale-horiz") {
+                control_eyes_horiz = std::max(
+                    control_eyes_horiz, control_rigid_shift(parts, *part_named(parts, "eyes"), now));
+            }
+        }
+    }
+    MESSAGE("band ends " << ends << "; follow " << ms_sum / std::max<std::size_t>(ends, 1)
+            << " ms mean, " << ms_max << " ms max");
+    for (const auto& [name, w] : worst) {
+        MESSAGE(name << " (" << w.vertices << " verts): worst skin gap GROWTH " << w.gap * 1000.0f
+                     << " mm (" << w.gap_at << "), shrink " << w.shrink * 1000.0f << " mm ("
+                     << w.shrink_at << "), |d| to nearest vertex " << w.vgap * 1000.0f
+                     << " mm (" << w.vgap_at << "), worst rigid offset " << w.rigid * 1000.0f
+                     << " mm (" << w.rigid_at << "), under skin >1 mm: rest " << w.under_rest
+                     << ", worst now " << w.under << " (" << w.under_at << ")");
+        INFO(name);
+        CHECK(w.gap <= FOLLOW_TOL_M);
+        CHECK(w.rigid <= FOLLOW_TOL_M);
+        // Просвечивание: под кожу не уходит больше вершин, чем в ресте, плюс
+        // десять (0.1 % костюма) на вершины, лежащие на самой коже. Только у
+        // переносимых частей: яблоко под веками и зубы за губами лежат «под
+        // кожей» по построению, и губы, сжатые ручкой, обязаны налезть на зубы.
+        if (part_named(parts, name)->follow == app::PartFollow::Transfer) {
+            CHECK(w.under <= w.under_rest + 10);
+        }
+    }
+    MESSAGE("control (parts left in rest): hair under forehead-scale-vert hi "
+            << control_hair_forehead * 1000.0f << " mm from skin, under skin "
+            << control_hair_under << " of " << worst["hair"].vertices << " (rest "
+            << hair_under_rest << "), eyebrows under eyebrows-angle "
+            << control_brows_angle * 1000.0f << " mm from skin / " << control_brows_vertex * 1000.0f
+            << " mm from nearest vertex, eye socket under head-scale-horiz "
+            << control_eyes_horiz * 1000.0f << " mm");
+    CHECK(ends >= 90);
+    CHECK(worst.size() == 8);
+    // Контроль: без переноса те же ручки рвут части (числа отчёта лица: 13.7 / 6.1 / 4.4
+    // — там мерился край области, здесь пара «вершина части ↔ вершина тела» и центроид).
+    CHECK(control_hair_forehead >= 0.010f);
+    CHECK(control_hair_under >= hair_under_rest + 40);
+    CHECK(control_brows_angle >= 0.002f);
+    CHECK(control_brows_vertex >= 0.005f);
+    CHECK(control_eyes_horiz >= 0.002f);
+    CHECK(ms_max < 20.0);
+}
+
+TEST_CASE("одежда следует телу: на belly/weight/muscle max под кожу не уходит больше вершин костюма, чем в ресте; контроль в ресте — тело сквозь костюм") {
+    if (!present(BODY) || !present(CLOTHES)) {
+        MESSAGE("no baked files -- skipped");
+        return;
+    }
+    Harness h;
+    REQUIRE(h.ok);
+    REQUIRE(h.attach(CLOTHES));
+    const app::CharacterParts& parts = h.body.parts();
+    const app::AttachedPart* suit = part_named(parts, "male_casualsuit01");
+    REQUIRE(suit != nullptr);
+    CHECK(suit->follow == app::PartFollow::Transfer);
+    const std::vector<uint32_t> hidden_before = parts.hidden_body_vertices();
+    std::size_t under_rest = 0;
+    std::size_t worst_under = 0;
+    std::size_t worst_control = 0;
+    float worst_gap = 0.0f;
+    for (const char* name : {"belly", "weight", "muscle"}) {
+        const int slot = render::morph_index(h.body.morphs(), name);
+        if (slot < 0) {
+            MESSAGE("no target " << name);
+            continue;
+        }
+        h.body.reset_morphs();
+        h.body.set_morph_weight(static_cast<std::size_t>(slot), h.body.morphs()[slot].hi);
+        REQUIRE(h.body.apply_morphs(h.rs, h.renderer));
+        const auto& now = h.body.current_vertices();
+        std::size_t under = 0;
+        float gap = 0.0f;
+        for (const app::PartFollowReport& r : parts.follow_report(now)) {
+            if (r.name == suit->name) {
+                under = r.under_skin_now;
+                under_rest = r.under_skin_rest;
+                gap = r.gap_grow_m;
+            }
+        }
+        const std::size_t control = control_under_skin(parts, *suit, now);
+        worst_under = std::max(worst_under, under);
+        worst_control = std::max(worst_control, control);
+        worst_gap = std::max(worst_gap, gap);
+        MESSAGE(std::string(name) << " hi: suit vertices under skin >1 mm: rest " << under_rest
+                                  << ", now " << under << ", control (suit left in rest) "
+                                  << control << " of " << suit->rest.size() << "; skin gap growth "
+                                  << gap * 1000.0f << " mm; follow " << parts.last_follow_ms()
+                                  << " ms");
+    }
+    CHECK(worst_under <= under_rest + 10);
+    CHECK(worst_gap <= FOLLOW_TOL_M);
+    CHECK(worst_control >= under_rest + 40);
+    // Список закрытых вершин тела морф не меняет.
+    CHECK(parts.hidden_body_vertices() == hidden_before);
+}
+
+TEST_CASE("части следуют морфам на масштабированном теле: нейтраль в масштабе частей, ноль = рест") {
+    if (!present(BODY) || !present(PARTS)) {
+        MESSAGE("no baked files -- skipped");
+        return;
+    }
+    Harness h(BODY, false, 1.08f);
+    REQUIRE(h.ok);
+    REQUIRE(h.attach(PARTS));
+    const app::CharacterParts& parts = h.body.parts();
+    REQUIRE(parts.following());
+    REQUIRE(parts.neutral().size() == h.body.current_vertices().size());
+    // Нейтраль ×1.08 совпадает с телом ×1.08 — нигде дальше 1e-5 м.
+    float worst = 0.0f;
+    for (std::size_t i = 0; i < parts.neutral().size(); ++i) {
+        worst = std::max(worst, glm::length(parts.neutral()[i].position
+                                            - h.body.current_vertices()[i].position));
+    }
+    CHECK(worst < 1e-5f);
+    for (const app::PartFollowReport& r : parts.follow_report(h.body.current_vertices())) {
+        CHECK(r.gap_grow_m < 1e-5f);
+        CHECK(r.rigid_offset_m < 1e-5f);
+    }
+}
+
+TEST_CASE("маски лица: файл читается, области глаз и рта есть, число вершин — тела") {
+    app::FaceMasks masks;
+    if (!present(app::FACE_MASKS_PATH)) {
+        MESSAGE("no face.masks -- skipped");
+        return;
+    }
+    REQUIRE(app::read_face_masks(app::FACE_MASKS_PATH, masks));
+    CHECK(masks.verts == 14517);
+    for (const char* name : {"eye-l", "eye-r", "mouth-angles", "lip-upper", "lip-lower"}) {
+        INFO(name);
+        const auto* m = masks.find(name);
+        REQUIRE(m != nullptr);
+        CHECK(m->size() > 100);
+        CHECK(m->back() < masks.verts);
+    }
+    CHECK(masks.find("no-such-mask") == nullptr);
+    app::FaceMasks none;
+    CHECK(!app::read_face_masks("assets/characters/targets/no-such.masks", none));
+    CHECK(none.empty());
 }

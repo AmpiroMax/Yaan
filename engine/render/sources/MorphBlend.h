@@ -97,6 +97,15 @@ void blend_morphs(std::span<const platform::SkinnedVertex> rest,
                   std::span<const std::uint32_t> indices,
                   std::vector<platform::SkinnedVertex>& out);
 
+/// НОРМАЛИ РАЗНИЦЕЙ (см. шапку): `out` — те же вершины, что `before`, со
+/// сдвинутыми позициями; каждой нормали прибавляется разница площадно-
+/// взвешенных нормалей после и до сдвига. Вынесена наружу, потому что часть,
+/// следующая за телом (MorphFollow.h), нуждается ровно в той же арифметике —
+/// а две копии одной формулы разошлись бы в первую же правку.
+void shift_normals_by_difference(std::span<const platform::SkinnedVertex> before,
+                                 std::span<const std::uint32_t> indices,
+                                 std::vector<platform::SkinnedVertex>& out);
+
 /// СКОЛЬКО ВЕРШИН УЕХАЛО ДАЛЬШЕ `threshold_m` — и на сколько уехала худшая.
 /// Прибор приёмки «дельта не течёт из региона» и одновременно сторож тихого
 /// брака §2б записки: «двенадцать целей готово» при нуле сдвигов — это брак,
