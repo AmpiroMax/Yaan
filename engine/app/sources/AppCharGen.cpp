@@ -173,10 +173,34 @@ void App::chargen_enter() {
     // это нарушил, ОТВЕРГАЕТСЯ ГРОМКО, а не обрезается молча: полоса шире
     // судейской — это ползунок, после которого судья пропорций красный, а
     // виноват интерфейс.
+    // ОПИСЬ ЛИЦА — ИЗ ДАННЫХ: манифест ручек и калибровка судей. Нет файла —
+    // вкладка «Лицо» серая, и это сказано вслух; кривая строка — отказ вслух.
+    chargen_face_ = FacePlan{};
+    {
+        std::string why;
+        if (!read_face_manifest(std::filesystem::path(FACE_MANIFEST_PATH), chargen_face_,
+                                why)) {
+            std::fprintf(stderr, "[создание] манифест лица %s: %s — вкладка «Лицо» серая\n",
+                         FACE_MANIFEST_PATH, why.c_str());
+            chargen_face_ = FacePlan{};
+        }
+        std::vector<FaceBand> bands;
+        if (read_face_bands(std::filesystem::path(FACE_BANDS_PATH), bands, why)) {
+            face_plan_apply_bands(chargen_face_, bands);
+        } else if (!why.empty()) {
+            std::fprintf(stderr, "[создание] калибровка лица: %s — все ромбы полые\n",
+                         why.c_str());
+        }
+    }
+    // НАРОДНЫЕ КРАЯ — ТОЛЬКО У ТЕЛА: лицо у народов — следующая волна, и
+    // ручка лица, попавшая в канон народа, получила бы «центр народа» =
+    // середину полосы, то есть ямочку и мешки наполовину у каждого типажа.
     std::vector<PeopleBand> canon;
     canon.reserve(chargen_body_.morphs().size() + 1);
     for (const render::MorphTarget& t : chargen_body_.morphs()) {
-        canon.push_back(PeopleBand{t.name, t.lo, t.hi});
+        if (chargen_face_.find(t.name) == nullptr) {
+            canon.push_back(PeopleBand{t.name, t.lo, t.hi});
+        }
     }
     canon.push_back(PeopleBand{CHARGEN_HEIGHT_KEY, CHARGEN_HEIGHT_MIN_M,
                                CHARGEN_HEIGHT_MAX_M});
@@ -197,10 +221,20 @@ void App::chargen_enter() {
         chargen_peoples_.push_back(std::move(p));
     }
 
+    std::vector<std::string> missing;
     chargen_.set_categories(
-        chargen_describe(std::move(rows), chargen_peoples_));
+        chargen_describe(std::move(rows), chargen_peoples_, chargen_face_, &missing));
+    for (const std::string& name : missing) {
+        // РУЧКА МАНИФЕСТА БЕЗ ЦЕЛИ В ТЕЛЕ — ГРОМКО: молчаливый пропуск — это
+        // ручка, которую художник два часа ищет (CHARGEN_UI.md, Р1).
+        std::fprintf(stderr, "[создание] манифест лица называет ручку \"%s\", а в "
+                             "секции MORF тела её нет — перепеки .morf\n",
+                     name.c_str());
+    }
     chargen_.set_selection(0);
     chargen_.view() = CharGenView{};
+    chargen_zoom_target_ = -1.0f;
+    chargen_view_pinned_ = false;
     // ПУСТАЯ ВКЛАДКА ОБЯЗАНА СКАЗАТЬ ИГРОКУ, ПОЧЕМУ ОНА ПУСТА, а не выглядеть
     // сломанным экраном. Оба случая ниже — законные состояния дерева на
     // середине чужой волны (тело перепекают, цели MORF ещё от старого), и
@@ -312,7 +346,7 @@ void App::chargen_enter() {
 
     if (const char* roll = door_value("DFN_CHARGEN_ROLL");
         roll != nullptr && roll[0] == '1') {
-        chargen_random();
+        chargen_random(/*all=*/true);
         chargen_roll_name();
     }
 
@@ -382,6 +416,7 @@ void App::chargen_enter() {
         }
         chargen_orbit(view, 0.0f, 0.0f, 0.0f); // зажимает всё три границами
         chargen_zoom(view, 0.0f);
+        chargen_view_pinned_ = true;
     }
 
     // ЖУРНАЛ НАЗЫВАЕТ ФАЙЛ И ЕГО ХЭШ, а не только счётчики. Владелец 01.09
@@ -444,7 +479,12 @@ void App::chargen_tick(float dt) {
     }
     // СЧЁТНЫЙ ПРОГОН — ФИКСИРОВАННЫЙ ШАГ: кадр приёмки обязан быть функцией
     // номера кадра, а не того, сколько успела машина (правило 13).
-    chargen_body_.tick(counted_run() ? 1.0f / 60.0f : dt);
+    const float step = counted_run() ? 1.0f / 60.0f : dt;
+    chargen_body_.tick(step);
+    if (chargen_zoom_target_ >= 0.0f
+        && !chargen_glide_zoom(chargen_.view(), chargen_zoom_target_, step)) {
+        chargen_zoom_target_ = -1.0f;
+    }
 }
 
 // --- КАДР -------------------------------------------------------------------
@@ -522,6 +562,13 @@ bool App::chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved
         chargen_seen_category_ = chargen_.category();
         chargen_remember();
     }
+    // КАДР — СВОЙСТВО КАТЕГОРИИ (Р4): вкладка «Лицо» приезжает к лицу сама,
+    // «Тело» отъезжает к фигуре. Едет в chargen_tick; доза DFN_CHARGEN_VIEW
+    // кадр прибивает.
+    if (chargen_.take_frame_change() && !chargen_view_pinned_
+        && chargen_.category() < chargen_.categories().size()) {
+        chargen_zoom_target_ = chargen_.categories()[chargen_.category()].zoom;
+    }
 
     // МЫШЬ. Наведение двигает выбор только при настоящем движении — тот же
     // довод, что в меню: рука, лежащая на мыши, иначе утягивала бы выбор
@@ -560,7 +607,11 @@ bool App::chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved
     }
     chargen_cursor_ = cursor;
     // КОЛЕСО — ПРИБЛИЖЕНИЕ, и единственный потребитель колеса на этом экране.
-    chargen_zoom(chargen_.view(), input_->scroll_delta().y);
+    // Рука игрока перебивает кадр категории: он предложение, а не запрет.
+    if (const float notches = input_->scroll_delta().y; notches != 0.0f) {
+        chargen_zoom_target_ = -1.0f;
+        chargen_zoom(chargen_.view(), notches);
+    }
 
     CharGenAction action = CharGenAction::None;
     if (!typing && input_->was_pressed(platform::Key::ENTER)) {
@@ -589,7 +640,8 @@ bool App::chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved
         chargen_.set_status(std::string(loc("chargen.status.reset")));
         break;
     case CharGenAction::Random:
-        chargen_random();
+        // ТЕКУЩАЯ КАТЕГОРИЯ; Shift — все по очереди (Р5).
+        chargen_random(fine_shift(*input_));
         break;
     case CharGenAction::RollName:
         chargen_roll_name();
@@ -722,22 +774,73 @@ void App::chargen_apply_archetype() {
     chargen_.set_status(std::string(loc("chargen.status.archetype")));
 }
 
-void App::chargen_random() {
-    const People* folk = chargen_people();
-    if (folk == nullptr) {
-        return;
-    }
-    // БРОСОК — УСЕЧЁННАЯ НОРМАЛЬ ВОКРУГ ЦЕНТРА ТИПАЖА, а не равномерное по
-    // полосе: равномерное даёт середнячков и уродов поровну (Р5). Скрытая
-    // связь «крупность» — внутри выборки, и без неё в толпе заводятся
-    // коротышки с руками до колен.
-    const std::size_t kind = chargen_.choice_of(CHARGEN_ARCHETYPE_ROW);
-    for (const auto& [name, value] : people_sample_build(*folk, kind, chargen_rng_)) {
-        if (chargen_.find(name) == nullptr) {
-            continue;
+void App::chargen_random(bool all) {
+    // «СЛУЧАЙНО» БРОСАЕТ ТЕКУЩУЮ КАТЕГОРИЮ (Р5): игрок кидает нос, оставив
+    // телосложение. `all` — по всем категориям по очереди: сперва тело
+    // народом, потом лицо. Порядок обращений к генератору — часть рецепта
+    // (правило 13), поэтому он один: тело, затем лицо, и никогда наоборот.
+    const std::vector<CharGenCategory>& cats = chargen_.categories();
+    const CharGenCategory* face_tab = nullptr;
+    for (const CharGenCategory& c : cats) {
+        if (c.key == CHARGEN_FACE_TAB_KEY) {
+            face_tab = &c;
         }
-        (void)chargen_.set_value(name, value);
-        (void)chargen_push_to_body(name);
+    }
+    const bool on_face = chargen_.category() < cats.size()
+                         && cats[chargen_.category()].key == CHARGEN_FACE_TAB_KEY;
+    const auto in_current = [&](std::string_view name) {
+        for (const CharGenRow& r : chargen_.rows()) {
+            if (r.name == name) {
+                return true;
+            }
+        }
+        return false;
+    };
+    bool thrown = false;
+    if (all || !on_face) {
+        if (const People* folk = chargen_people(); folk != nullptr) {
+            // БРОСОК — УСЕЧЁННАЯ НОРМАЛЬ ВОКРУГ ЦЕНТРА ТИПАЖА, а не равномерное
+            // по полосе: равномерное даёт середнячков и уродов поровну (Р5).
+            // Скрытая связь «крупность» — внутри выборки, и без неё в толпе
+            // заводятся коротышки с руками до колен. Выборка берётся ЦЕЛИКОМ
+            // (последовательность генератора одна на все вкладки), а на экран
+            // кладётся только то, что лежит в текущей категории.
+            const std::size_t kind = chargen_.choice_of(CHARGEN_ARCHETYPE_ROW);
+            for (const auto& [name, value] : people_sample_build(*folk, kind, chargen_rng_)) {
+                if (chargen_.find(name) == nullptr || (!all && !in_current(name))) {
+                    continue;
+                }
+                (void)chargen_.set_value(name, value);
+                (void)chargen_push_to_body(name);
+                thrown = true;
+            }
+        }
+    }
+    if ((all || on_face) && face_tab != nullptr) {
+        // ЛИЦО — ВОКРУГ НЕЙТРАЛИ (ноль, замер этого тела), σ — четверть полосы
+        // судьи, усечение перебросом, как у народа. Народных краёв у лица
+        // пока нет (следующая волна), поэтому центр — нейтраль, а не «середина
+        // народа»: середина полосы 0..1 у ямочки — это ямочка у каждого второго.
+        for (const CharGenRow& r : face_tab->rows) {
+            if (r.kind != CharGenRowKind::Slider) {
+                continue;
+            }
+            const float sigma = PEOPLE_SIGMA_FRAC * (r.hi - r.lo);
+            float value = 0.0f;
+            for (int tries = 0; tries < PEOPLE_TRUNCATION_TRIES; ++tries) {
+                value = sigma * people_normal(chargen_rng_);
+                if (value >= r.lo && value <= r.hi) {
+                    break;
+                }
+                value = std::clamp(value, r.lo, r.hi);
+            }
+            (void)chargen_.set_value(r.name, value);
+            (void)chargen_push_to_body(r.name);
+            thrown = true;
+        }
+    }
+    if (!thrown) {
+        return;
     }
     (void)chargen_body_.apply(render_system_, *renderer_);
     chargen_settle_pending_ = true;

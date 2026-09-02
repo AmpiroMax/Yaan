@@ -692,7 +692,18 @@ TEST_CASE("MORF-бленд ЖИВОЙ: вес двигает вершины, а 
     REQUIRE(body.load(rs, renderer, nullptr, rig, app::CHARGEN_SOURCE_BODY));
     const glm::vec3 lo0 = body.lo();
     const glm::vec3 hi0 = body.hi();
+    // ЛИЦЕВЫЕ ЦЕЛИ ЖИВУТ ВНУТРИ СИЛУЭТА и габарита не двигают по построению;
+    // их живость меряется ВЕРШИНАМИ, телесных — и габаритом тоже.
+    app::FacePlan plan;
+    std::string why;
+    (void)app::read_face_manifest(fs::path(app::FACE_MANIFEST_PATH), plan, why);
+    std::vector<glm::vec3> neutral;
+    for (const platform::SkinnedVertex& v : body.character().current_vertices()) {
+        neutral.push_back(v.position);
+    }
     int moved = 0;
+    int body_targets = 0;
+    int alive = 0;
     for (std::size_t i = 0; i < body.morphs().size(); ++i) {
         const render::MorphTarget& t = body.morphs()[i];
         // ОДНО ТЕЛО, ОДИН ПОЛЗУНОК ЗА РАЗ: тело экрана держит номера мешей
@@ -705,14 +716,32 @@ TEST_CASE("MORF-бленд ЖИВОЙ: вес двигает вершины, а 
         const float far_end = (std::fabs(t.hi) > std::fabs(t.lo)) ? t.hi : t.lo;
         REQUIRE(body.set_weight(i, far_end));
         REQUIRE(body.apply(rs, renderer));
-        if (glm::length(body.lo() - lo0) + glm::length(body.hi() - hi0) > 1e-4f) {
-            ++moved;
+        const bool is_face = plan.find(t.name) != nullptr;
+        if (!is_face) {
+            ++body_targets;
+            if (glm::length(body.lo() - lo0) + glm::length(body.hi() - hi0) > 1e-4f) {
+                ++moved;
+            }
         }
+        // ЖИВАЯ ЦЕЛЬ ДВИГАЕТ ВЕРШИНЫ: полмиллиметра — пиксель портретного кадра
+        // (tools/check_morph_bands.py, --face-threshold).
+        const auto& now = body.character().current_vertices();
+        REQUIRE(now.size() == neutral.size());
+        std::size_t verts_moved = 0;
+        for (std::size_t k = 0; k < now.size(); ++k) {
+            if (glm::length(now[k].position - neutral[k]) > 0.0005f) {
+                ++verts_moved;
+            }
+        }
+        CAPTURE(t.name);
+        CHECK(verts_moved > 0);
+        alive += verts_moved > 0 ? 1 : 0;
     }
-    // НЕ «ХОТЬ ОДНА»: цель, которая не двигает габарит, ещё может двигать
-    // вершины внутри силуэта (мускулатура), поэтому порог — большинство, а не
-    // все. Ноль сдвинувших значил бы, что бленда нет вовсе.
-    CHECK(moved >= static_cast<int>(body.morphs().size()) / 2);
+    // НЕ «ХОТЬ ОДНА»: телесная цель, которая не двигает габарит, ещё может
+    // двигать вершины внутри силуэта (мускулатура), поэтому порог — большинство,
+    // а не все. Ноль сдвинувших значил бы, что бленда нет вовсе.
+    CHECK(moved >= body_targets / 2);
+    CHECK(alive == static_cast<int>(body.morphs().size()));
     body.release(rs, renderer, nullptr);
 }
 
@@ -1021,7 +1050,18 @@ TEST_CASE("цели тела не трогают голову: ручки час
     const std::map<std::string, float> passport_mm{
         {"age", 20.0f}, {"torso-depth", 8.0f}, {"weight", 6.0f}, {"muscle", 3.0f}};
     REQUIRE(body.morphs().size() >= 10);
+    // ЛИЦЕВЫЕ ЦЕЛИ (манифест) ГОЛОВУ ДВИГАЮТ ПО ОПРЕДЕЛЕНИЮ — это набор про
+    // ТЕЛЕСНЫЕ; их собственное утверждение обратное: «не трогают тело ниже
+    // шеи», и оно стоит своим набором ниже.
+    app::FacePlan plan;
+    std::string why;
+    (void)app::read_face_manifest(fs::path(app::FACE_MANIFEST_PATH), plan, why);
+    std::size_t body_targets = 0;
     for (const render::MorphTarget& t : body.morphs()) {
+        if (plan.find(t.name) != nullptr) {
+            continue;
+        }
+        ++body_targets;
         const float band = std::max(std::fabs(t.lo), std::fabs(t.hi));
         std::size_t head_moved = 0;
         float head_worst = 0.0f;
@@ -1047,5 +1087,322 @@ TEST_CASE("цели тела не трогают голову: ручки час
             CHECK(head_moved == 0);
         }
     }
+    CHECK(body_targets >= 10);
     body.release(rs, renderer, nullptr);
+}
+
+// --- ЛИЦО: ОПИСЬ, ВКЛАДКА, ЦЕЛИ ------------------------------------------------
+//
+// ВОЛНА «ЛИЦО ПОЛЗУНКАМИ». Вкладка «Лицо» строится ДАННЫМИ: манифест
+// assets/characters/targets/face.targets даёт группы и порядок, секция MORF
+// тела — полосы, калибровка face.bands — сплошной или полый ромб. Ниже: разбор
+// манифеста (в том числе ОТКАЗ на кривой строке), описание с планом, и на
+// НАСТОЯЩЕМ теле — «каждая ручка манифеста нашла свою цель», «цели лица не
+// трогают тело ниже шеи», «пресет с лицом печётся байт в байт».
+
+namespace {
+
+constexpr const char* FACE_MANIFEST_SAMPLE =
+    "# шапка\n"
+    "нос | ширина крыльев | nose-width1-decr/incr | -1.0 1.0 | Ширина крыльев | узкие · широкие\n"
+    "нос | кончик | nose-point-down/up | -1.0 1.0 | Кончик | опущен · вздёрнут\n"
+    "глаза | размер | {l,r}-eye-scale-decr/incr | -0.6 0.6 | Размер глаз | маленькие · большие\n"
+    "глаза | брови | eyebrows-trans-down/up | -0.5 0.5 | Высота бровей | низко · высоко\n"
+    "голова | форма: овал | head-oval | 0.0 1.0 | Овальное лицо | нет · да\n";
+
+/// Строки-ползунки ПО ИМЕНАМ — так их отдаёт AppCharGen из секции MORF.
+[[nodiscard]] std::vector<app::CharGenRow> rows_named(std::initializer_list<const char*> names) {
+    std::vector<app::CharGenRow> rows;
+    for (const char* n : names) {
+        app::CharGenRow r;
+        r.kind = app::CharGenRowKind::Slider;
+        r.name = n;
+        r.lo = -1.0f;
+        r.hi = 1.0f;
+        rows.push_back(std::move(r));
+    }
+    return rows;
+}
+
+} // namespace
+
+TEST_CASE("манифест лица: имя ручки выводится из стема, группа — из первого стема") {
+    // ОДНО ПРАВИЛО С ЭКСПОРТЁРОМ (tools/make_body_targets.py, handle_name).
+    CHECK(app::face_handle_name("nose-width1-decr/incr") == "nose-width1");
+    CHECK(app::face_handle_name("{l,r}-eye-scale-decr/incr") == "eye-scale");
+    CHECK(app::face_handle_name("{l,r}-eye-trans-in/out") == "eye-trans");
+    CHECK(app::face_handle_name("nose-point-down/up") == "nose-point");
+    CHECK(app::face_handle_name("nose-point-width-decr/incr") == "nose-point-width");
+    CHECK(app::face_handle_name("forehead-trans-backward/forward") == "forehead-trans");
+    CHECK(app::face_handle_name("head-oval") == "head-oval");
+    CHECK(app::face_group_id("{l,r}-eye-scale-decr/incr") == "eye");
+    CHECK(app::face_group_id("nose-width1-decr/incr") == "nose");
+    CHECK(app::face_group_id("head-oval") == "head");
+
+    app::FacePlan plan;
+    std::string why;
+    REQUIRE(app::parse_face_manifest(FACE_MANIFEST_SAMPLE, plan, why));
+    REQUIRE(plan.groups.size() == 3);
+    CHECK(plan.groups[0].id == "nose");
+    CHECK(plan.groups[1].id == "eye");
+    CHECK(plan.groups[2].id == "head");
+    CHECK(plan.handle_count() == 5);
+    REQUIRE(plan.find("eye-scale") != nullptr);
+    CHECK(plan.find("eye-scale")->lo == doctest::Approx(-0.6f));
+    CHECK(plan.find("eye-scale")->hi == doctest::Approx(0.6f));
+    CHECK_FALSE(plan.find("eye-scale")->measured); // без калибровки — полый ромб
+    CHECK(plan.find("нет-такой") == nullptr);
+
+    // ОТКАЗ ГРОМКИЙ, А НЕ ПРОПУСК: кривая строка — это ручка, которую потом
+    // два часа ищут на экране.
+    CHECK_FALSE(app::parse_face_manifest("нос | ручка | nose-hump-decr/incr | -1 1\n", plan, why));
+    CHECK_FALSE(why.empty());
+    CHECK_FALSE(app::parse_face_manifest("нос | а | nose-hump-decr/incr | 1.0 -1.0 | п | а · б\n",
+                                         plan, why));
+    CHECK_FALSE(app::parse_face_manifest(
+        "нос | а | nose-hump-decr/incr | -1 1 | п | а · б\nрот | б | nose-hump-decr/incr | -1 1 | п | а · б\n",
+        plan, why)); // одна ручка дважды
+    CHECK_FALSE(app::parse_face_manifest("# только шапка\n", plan, why));
+
+    // КАЛИБРОВКА СТАВИТ РОМБ.
+    REQUIRE(app::parse_face_manifest(FACE_MANIFEST_SAMPLE, plan, why));
+    std::vector<app::FaceBand> bands;
+    bands.push_back(app::FaceBand{"eye-scale", -0.6f, 0.6f, true});
+    bands.push_back(app::FaceBand{"head-oval", 0.0f, 0.75f, true});
+    bands.push_back(app::FaceBand{"чужая", 0.0f, 1.0f, true});
+    CHECK(app::face_plan_apply_bands(plan, bands) == 2);
+    CHECK(plan.find("eye-scale")->measured);
+    CHECK(plan.find("head-oval")->measured);
+    CHECK_FALSE(plan.find("nose-width1")->measured);
+}
+
+TEST_CASE("описание с лицом: вкладка «Лицо» оживает из манифеста, разделы и ромбы — из данных") {
+    app::FacePlan plan;
+    std::string why;
+    REQUIRE(app::parse_face_manifest(FACE_MANIFEST_SAMPLE, plan, why));
+    std::vector<app::FaceBand> bands;
+    bands.push_back(app::FaceBand{"eye-scale", -0.6f, 0.6f, true});
+    (void)app::face_plan_apply_bands(plan, bands);
+
+    // Секция MORF вперемешку: телесные и лицевые цели, как они лежат в файле
+    // (по имени), плюс одна лицевая, которой манифест не знает.
+    std::vector<app::CharGenRow> rows = rows_named(
+        {"eye-scale", "belly", "head-oval", "nose-point", "weight", "nose-width1", "chin-cleft"});
+    std::vector<std::string> missing;
+    app::CharGenScreen s;
+    s.set_categories(app::chargen_describe(std::move(rows), {}, plan, &missing));
+    REQUIRE(s.categories().size() == 6);
+    CHECK(s.categories()[2].key == app::CHARGEN_FACE_TAB_KEY);
+    CHECK(s.categories()[2].enabled);
+    CHECK(s.categories()[2].zoom == doctest::Approx(1.0f)); // кадр вкладки — лицо (Р4)
+    CHECK_FALSE(s.categories()[3].enabled);                  // волосы — серые
+    // РУЧКА МАНИФЕСТА БЕЗ ЦЕЛИ В ТЕЛЕ НАЗВАНА ВСЛУХ, а не пропала.
+    REQUIRE(missing.size() == 1);
+    CHECK(missing[0] == "eyebrows-trans");
+
+    s.set_category(2);
+    const std::vector<app::CharGenRow>& face = s.rows();
+    REQUIRE(face.size() == 4);
+    // ПОРЯДОК — МАНИФЕСТА, не файла тела: нос, нос, глаза, голова.
+    CHECK(face[0].name == "nose-width1");
+    CHECK(face[1].name == "nose-point");
+    CHECK(face[2].name == "eye-scale");
+    CHECK(face[3].name == "head-oval");
+    CHECK(face[0].group_key == "chargen.group.face.nose");
+    CHECK(face[1].group_key.empty());
+    CHECK(face[2].group_key == "chargen.group.face.eye");
+    CHECK(face[3].group_key == "chargen.group.face.head");
+    CHECK(face[0].lo_word_key == "morph.edge.nose-width1.lo");
+    CHECK(face[0].hi_word_key == "morph.edge.nose-width1.hi");
+    // ЗАРУБКА — НОЛЬ, РОМБ — ПО КАЛИБРОВКЕ: eye-scale мерил судья, остальные нет.
+    CHECK(face[2].marks.has_notch);
+    CHECK(face[2].marks.notch == doctest::Approx(0.0f));
+    CHECK(face[2].marks.measured);
+    CHECK_FALSE(face[0].marks.measured);
+    CHECK_FALSE(face[3].marks.measured);
+    // ТЕЛО ОСТАЛОСЬ ТЕЛОМ, а лицевая цель без строки в манифесте (chin-cleft)
+    // попала в хвост тела — на экран, не в никуда.
+    s.set_category(1);
+    bool belly = false;
+    bool cleft = false;
+    for (const app::CharGenRow& r : s.rows()) {
+        belly = belly || r.name == "belly";
+        cleft = cleft || r.name == "chin-cleft";
+        CHECK(r.name != "eye-scale");
+    }
+    CHECK(belly);
+    CHECK(cleft);
+    // БЕЗ ПЛАНА — ВКЛАДКА СЕРАЯ, как и было.
+    app::CharGenScreen bare;
+    bare.set_categories(app::chargen_describe(rows_named({"eye-scale", "belly"}), {}));
+    CHECK_FALSE(bare.categories()[2].enabled);
+}
+
+TEST_CASE("кадр категории приезжает сам: приближение едет к цели за четверть секунды и не дальше") {
+    app::CharGenView view;
+    view.zoom = 0.0f;
+    // 0.25 с при 60 к/с — 15 шагов; на пятнадцатом — ровно цель, дальше нет.
+    int steps = 0;
+    while (app::chargen_glide_zoom(view, 1.0f, 1.0f / 60.0f)) {
+        ++steps;
+        CHECK(view.zoom > 0.0f);
+        CHECK(view.zoom < 1.0f);
+        REQUIRE(steps < 100);
+    }
+    CHECK(view.zoom == doctest::Approx(1.0f));
+    CHECK(steps == 14);
+    // Обратно — так же; на месте — не дёргается.
+    CHECK_FALSE(app::chargen_glide_zoom(view, 1.0f, 0.1f));
+    CHECK(view.zoom == doctest::Approx(1.0f));
+    CHECK(app::chargen_glide_zoom(view, 0.0f, 0.1f));
+    CHECK(view.zoom == doctest::Approx(0.6f));
+    // ЗАЩЁЛКА СМЕНЫ ВКЛАДКИ: взводится сменой, снимается вопросом.
+    app::CharGenScreen s = screen_with(3);
+    CHECK(s.take_frame_change());
+    CHECK_FALSE(s.take_frame_change());
+    s.set_category(TAB_NAME);
+    CHECK(s.take_frame_change());
+    s.set_category(TAB_NAME); // та же — не смена
+    CHECK_FALSE(s.take_frame_change());
+}
+
+TEST_CASE("цели лица: каждая ручка манифеста нашла цель в теле, и ни одна не трогает тело ниже шеи") {
+    if (!body_has_morphs()) {
+        MESSAGE("у HumanBase.dfo нет секции MORF — набор пропущен");
+        return;
+    }
+    app::FacePlan plan;
+    std::string why;
+    if (!app::read_face_manifest(fs::path(app::FACE_MANIFEST_PATH), plan, why)) {
+        MESSAGE("манифеста лица нет: " << why << " — набор пропущен");
+        return;
+    }
+    platform::NullRenderer renderer;
+    render::RenderSystem rs;
+    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    app::CharGenBody body;
+    REQUIRE(body.load(rs, renderer, nullptr, rig, BODY_PATH));
+    std::vector<glm::vec3> rest;
+    body.character().rest_positions(rest);
+    const float top = top_y(rest);
+    float floor_y = 1e9f;
+    for (const glm::vec3& p : rest) {
+        floor_y = std::min(floor_y, p.y);
+    }
+    const float height = top - floor_y;
+    // ПОЛ ЛИЦА — 0.80 роста (tools/make_body_targets.py, FACE_FLOOR_FRAC): ниже
+    // основания шеи (плечи 0.818H) лицо не имеет права двигать НИ ОДНОЙ вершины;
+    // шею (подбородок тянет горло) — вправе. Тело ниже 0.80H у ЛИЦЕВОЙ цели
+    // означает чужой индекс в файле цели MPFB, и экспортёр его отбрасывает.
+    const float face_floor = floor_y + 0.80f * height;
+    std::size_t face_targets = 0;
+    for (const app::FaceGroup& g : plan.groups) {
+        for (const app::FaceHandle& h : g.handles) {
+            const int idx = render::morph_index(body.morphs(), h.name);
+            CAPTURE(h.name);
+            // КАЖДАЯ РУЧКА МАНИФЕСТА — ЦЕЛЬ В ТЕЛЕ: два правила имён (экспортёр
+            // и FaceManifest.cpp) сошлись на живом файле.
+            REQUIRE(idx >= 0);
+            const render::MorphTarget& t = body.morphs()[static_cast<std::size_t>(idx)];
+            ++face_targets;
+            CHECK(t.lo < t.hi);
+            // ПОЛОСА ТЕЛА ВНУТРИ МАНИФЕСТНОЙ (калибровка сужает, не расширяет).
+            CHECK(t.lo >= h.lo - 1e-4f);
+            CHECK(t.hi <= h.hi + 1e-4f);
+            std::size_t below = 0;
+            float lowest = 1e9f;
+            for (const render::MorphDelta& d : t.deltas) {
+                REQUIRE(d.index < rest.size());
+                lowest = std::min(lowest, rest[d.index].y);
+                if (rest[d.index].y < face_floor) {
+                    ++below;
+                }
+            }
+            MESSAGE(h.name << ": " << t.deltas.size() << " дельт, нижняя вершина "
+                           << (lowest - floor_y) / height << " роста");
+            CHECK(below == 0);
+        }
+    }
+    CHECK(face_targets == plan.handle_count());
+    CHECK(face_targets >= 40);
+    body.release(rs, renderer, nullptr);
+}
+
+TEST_CASE("пресет с лицом: чтение-запись переживает лицевые ручки, две выпечки байт в байт") {
+    if (!body_has_morphs()) {
+        MESSAGE("у HumanBase.dfo нет секции MORF — набор пропущен");
+        return;
+    }
+    app::FacePlan plan;
+    std::string why;
+    if (!app::read_face_manifest(fs::path(app::FACE_MANIFEST_PATH), plan, why)) {
+        MESSAGE("манифеста лица нет: " << why << " — набор пропущен");
+        return;
+    }
+    platform::NullRenderer renderer;
+    render::RenderSystem rs;
+    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    app::CharGenBody body;
+    REQUIRE(body.load(rs, renderer, nullptr, rig, BODY_PATH));
+    // Треть хода у КАЖДОЙ лицевой ручки плюс одна телесная: пресет со всеми
+    // ручками, а не с одной, — сложение float не ассоциативно, и порядок
+    // слагаемых проверяется только суммой из многих.
+    std::size_t set_face = 0;
+    for (const app::FaceGroup& g : plan.groups) {
+        for (const app::FaceHandle& h : g.handles) {
+            const int idx = render::morph_index(body.morphs(), h.name);
+            REQUIRE(idx >= 0);
+            const render::MorphTarget& t = body.morphs()[static_cast<std::size_t>(idx)];
+            const float v = (t.lo + 2.0f * t.hi) / 3.0f;
+            if (body.set_weight(h.name, v)) {
+                ++set_face;
+            }
+        }
+    }
+    CHECK(set_face >= 40);
+    (void)body.set_weight(body.morphs()[0].name, body.morphs()[0].hi * 0.5f);
+    const app::CharGenPreset written = body.preset("Ждан");
+    const fs::path json = fs::temp_directory_path() / "dfn_chargen_face_preset.json";
+    REQUIRE(app::write_chargen_preset(json, written));
+    app::CharGenPreset read;
+    REQUIRE(app::read_chargen_preset(json, read));
+    REQUIRE(read.sliders.size() == written.sliders.size());
+    for (std::size_t i = 0; i < read.sliders.size(); ++i) {
+        CHECK(read.sliders[i].first == written.sliders[i].first);
+        CHECK(read.sliders[i].second == doctest::Approx(written.sliders[i].second));
+    }
+    // ОДИН ПРОЧИТАННЫЙ ПРЕСЕТ, ДВАЖДЫ ПОДНЯТЫЙ НА ТО ЖЕ ТЕЛО (одно тело на
+    // систему рендера — см. набор про бленд), ПЕЧЁТСЯ В ОДИН ФАЙЛ. Предмет —
+    // «пресет → выпечка» воспроизводим: числа файла, а не числа в памяти
+    // (JSON печатает шесть знаков, и это его точность, а не дефект).
+    const fs::path a = fs::temp_directory_path() / "dfn_chargen_face_a.dfo";
+    const fs::path b = fs::temp_directory_path() / "dfn_chargen_face_b.dfo";
+    body.reset();
+    body.apply_preset(read);
+    REQUIRE(body.bake(a));
+    body.reset();
+    (void)body.set_weight(body.morphs()[0].name, body.morphs()[0].lo); // сбить след
+    body.apply_preset(read);
+    REQUIRE(body.bake(b));
+    CHECK(read_bytes(a) == read_bytes(b));
+    const auto baked = render::read_object(a);
+    REQUIRE(baked);
+    CHECK(baked->morphs.empty());
+    // И ЛИЦО В ВЫПЕЧКЕ ДЕЙСТВИТЕЛЬНО ДРУГОЕ: вершины головы сдвинуты.
+    const auto source = render::read_object(fs::path(BODY_PATH));
+    REQUIRE(source);
+    REQUIRE(source->skin.vertices.size() == baked->skin.vertices.size());
+    std::size_t moved = 0;
+    for (std::size_t i = 0; i < baked->skin.vertices.size(); ++i) {
+        if (glm::length(baked->skin.vertices[i].position - source->skin.vertices[i].position)
+            > 0.0005f) {
+            ++moved;
+        }
+    }
+    CHECK(moved > 500);
+    body.release(rs, renderer, nullptr);
+    std::error_code ec;
+    fs::remove(a, ec);
+    fs::remove(b, ec);
+    fs::remove(json, ec);
 }

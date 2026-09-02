@@ -232,6 +232,13 @@ std::vector<CharGenRow> chargen_verbs() {
 
 std::vector<CharGenCategory> chargen_describe(std::vector<CharGenRow> body_rows,
                                               const std::vector<People>& peoples) {
+    return chargen_describe(std::move(body_rows), peoples, FacePlan{}, nullptr);
+}
+
+std::vector<CharGenCategory> chargen_describe(std::vector<CharGenRow> body_rows,
+                                              const std::vector<People>& peoples,
+                                              const FacePlan& face,
+                                              std::vector<std::string>* missing) {
     std::vector<CharGenCategory> out;
 
     // ПОРЯДОК ВКЛАДОК — ЭТО ПОРЯДОК ПРИНЯТИЯ РЕШЕНИЙ (CHARGEN_UI.md, Р7), от
@@ -324,6 +331,47 @@ std::vector<CharGenCategory> chargen_describe(std::vector<CharGenRow> body_rows,
             }
         }
     }
+    // ЛИЦО ЗАБИРАЕТ СВОИ СТРОКИ ПО МАНИФЕСТУ — ДО ХВОСТА ТЕЛА, иначе лицевая
+    // цель, лежащая в той же секции MORF, попала бы в телосложение «целью без
+    // раздела». Разделы, порядок и зарубки — из описи (FaceManifest.h), ни
+    // одного имени здесь.
+    CharGenCategory face_tab;
+    face_tab.key = CHARGEN_FACE_TAB_KEY;
+    face_tab.zoom = 1.0f; // кадр вкладки — лицо (Р4)
+    for (const FaceGroup& g : face.groups) {
+        bool first_in_group = true;
+        for (const FaceHandle& h : g.handles) {
+            CharGenRow* found = nullptr;
+            for (CharGenRow& row : body_rows) {
+                if (!row.name.empty() && row.name == h.name) {
+                    found = &row;
+                    break;
+                }
+            }
+            if (found == nullptr) {
+                if (missing != nullptr) {
+                    missing->push_back(h.name);
+                }
+                continue;
+            }
+            CharGenRow taken = std::move(*found);
+            found->name.clear();
+            if (first_in_group) {
+                taken.group_key = "chargen.group.face." + g.id;
+                first_in_group = false;
+            }
+            taken.lo_word_key = "morph.edge." + taken.name + ".lo";
+            taken.hi_word_key = "morph.edge." + taken.name + ".hi";
+            // ЗАРУБКА — НЕЙТРАЛЬ ЭТОГО ТЕЛА (ноль), ромб — по калибровке: полосу
+            // мерил судья лица — сплошной, судья слеп (черта) — полый (Р3).
+            taken.marks.has_notch = true;
+            taken.marks.notch = 0.0f;
+            taken.marks.measured = h.measured;
+            face_tab.rows.push_back(std::move(taken));
+        }
+    }
+    face_tab.enabled = !face_tab.rows.empty();
+
     // ХВОСТ: цели, которых ни один раздел не назвал. Они обязаны попасть на
     // экран — иначе новая цель в .dfo молча исчезала бы из редактора.
     for (CharGenRow& row : body_rows) {
@@ -351,13 +399,13 @@ std::vector<CharGenCategory> chargen_describe(std::vector<CharGenRow> body_rows,
     }
     out.push_back(std::move(body));
 
+    // ЛИЦО — ЖИВАЯ ВКЛАДКА, ПОКА У НЕЁ ЕСТЬ СТРОКИ: без манифеста или без
+    // лицевых целей в теле она стоит серой рядом с волосами и цветами.
+    out.push_back(std::move(face_tab));
     // ВКЛАДКИ, КОТОРЫХ ЕЩЁ НЕТ, СТОЯТ СЕРЫМИ. Игрок видит карту дороги, а не
-    // пустоту, и не гадает, куда делось лицо. Причины у всех трёх названы и
-    // разные: лицу нужна голова (у эталона её нет — блокер фазы Ф2), цветам —
-    // зона МАТЕРИАЛОВ (тело красится одной константой CHARGEN_CLAY), волосам —
-    // и то и другое.
-    for (const char* key : {"chargen.tab.face", "chargen.tab.hair",
-                            "chargen.tab.colours"}) {
+    // пустоту. Причины названы: цветам нужна зона МАТЕРИАЛОВ (тело красится
+    // одной константой CHARGEN_CLAY), волосам — карточки частей.
+    for (const char* key : {"chargen.tab.hair", "chargen.tab.colours"}) {
         CharGenCategory stub;
         stub.key = key;
         stub.enabled = false;
@@ -420,6 +468,19 @@ void chargen_orbit(CharGenView& view, float dx_px, float dy_px, float sensitivit
 
 void chargen_zoom(CharGenView& view, float notches) {
     view.zoom = std::clamp(view.zoom + notches * CHARGEN_ZOOM_STEP, 0.0f, 1.0f);
+}
+
+bool chargen_glide_zoom(CharGenView& view, float target, float dt) {
+    target = std::clamp(target, 0.0f, 1.0f);
+    const float step = CHARGEN_ZOOM_GLIDE_S > 0.0f ? std::max(0.0f, dt) / CHARGEN_ZOOM_GLIDE_S
+                                                   : 1.0f;
+    const float diff = target - view.zoom;
+    if (std::fabs(diff) <= step) {
+        view.zoom = target;
+        return false;
+    }
+    view.zoom += diff > 0.0f ? step : -step;
+    return true;
 }
 
 glm::vec3 chargen_pivot(const glm::vec3& lo, const glm::vec3& hi, float zoom) {
@@ -743,6 +804,13 @@ void CharGenScreen::set_categories(std::vector<CharGenCategory> categories) {
     }
     selection_ = 0;
     drag_row_ = row_count();
+    frame_change_ = true;
+}
+
+bool CharGenScreen::take_frame_change() {
+    const bool changed = frame_change_;
+    frame_change_ = false;
+    return changed;
 }
 
 std::vector<CharGenRowShape> CharGenScreen::row_shapes() const {
@@ -856,6 +924,7 @@ void CharGenScreen::set_category(std::size_t index) {
         return;
     }
     category_ = index;
+    frame_change_ = true;
     // ВЫБОР ВОЗВРАЩАЕТСЯ В НАЧАЛО ВКЛАДКИ, а не остаётся на прежнем номере:
     // у вкладок разная длина, и номер, переживший переключение, означал бы на
     // соседней вкладке другую строку — то же «нажал Вниз три раза», от

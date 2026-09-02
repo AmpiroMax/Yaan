@@ -85,6 +85,7 @@ if(DFN_APP_READY)
         sources/AppViewer.cpp
         sources/CharGen.cpp
         sources/CharGenBody.cpp
+        sources/FaceManifest.cpp
         sources/Peoples.cpp
         sources/AppCharGen.cpp
         sources/UiSlider.cpp

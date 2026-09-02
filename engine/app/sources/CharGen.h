@@ -59,6 +59,7 @@ AI Agents Notice (must follow):
 #pragma once
 
 #include "engine/app/sources/CharGenBody.h"
+#include "engine/app/sources/FaceManifest.h"
 #include "engine/app/sources/Peoples.h"
 #include "engine/app/sources/UiSlider.h"
 #include "engine/render/sources/PixelCanvas.h"
@@ -132,6 +133,14 @@ inline constexpr float CHARGEN_DEPTH_FRAC = 1.35f;
 void chargen_orbit(CharGenView& view, float dx_px, float dy_px, float sensitivity);
 /// Нотки колеса в приближение, зажатое в [0, 1].
 void chargen_zoom(CharGenView& view, float notches);
+
+/// КАДР ВКЛАДКИ ПРИЕЗЖАЕТ САМ (CHARGEN_UI.md, Р4): переход между вкладками
+/// ведёт приближение к кадру категории за CHARGEN_ZOOM_GLIDE_S, линейно.
+/// Поворот игрока при этом не трогается — сбрасывается только приближение.
+/// Возвращает true, пока кадр ещё едет. Чистая арифметика: `dt` — параметр,
+/// и два счётных прогона кадрируют одинаково (правило 13).
+inline constexpr float CHARGEN_ZOOM_GLIDE_S = 0.25f;
+bool chargen_glide_zoom(CharGenView& view, float target, float dt);
 
 /// ТОЧКА ФИГУРЫ, КОТОРАЯ СТОИТ В СЕРЕДИНЕ КАДРА, в её собственных осях.
 /// Она же ось поворота облёта И ЯКОРЬ ПОРТРЕТНОГО СВЕТА: три источника стоят
@@ -293,6 +302,20 @@ inline constexpr const char* CHARGEN_SEX_ROW = "sex";
 /// отрисовка спрашивают вид строки, а не её смысл.
 [[nodiscard]] std::vector<CharGenCategory> chargen_describe(
     std::vector<CharGenRow> body_rows, const std::vector<People>& peoples);
+
+/// ТО ЖЕ, С ЛИЦОМ. `body_rows` несёт ВСЕ ползунки тела из секции MORF —
+/// телесные и лицевые вперемешку, как они лежат в файле; опись лица
+/// (манифест, FaceManifest.h) забирает свои по имени, раскладывает по
+/// разделам в порядке манифеста и ставит зарубки: сплошной ромб там, где
+/// полосу мерил судья лица (калибровка), полый — где судья слеп. Ручка
+/// манифеста, которой в теле нет, называется в `missing` — громко, не молча.
+/// Вкладка «Лицо» серая ровно пока в ней нет ни одной строки.
+[[nodiscard]] std::vector<CharGenCategory> chargen_describe(
+    std::vector<CharGenRow> body_rows, const std::vector<People>& peoples,
+    const FacePlan& face, std::vector<std::string>* missing = nullptr);
+
+/// ИМЯ ВКЛАДКИ ЛИЦА — одно на описание, дозу и наборы.
+inline constexpr const char* CHARGEN_FACE_TAB_KEY = "chargen.tab.face";
 
 /// ТРИ ГЛАГОЛА ПОД СПИСКОМ, одни на все вкладки. Отдельно от категорий, см.
 /// запись в шапке.
@@ -527,6 +550,11 @@ public:
 
     [[nodiscard]] CharGenView& view() { return view_; }
     [[nodiscard]] const CharGenView& view() const { return view_; }
+    /// СМЕНИЛАСЬ ЛИ ВКЛАДКА С ПРОШЛОГО ВОПРОСА. Защёлка: взводится всякой
+    /// сменой категории (Tab, щелчок, доза, set_categories), снимается этим
+    /// вопросом. Так кадр категории (Р4) едет от ОДНОГО места, а не от трёх
+    /// сравнений «та ли вкладка, что на прошлом кадре».
+    [[nodiscard]] bool take_frame_change();
 
     /// СТРОКА СОСТОЯНИЯ — то, что экран сказал в ответ на «Готово»: куда лёг
     /// пресет, чем кончилась выпечка. Пишет приложение, рисует экран.
@@ -546,6 +574,7 @@ private:
     std::size_t selection_ = 0;
     std::size_t drag_row_ = 0; ///< == row_count() значит «не тянем»
     CharGenView view_{};
+    bool frame_change_ = false;
 };
 
 } // namespace dfn::app
