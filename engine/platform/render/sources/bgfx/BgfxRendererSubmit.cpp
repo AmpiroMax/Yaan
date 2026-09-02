@@ -319,13 +319,27 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         // inside the texture fetch rather than on a triangle.
         const bool coverage = im.mipped_textures.contains(texture.id) && is_cutout
                               && im.internal_samples > 1;
+        // A SHEET THAT ASKED FOR ITS CHAIN (TextureParams::mip_chain -- a
+        // character's skin) is the second exception, and a different one:
+        // opaque, so no coverage; filtered on ALL three axes, because the
+        // point sampler picking one of forty texels per pixel at 70 m is the
+        // treeline shimmer on a body, and a 2K face at arm's length point-
+        // magnified is blocks. Anisotropic minification because a limb is
+        // seen at grazing angles as often as not.
+        const bool filtered = im.filtered_textures.contains(texture.id);
         bgfx::setTexture(0, im.s_tex_color, tex_it->second,
                          coverage ? (BGFX_SAMPLER_MAG_POINT)
-                                  : (BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
-                                     | BGFX_SAMPLER_MIP_POINT));
+                         : filtered ? (BGFX_SAMPLER_MIN_ANISOTROPIC)
+                                    : (BGFX_SAMPLER_MIN_POINT | BGFX_SAMPLER_MAG_POINT
+                                       | BGFX_SAMPLER_MIP_POINT));
         // 2 == "mipped mask into an alpha-to-coverage draw"; fs_foliage reads
-        // the distinction, every other shader only tests > 0.5.
-        params[0] = coverage ? 2.0f : 1.0f;
+        // the distinction. 3 == "an UNWRAPPED sheet on a skinned draw": fs_prop
+        // reads the sheet as the albedo itself -- no vertex tint (the palette
+        // in the vertices is the fallback hand, not a multiplier) and no
+        // world-space macro variation (that breaks a metre tile's repeat; a
+        // body has no repeat, and the noise would crawl over it as it walks).
+        // Every other shader only tests > 0.5.
+        params[0] = coverage ? 2.0f : (is_skinned ? 3.0f : 1.0f);
     }
     // THE AUX SHEET (DrawParams::aux_texture — bark normals today). Bound at
     // stage 4 always: the neutral 1x1 stands in when the draw supplies none,

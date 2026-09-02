@@ -470,6 +470,17 @@ struct BgfxRenderer::Impl {
     // Texture ids that carry a mip chain (cutout masks only — see
     // create_texture; the terrain atlas must never be mipped).
     std::unordered_set<uint32_t> mipped_textures;
+    /// TEXTURES THAT ASKED FOR A MIP CHAIN (TextureParams::mip_chain) -- a
+    /// character's skin today. Sampled with a FILTERING minification
+    /// (anisotropic + linear between levels): unlike the cutout masks in
+    /// mipped_textures these are opaque sheets, so there is no coverage to
+    /// hand to A2C and the filter is the whole point. MAG stays linear too:
+    /// a 2K skin magnified is a face at arm's length, and point sampling
+    /// there is blocks, not crunch.
+    std::unordered_set<uint32_t> filtered_textures;
+    /// Telemetry for the skin wave's acceptance: how many mip-chained sheets
+    /// were built this process (read through DFN_FRAME_LOG-style counters).
+    uint32_t filtered_textures_created = 0;
     std::unordered_map<uint32_t, bool> non_casting; // program id -> never a sun caster
     bgfx::UniformHandle s_shadow_map = BGFX_INVALID_HANDLE;
     bgfx::UniformHandle u_light_mtx = BGFX_INVALID_HANDLE;

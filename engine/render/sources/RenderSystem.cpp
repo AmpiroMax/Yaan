@@ -1278,9 +1278,15 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                 continue;
             }
             platform::DrawParams params;
+            // КОЖА, ЕСЛИ ОНА ЕСТЬ. Невалидный хендл — прежний путь: цвет
+            // вершин (палитра частей тела), кадр бит-в-бит.
+            platform::TextureHandle skin_tex{};
+            if (const auto tx = texture_cache_.find(body.texture_asset);
+                tx != texture_cache_.end()) {
+                skin_tex.id = tx->second;
+            }
             renderer.submit_skinned(platform::MeshHandle{it->second}, skinned,
-                                    body.transform, body.palette,
-                                    platform::TextureHandle{}, params);
+                                    body.transform, body.palette, skin_tex, params);
         }
     }
     // THE LIST IS THIS FRAME'S. Cleared after submission, so a body the app
@@ -1352,11 +1358,15 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
         } else if (skinned_program_ != 0) {
             platform::DrawParams params;
             params.material = screen_prop_.material;
+            platform::TextureHandle skin_tex{};
+            if (const auto tx = texture_cache_.find(screen_prop_.texture_asset);
+                tx != texture_cache_.end()) {
+                skin_tex.id = tx->second;
+            }
             renderer.submit_skinned(platform::MeshHandle{it->second},
                                     platform::ProgramHandle{skinned_program_},
                                     glm::inverse(camera.view(alpha)) * screen_prop_.in_camera,
-                                    screen_prop_.palette, platform::TextureHandle{},
-                                    params);
+                                    screen_prop_.palette, skin_tex, params);
         }
         screen_prop_ = ScreenProp{};
     } else if (screen_prop_.valid()) {

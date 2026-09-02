@@ -63,7 +63,7 @@ void NullRenderer::destroy_mesh(MeshHandle mesh) {
 }
 
 TextureHandle NullRenderer::create_texture(uint32_t, uint32_t, TextureFormat,
-                                           std::span<const uint8_t>) {
+                                           std::span<const uint8_t>, const TextureParams&) {
     ++live_textures_;
     return TextureHandle{next_id_++};
 }

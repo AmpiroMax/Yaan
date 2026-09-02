@@ -27,6 +27,9 @@ Notes:
   create_skinned_mesh + submit_skinned + SkinnedVertex. Additive only -- every
   existing signature is byte-for-byte what it was, so a call site that knows
   nothing about bones is unchanged (Rule 26 allows growth, not reshaping).
+- Textures: the skin-texture extension (02.09) LANDED as TextureParams + a
+  five-argument create_texture; the four-argument form forwards the defaults,
+  so every existing caller is unchanged (additive, the DrawParams pattern).
 - Null backend: all methods succeed, handles are valid-but-inert, save_screenshot
   writes nothing and returns false.
 
@@ -64,6 +67,29 @@ struct ProgramHandle {
 enum class TextureFormat : uint8_t {
     RGBA8,   // 4x uint8, sRGB sampling decided by the backend
     R8,      // single channel (masks, heightmap debug views)
+};
+
+/// HOW A TEXTURE IS BUILT (skin-texture wave, 02.09). The per-texture
+/// parameter bag, the same shape DrawParams is for a draw: a field added
+/// here reaches every backend without a new signature, and the four-argument
+/// create_texture keeps passing the defaults, so every existing call site is
+/// byte-for-byte what it was (Rule 26 allows growth, not reshaping).
+struct TextureParams {
+    /// BUILD THE FULL MIP CHAIN from the level-0 pixels, and sample it with
+    /// a filtering minification. Off by default, and the default is the
+    /// control arm: a texture that does not ask is uploaded exactly as before
+    /// (one level, point sampling), so the terrain atlas cannot bleed across
+    /// its cells by accident.
+    ///
+    /// WHY A CALLER'S WORD AND NOT A HEURISTIC. The backend already mips one
+    /// kind of texture on its own -- a cutout mask, recognised by its alpha
+    /// -- because a mask is the only thing that ever needed it. A character's
+    /// skin is opaque, unwrapped over a body that stands 70 m away as a
+    /// hundred texels per pixel, and no property of its pixels says "I am a
+    /// sheet, not an atlas"; the producer knows, and says so here. The same
+    /// switch lifts the materials gate on the kit sheet (DFN_MAT_SHEET's mip
+    /// requirement) the day that sheet asks for it.
+    bool mip_chain = false;
 };
 
 // Fixed vertex layout for stage 2. Extended (skinning) variants arrive via a
@@ -445,9 +471,19 @@ public:
     [[nodiscard]] virtual MeshHandle create_skinned_mesh(
         std::span<const SkinnedVertex> vertices, std::span<const uint32_t> indices) = 0;
 
+    // TEXTURES. The five-argument form takes per-texture build parameters
+    // (TextureParams: mip chain); the shorter one is a convenience that passes
+    // the defaults, so existing call sites are unchanged. Backends implement
+    // the virtual -- the same arrangement submit() has with DrawParams.
     [[nodiscard]] virtual TextureHandle create_texture(uint32_t width, uint32_t height,
                                                        TextureFormat format,
-                                                       std::span<const uint8_t> pixels) = 0;
+                                                       std::span<const uint8_t> pixels,
+                                                       const TextureParams& params) = 0;
+    [[nodiscard]] TextureHandle create_texture(uint32_t width, uint32_t height,
+                                               TextureFormat format,
+                                               std::span<const uint8_t> pixels) {
+        return create_texture(width, height, format, pixels, TextureParams{});
+    }
     virtual void destroy_texture(TextureHandle texture) = 0;
 
     // Loads a compiled shader pair by logical name (e.g. "terrain", "unlit").

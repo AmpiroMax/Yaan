@@ -1142,6 +1142,44 @@ bool RenderSystem::drop_skinned_mesh(platform::IRenderer& renderer, uint32_t mes
     return true;
 }
 
+uint32_t RenderSystem::register_texture_asset(platform::IRenderer& renderer,
+                                              uint32_t width, uint32_t height,
+                                              std::span<const uint8_t> rgba,
+                                              bool mip_chain) {
+    if (width == 0 || height == 0
+        || rgba.size() < static_cast<std::size_t>(width) * height * 4) {
+        std::fprintf(stderr,
+                     "[render] register_texture_asset REFUSED: %ux%u with %zu bytes "
+                     "is not an RGBA8 image\n",
+                     width, height, rgba.size());
+        return 0;
+    }
+    platform::TextureParams params;
+    params.mip_chain = mip_chain;
+    const platform::TextureHandle handle = renderer.create_texture(
+        width, height, platform::TextureFormat::RGBA8, rgba, params);
+    if (!handle.valid()) {
+        std::fprintf(stderr, "[render] register_texture_asset: backend refused %ux%u\n",
+                     width, height);
+        return 0;
+    }
+    const uint32_t asset_id = next_texture_asset_++;
+    texture_cache_.emplace(asset_id, handle.id);
+    return asset_id;
+}
+
+bool RenderSystem::drop_texture_asset(platform::IRenderer& renderer, uint32_t texture_asset) {
+    const auto it = texture_cache_.find(texture_asset);
+    if (it == texture_cache_.end()) {
+        std::fprintf(stderr, "[render] drop_texture_asset: под номером %u ничего нет\n",
+                     texture_asset);
+        return false;
+    }
+    renderer.destroy_texture(platform::TextureHandle{it->second});
+    texture_cache_.erase(it);
+    return true;
+}
+
 void RenderSystem::set_skinned_bodies(std::span<const SkinnedDraw> bodies) {
     skinned_bodies_.assign(bodies.begin(), bodies.end());
 }

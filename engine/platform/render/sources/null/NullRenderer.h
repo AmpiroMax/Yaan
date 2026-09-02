@@ -42,9 +42,11 @@ public:
     [[nodiscard]] MeshHandle create_skinned_mesh(std::span<const SkinnedVertex> vertices,
                                                  std::span<const uint32_t> indices) override;
 
+    using IRenderer::create_texture;
     [[nodiscard]] TextureHandle create_texture(uint32_t width, uint32_t height,
                                                TextureFormat format,
-                                               std::span<const uint8_t> pixels) override;
+                                               std::span<const uint8_t> pixels,
+                                               const TextureParams& params) override;
     void destroy_texture(TextureHandle texture) override;
 
     [[nodiscard]] ProgramHandle load_program(std::string_view name) override;

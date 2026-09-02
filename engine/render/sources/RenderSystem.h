@@ -319,6 +319,19 @@ public:
         std::span<const platform::SkinnedVertex> vertices,
         std::span<const uint32_t> indices);
 
+    /// ЛИСТ ПЕРСОНАЖА (волна «текстура на скиннинге»): пиксели RGBA8 наверх,
+    /// с ЦЕПОЧКОЙ МИПОВ (TextureParams::mip_chain) — без неё кожа вдали
+    /// мерцает так же, как мерцала кромка леса до мипов масок (гейт зоны
+    /// материалов). Возвращает номер ассета для SkinnedDraw::texture_asset /
+    /// ScreenProp::texture_asset, 0 — отказ (сказано вслух). Кэш по sha —
+    /// дело вызывающего: реестр номеров не знает, откуда пиксели.
+    [[nodiscard]] uint32_t register_texture_asset(platform::IRenderer& renderer,
+                                                  uint32_t width, uint32_t height,
+                                                  std::span<const uint8_t> rgba,
+                                                  bool mip_chain);
+    /// Снять лист с номера; false — под номером ничего не было.
+    bool drop_texture_asset(platform::IRenderer& renderer, uint32_t texture_asset);
+
     /// СНЯТЬ СКИННОВАННЫЙ МЕШ С НОМЕРА: буфер уничтожается, номер свободен.
     /// Нужен телам, которые живут КОРОЧЕ мира — персонажу экрана создания и
     /// экспонату смотровой: без снятия второй вход на экран получал бы отказ
@@ -332,6 +345,10 @@ public:
         uint32_t mesh_asset = 0;
         glm::mat4 transform{1.0f};
         std::span<const glm::mat4> palette;
+        /// АЛЬБЕДО ТЕЛА (register_texture_asset), 0 — без листа: тело
+        /// красится цветом вершин, то есть палитрой частей, кадр бит-в-бит
+        /// прежний (запасная рука DFN_BODY_PALETTE=1 — ровно этот ноль).
+        uint32_t texture_asset = 0;
     };
     /// THE FRAME'S SKINNED BODIES, ferried in by the app each frame.
     ///
@@ -559,6 +576,10 @@ public:
         /// бит-в-бит. Первый клиент — золотой герб: у металла блик окрашен
         /// им самим, и никакой цвет вершины этого не выражает.
         core::MaterialId material = core::MATERIAL_NONE;
+        /// АЛЬБЕДО СКИННОВАННОГО ПРЕДМЕТА (SkinnedDraw::texture_asset): экран
+        /// создания показывает игрового персонажа В ЕГО КОЖЕ, тем же листом,
+        /// что тело в мире. 0 — палитра вершин.
+        uint32_t texture_asset = 0;
         [[nodiscard]] bool skinned() const { return mesh_asset != 0 && !palette.empty(); }
         [[nodiscard]] bool valid() const { return skinned() || (mesh != 0 && program != 0); }
     };

@@ -83,6 +83,15 @@ TEST_CASE("null renderer: valid-but-inert handles, screenshot returns false") {
         renderer->create_texture(4, 4, TextureFormat::RGBA8, pixels);
     CHECK(tex.valid());
     CHECK(tex.id != mesh.id); // ids never collide across live resources
+    // The five-argument form (TextureParams, skin-texture wave) is the same
+    // contract with a parameter bag; the null backend honours it inertly.
+    TextureParams tp;
+    tp.mip_chain = true;
+    const TextureHandle tex_mips =
+        renderer->create_texture(4, 4, TextureFormat::RGBA8, pixels, tp);
+    CHECK(tex_mips.valid());
+    CHECK(tex_mips.id != tex.id);
+    renderer->destroy_texture(tex_mips);
 
     const ProgramHandle prog = renderer->load_program("terrain");
     CHECK(prog.valid());

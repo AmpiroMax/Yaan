@@ -14,7 +14,9 @@ $input v_color0, v_normal, v_texcoord0, v_wpos
 SAMPLER2D(s_texColor, 0);
 SAMPLER2D(s_texAux, 4); // DrawParams::aux_texture — лист нормалей материала
 
-// x: texture bound, y: DrawParams::fade, z: highlight, w: aux sheet bound.
+// x: texture bound (1 = tile, 2 = mipped mask, 3 = UNWRAPPED SHEET on a
+//    skinned draw: the sheet IS the albedo, no vertex tint, no macro noise),
+// y: DrawParams::fade, z: highlight, w: aux sheet bound.
 uniform vec4 u_params;
 // ОТРАЖАТЕЛЬНАЯ ПОЛОВИНА МАТЕРИАЛА (зона МАТЕРИАЛЫ, 28.08, заказ владельца:
 // «для золота/металла уже есть нужда — герб»).
@@ -56,7 +58,14 @@ void main()
     // остаётся МНОЖИТЕЛЕМ: у текстурируемых потоков он белый, а тонированные
     // меши без плитки не меняются ни на бит.
     vec3 albedo = v_color0.rgb;
-    if (u_params.x > 0.5) {
+    if (u_params.x > 2.5) {
+        // КОЖА ПЕРСОНАЖА (волна «текстура на скиннинге»): лист развёрнут по
+        // телу, а не повторяется по метрам, поэтому ни fract(), ни шума по
+        // мировым координатам — шум полз бы по коже при ходьбе. Цвет вершины
+        // не множит: в вершинах лежит ПАЛИТРА ЧАСТЕЙ ТЕЛА — запасная рука
+        // (DFN_BODY_PALETTE=1), которая рисует тело, когда листа нет.
+        albedo = texture2D(s_texColor, v_texcoord0).rgb;
+    } else if (u_params.x > 0.5) {
         albedo *= texture2D(s_texColor, fract(v_texcoord0)).rgb;
         // МАКРО-ВАРИАЦИЯ ПРОТИВ РЯБИ (заказ 20.08: «текстуры везде одинаковые,
         // повторяются — видно, что объект искусственный»). Плитка метровая, и

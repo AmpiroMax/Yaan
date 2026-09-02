@@ -210,9 +210,65 @@ void BgfxRenderer::destroy_mesh(MeshHandle mesh) {
     }
 }
 
+/// ONE MIP LEVEL FROM THE ONE ABOVE IT, 2x2 box. `channels` is 4 (RGBA8) or
+/// 1 (R8). For RGBA the RGB average is ALPHA-WEIGHTED: a straight box filter
+/// pulls the colour of fully transparent texels (usually black) into a leaf's
+/// colour and a distant crown darkens as it recedes -- a look change nobody
+/// asked for. On an opaque sheet (alpha 255 everywhere, a skin) the weighting
+/// is the identity, so one builder serves both.
+static void downsample_level(const std::vector<uint8_t>& src, uint32_t sw, uint32_t sh,
+                      uint32_t channels, std::vector<uint8_t>& dst, uint32_t& dw,
+                      uint32_t& dh) {
+    dw = sw > 1 ? sw / 2 : 1;
+    dh = sh > 1 ? sh / 2 : 1;
+    dst.assign(static_cast<std::size_t>(dw) * dh * channels, 0);
+    for (uint32_t y = 0; y < dh; ++y) {
+        for (uint32_t x = 0; x < dw; ++x) {
+            const uint32_t x0 = x * 2;
+            const uint32_t y0 = y * 2;
+            const uint32_t x1 = sw > 1 ? x0 + 1 : x0;
+            const uint32_t y1 = sh > 1 ? y0 + 1 : y0;
+            const uint32_t xs[2] = {x0, x1};
+            const uint32_t ys[2] = {y0, y1};
+            const std::size_t d = (static_cast<std::size_t>(y) * dw + x) * channels;
+            if (channels == 1) {
+                uint32_t sum = 0;
+                for (uint32_t yi = 0; yi < 2; ++yi) {
+                    for (uint32_t xi = 0; xi < 2; ++xi) {
+                        sum += src[static_cast<std::size_t>(ys[yi]) * sw + xs[xi]];
+                    }
+                }
+                dst[d] = static_cast<uint8_t>((sum + 2) / 4);
+                continue;
+            }
+            uint32_t asum = 0;
+            uint32_t csum[3] = {0, 0, 0};
+            for (uint32_t yi = 0; yi < 2; ++yi) {
+                for (uint32_t xi = 0; xi < 2; ++xi) {
+                    const std::size_t o =
+                        (static_cast<std::size_t>(ys[yi]) * sw + xs[xi]) * 4;
+                    const uint32_t a = src[o + 3];
+                    asum += a;
+                    for (int k = 0; k < 3; ++k) {
+                        csum[k] += static_cast<uint32_t>(src[o + k]) * a;
+                    }
+                }
+            }
+            for (int k = 0; k < 3; ++k) {
+                dst[d + static_cast<std::size_t>(k)] =
+                    asum > 0 ? static_cast<uint8_t>((csum[k] + asum / 2) / asum)
+                             : src[(static_cast<std::size_t>(y0) * sw + x0) * 4
+                                   + static_cast<std::size_t>(k)];
+            }
+            dst[d + 3] = static_cast<uint8_t>((asum + 2) / 4);
+        }
+    }
+}
+
 TextureHandle BgfxRenderer::create_texture(uint32_t width, uint32_t height,
                                            TextureFormat format,
-                                           std::span<const uint8_t> pixels) {
+                                           std::span<const uint8_t> pixels,
+                                           const TextureParams& params) {
     Impl& im = *impl_;
     if (!im.initialized || width == 0 || height == 0 || pixels.empty()) {
         return {};
@@ -220,6 +276,11 @@ TextureHandle BgfxRenderer::create_texture(uint32_t width, uint32_t height,
     const bgfx::TextureFormat::Enum fmt = format == TextureFormat::RGBA8
                                               ? bgfx::TextureFormat::RGBA8
                                               : bgfx::TextureFormat::R8;
+    const uint32_t channels = format == TextureFormat::RGBA8 ? 4u : 1u;
+    const std::size_t level0_bytes = static_cast<std::size_t>(width) * height * channels;
+    if (pixels.size_bytes() < level0_bytes) {
+        return {};
+    }
     // MASK TEXTURES GET A MIP CHAIN; EVERYTHING ELSE STAYS EXACTLY AS IT WAS.
     //
     // The discriminator is the DATA, not a flag on the interface: an RGBA8
@@ -242,30 +303,32 @@ TextureHandle BgfxRenderer::create_texture(uint32_t width, uint32_t height,
     // exactly what the measurement said: MSAA 4x took the treeline from
     // 0.095 % to 0.080 % and MSAA 8x took it no further.
     //
-    // The RGB average is ALPHA-WEIGHTED. A straight box filter pulls the
-    // colour of the fully transparent texels (usually black) into the leaf
-    // colour, so a distant crown darkens as it recedes — a look change nobody
-    // asked for, arriving as a side effect of an antialiasing fix.
-    //
     // GATED ON MSAA so that DFN_MSAA=0 is a BIT-EXACT control arm and not
     // merely "the old look, roughly" (Rule 30). Without the gate the mask
     // would carry a mip chain that the single-sample path samples through the
     // old 0.5 cutout — averaged alpha against a hard threshold is the classic
     // distant-canopy dissolve, i.e. the off switch would ship a second,
     // different defect.
+    //
+    // THE SECOND WAY IN IS THE CALLER'S WORD (TextureParams::mip_chain, skin
+    // wave 02.09). A skin is opaque, so the alpha test cannot see it, and it
+    // is minified exactly like a mask at distance: a 2K sheet on a body 70 m
+    // away is ~40 texels per pixel, and the point sampler picking one of them
+    // per frame is the same shimmer the treeline had. Not gated on MSAA:
+    // there is no cutout threshold on this path for a mip chain to dissolve
+    // through, so the chain is right at any sample count.
     bool has_alpha = false;
-    if (im.internal_samples > 1 && fmt == bgfx::TextureFormat::RGBA8
-        && pixels.size_bytes() >= static_cast<std::size_t>(width) * height * 4) {
-        for (std::size_t i = 3; i < static_cast<std::size_t>(width) * height * 4;
-             i += 4) {
+    if (im.internal_samples > 1 && fmt == bgfx::TextureFormat::RGBA8) {
+        for (std::size_t i = 3; i < level0_bytes; i += 4) {
             if (pixels[i] < 255) {
                 has_alpha = true;
                 break;
             }
         }
     }
+    const bool build_chain = has_alpha || params.mip_chain;
 
-    if (!has_alpha) {
+    if (!build_chain) {
         const bgfx::Memory* mem =
             bgfx::copy(pixels.data(), static_cast<uint32_t>(pixels.size_bytes()));
         const bgfx::TextureHandle tex = bgfx::createTexture2D(
@@ -287,52 +350,20 @@ TextureHandle BgfxRenderer::create_texture(uint32_t width, uint32_t height,
     }
     {
         const bgfx::Memory* mem =
-            bgfx::copy(pixels.data(), static_cast<uint32_t>(pixels.size_bytes()));
+            bgfx::copy(pixels.data(), static_cast<uint32_t>(level0_bytes));
         bgfx::updateTexture2D(tex, 0, 0, 0, 0, static_cast<uint16_t>(width),
                               static_cast<uint16_t>(height), mem);
     }
     std::vector<uint8_t> src(pixels.begin(),
-                             pixels.begin()
-                                 + static_cast<std::ptrdiff_t>(width) * height * 4);
+                             pixels.begin() + static_cast<std::ptrdiff_t>(level0_bytes));
+    std::vector<uint8_t> dst;
     uint32_t sw = width;
     uint32_t sh = height;
     uint8_t level = 1;
     while (sw > 1 || sh > 1) {
-        const uint32_t dw = sw > 1 ? sw / 2 : 1;
-        const uint32_t dh = sh > 1 ? sh / 2 : 1;
-        std::vector<uint8_t> dst(static_cast<std::size_t>(dw) * dh * 4, 0);
-        for (uint32_t y = 0; y < dh; ++y) {
-            for (uint32_t x = 0; x < dw; ++x) {
-                const uint32_t x0 = x * 2;
-                const uint32_t y0 = y * 2;
-                const uint32_t x1 = sw > 1 ? x0 + 1 : x0;
-                const uint32_t y1 = sh > 1 ? y0 + 1 : y0;
-                const uint32_t xs[2] = {x0, x1};
-                const uint32_t ys[2] = {y0, y1};
-                uint32_t asum = 0;
-                uint32_t csum[3] = {0, 0, 0};
-                for (uint32_t yi = 0; yi < 2; ++yi) {
-                    for (uint32_t xi = 0; xi < 2; ++xi) {
-                        const std::size_t o =
-                            (static_cast<std::size_t>(ys[yi]) * sw + xs[xi]) * 4;
-                        const uint32_t a = src[o + 3];
-                        asum += a;
-                        for (int k = 0; k < 3; ++k) {
-                            csum[k] += static_cast<uint32_t>(src[o + k]) * a;
-                        }
-                    }
-                }
-                const std::size_t d = (static_cast<std::size_t>(y) * dw + x) * 4;
-                for (int k = 0; k < 3; ++k) {
-                    dst[d + k] = asum > 0
-                                     ? static_cast<uint8_t>(csum[k] / asum)
-                                     : src[(static_cast<std::size_t>(y0) * sw + x0)
-                                               * 4
-                                           + static_cast<std::size_t>(k)];
-                }
-                dst[d + 3] = static_cast<uint8_t>((asum + 2) / 4);
-            }
-        }
+        uint32_t dw = 1;
+        uint32_t dh = 1;
+        downsample_level(src, sw, sh, channels, dst, dw, dh);
         const bgfx::Memory* mem =
             bgfx::copy(dst.data(), static_cast<uint32_t>(dst.size()));
         bgfx::updateTexture2D(tex, 0, level, 0, 0, static_cast<uint16_t>(dw),
@@ -344,7 +375,13 @@ TextureHandle BgfxRenderer::create_texture(uint32_t width, uint32_t height,
     }
     const uint32_t id = im.next_id++;
     im.textures.emplace(id, tex);
-    im.mipped_textures.insert(id);
+    if (has_alpha) {
+        im.mipped_textures.insert(id);
+    }
+    if (params.mip_chain) {
+        im.filtered_textures.insert(id);
+        ++im.filtered_textures_created;
+    }
     return TextureHandle{id};
 }
 
@@ -355,6 +392,7 @@ void BgfxRenderer::destroy_texture(TextureHandle texture) {
         bgfx::destroy(it->second);
         im.textures.erase(it);
         im.mipped_textures.erase(texture.id);
+        im.filtered_textures.erase(texture.id);
     }
 }
 
