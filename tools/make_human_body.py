@@ -603,6 +603,55 @@ def parse_delete_verts(mhclo_path):
     return out
 
 
+def derive_hide_verts(body, garment, near_m=0.03, reach_m=0.06):
+    """СКРЫТИЕ ТЕЛА ПОД ОБЩИННОЙ ОДЕЖДОЙ БЕЗ delete_verts — ДВА ПРИЗНАКА.
+
+    Вершина тела скрыта, если над её кожей есть ткань: (а) ближайшая точка
+    ткани не дальше `near_m` и лежит снаружи по нормали кожи (допуск 5 мм на
+    врезание — общинные кольчуги сидят вплотную), или (б) луч из вершины
+    наружу по нормали в пределах `reach_m` попадает в ткань (толстые вещи).
+    Кромки (воротник, манжеты, подол) остаются: у кромки над кожей ткани нет.
+    Отступ от открытых рёбер пробовал — общинные меши сшиты из лоскутов с
+    открытыми рёбрами повсюду, и он съедал всё (сапоги 0 из 2450). Возвращает
+    индексы hm08 (атрибут _HM08_INDEX) — как delete_verts из mhclo."""
+    from mathutils.bvhtree import BVHTree
+    bpy.context.view_layer.update()
+    # СЫРЫЕ ДАННЫЕ ОБОИХ МЕШЕЙ: и тело, и ткань в покое — скиннинг тождествен,
+    # а evaluated-меш после цепочки правок бывает несвежим.
+    gm = garment.data
+    to_world = garment.matrix_world
+    bvh = BVHTree.FromPolygons([to_world @ v.co for v in gm.vertices],
+                               [tuple(p.vertices) for p in gm.polygons], all_triangles=False)
+    attr = body.data.attributes.get("_HM08_INDEX")
+    bw = body.matrix_world
+    nmat = bw.to_3x3().inverted().transposed()
+    hidden = set()
+    near_any = 0
+    zero_normals = 0
+    for v in body.data.vertices:
+        n = (nmat @ v.normal)
+        if n.length < 1.0e-6:
+            zero_normals += 1
+        n = n.normalized() if n.length > 1.0e-6 else n
+        p = bw @ v.co
+        hit = False
+        loc, gnrm, _idx, _dist = bvh.find_nearest(p, near_m)
+        if loc is not None:
+            near_any += 1
+            # снаружи — по НОРМАЛИ ТКАНИ: кожа позади лицевой стороны ткани
+            # (допуск 5 мм на врезание); нормали тела после bmesh-правок в
+            # инструменте ненадёжны.
+            if gnrm is not None and (p - loc).dot(gnrm) <= 0.005:
+                hit = True
+        if not hit and n.length > 0.5:
+            loc, _g, _idx, _dist = bvh.ray_cast(p + n * 0.002, n, reach_m)
+            hit = loc is not None
+        if hit:
+            hidden.add(int(attr.data[v.index].value) if attr is not None else v.index)
+    log("  hide %s: near %d, zero normals %d, hidden %d" % (garment.name, near_any, zero_normals, len(hidden)))
+    return hidden
+
+
 def body_index_map(glb_path):
     """hm08-индекс → список индексов вершин тела в glb (по атрибуту _HM08_INDEX)."""
     import json
@@ -1470,9 +1519,14 @@ def export_parts(parts, mesh, rig, out, suffix="parts", body_map=None):
             uris[img_name] = uri
         if body_map is not None:
             hidden = parse_delete_verts(mhclo)
+            how = "delete_verts из mhclo"
+            if not hidden:
+                hidden = derive_hide_verts(mesh, ob)
+                how = "по близости: кожа позади лицевой стороны ткани в 3 см или луч наружу до 6 см"
             hide = sorted(j for i in hidden for j in body_map.get(i, ()))
             ob.data["hide_body_vertices"] = hide
-            log("clothes %s: hides %d hm08 verts -> %d verts of the body glb" % (name, len(hidden), len(hide)))
+            ob.data["hide_body_source"] = how
+            log("clothes %s: hides %d hm08 verts -> %d verts of the body glb (%s)" % (name, len(hidden), len(hide), how))
     with open(os.path.join(tex_dir, "SHA256SUMS"), "a", encoding="utf-8") as f:
         f.write("\n".join(sums) + "\n")
     with open(os.path.join(tex_dir, "LICENSE.txt"), "a", encoding="utf-8") as f:
