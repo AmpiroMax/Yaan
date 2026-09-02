@@ -1180,6 +1180,49 @@ bool RenderSystem::drop_texture_asset(platform::IRenderer& renderer, uint32_t te
     return true;
 }
 
+/// ОДИН СКИННОВАННЫЙ ДРО — ТЕЛО ИЛИ ЧАСТЬ, В МИРЕ ИЛИ НА ЭКРАНЕ. Одно место
+/// решает программу (вырез — «skinned_cutout»), листы (кожа в s_texColor,
+/// рельеф в s_texAux) и материал части (порог выреза, двусторонний свет):
+/// прядь на экране создания и та же прядь в мире не могут разойтись, потому
+/// что рисуются одной функцией (правило 32).
+void RenderSystem::submit_skinned_draw(platform::IRenderer& renderer,
+                                       const SkinnedDraw& draw,
+                                       const glm::mat4& transform,
+                                       core::MaterialId material) {
+    const auto it = mesh_cache_.find(draw.mesh_asset);
+    if (it == mesh_cache_.end()) {
+        if (warned_missing_meshes_.insert(draw.mesh_asset).second) {
+            std::fprintf(stderr,
+                         "[render] skinned body wants mesh asset %u, which is not "
+                         "registered — it draws as NOTHING\n",
+                         draw.mesh_asset);
+        }
+        return;
+    }
+    platform::DrawParams params;
+    params.material = material;
+    // КОЖА, ЕСЛИ ОНА ЕСТЬ. Невалидный хендл — прежний путь: цвет вершин
+    // (палитра частей тела), кадр бит-в-бит.
+    platform::TextureHandle skin_tex{};
+    if (const auto tx = texture_cache_.find(draw.texture_asset); tx != texture_cache_.end()) {
+        skin_tex.id = tx->second;
+    }
+    if (draw.normal_asset != 0) {
+        if (const auto nx = texture_cache_.find(draw.normal_asset); nx != texture_cache_.end()) {
+            params.aux_texture.id = nx->second;
+        }
+    }
+    // ВЫРЕЗ — ТОЛЬКО С ЛИСТОМ: без листа альфы нет, и «вырез по единице» был
+    // бы телом, исчезнувшим целиком.
+    const bool cutout = draw.cutout && skin_tex.valid() && skinned_cutout_program_ != 0;
+    params.alpha_cutoff = cutout ? draw.alpha_cutoff : 0.0f;
+    params.two_sided = draw.two_sided;
+    renderer.submit_skinned(platform::MeshHandle{it->second},
+                            platform::ProgramHandle{cutout ? skinned_cutout_program_
+                                                           : skinned_program_},
+                            transform, draw.palette, skin_tex, params);
+}
+
 void RenderSystem::set_skinned_bodies(std::span<const SkinnedDraw> bodies) {
     skinned_bodies_.assign(bodies.begin(), bodies.end());
 }

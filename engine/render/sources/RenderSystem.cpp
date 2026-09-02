@@ -248,6 +248,7 @@ bool RenderSystem::init(platform::IRenderer& renderer) {
     water_program_ = renderer.load_program("water").id;
     prop_program_ = renderer.load_program("prop").id;
     skinned_program_ = renderer.load_program("skinned").id;
+    skinned_cutout_program_ = renderer.load_program("skinned_cutout").id;
     foliage_program_ = renderer.load_program("foliage").id;
     overlay_program_ = renderer.load_program("overlay").id;
     path_program_ = renderer.load_program("path").id;
@@ -661,6 +662,7 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     renderer.destroy_program(platform::ProgramHandle{water_program_});
     renderer.destroy_program(platform::ProgramHandle{prop_program_});
     renderer.destroy_program(platform::ProgramHandle{skinned_program_});
+    renderer.destroy_program(platform::ProgramHandle{skinned_cutout_program_});
     renderer.destroy_program(platform::ProgramHandle{foliage_program_});
     // ПРОГРАММА ОВЕРЛЕЯ. Единственная из семи, которую init() загружает, а
     // shutdown() не уничтожал — и по ней рисуется весь интерфейс, то есть
@@ -675,6 +677,7 @@ void RenderSystem::shutdown(platform::IRenderer& renderer) {
     path_atlas_asset_ = 0;
     prop_program_ = 0;
     skinned_program_ = 0;
+    skinned_cutout_program_ = 0;
     skinned_bodies_.clear();
     foliage_program_ = 0;
 }
@@ -1264,29 +1267,8 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // posed limb reaching outside them (create_skinned_mesh pads for exactly
     // that, and says so).
     if (skinned_program_ != 0 && !suspended) {
-        const platform::ProgramHandle skinned{skinned_program_};
         for (const SkinnedDraw& body : skinned_bodies_) {
-            const auto it = mesh_cache_.find(body.mesh_asset);
-            if (it == mesh_cache_.end()) {
-                if (warned_missing_meshes_.insert(body.mesh_asset).second) {
-                    std::fprintf(stderr,
-                                 "[render] skinned body wants mesh asset %u, "
-                                 "which is not registered — it draws as "
-                                 "NOTHING\n",
-                                 body.mesh_asset);
-                }
-                continue;
-            }
-            platform::DrawParams params;
-            // КОЖА, ЕСЛИ ОНА ЕСТЬ. Невалидный хендл — прежний путь: цвет
-            // вершин (палитра частей тела), кадр бит-в-бит.
-            platform::TextureHandle skin_tex{};
-            if (const auto tx = texture_cache_.find(body.texture_asset);
-                tx != texture_cache_.end()) {
-                skin_tex.id = tx->second;
-            }
-            renderer.submit_skinned(platform::MeshHandle{it->second}, skinned,
-                                    body.transform, body.palette, skin_tex, params);
+            submit_skinned_draw(renderer, body, body.transform, core::MATERIAL_NONE);
         }
     }
     // THE LIST IS THIS FRAME'S. Cleared after submission, so a body the app
@@ -1356,17 +1338,18 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
                              screen_prop_.mesh_asset);
             }
         } else if (skinned_program_ != 0) {
-            platform::DrawParams params;
-            params.material = screen_prop_.material;
-            platform::TextureHandle skin_tex{};
-            if (const auto tx = texture_cache_.find(screen_prop_.texture_asset);
-                tx != texture_cache_.end()) {
-                skin_tex.id = tx->second;
+            const glm::mat4 to_world =
+                glm::inverse(camera.view(alpha)) * screen_prop_.in_camera;
+            SkinnedDraw body;
+            body.mesh_asset = screen_prop_.mesh_asset;
+            body.palette = screen_prop_.palette;
+            body.texture_asset = screen_prop_.texture_asset;
+            submit_skinned_draw(renderer, body, to_world, screen_prop_.material);
+            // ЧАСТИ — ТОЙ ЖЕ МАТРИЦЕЙ И ТЕМ ЖЕ ПУТЁМ, что тело: волосы на
+            // экране создания рисуются ровно тем дро, каким они едут в мире.
+            for (const SkinnedDraw& part : screen_prop_.parts) {
+                submit_skinned_draw(renderer, part, to_world, screen_prop_.material);
             }
-            renderer.submit_skinned(platform::MeshHandle{it->second},
-                                    platform::ProgramHandle{skinned_program_},
-                                    glm::inverse(camera.view(alpha)) * screen_prop_.in_camera,
-                                    screen_prop_.palette, skin_tex, params);
         }
         screen_prop_ = ScreenProp{};
     } else if (screen_prop_.valid()) {

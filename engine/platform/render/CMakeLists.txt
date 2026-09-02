@@ -67,7 +67,7 @@ endfunction()
 if(APPLE)
     foreach(shader vs_terrain vs_unlit vs_debug vs_upscale vs_sky vs_water vs_shadow
                    vs_foliage vs_shadow_cutout vs_point_shadow vs_imgui
-                   vs_skinned vs_shadow_skinned)
+                   vs_skinned vs_shadow_skinned vs_shadow_skinned_cutout)
         dfn_compile_shader(${shader} vertex metal osx mtl)
     endforeach()
     foreach(shader fs_terrain fs_unlit fs_debug fs_upscale fs_sky fs_water fs_prop

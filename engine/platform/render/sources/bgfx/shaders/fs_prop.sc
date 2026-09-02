@@ -15,20 +15,53 @@ SAMPLER2D(s_texColor, 0);
 SAMPLER2D(s_texAux, 4); // DrawParams::aux_texture — лист нормалей материала
 
 // x: texture bound (1 = tile, 2 = mipped mask, 3 = UNWRAPPED SHEET on a
-//    skinned draw: the sheet IS the albedo, no vertex tint, no macro noise),
+//    skinned draw: the sheet IS the albedo, no vertex tint, no macro noise;
+//    4 = the same sheet in COVERAGE mode: a skinned cutout (hair, lashes)
+//    with a mipped mask on a multisampled target -- alpha goes out as
+//    coverage, as fs_foliage does at 2),
 // y: DrawParams::fade, z: highlight, w: aux sheet bound.
 uniform vec4 u_params;
 // ОТРАЖАТЕЛЬНАЯ ПОЛОВИНА МАТЕРИАЛА (зона МАТЕРИАЛЫ, 28.08, заказ владельца:
 // «для золота/металла уже есть нужда — герб»).
 //   x = шероховатость 0..1 (1 — чистый ламберт, то есть кадр ДО этой волны)
 //   y = металличность 0..1 (окрашивает блик альбедо вместо белого)
-//   zw = свободны под следующие поля материала
+//   z = ПОРОГ ВЫРЕЗА ПО АЛЬФЕ ЛИСТА (DrawParams::alpha_cutoff; 0 — выреза
+//       нет, кадр бит-в-бит прежний) — прядь волос, ресница, бровь
+//   w = ДВУСТОРОННИЙ СВЕТ (DrawParams::two_sided): нормаль к глазу, как у
+//       карточки листвы, иначе изнанка пряди чёрная
 uniform vec4 u_matParams;
+
+// Below this the texel is empty in coverage mode (fs_foliage's own number).
+#define PART_ALPHA_EMPTY 0.02
 
 void main()
 {
     dfn_screen_door(u_params.y, gl_FragCoord.xy); // LOD cross-fade / per-draw dissolve
     vec3 n = normalize(v_normal);
+    // --- ВЫРЕЗ ПО АЛЬФЕ ЛИСТА (u_matParams.z > 0; волна «части персонажа»).
+    // До света и до рельефа: пустой тексель не пишет ни цвета, ни глубины.
+    // В режиме покрытия (u_params.x = 4) жёсткий порог сменяется на «почти
+    // пусто», а сама альфа уходит в кадр покрытием — та же механика и те же
+    // доводы, что у листвы (fs_foliage: среднее по мипу сохраняет площадь).
+    float part_alpha = 1.0;
+    float coverage_mode = step(3.5, u_params.x);
+    if (u_matParams.z > 0.0) {
+        part_alpha = texture2D(s_texColor, v_texcoord0).a;
+        if (part_alpha < mix(u_matParams.z, PART_ALPHA_EMPTY, coverage_mode)) {
+            discard;
+        }
+    }
+    // --- ДВУСТОРОННИЙ СВЕТ (u_matParams.w): нормаль карточки разворачивается К
+    // СОЛНЦУ, а не к глазу, — это |N·L| для солнца: прядь толщиной в тексель
+    // освещена с той стороны, с которой на неё светят, и изнанка под фронтальным
+    // светом не чёрная. Разворот к глазу (как у листвы) здесь хуже: у пряди,
+    // увиденной с теневой стороны, он гасил бы солнце, которое её же и
+    // подсвечивает насквозь. До теней и рельефа: смещение по нормали в
+    // dfn_shadow_factor и базис Грама-Шмидта ниже строятся на развёрнутой.
+    // Точечные светы остаются односторонними — хвост.
+    if (u_matParams.w > 0.5) {
+        n = dot(n, u_sunDir) < 0.0 ? -n : n;
+    }
     // --- РЕЛЬЕФ МАТЕРИАЛА (u_params.w = привязан лист нормалей). Заказ 19.08:
     // «у стен и столбов текстуры объём, как у собранных деталей» — детали носят
     // рельеф через ЭТОТ ЖЕ механизм в fs_foliage (тангенс из экранных
@@ -233,5 +266,6 @@ void main()
         }
         lit += f0 * spec_sum;
     }
-    gl_FragColor = vec4(dfn_aerial(v_wpos, lit), 1.0);
+    // Альфа несёт ПОКРЫТИЕ в режиме покрытия и 1.0 иначе (см. вырез выше).
+    gl_FragColor = vec4(dfn_aerial(v_wpos, lit), mix(1.0, part_alpha, coverage_mode));
 }

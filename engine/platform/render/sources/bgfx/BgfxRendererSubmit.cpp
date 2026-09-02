@@ -124,8 +124,19 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         if (is_skinned && bgfx::isValid(im.shadow_skinned_program)) {
             caster = im.shadow_skinned_program;
         }
-        if (is_cutout && bgfx::isValid(im.shadow_cutout_program)) {
-            caster = im.shadow_cutout_program;
+        // A SKINNED CUTOUT CASTER (hair, lashes) is the fourth kind: posed by
+        // the palette AND punched by its mask. Either half alone is wrong --
+        // the plain cutout caster reads the BIND pose, the plain skinned one
+        // casts every strand card as a solid slab (a hair shadow like a pot).
+        const bool skinned_cutout = is_skinned && is_cutout
+                                    && bgfx::isValid(im.shadow_skinned_cutout_program);
+        if (skinned_cutout) {
+            caster = im.shadow_skinned_cutout_program;
+        }
+        if (is_cutout && (skinned_cutout || bgfx::isValid(im.shadow_cutout_program))) {
+            if (!skinned_cutout) {
+                caster = im.shadow_cutout_program;
+            }
             const auto shadow_tex = im.textures.find(texture.id);
             if (shadow_tex != im.textures.end()) {
                 bgfx::setTexture(0, im.s_tex_color, shadow_tex->second,
@@ -157,7 +168,8 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
             if (std::fabs(lsn.x) <= SHADOW_NEAR_HALF_EXTENT_M + r
                 && std::fabs(lsn.y) <= SHADOW_NEAR_HALF_EXTENT_M + r
                 && std::fabs(lsn.z) <= SHADOW_DEPTH_HALF_M + r) {
-                if (caster.idx == im.shadow_cutout_program.idx) {
+                if (caster.idx == im.shadow_cutout_program.idx
+                    || caster.idx == im.shadow_skinned_cutout_program.idx) {
                     const auto near_tex = im.textures.find(texture.id);
                     if (near_tex != im.textures.end()) {
                         bgfx::setTexture(0, im.s_tex_color, near_tex->second,
@@ -339,7 +351,11 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
         // world-space macro variation (that breaks a metre tile's repeat; a
         // body has no repeat, and the noise would crawl over it as it walks).
         // Every other shader only tests > 0.5.
-        params[0] = coverage ? 2.0f : (is_skinned ? 3.0f : 1.0f);
+        // 4 == "an unwrapped sheet on a skinned draw, in COVERAGE mode": the
+        // skinned cutout (hair, lashes) with a mipped mask on a multisampled
+        // target -- fs_prop writes the mask's alpha out as coverage exactly as
+        // fs_foliage does at 2, and keeps the sheet-as-albedo reading of 3.
+        params[0] = is_skinned ? (coverage ? 4.0f : 3.0f) : (coverage ? 2.0f : 1.0f);
     }
     // THE AUX SHEET (DrawParams::aux_texture — bark normals today). Bound at
     // stage 4 always: the neutral 1x1 stands in when the draw supplies none,
@@ -411,7 +427,13 @@ void BgfxRenderer::submit(MeshHandle mesh, ProgramHandle program,
     // блик. Один setUniform на дро — цена того, что вещество НЕ течёт.
     const core::MaterialRecord& mat = core::material_registry().record(
         static_cast<core::MaterialId>(params_in.material));
-    const float mat_params[4] = {mat.roughness, mat.metalness, 0.0f, 0.0f};
+    // z, w — МАТЕРИАЛ ЧАСТИ ПЕРСОНАЖА (DrawParams::alpha_cutoff, two_sided):
+    // порог выреза по альфе листа и двусторонний свет. Это ПОЛЯ МАТЕРИАЛА
+    // glTF (alphaMode/alphaCutoff/doubleSided), и едут они в материальном
+    // uniform'е — но per-draw, из DrawParams, а не из реестра веществ: у
+    // пряди волос записи в реестре нет, её материал — это её лист.
+    const float mat_params[4] = {mat.roughness, mat.metalness, params_in.alpha_cutoff,
+                                 params_in.two_sided ? 1.0f : 0.0f};
     if (bgfx::isValid(im.u_mat_params)) {
         bgfx::setUniform(im.u_mat_params, mat_params);
     }

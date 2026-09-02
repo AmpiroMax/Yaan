@@ -349,6 +349,17 @@ public:
         /// красится цветом вершин, то есть палитрой частей, кадр бит-в-бит
         /// прежний (запасная рука DFN_BODY_PALETTE=1 — ровно этот ноль).
         uint32_t texture_asset = 0;
+        // --- МАТЕРИАЛ ЧАСТИ ПЕРСОНАЖА (волна «части персонажа»): прядь,
+        // ресница, бровь едут ТЕМ ЖЕ дро, что тело, с тремя добавками. Все
+        // три по умолчанию выключены — тело бит-в-бит прежнее.
+        /// ЛИСТ НОРМАЛЕЙ (s_texAux), 0 — без рельефа.
+        uint32_t normal_asset = 0;
+        /// ВЫРЕЗ ПО АЛЬФЕ листа: программа «skinned_cutout» (покрытие по
+        /// альфе на MSAA, каст тени с маской), порог — alpha_cutoff.
+        bool cutout = false;
+        float alpha_cutoff = 0.5f;
+        /// ДВУСТОРОННИЙ СВЕТ: нормаль к глазу (изнанка пряди не чёрная).
+        bool two_sided = false;
     };
     /// THE FRAME'S SKINNED BODIES, ferried in by the app each frame.
     ///
@@ -580,6 +591,11 @@ public:
         /// создания показывает игрового персонажа В ЕГО КОЖЕ, тем же листом,
         /// что тело в мире. 0 — палитра вершин.
         uint32_t texture_asset = 0;
+        /// ЧАСТИ ПРЕДМЕТА ЭКРАНА (волосы, глаза, брови, одежда): те же дро,
+        /// что у тела в мире (SkinnedCharacter::part_draws), той же матрицей
+        /// in_camera и той же программой; их transform не читается. Одолжены
+        /// на один render(), как палитра.
+        std::span<const SkinnedDraw> parts;
         [[nodiscard]] bool skinned() const { return mesh_asset != 0 && !palette.empty(); }
         [[nodiscard]] bool valid() const { return skinned() || (mesh != 0 && program != 0); }
     };
@@ -1045,7 +1061,12 @@ private:
     /// drawn on the very next frame, and "the app forgot to clear it" is not
     /// a thing a viewer can tell apart from a bug in the pose.
     std::vector<SkinnedDraw> skinned_bodies_;
+    /// Один скиннованный дро (тело или часть, мир или экран) — RenderSystemResources.cpp.
+    void submit_skinned_draw(platform::IRenderer& renderer, const SkinnedDraw& draw,
+                             const glm::mat4& transform, core::MaterialId material);
     uint32_t skinned_program_ = 0; // ProgramHandle.id ("skinned")
+    /// «skinned_cutout» — те же шейдеры, состояние выреза (SkinnedDraw::cutout).
+    uint32_t skinned_cutout_program_ = 0;
     // A path piece is one class over ~128 m of tread; the class picks the atlas
     // cell and is carried in the vertices, so this only needs the mesh and its
     // bounds — same shape as a water bucket, same reason (something to cull).

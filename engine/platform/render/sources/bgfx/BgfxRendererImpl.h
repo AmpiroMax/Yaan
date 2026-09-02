@@ -466,6 +466,8 @@ struct BgfxRenderer::Impl {
     bgfx::ProgramHandle shadow_program = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle shadow_skinned_program = BGFX_INVALID_HANDLE;
     bgfx::ProgramHandle shadow_cutout_program = BGFX_INVALID_HANDLE;
+    /// Скиннованный каст С МАСКОЙ (волосы, ресницы): палитра + вырез.
+    bgfx::ProgramHandle shadow_skinned_cutout_program = BGFX_INVALID_HANDLE;
     std::unordered_map<uint32_t, bool> cutout; // program id -> alpha cutout
     // Texture ids that carry a mip chain (cutout masks only — see
     // create_texture; the terrain atlas must never be mipped).

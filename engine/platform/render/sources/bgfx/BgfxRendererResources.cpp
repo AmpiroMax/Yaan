@@ -43,7 +43,9 @@ namespace {
 constexpr const char* TRANSPARENT_PROGRAMS[] = {"water", "overlay"};
 // Alpha-CUTOUT programs: opaque state (depth write, no sorting) but their
 // shadow depth must come from the mask, not from the card's rectangle.
-constexpr const char* CUTOUT_PROGRAMS[] = {"foliage"};
+// "skinned_cutout" (волна «части персонажа»): те же шейдеры, что у "skinned",
+// но состояние выреза — покрытие по альфе на MSAA и каст тени с маской.
+constexpr const char* CUTOUT_PROGRAMS[] = {"foliage", "skinned_cutout"};
 // Programs that are drawn but must NOT write the sun shadow map.
 //
 // The path ribbon (§8.1) is the first, and the reason is the feather, not the

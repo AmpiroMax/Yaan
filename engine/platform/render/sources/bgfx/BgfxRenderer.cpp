@@ -61,6 +61,7 @@ AI Agents Notice (must follow):
 #include <fs_shadow_cutout_mtl.h>
 #include <vs_skinned_mtl.h>
 #include <vs_shadow_skinned_mtl.h>
+#include <vs_shadow_skinned_cutout_mtl.h>
 #include <vs_point_shadow_mtl.h>
 #include <fs_point_shadow_mtl.h>
 #endif
@@ -118,6 +119,12 @@ const ProgramSource PROGRAM_TABLE[] = {
     // very code that lights the world, so it cannot drift away from it.
     {"skinned", {vs_skinned_mtl, sizeof(vs_skinned_mtl)},
                 {fs_prop_mtl, sizeof(fs_prop_mtl)}},
+    // "skinned_cutout" (волна «части персонажа»): ТЕ ЖЕ шейдеры, другое имя —
+    // имя и есть состояние (CUTOUT_PROGRAMS): покрытие по альфе на MSAA и
+    // каст тени с маской. Порог выреза и двусторонний свет приезжают
+    // per-draw в u_matParams.zw, а fs_prop один на кожу и на прядь.
+    {"skinned_cutout", {vs_skinned_mtl, sizeof(vs_skinned_mtl)},
+                {fs_prop_mtl, sizeof(fs_prop_mtl)}},
     // Backend-internal depth-only pass for the sun shadow map.
     {"shadow",  {vs_shadow_mtl, sizeof(vs_shadow_mtl)},
                 {fs_shadow_mtl, sizeof(fs_shadow_mtl)}},
@@ -125,6 +132,10 @@ const ProgramSource PROGRAM_TABLE[] = {
     // pose, so without this a walking body casts a standing shadow.
     {"shadow_skinned", {vs_shadow_skinned_mtl, sizeof(vs_shadow_skinned_mtl)},
                 {fs_shadow_mtl, sizeof(fs_shadow_mtl)}},
+    // ...and the skinned CUTOUT caster: posed by the palette, punched by the
+    // mask -- a strand card that casts its rectangle shadows like a pot.
+    {"shadow_skinned_cutout", {vs_shadow_skinned_cutout_mtl, sizeof(vs_shadow_skinned_cutout_mtl)},
+                {fs_shadow_cutout_mtl, sizeof(fs_shadow_cutout_mtl)}},
     // Backend-internal caster pass for the carried lights' cube faces (writes
     // linear distance, not depth — see dfn_pointshadow.sh).
     {"point_shadow", {vs_point_shadow_mtl, sizeof(vs_point_shadow_mtl)},
@@ -139,6 +150,7 @@ const ProgramSource PROGRAM_TABLE[] = {
     {"upscale", {}, {}}, {"sky", {}, {}}, {"water", {}, {}}, {"prop", {}, {}},
     {"overlay", {}, {}}, {"shadow", {}, {}}, {"point_shadow", {}, {}},
     {"path", {}, {}}, {"skinned", {}, {}}, {"shadow_skinned", {}, {}},
+    {"skinned_cutout", {}, {}}, {"shadow_skinned_cutout", {}, {}},
 };
 #endif
 
@@ -391,6 +403,7 @@ bool BgfxRenderer::init(const RendererInitParams& params) {
         im.shadow_program = im.make_program("shadow");
         im.shadow_cutout_program = im.make_program("shadow_cutout");
         im.shadow_skinned_program = im.make_program("shadow_skinned");
+        im.shadow_skinned_cutout_program = im.make_program("shadow_skinned_cutout");
         im.s_shadow_map =
             bgfx::createUniform("s_shadowMap", bgfx::UniformType::Sampler);
         im.u_light_mtx = bgfx::createUniform("u_lightMtx", bgfx::UniformType::Mat4);
@@ -501,6 +514,7 @@ void BgfxRenderer::shutdown() {
     if (bgfx::isValid(im.shadow_program)) bgfx::destroy(im.shadow_program);
     if (bgfx::isValid(im.shadow_cutout_program)) bgfx::destroy(im.shadow_cutout_program);
     if (bgfx::isValid(im.shadow_skinned_program)) bgfx::destroy(im.shadow_skinned_program);
+    if (bgfx::isValid(im.shadow_skinned_cutout_program)) bgfx::destroy(im.shadow_skinned_cutout_program);
     if (bgfx::isValid(im.u_bones)) bgfx::destroy(im.u_bones);
     if (bgfx::isValid(im.shadow_fb)) bgfx::destroy(im.shadow_fb);
     if (bgfx::isValid(im.shadow_map)) bgfx::destroy(im.shadow_map);
