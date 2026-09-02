@@ -2,3 +2,10 @@ albedo.png — кожа MPFB «middleage_caucasian_male» (middleage_lightskinne
 CC0 1.0 (см. assets/objects/characters/MPFB_LICENSE.txt). Источник:
 /Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/skins/middleage_caucasian_male/middleage_caucasian_male.mhmat
 Переименовано в albedo.png без изменения пикселей; sha256 в SHA256SUMS.
+eyes_albedo.png — eyes «low-poly» (brown_eye.png), системные ассеты MPFB / MakeHuman, CC0 1.0; источник /Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/eyes/materials/brown.mhmat
+eyebrows_albedo.png — eyebrows «eyebrow001» (eyebrow001.png), системные ассеты MPFB / MakeHuman, CC0 1.0; источник /Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/eyebrows/eyebrow001/eyebrow001.mhmat
+eyelashes_albedo.png — eyelashes «eyelashes01» (eyelashes01.png), системные ассеты MPFB / MakeHuman, CC0 1.0; источник /Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/eyelashes/eyelashes01/eyelashes01.mhmat
+teeth_albedo.png — teeth «teeth_base» (teeth.png), системные ассеты MPFB / MakeHuman, CC0 1.0; источник /Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/teeth/teeth_base/teeth.mhmat
+tongue_albedo.png — tongue «tongue01» (tongue01_diffuse.png), системные ассеты MPFB / MakeHuman, CC0 1.0; источник /Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/tongue/tongue01/tongue01.mhmat
+hair_albedo.png — hair «short02» (short02_diffuse.png), системные ассеты MPFB / MakeHuman, CC0 1.0; источник /Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/hair/short02/short02.mhmat
+hair_normal.png — hair «short02» (short02_normal.png), системные ассеты MPFB / MakeHuman, CC0 1.0; источник /Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/hair/short02/short02.mhmat

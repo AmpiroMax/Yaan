@@ -100,6 +100,13 @@ DEFAULTS = {
     # textures/<stem>/albedo.png рядом с выходом, glb ссылается на него
     # ОТНОСИТЕЛЬНЫМ путём (не встраивает). Пусто — материал без текстуры.
     "skin": "",
+    # ЧАСТИ ТЕЛА ОТДЕЛЬНЫМИ МЕШАМИ НА ТОМ ЖЕ СКЕЛЕТЕ (заказ 02.09-2: глаза,
+    # брови, ресницы, зубы, язык, волосы): "тип=имя,..." из
+    # data/<тип>/<имя>/<имя>.mhclo MPFB. Сажаются на тело ДО снятия хелперов
+    # (mhclo адресует вершины базового меша hm08), веса — переносом с тела,
+    # выход — <stem>.parts.glb (риг + части, без клипов) и textures/<stem>/
+    # <часть>_albedo.png (+ _normal.png), внешними файлами.
+    "parts": "",
     "tris": "0",          # без децимации: 26 756 треугольников, пальцы целы
     # МУЖЧИНА ~30 ЛЕТ, ОБЫЧНОГО СЛОЖЕНИЯ. Шкала возраста MakeHuman линейна по
     # половинам и ставит 25 лет ровно в 0.5, 90 — в 1.0; 30 лет = 0.5385.
@@ -352,6 +359,8 @@ def make_body(opt):
     # ВСПОМОГАТЕЛЬНАЯ ГЕОМЕТРИЯ УХОДИТ СРАЗУ. MakeHuman держит её в том же меше
     # и прячет маской; пока маска — модификатор, всякий замер меша (габарит,
     # число треугольников, дециматор) считает по НЕЙ, а не по телу.
+    parts = load_parts(opt["parts"], mesh, human)
+
     activate(mesh)
     for mod in list(mesh.modifiers):
         if mod.type == "MASK":
@@ -360,7 +369,155 @@ def make_body(opt):
             mesh.modifiers.remove(mod)
     drop_hidden(mesh)
     log("body mesh", len(mesh.data.vertices), "verts,", tri_count(mesh), "tris")
-    return mesh, meta
+    return mesh, meta, parts
+
+
+PART_TYPES = ("eyes", "eyebrows", "eyelashes", "teeth", "tongue", "hair")
+
+
+def load_parts(spec, mesh, human):
+    """«тип=имя,…» → [(тип, имя, объект, путь mhclo)], посажены на тело MPFB."""
+    if not spec:
+        return []
+    from bl_ext.blender_org.mpfb.services.locationservice import LocationService  # type: ignore
+    out = []
+    for item in spec.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        kind, _, name = item.partition("=")
+        kind = kind.strip()
+        name = name.strip()
+        if kind not in PART_TYPES or not name:
+            raise SystemExit("bad part: " + item + " (тип=имя, типы: " + ", ".join(PART_TYPES) + ")")
+        mhclo = None
+        for base in (LocationService.get_user_data(kind), LocationService.get_mpfb_data(kind)):
+            cand = os.path.join(base, name, name + ".mhclo")
+            if os.path.isfile(cand):
+                mhclo = cand
+                break
+        if mhclo is None:
+            raise SystemExit("part not found: %s/%s" % (kind, name))
+        before = {o.name for o in bpy.data.objects}
+        human.add_mhclo_asset(mhclo, mesh, asset_type=kind, subdiv_levels=0,
+                              material_type="MAKESKIN", set_up_rigging=False,
+                              interpolate_weights=False, import_subrig=False,
+                              import_weights=False)
+        added = [o for o in bpy.data.objects if o.name not in before and o.type == "MESH"]
+        if len(added) != 1:
+            raise SystemExit("part %s: expected one mesh, got %d" % (item, len(added)))
+        ob = added[0]
+        ob.name = kind
+        ob.data.name = kind
+        out.append((kind, name, ob, mhclo))
+        log("part %s = %s: %d verts, %d tris" % (kind, name, len(ob.data.vertices), tri_count(ob)))
+    return out
+
+
+def rig_parts(parts, mesh, rig):
+    """Веса частей — переносом с тела (ближайшая грань), потом привязка к ригу."""
+    for kind, _name, ob, _mhclo in parts:
+        for grp in list(ob.vertex_groups):
+            ob.vertex_groups.remove(grp)
+        for grp in mesh.vertex_groups:
+            ob.vertex_groups.new(name=grp.name)
+        ob.parent = None
+        ob.matrix_world = Matrix.Identity(4)
+        activate(ob)
+        mod = ob.modifiers.new("dt", "DATA_TRANSFER")
+        mod.object = mesh
+        mod.use_vert_data = True
+        mod.data_types_verts = {"VGROUP_WEIGHTS"}
+        mod.vert_mapping = "POLYINTERP_NEAREST"
+        mod.layers_vgroup_select_src = "ALL"
+        mod.layers_vgroup_select_dst = "NAME"
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.object.vertex_group_limit_total(group_select_mode="ALL", limit=4)
+        bpy.ops.object.vertex_group_normalize_all(group_select_mode="ALL", lock_active=False)
+        bpy.ops.object.mode_set(mode="OBJECT")
+        loose = sum(1 for v in ob.data.vertices if not v.groups)
+        if loose:
+            head = ob.vertex_groups.get("DEF-head")
+            if head is None:
+                raise SystemExit("part %s: %d unweighted verts and no DEF-head" % (kind, loose))
+            head.add([v.index for v in ob.data.vertices if not v.groups], 1.0, "REPLACE")
+        bind(ob, rig)
+        log("part %s: weights transferred (%d verts without a face nearby -> head)" % (kind, loose))
+
+
+def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
+    """Материал части: альбедо (+нормаль) внешними файлами <часть>_albedo.png."""
+    import hashlib
+    import shutil
+    mh = parse_mhmat_of(mhclo)
+    if mh is None or "diffuseTexture" not in mh[1]:
+        raise SystemExit("part %s has no material with diffuseTexture" % kind)
+    mat_path, tex = mh
+    src = os.path.join(os.path.dirname(mat_path), tex["diffuseTexture"])
+    files = [("albedo", src)]
+    normal = os.path.splitext(src)[0].replace("_diffuse", "") + "_normal.png"
+    if os.path.isfile(normal):
+        files.append(("normal", normal))
+    elif "normalmapTexture" in tex and os.path.isfile(os.path.join(os.path.dirname(mat_path), tex["normalmapTexture"])):
+        files.append(("normal", os.path.join(os.path.dirname(mat_path), tex["normalmapTexture"])))
+    mat = bpy.data.materials.new("M_" + kind)
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    bsdf = nodes.get("Principled BSDF")
+    transparent = str(tex.get("transparent", "False")).lower() == "true"
+    two_sided = str(tex.get("backfaceCull", "True")).lower() != "true"
+    for role, path in files:
+        fname = "%s_%s.png" % (kind, role)
+        dst = os.path.join(tex_dir, fname)
+        shutil.copyfile(path, dst)
+        sha = hashlib.sha256(open(dst, "rb").read()).hexdigest()
+        sums.append("%s  %s" % (sha, fname))
+        licence.append("%s — %s «%s» (%s), системные ассеты MPFB / MakeHuman, CC0 1.0; источник %s"
+                       % (fname, kind, name, os.path.basename(path), mat_path))
+        img = bpy.data.images.load(dst)
+        img.name = fname
+        texn = nodes.new("ShaderNodeTexImage")
+        texn.image = img
+        if role == "albedo":
+            img.colorspace_settings.name = "sRGB"
+            links.new(texn.outputs["Color"], bsdf.inputs["Base Color"])
+            if transparent:
+                # ВЫРЕЗ, НЕ СМЕШИВАНИЕ: карточки волос/бровей/ресниц — alphaMode
+                # MASK с порогом 0,5 (экспортёр узнаёт узел «больше чем» перед
+                # альфой); непрозрачным частям альфа не подключается — OPAQUE.
+                cut = nodes.new("ShaderNodeMath")
+                cut.operation = "GREATER_THAN"
+                cut.inputs[1].default_value = 0.5
+                links.new(texn.outputs["Alpha"], cut.inputs[0])
+                links.new(cut.outputs["Value"], bsdf.inputs["Alpha"])
+        else:
+            img.colorspace_settings.name = "Non-Color"
+            nm = nodes.new("ShaderNodeNormalMap")
+            links.new(texn.outputs["Color"], nm.inputs["Color"])
+            links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+    if hasattr(mat, "blend_method"):
+        mat.blend_method = "CLIP" if transparent else "OPAQUE"
+    if hasattr(mat, "surface_render_method"):
+        mat.surface_render_method = "DITHERED"
+    mat.use_backface_culling = not two_sided
+    bsdf.inputs["Roughness"].default_value = 0.5
+    ob.data.materials.clear()
+    ob.data.materials.append(mat)
+    return [("%s_%s.png" % (kind, role), rel_dir + "/" + "%s_%s.png" % (kind, role)) for role, _ in files]
+
+
+def parse_mhmat_of(mhclo_path):
+    """Путь материала из mhclo (относительно него) и его текстурные ключи."""
+    for line in open(mhclo_path, encoding="utf-8"):
+        parts = line.strip().split(None, 1)
+        if len(parts) == 2 and parts[0] == "material":
+            mat = os.path.normpath(os.path.join(os.path.dirname(mhclo_path), parts[1].strip()))
+            if os.path.isfile(mat):
+                return mat, parse_mhmat(mat)
+    return None
 
 
 def drop_hidden(mesh):
@@ -520,7 +677,7 @@ def decimate(mesh, budget):
 OWN_REST_BONES = frozenset({"DEF-shoulder.L", "DEF-shoulder.R"})
 
 
-def align_rest_to_donor(mesh, rig, src_rig):
+def align_rest_to_donor(mesh, rig, src_rig, extra=()):
     """ПОКОЙ НАШЕГО РИГА ПРИВОДИТСЯ К ПОКОЮ ДОНОРА КЛИПОВ (правка 02.09).
 
     Находка бисекта: ретаргет копирует МИРОВУЮ ориентацию кости (совпадение с
@@ -579,11 +736,16 @@ def align_rest_to_donor(mesh, rig, src_rig):
     # запечь позу в меш ТЕМИ ЖЕ весами, что пойдут в игру, и объявить её покоем
     activate(mesh)
     bpy.ops.object.modifier_apply(modifier="Armature")
+    for ob in extra:
+        activate(ob)
+        bpy.ops.object.modifier_apply(modifier="Armature")
     activate(rig)
     bpy.ops.object.mode_set(mode="POSE")
     bpy.ops.pose.armature_apply(selected=False)
     bpy.ops.object.mode_set(mode="OBJECT")
     bind(mesh, rig)
+    for ob in extra:
+        bind(ob, rig)
     bpy.context.view_layer.update()
     left = 0.0
     for n in names:
@@ -876,12 +1038,13 @@ def main():
     # легли бы между кадрами и выборка по целым кадрам потеряла бы точность.
     bpy.context.scene.render.fps = 30
 
-    mesh, meta = make_body(opt)
+    mesh, meta, parts = make_body(opt)
     height = max((mesh.matrix_world @ v.co).z for v in mesh.data.vertices)
     spec = build_spec()
     rig = build_rig(meta, spec, height)
     remap_weights(mesh, meta, rig, spec)
     bind(mesh, rig)
+    rig_parts(parts, mesh, rig)
     bpy.data.objects.remove(meta, do_unlink=True)
     decimate(mesh, int(opt["tris"]))
 
@@ -899,7 +1062,7 @@ def main():
             raise SystemExit("clip source lacks bones: " + ", ".join(missing))
         # ТАЗ И КОРЕНЬ — ЕДИНСТВЕННЫЕ, КТО ЕЗДИТ. Замерено по файлу: у всех
         # прочих суставов канал translation постоянен, то есть равен привязке.
-        align_rest_to_donor(mesh, rig, src_rig)
+        align_rest_to_donor(mesh, rig, src_rig, extra=[ob for _, _, ob, _ in parts])
         only = [x for x in opt["only"].split(",") if x]
         made = retarget(rig, src_rig, moving={"DEF-hips"}, only=only)
         for o in list(bpy.data.objects):
@@ -946,8 +1109,9 @@ def main():
     # тянет ДЕТЕЙ выделенного. В .dfo она не попадала (импортёр берёт только
     # скиннованные части), но в .glb ехала и портила всякий замер габарита по
     # файлу — на ней габарит фигуры читался 2.73 м вместо 1.73.
+    part_objects = {ob.name for _, _, ob, _ in parts}
     for ob in list(bpy.data.objects):
-        if ob is not mesh and ob is not rig:
+        if ob is not mesh and ob is not rig and ob.name not in part_objects:
             bpy.data.objects.remove(ob, do_unlink=True)
 
     # ИМЕНА ОБЪЕКТОВ ЗАДАЮТСЯ ЯВНО, потому что от них зависит имя КЛИПА в
@@ -988,7 +1152,9 @@ def main():
         tmp_gltf = os.path.join(tmp, "body.gltf")
         bpy.ops.export_scene.gltf(filepath=tmp_gltf, export_format="GLTF_SEPARATE",
                                   export_keep_originals=True, **common)
-        pack_glb_with_external_images(tmp_gltf, out, skin_uri)
+        pack_glb_with_external_images(tmp_gltf, out, {"albedo.png": skin_uri})
+    if parts:
+        export_parts(parts, mesh, rig, out)
     if clips:
         fix_clip_names(out, made, "_" + rig.name)
     log("wrote", out, os.path.getsize(out), "bytes")
@@ -1002,7 +1168,8 @@ def parse_mhmat(path):
         if not line or line.startswith("#"):
             continue
         parts = line.split(None, 1)
-        if len(parts) == 2 and parts[0].endswith("Texture"):
+        if len(parts) == 2 and (parts[0].endswith("Texture")
+                                or parts[0] in ("transparent", "backfaceCull")):
             out[parts[0]] = parts[1].strip()
     return out
 
@@ -1065,6 +1232,38 @@ def apply_skin(mesh, skin_name, out_path):
     return os.path.join(rel_dir, "albedo.png").replace(os.sep, "/"), sha
 
 
+def export_parts(parts, mesh, rig, out):
+    """<stem>.parts.glb: риг + части без клипов; текстуры внешними файлами."""
+    stem = os.path.splitext(os.path.basename(out))[0]
+    rel_dir = "textures/" + stem
+    tex_dir = os.path.join(os.path.dirname(out), "textures", stem)
+    os.makedirs(tex_dir, exist_ok=True)
+    sums, licence, uris = [], [], {}
+    for kind, name, ob, mhclo in parts:
+        for img_name, uri in part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
+            uris[img_name] = uri
+    with open(os.path.join(tex_dir, "SHA256SUMS"), "a", encoding="utf-8") as f:
+        f.write("\n".join(sums) + "\n")
+    with open(os.path.join(tex_dir, "LICENSE.txt"), "a", encoding="utf-8") as f:
+        f.write("\n".join(licence) + "\n")
+    bpy.ops.object.select_all(action="DESELECT")
+    for _, _, ob, _ in parts:
+        ob.select_set(True)
+    rig.select_set(True)
+    bpy.context.view_layer.objects.active = rig
+    import tempfile
+    tmp = tempfile.mkdtemp(prefix="dfn_parts_")
+    tmp_gltf = os.path.join(tmp, "parts.gltf")
+    bpy.ops.export_scene.gltf(
+        filepath=tmp_gltf, export_format="GLTF_SEPARATE", export_keep_originals=True,
+        use_selection=True, export_skins=True, export_yup=True, export_apply=True,
+        export_animations=False, export_rest_position_armature=True)
+    parts_out = os.path.join(os.path.dirname(out), stem + ".parts.glb")
+    pack_glb_with_external_images(tmp_gltf, parts_out, uris)
+    log("parts: %d meshes -> %s (%d bytes); textures %s" % (
+        len(parts), parts_out, os.path.getsize(parts_out), ", ".join(sorted(uris.values()))))
+
+
 def pack_glb_with_external_images(gltf_path, glb_path, image_uri):
     """gltf + bin → glb; картинки остаются ВНЕШНИМИ (uri относительно glb)."""
     import json
@@ -1077,7 +1276,11 @@ def pack_glb_with_external_images(gltf_path, glb_path, image_uri):
     doc["buffers"][0] = {"byteLength": len(blob)}
     for img in doc.get("images", []):
         img.pop("bufferView", None)
-        img["uri"] = image_uri
+        name = img.get("name", "")
+        key = name if name.endswith(".png") else name + ".png"
+        if key not in image_uri:
+            raise SystemExit("image %r has no external uri (known: %s)" % (name, ", ".join(image_uri)))
+        img["uri"] = image_uri[key]
         img["mimeType"] = "image/png"
     text = json.dumps(doc, separators=(",", ":")).encode("utf-8")
     text += b" " * ((4 - len(text) % 4) % 4)
