@@ -852,13 +852,41 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                                const SkinnedRigBinding& binding,
                                std::span<const skel::AnimClip> clips,
                                std::span<const platform::SkinnedVertex> skin,
-                               bool feet_drive) {
+                               bool feet_drive, std::string_view role_overrides) {
     ClipLibrary lib;
     lib.feet_drive = feet_drive;
     lib.contacts = build_contacts(rig, skeleton, binding);
+    // РОЛЬ ПО ДВЕРИ: "Walk=KK_Walking_A,Jog=KK_Running_A" — чужой клип
+    // примеряется на роль без пересборки ассета (владелец 02.09-2: клипы из
+    // интернета переиспользовать). Названного клипа нет — роль из таблицы.
+    const auto override_for = [&](std::string_view role) -> std::string_view {
+        std::string_view rest = role_overrides;
+        while (!rest.empty()) {
+            const std::size_t comma = rest.find(',');
+            const std::string_view pair = rest.substr(0, comma);
+            rest = comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1);
+            const std::size_t eq = pair.find('=');
+            if (eq != std::string_view::npos && pair.substr(0, eq) == role) {
+                return pair.substr(eq + 1);
+            }
+        }
+        return {};
+    };
     for (const RoleNames& row : ROLE_NAMES) {
         ClipEntry& entry = lib.role[role_index(row.role)];
+        if (const std::string_view want = override_for(row.name); !want.empty()) {
+            for (std::size_t c = 0; c < clips.size(); ++c) {
+                if (same_name(clips[c].name, want)) {
+                    entry.clip = static_cast<int32_t>(c);
+                    entry.duration_s = clips[c].duration_s;
+                    break;
+                }
+            }
+        }
         for (const std::string_view want : row.clips) {
+            if (entry.present()) {
+                break;
+            }
             if (want.empty()) {
                 continue;
             }

@@ -199,8 +199,11 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         root_smooth_ = !(sm != nullptr && sm[0] == '0');
         lock_params_ = anim::FootLockParams::from_config();
     }
+    const char* roles = door_value("DFN_CLIP_ROLES");
     library_ = anim::build_clip_library(rig_, skeleton_, binding_, clips_, bind_vertices_,
-                                        feet_drive_);
+                                        feet_drive_,
+                                        roles != nullptr ? std::string_view{roles}
+                                                         : std::string_view{});
     if (const char* is = door_value("DFN_IDLE_SYMMETRY"); is != nullptr && is[0] == '0') {
         library_.idle_symmetry = 0.0f;
     }

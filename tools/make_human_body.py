@@ -85,6 +85,15 @@ DEFAULTS = {
     # занимают четверть часа, а мерить проскальзывание опорной стопы надо на
     # трёх. Пустая строка — все.
     "only": "",
+    # ВТОРОЙ ДОНОР АНИМАЦИЙ (владелец 02.09-2: «анимации найти в интернете и
+    # переиспользовать, не изобретать»): glb с ЧУЖИМ ригом, кости которого
+    # сопоставлены нашим картой имён (--donor2-map: kaykit). Его клипы
+    # переносятся мировой ориентацией с дельтой покоя и выходят под
+    # приставкой --donor2-prefix, роли им раздаёт дверь DFN_CLIP_ROLES.
+    "donor2": "",
+    "donor2-map": "kaykit",
+    "donor2-only": "",
+    "donor2-prefix": "KK_",
     "tris": "0",          # без децимации: 26 756 треугольников, пальцы целы
     # МУЖЧИНА ~30 ЛЕТ, ОБЫЧНОГО СЛОЖЕНИЯ. Шкала возраста MakeHuman линейна по
     # половинам и ставит 25 лет ровно в 0.5, 90 — в 1.0; 30 лет = 0.5385.
@@ -709,6 +718,138 @@ def retarget(rig, src_rig, moving, only=None):
     return [name for _, name in made]
 
 
+# КАРТЫ ИМЁН ЧУЖИХ РИГОВ: наша кость → кость донора. Что не названо, держит
+# покой относительно родителя (у KayKit нет ключиц, шеи и пальцев).
+DONOR_MAPS = {
+    "kaykit": {
+        "DEF-hips": "hips", "DEF-spine.001": "spine", "DEF-spine.003": "chest",
+        "DEF-head": "head",
+        "DEF-upper_arm.L": "upperarm.l", "DEF-forearm.L": "lowerarm.l",
+        "DEF-hand.L": "hand.l",
+        "DEF-upper_arm.R": "upperarm.r", "DEF-forearm.R": "lowerarm.r",
+        "DEF-hand.R": "hand.r",
+        "DEF-thigh.L": "upperleg.l", "DEF-shin.L": "lowerleg.l",
+        "DEF-foot.L": "foot.l", "DEF-toe.L": "toes.l",
+        "DEF-thigh.R": "upperleg.r", "DEF-shin.R": "lowerleg.r",
+        "DEF-foot.R": "foot.r", "DEF-toe.R": "toes.r",
+    },
+}
+
+
+def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None):
+    """Чужой риг: мировая ориентация сопоставленной кости × покой донора⁻¹ ×
+    наш покой. Оба покоя обязаны быть одной позой тела (Т-поза) — это
+    проверяется здесь по плечу и бедру, а не предполагается."""
+    names = [b.name for b in rig.data.bones]
+    order, seen = [], set()
+
+    def walk(b):
+        if b.name in seen:
+            return
+        if b.parent is not None:
+            walk(b.parent)
+        seen.add(b.name)
+        order.append(b.name)
+    for b in rig.data.bones:
+        walk(b)
+
+    rest = {n: rig.data.bones[n].matrix_local.copy() for n in names}
+    rest_head = {n: rig.data.bones[n].head_local.copy() for n in names}
+    parent = {n: (rig.data.bones[n].parent.name if rig.data.bones[n].parent else None)
+              for n in names}
+    to_src = src_rig.matrix_world
+    to_rig = rig.matrix_world.inverted()
+    missing = [s for s in bone_map.values() if s not in src_rig.data.bones]
+    if missing:
+        raise SystemExit("donor2 lacks bones: " + ", ".join(missing))
+    src_rest_rot = {n: rot_of(to_rig @ to_src @ src_rig.data.bones[s].matrix_local)
+                    for n, s in bone_map.items()}
+    src_rest_head = {n: (to_rig @ to_src @ src_rig.data.bones[s].head_local)
+                     for n, s in bone_map.items()}
+    own_rest_rot = {n: rot_of(rest[n]) for n in names}
+
+    # ОДНА ПОЗА ПОКОЯ: направление плечо→кисть и бедро→стопа у обоих.
+    def axis(head, a, b):
+        v = head[b] - head[a]
+        return v.normalized() if v.length > 1e-6 else v
+    for a, b in (("DEF-upper_arm.L", "DEF-hand.L"), ("DEF-thigh.L", "DEF-foot.L")):
+        own = axis(rest_head, a, b)
+        src = axis(src_rest_head, a, b)
+        if own.dot(src) < math.cos(math.radians(8.0)):
+            raise SystemExit("donor2 rest pose differs from ours at %s→%s: %.1f°"
+                             % (a, b, math.degrees(math.acos(max(-1.0, min(1.0, own.dot(src)))))))
+    # рост таза над стопой — масштаб для перемещения таза (боб, присед)
+    own_h = rest_head["DEF-hips"].z - rest_head["DEF-toe.L"].z
+    src_h = src_rest_head["DEF-hips"].z - src_rest_head["DEF-toe.L"].z
+    hips_scale = own_h / src_h if abs(src_h) > 1e-6 else 1.0
+    log("donor2: hips scale %.3f (own %.3f m, donor %.3f m)" % (hips_scale, own_h, src_h))
+
+    decor = "_" + src_rig.name
+    if rig.animation_data is None:
+        rig.animation_data_create()
+    if src_rig.animation_data is None:
+        src_rig.animation_data_create()
+    made = []
+    worst = 0.0
+    for action in sorted(sources, key=lambda a: a.name):
+        clip = action.name[:-len(decor)] if action.name.endswith(decor) else action.name
+        if only and clip not in only:
+            continue
+        src_rig.animation_data.action = action
+        f0 = int(math.floor(action.frame_range[0]))
+        f1 = int(math.ceil(action.frame_range[1]))
+        out = bpy.data.actions.new("retargeted2@" + clip)
+        made.append((out, prefix + clip))
+        rig.animation_data.action = out
+        for frame in range(f0, f1 + 1):
+            bpy.context.scene.frame_set(frame)
+            src_world = {n: to_rig @ to_src @ src_rig.pose.bones[s].matrix
+                         for n, s in bone_map.items()}
+            pose = {}
+            for n in order:
+                p = parent[n]
+                if n in src_world:
+                    rot = rot_of(src_world[n]) @ src_rest_rot[n].inverted() @ own_rest_rot[n]
+                elif p is None:
+                    rot = own_rest_rot[n]
+                else:
+                    rot = (rot_of(pose[p]) @ rest[p].to_3x3().normalized().inverted()
+                           @ own_rest_rot[n])
+                if p is None:
+                    head = rest_head[n].copy()
+                elif n == "DEF-hips" and n in src_world:
+                    head = rest_head[n] + (src_world[n].to_translation()
+                                           - src_rest_head[n]) * hips_scale
+                else:
+                    delta = rot_of(pose[p]) @ rest[p].to_3x3().normalized().inverted()
+                    head = pose[p].to_translation() + delta @ (rest_head[n] - rest_head[p])
+                pose[n] = Matrix.Translation(head) @ rot.to_4x4()
+            for n in order:
+                p = parent[n]
+                if p is None:
+                    basis = rest[n].inverted() @ pose[n]
+                else:
+                    basis = rest[n].inverted() @ rest[p] @ pose[p].inverted() @ pose[n]
+                pb = rig.pose.bones[n]
+                pb.rotation_mode = "QUATERNION"
+                pb.matrix_basis = basis
+                pb.keyframe_insert("rotation_quaternion", frame=frame, group=n)
+                if p is None or n == "DEF-hips":
+                    pb.keyframe_insert("location", frame=frame, group=n)
+        bpy.context.view_layer.update()
+        for n in names:
+            err = (rig.pose.bones[n].matrix.to_translation()
+                   - pose[n].to_translation()).length
+            worst = max(worst, err)
+    src_rig.animation_data.action = None
+    for action in sources:
+        bpy.data.actions.remove(action)
+    for out, name in made:
+        out.name = name
+    log("donor2: %d clips, worst head error %.6f m" % (len(made), worst))
+    return [name for _, name in made]
+
+
 def rot_of(m):
     return m.to_3x3().normalized()
 
@@ -759,6 +900,29 @@ def main():
             if o.name not in before and o is not src_rig:
                 bpy.data.objects.remove(o, do_unlink=True)
         bpy.data.objects.remove(src_rig, do_unlink=True)
+
+    donor2 = opt["donor2"]
+    if clips and donor2:
+        if not os.path.isabs(donor2):
+            donor2 = os.path.join(root, donor2)
+        before = {o.name for o in bpy.data.objects}
+        acts_before = {a.name for a in bpy.data.actions}
+        bpy.ops.import_scene.gltf(filepath=donor2)
+        src2 = None
+        for o in bpy.data.objects:
+            if o.name not in before and o.type == "ARMATURE":
+                src2 = o
+        if src2 is None:
+            raise SystemExit("no armature in " + donor2)
+        sources = [a for a in bpy.data.actions if a.name not in acts_before]
+        only2 = [x for x in opt["donor2-only"].split(",") if x]
+        made += retarget_mapped(rig, src2, DONOR_MAPS[opt["donor2-map"]], sources,
+                                opt["donor2-prefix"], only=only2)
+        for o in list(bpy.data.objects):
+            if o.name not in before and o is not src2:
+                bpy.data.objects.remove(o, do_unlink=True)
+        bpy.data.objects.remove(src2, do_unlink=True)
+        rig.animation_data.action = None
 
     # Один материал: собственные материалы MakeHuman телу не нужны — цвет по
     # частям тела кладёт импортёр (--skin-palette), а безымянный примитив

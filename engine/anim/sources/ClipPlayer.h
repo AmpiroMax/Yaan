@@ -369,7 +369,12 @@ struct ClipLibrary {
 [[nodiscard]] ClipLibrary build_clip_library(
     const Rig& rig, const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
     std::span<const skel::AnimClip> clips,
-    std::span<const platform::SkinnedVertex> skin = {}, bool feet_drive = true);
+    std::span<const platform::SkinnedVertex> skin = {}, bool feet_drive = true,
+    std::string_view role_overrides = {});
+/// `role_overrides`: "Walk=KK_Walking_A,Jog=KK_Running_A" — роль по её
+/// короткому имени получает НАЗВАННЫЙ клип вместо табличного (дверь
+/// DFN_CLIP_ROLES: примерка чужих клипов без пересборки ассета). Нет такого
+/// клипа — роль берётся из таблицы, как без двери.
 
 /// One clip at one time as the imported skeleton's local TRS. Joints the clip
 /// does not key keep their BIND values (skel::sample_clip's contract).

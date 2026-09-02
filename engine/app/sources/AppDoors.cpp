@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 137> TABLE{{
+constexpr std::array<Door, 138> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -249,6 +249,9 @@ constexpr std::array<Door, 137> TABLE{{
     {"DFN_POSE_TAPE",
      "1 — ЛЕНТА ПОЗ: перебрать весь реестр по своим часам, по 4 с на запись, и остановиться на последней. Лента показывает ПЕРЕХОДЫ через опорные стойки, чего кадр отдельной позы предъявить не может; не зациклена нарочно, иначе «сколько снято» становится вопросом о том, когда закрыли окно.",
      DoorRead::Once, true},
+    {"DFN_CLIP_ROLES",
+     "роль → клип по имени: \"Walk=KK_Walking_A,Jog=KK_Running_A,Sprint=KK_Running_B\" — примерка чужих клипов (второй донор make_human_body.py --donor2) на роли без пересборки ассета; нет такого клипа — роль из таблицы.",
+     DoorRead::Once},
     {"DFN_STAND_SPAWN",
      "поставить фигуру в НАЗВАННУЮ точку сцены ([spawn] name=...) вместо заглавной: DFN_STAND_SPAWN=crate ставит её на ящик — приёмка «обе стопы стоят на предмете» (пункт 3).",
      DoorRead::Once},
