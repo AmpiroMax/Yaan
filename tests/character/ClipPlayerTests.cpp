@@ -13,13 +13,14 @@ Key items:
 - clip_sampling_is_a_function_of_time: determinism, looping, and a control that
   a different time really does give a different pose.
 - clip_playback_crossfades_and_interpolates: the tick, the fade, and the alpha.
-- foot_slide_under_the_threshold: the prober, WITH ITS CONTROL ARM — the same
-  measurement with stride matching switched off has to come out far worse, or
-  the instrument is measuring nothing.
+- the foot-slide prober itself lives in ClipSlideTests.cpp (character_clips_slide,
+  labelled known-defect until docs/design/LOCOMOTION_GROUNDED.md lands); the
+  model helpers both files share are in ClipTestModel.h.
 
 Dependencies:
 - Uses: engine/anim (ClipPlayer, SkinnedBody, Rig), engine/render (.dfo reader),
-  the baked assets/objects/characters/HumanBase.dfo (target dfn_characters).
+  tests/character/ClipTestModel.h, the baked
+  assets/objects/characters/HumanBase.dfo (target dfn_characters).
 - Used by: ctest (character_clips_played).
 
 AI Agents Notice (must follow):
@@ -47,98 +48,8 @@ AI Agents Notice (must follow):
 
 using namespace dfn;
 
-namespace {
+#include "tests/character/ClipTestModel.h"
 
-constexpr const char* MODEL = "assets/objects/characters/HumanBase.dfo";
-
-/// SIM'S OWN STEP MODEL, restated here and NOT included: gameplay sits ABOVE
-/// anim in the DAG, and a character test that links it would be the first
-/// edge that makes the graph a cycle. The two rows it reads
-/// (STEP_LENGTH_BASE, STEP_LENGTH_PER_MPS) are generated constants, so this is
-/// one reader of a registry row rather than a second copy of a number.
-[[nodiscard]] float step_length(float speed) {
-    return static_cast<float>(config::STEP_LENGTH_BASE)
-           + static_cast<float>(config::STEP_LENGTH_PER_MPS) * speed;
-}
-
-struct Model {
-    render::RegistryObject obj;
-    /// THE RIG THE GAME SHIPS, built from the NUMBERS rows, and NOT a
-    /// default-constructed one.
-    ///
-    /// A `Rig{}` has zero proportions and identity rest rotations, so the
-    /// retarget carries the model into a T-POSE and calls it our rest pose:
-    /// measured, the hand then hangs 0.821 m from the pelvis centre instead of
-    /// 0.230, which is the very number item 3 of the owner's list is about.
-    /// Every measurement below is against the rest pose, so an unbuilt rig is
-    /// an instrument calibrated on a body nobody draws (Rule 47).
-    anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
-    anim::SkinnedRigBinding binding;
-    anim::ClipLibrary lib;
-};
-
-[[nodiscard]] bool load(Model& m) {
-    if (!std::filesystem::exists(MODEL)) {
-        return false;
-    }
-    auto o = render::read_object(MODEL);
-    if (!o.has_value() || o->skeleton.empty() || o->clips.empty()) {
-        return false;
-    }
-    m.obj = std::move(*o);
-    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): та же, которой тело рисуют экран
-    // создания и мир — иначе стенд судил бы позу, которой никто не видит.
-    m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
-    m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
-    m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
-                                     m.obj.skin.vertices);
-    return true;
-}
-
-[[nodiscard]] std::string clip_name_of(const Model& m, anim::ClipRole r) {
-    const anim::ClipEntry& e = m.lib[r];
-    return e.present() ? m.obj.clips[static_cast<std::size_t>(e.clip)].name
-                       : std::string{};
-}
-
-/// THE BODY'S OWN PELVIS HALF-WIDTH, metres: the hip joint's offset from the
-/// body axis in the rest pose this file measures everything else in.
-///
-/// WHY THIS NUMBER EXISTS AT ALL (owner's decision, 01.09). The visible
-/// HumanBase now ships RAW — no --fit-canon, no --reshape — because the owner
-/// compared the raw asset with the one the game baked and kept the raw one.
-/// Its skeleton is its author's, not the canon's: the hip joints sit 0.085 m
-/// off the axis where the canon-fitted body had them at 0.145. Every band in
-/// this file that was written in METRES off the canon therefore broke at once,
-/// and the honest repair is not a smaller number — it is to ask the body how
-/// wide it is. A band in the model's own units survives the next body too.
-[[nodiscard]] float pelvis_half_width(const Model& m) {
-    std::vector<glm::mat4> model(m.obj.skeleton.size());
-    anim::rest_model_matrices(m.rig, m.obj.skeleton, m.binding, anim::LocalPose{},
-                              model);
-    const auto at = [&](anim::Bone b) {
-        const int32_t j = m.binding.names.joint[anim::bone_index(b)];
-        return j >= 0 ? glm::vec3{model[static_cast<std::size_t>(j)][3]}
-                      : glm::vec3{0.0f};
-    };
-    return std::abs(at(anim::Bone::ThighL).x - at(anim::Bone::Pelvis).x);
-}
-
-/// The largest distance any joint moved between two samples — a one-number
-/// answer to "is this the same pose".
-[[nodiscard]] float pose_distance(std::span<const anim::JointLocal> a,
-                                  std::span<const anim::JointLocal> b) {
-    float worst = 0.0f;
-    const std::size_t n = std::min(a.size(), b.size());
-    for (std::size_t i = 0; i < n; ++i) {
-        const float d = 1.0f - std::abs(glm::dot(a[i].rotation, b[i].rotation));
-        worst = std::max(worst, d);
-        worst = std::max(worst, glm::length(a[i].translation - b[i].translation));
-    }
-    return worst;
-}
-
-} // namespace
 
 TEST_CASE("clip_library_resolves_roles") {
     Model m;
@@ -150,14 +61,17 @@ TEST_CASE("clip_library_resolves_roles") {
     CHECK(clip_name_of(m, anim::ClipRole::Idle) == "Idle_Loop");
     CHECK(clip_name_of(m, anim::ClipRole::Walk) == "Walk_Loop");
     CHECK(clip_name_of(m, anim::ClipRole::Jog) == "Jog_Fwd_Loop");
-    // THE SPRINT ROLE DOES NOT PLAY Sprint_Loop, AND THAT IS THE POINT.
-    // Quaternius authored Sprint_Loop at about 9 m/s and Jog_Fwd_Loop at
-    // about 6, which is RUN_SPEED almost exactly, so build_clip_library's
-    // measured pick hands our fastest gear the clip named "jog": measured,
-    // 0.027 m of planted-foot slide per step against Sprint_Loop's 0.133.
-    // A name is the asset author's guess at what a clip is for; the stride
-    // it was drawn at is a fact.
-    CHECK(clip_name_of(m, anim::ClipRole::Sprint) == "Jog_Fwd_Loop");
+    // THE SPRINT ROLE PLAYS Sprint_Loop — its own clip, by name. Until 02.09
+    // the library handed the fastest gear the clip named "jog" because a jog
+    // bent to RUN_SPEED slid less than the sprint bent to it (0.027 against
+    // 0.133 on the Quaternius body, 0.032 against 0.083 on the MPFB one).
+    // The owner's order retires the bend itself (docs/design/
+    // LOCOMOTION_GROUNDED.md: root motion from the clip, a locked planted
+    // foot, FootIk), and under it a gear's speed is its clip's authored
+    // speed, so the gear keeps the clip somebody named for it. This line is
+    // what says the swap is gone; the slide numbers live in
+    // ClipSlideTests.cpp, red with a passport until that wave lands.
+    CHECK(clip_name_of(m, anim::ClipRole::Sprint) == "Sprint_Loop");
     CHECK(clip_name_of(m, anim::ClipRole::JumpStart) == "Jump_Start");
     CHECK(clip_name_of(m, anim::ClipRole::JumpLoop) == "Jump_Loop");
     CHECK(clip_name_of(m, anim::ClipRole::JumpLand) == "Jump_Land");
@@ -381,114 +295,6 @@ TEST_CASE("clip_playback_crossfades_and_interpolates") {
     CHECK(span > 1e-3f); // the two ticks differ at all: the control
     CHECK(pose_distance(at0, mid) < span);
     CHECK(pose_distance(at1, mid) < span);
-}
-
-TEST_CASE("foot_slide_under_the_threshold") {
-    Model m;
-    REQUIRE(load(m));
-
-    // THE THRESHOLD, and it is now about a POINT OF THE FOOT rather than about
-    // the ankle. The order asks for two centimetres of planted-foot travel per
-    // step; four is what the drawn CONTACT POINT can be held to on this asset
-    // at the two gears below, and the gap is named rather than tuned away —
-    // artifacts/reports/locomotion-fix/index.html carries every number.
-    constexpr float THRESHOLD_M = 0.04f;
-    // The control arm has to be far worse than the threshold, not merely
-    // worse: a prober that separates the two arms by a hair is a prober whose
-    // next refactor silently stops separating them at all.
-    constexpr float CONTROL_RATIO = 4.0f;
-
-    struct Case {
-        anim::ClipRole role;
-        float speed;
-    };
-    // THE RUN IS ON THIS LIST NOW, and it is the wave's headline: it used to
-    // slide 0.191 m per step because the clip's own travel was measured at
-    // the ANKLE of a body that lands on its BALL, which read Sprint_Loop as
-    // covering 0.698 m per cycle where it covers 6.08.
-    const Case cases[] = {
-        {anim::ClipRole::Walk, static_cast<float>(config::WALK_SPEED)},
-        {anim::ClipRole::Sprint, static_cast<float>(config::RUN_SPEED)},
-    };
-    for (const Case& c : cases) {
-        CAPTURE(anim::role_name(c.role));
-        const float sl = step_length(c.speed);
-        const anim::FootSlide matched =
-            anim::measure_foot_slide(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
-                                     c.role, sl, /*stride_match=*/true, 96);
-        // THE CONTROL ARM: the same clip, the same speed, the same prober,
-        // with the stride left at whatever the animator authored. It is the
-        // arm this wave's whole stride-matching exists to beat, and if the two
-        // ever come out equal the measurement has stopped measuring.
-        const anim::FootSlide loose =
-            anim::measure_foot_slide(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
-                                     c.role, sl, /*stride_match=*/false, 96);
-        CAPTURE(matched.worst_per_step_m);
-        CAPTURE(matched.ankle_per_step_m);
-        CAPTURE(loose.worst_per_step_m);
-        CAPTURE(matched.cycle_travel_m);
-        CAPTURE(matched.demanded_m);
-        CHECK(matched.worst_per_step_m < THRESHOLD_M);
-        if (c.role == anim::ClipRole::Walk) {
-            CHECK(loose.worst_per_step_m > CONTROL_RATIO * THRESHOLD_M);
-        } else {
-            // THE RUN'S CONTROL ARM IS A DIFFERENT ARM, because leaving its
-            // stride unmatched is no longer the bad option: the clip it ended
-            // up with is already drawn near RUN_SPEED. The option this gear
-            // actually rejected is the clip its NAME points at, and that is
-            // the arm that has to be far worse.
-            CAPTURE(m.lib[c.role].named_slide_m);
-            REQUIRE(m.lib[c.role].named_clip >= 0);
-            CHECK(m.obj.clips[static_cast<std::size_t>(m.lib[c.role].named_clip)].name
-                  == "Sprint_Loop");
-            // THE ARM, RESTATED AS THE STATEMENT IT ALWAYS MEANT (01.09). It
-            // used to be a RATIO of the two clips' slides, and a ratio of two
-            // numbers that both moved when the shipped body stopped being
-            // canon-fitted came out at 3.55 against a floor of 4 — the gear
-            // still made the right choice, and the arm still went red. What
-            // the gear actually decided is a pair of statements about the
-            // THRESHOLD, and neither of them is a quotient: the clip whose
-            // NAME matches fails the acceptance outright, and the clip that
-            // was taken instead passes it with room. The ratio is kept beside
-            // them as the size of the gap, at the value the two bodies bracket
-            // (3.55 raw, 5.03 canon-fitted) rather than above both.
-            CHECK(m.lib[c.role].named_slide_m > THRESHOLD_M);
-            CHECK(matched.worst_per_step_m < 0.5f * THRESHOLD_M);
-            CHECK(m.lib[c.role].named_slide_m > 3.0f * matched.worst_per_step_m);
-        }
-        // Stride matching means what it says: the clip covers the ground sim
-        // says the body covered, within a couple of per cent.
-        CHECK(matched.cycle_travel_m
-              == doctest::Approx(matched.demanded_m).epsilon(0.05));
-        // The strict reading can only be larger than the drift, never smaller.
-        CHECK(matched.path_per_step_m >= matched.worst_per_step_m - 1e-6f);
-    }
-    // THE JOG WAS A NAMED TAIL AND IS NOW A BLEND. sim's 3 m/s is the one gear
-    // this asset has no clip near — Walk_Loop is drawn at 1.14 m/s and
-    // Jog_Fwd_Loop at 5.98 — so the previous wave played a run shrunk to 0.41
-    // of its stride, and its feet skimmed 0.274 m per step. The library now
-    // blends the two at the weight whose MEASURED cycle covers what sim asks
-    // for, which leaves the stride scale at 1.01: nothing is bent.
-    const anim::ClipEntry& jog_entry = m.lib[anim::ClipRole::Jog];
-    REQUIRE(jog_entry.mixed());
-    const anim::FootSlide jog =
-        anim::measure_foot_slide(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
-                                 anim::ClipRole::Jog, step_length(config::JOG_SPEED),
-                                 true, 96);
-    CAPTURE(jog.worst_per_step_m);
-    CAPTURE(jog_entry.mix_weight);
-    CAPTURE(jog_entry.mix_solo_slide_m);
-    CHECK(jog.cycle_travel_m == doctest::Approx(jog.demanded_m).epsilon(0.05));
-    CHECK(jog.worst_per_step_m < THRESHOLD_M);
-    // THE STRIDE IS NO LONGER BENT, which is the half of the fix the slide
-    // figure alone cannot show: a body sliding 3 cm on nearly straight legs
-    // and one sliding 3 cm on its own legs look nothing alike.
-    CHECK(anim::stride_scale_for(jog_entry, jog.demanded_m)
-          == doctest::Approx(1.0f).epsilon(0.15));
-    // THE CONTROL ARM: the clip the blend replaced, measured at the same gear.
-    // A blend that did not beat it by a wide margin would be an average of two
-    // animations bought for nothing.
-    CHECK(jog_entry.mix_solo_slide_m > CONTROL_RATIO * jog.worst_per_step_m);
 }
 
 TEST_CASE("the_model_faces_the_way_it_walks") {
@@ -970,85 +776,6 @@ TEST_CASE("both_feet_stand_on_the_object_they_are_on") {
         CHECK(g.gap[side] > GAP_M);
         CHECK(old_reading == 0.0f);
     }
-}
-
-TEST_CASE("the_run_is_not_lopsided") {
-    Model m;
-    REQUIRE(load(m));
-    // WHAT THIS IS ABOUT (owner, 31.08: "бег перекошен в одну сторону"). A
-    // gait is ANTISYMMETRIC, not symmetric: the left side at phase p is the
-    // mirror of the right side half a cycle later. That is the quantity, and
-    // measuring plain left-right symmetry instead would fail every correct
-    // walk ever animated.
-    std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
-    std::vector<glm::mat4> local(m.obj.skeleton.size());
-    std::vector<glm::mat4> model(m.obj.skeleton.size());
-    const auto pose_at = [&](const anim::ClipEntry& e, float t, float scale) {
-        anim::sample_clip_pose(m.obj.skeleton,
-                               m.obj.clips[static_cast<std::size_t>(e.clip)], t,
-                               sample);
-        anim::scale_sample_stride(m.binding, m.obj.skeleton, scale, sample);
-        for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
-            local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation)
-                       * glm::mat4_cast(glm::normalize(sample[j].rotation))
-                       * glm::scale(glm::mat4{1.0f}, sample[j].scale);
-        }
-        skel::skeleton_model_matrices(m.obj.skeleton, local, model);
-    };
-    const auto at = [&](anim::Bone b) {
-        const int32_t j = m.binding.names.joint[anim::bone_index(b)];
-        return glm::vec3{model[static_cast<std::size_t>(j)][3]};
-    };
-    const anim::Bone L[] = {anim::Bone::ThighL, anim::Bone::ShinL, anim::Bone::FootL,
-                            anim::Bone::UpperArmL, anim::Bone::ForearmL,
-                            anim::Bone::HandL};
-    const anim::Bone R[] = {anim::Bone::ThighR, anim::Bone::ShinR, anim::Bone::FootR,
-                            anim::Bone::UpperArmR, anim::Bone::ForearmR,
-                            anim::Bone::HandR};
-    const anim::ClipEntry& e = m.lib[anim::ClipRole::Sprint];
-    REQUIRE(e.present());
-    const float scale =
-        anim::stride_scale_for(e, 2.0f * step_length(config::RUN_SPEED));
-    float worst = 0.0f;
-    for (int k = 0; k < 32; ++k) {
-        const float t = e.duration_s * float(k) / 32.0f;
-        pose_at(e, t, scale);
-        const glm::vec3 hip_a = at(anim::Bone::Pelvis);
-        glm::vec3 left[6];
-        for (int i = 0; i < 6; ++i) {
-            left[i] = at(L[i]) - hip_a;
-        }
-        pose_at(e, std::fmod(t + 0.5f * e.duration_s, e.duration_s), scale);
-        const glm::vec3 hip_b = at(anim::Bone::Pelvis);
-        for (int i = 0; i < 6; ++i) {
-            const glm::vec3 r = at(R[i]) - hip_b;
-            worst = std::max(worst,
-                             glm::length(left[i] - glm::vec3{-r.x, r.y, r.z}));
-        }
-    }
-    CAPTURE(worst);
-    CAPTURE(scale);
-    // A QUARTER OF A METRE, and it is a RATCHET and not a derivation: it is
-    // the measured 0.212 m with room, and it exists to notice the day a
-    // change makes the run visibly more crooked than the one the owner was
-    // shown. The clip's own asymmetry (this asset swings its left arm wider
-    // than its right) is inside it and is not ours to fix.
-    CHECK(worst < 0.25f);
-    // THE CONTROL: the measurement is capable of failing. The same clip
-    // compared against ITSELF instead of against its half-cycle mirror has
-    // to come out far worse, or the mirror is not being taken.
-    float sham = 0.0f;
-    for (int k = 0; k < 32; ++k) {
-        pose_at(e, e.duration_s * float(k) / 32.0f, scale);
-        const glm::vec3 hip = at(anim::Bone::Pelvis);
-        for (int i = 0; i < 6; ++i) {
-            const glm::vec3 r = at(R[i]) - hip;
-            sham = std::max(sham, glm::length((at(L[i]) - hip)
-                                              - glm::vec3{-r.x, r.y, r.z}));
-        }
-    }
-    CAPTURE(sham);
-    CHECK(sham > 2.0f * worst);
 }
 
 TEST_CASE("the_hands_hang_like_a_persons") {

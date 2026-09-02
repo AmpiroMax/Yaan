@@ -38,6 +38,23 @@ constexpr float OVERSHOOT_M = 0.002f;
 /// person could stand in.
 constexpr float MAX_STEP_RAD = 0.35f;
 
+/// THE STEP TAKEN WHEN THE FLESH ALREADY CLEARS AND ONLY THE BOXES TOUCH.
+/// hitbox_pair_distance reports an intersection as exactly zero — it has no
+/// depth to hand the lever — so the pass turns by one degree and the
+/// tightening below finds the smallest angle that clears. One degree is
+/// 1 cm at a hanging hand and 2 mm at the crotch: fine enough that six
+/// halvings land within a tenth of a degree.
+constexpr float BOX_STEP_RAD = 0.01745f;
+
+/// The shortest lever the solve will believe, metres. The worst band can sit
+/// right at the joint (the crotch is a few centimetres under the hip), and a
+/// lever of a millimetre would ask for a quarter turn per pass.
+constexpr float MIN_LEVER_M = 0.05f;
+
+/// How many halvings the tightening takes: within a sixty-fourth of the last
+/// lever step, i.e. the gaps within a millimetre of the rows on this body.
+constexpr int TIGHTEN_STEPS = 6;
+
 struct Joints {
     glm::vec3 shoulder[2]{};
     glm::vec3 wrist[2]{};
@@ -76,7 +93,34 @@ struct Joints {
     return std::min(std::asin(r), MAX_STEP_RAD);
 }
 
+/// THE LEVER THE DEFICIT ACTUALLY ACTS ON: from the joint the limb turns
+/// about down to the band where the gap is worst. Measured on the MPFB body:
+/// the legs' tightest band is 6 cm under the hip joint, and asin over the
+/// whole 0.95 m leg asked for 0.1° a pass where 1.7° was needed — twelve
+/// passes moved the legs 3.3° and left the gap 3 mm short. Falls back to the
+/// whole limb when the gap has no band (pairs only).
+[[nodiscard]] float band_lever(float joint_y, float worst_y, float whole_m) {
+    if (std::isnan(worst_y)) {
+        return whole_m;
+    }
+    return std::max(MIN_LEVER_M, std::abs(joint_y - worst_y));
+}
+
+[[nodiscard]] bool legs_clear(const BodyGaps& g, const BodyGapTargets& t) {
+    return g.valid && g.legs.judged_m() >= t.legs_m && g.legs_box_m > 0.0f;
+}
+
+[[nodiscard]] bool arms_clear(const BodyGaps& g, const BodyGapTargets& t) {
+    return g.valid && g.hand_thigh_worst_m() >= t.hand_thigh_m
+           && g.forearm_trunk_worst_m() >= t.forearm_trunk_m
+           && g.hand_thigh_box_m[0] > 0.0f && g.hand_thigh_box_m[1] > 0.0f;
+}
+
 } // namespace
+
+bool rest_pose_clear(const BodyGaps& gaps, const BodyGapTargets& targets) {
+    return legs_clear(gaps, targets) && arms_clear(gaps, targets);
+}
 
 RestFit fit_rest_pose(const RigProportions& p, const skel::Skeleton& skeleton,
                       std::span<const platform::SkinnedVertex> skin,
@@ -100,86 +144,107 @@ RestFit fit_rest_pose(const RigProportions& p, const skel::Skeleton& skeleton,
     };
     measure();
     if (legacy) {
-        fit.met = gaps_meet(fit.gaps, targets);
+        fit.met = rest_pose_clear(fit.gaps, targets);
         return fit; // the "before" arm is measured, never corrected
     }
-    // THE LAST STANCE THAT DID NOT MEET THE TARGETS, kept for the tightening
-    // below: the lever overshoots (it reads the deficit at a limb that is
-    // INSIDE the other one), and «по швам» means the smallest angle that
-    // clears, not the first one that does.
-    RestStance unmet = stance;
     const auto rebuild = [&](const RestStance& s) {
         stance = s;
         fit.rig = Rig::build(p, stance);
         fit.binding = bind_skinned_rig(fit.rig, skeleton);
         measure();
-    };
-    for (uint32_t pass = 0; pass < REST_FIT_MAX_PASSES; ++pass) {
-        fit.passes = pass + 1;
-        if (gaps_meet(fit.gaps, targets)) {
-            fit.met = true;
-            break;
-        }
-        unmet = stance;
-        const Joints j = rest_joints(fit.rig, skeleton, fit.binding);
-        if (!j.valid) {
-            return fit;
-        }
-        // THE ARMS: whichever of the two pairs is shorter of its target asks
-        // for the turn; the hand's lever is the whole arm, the forearm's the
-        // arm down to the forearm's middle (its elbow sits roughly halfway).
-        const float arm_len = 0.5f * (glm::length(j.wrist[0] - j.shoulder[0])
-                                      + glm::length(j.wrist[1] - j.shoulder[1]));
-        const float hand_short = targets.hand_thigh_m + OVERSHOOT_M
-                                 - fit.gaps.hand_thigh_worst_m();
-        const float fore_short = targets.forearm_trunk_m + OVERSHOOT_M
-                                 - fit.gaps.forearm_trunk_worst_m();
-        float arm_turn = 0.0f;
-        if (hand_short > 0.0f) {
-            arm_turn = std::max(arm_turn, lever(hand_short, arm_len));
-        }
-        if (fore_short > 0.0f) {
-            arm_turn = std::max(arm_turn, lever(fore_short, 0.6f * arm_len));
-        }
-        // THE LEGS: half the deficit per leg, on the hip->ankle lever.
-        const float leg_len = 0.5f * (glm::length(j.ankle[0] - j.hip[0])
-                                      + glm::length(j.ankle[1] - j.hip[1]));
-        const float legs_short = targets.legs_m + OVERSHOOT_M - fit.gaps.legs.judged_m();
-        const float leg_turn = legs_short > 0.0f ? lever(0.5f * legs_short, leg_len) : 0.0f;
-        if (arm_turn <= 0.0f && leg_turn <= 0.0f) {
-            return fit; // met by the box measure but not by ours: report it
-        }
-        RestStance next = stance;
-        next.arm_abduction_rad += arm_turn;
-        next.leg_splay_rad += leg_turn;
-        rebuild(next);
-    }
-    if (!fit.met) {
-        fit.met = gaps_meet(fit.gaps, targets);
-        return fit;
-    }
-    // TIGHTEN: bisect between the last stance that fell short and the one
-    // that cleared, on both angles at once, keeping the clearing side. Six
-    // halvings bring the angles within a sixty-fourth of the last step, i.e.
-    // the gaps within a millimetre of the rows on this body.
-    RestStance met = stance;
-    for (int step = 0; step < 6; ++step) {
-        RestStance mid = met;
-        mid.arm_abduction_rad = 0.5f * (unmet.arm_abduction_rad + met.arm_abduction_rad);
-        mid.leg_splay_rad = 0.5f * (unmet.leg_splay_rad + met.leg_splay_rad);
-        rebuild(mid);
         ++fit.passes;
-        if (gaps_meet(fit.gaps, targets)) {
-            met = mid;
-        } else {
-            unmet = mid;
+    };
+    // TWO ANGLES, SOLVED ONE AFTER THE OTHER, LEGS FIRST. The leg splay moves
+    // the thighs OUTWARD, toward the hanging hands, so every degree of splay
+    // costs the hand-thigh gap 2 mm on this body: an arm solved before the
+    // legs is an arm solved against a thigh that is about to move. The
+    // abduction does not move the legs, so the order closes the coupling in
+    // one direction and needs no second round.
+    //
+    // EACH ANGLE: THE LEVER UPWARD UNTIL ITS PAIRS CLEAR, THEN TIGHTENED by
+    // bisection between the last stance that fell short and the first that
+    // cleared, keeping the clearing side — «по швам» means the smallest angle
+    // that clears, not the first one that does. The lever overshoots on
+    // purpose (it reads a deficit at a limb that is INSIDE the other one),
+    // and the tightening is what turns the overshoot into a measurement.
+    struct Axis {
+        bool (*clear)(const BodyGaps&, const BodyGapTargets&);
+        float RestStance::*angle;
+    };
+    const Axis axes[] = {{&legs_clear, &RestStance::leg_splay_rad},
+                         {&arms_clear, &RestStance::arm_abduction_rad}};
+    for (const Axis& axis : axes) {
+        RestStance unmet = stance;
+        bool cleared = axis.clear(fit.gaps, targets);
+        for (uint32_t pass = 0; pass < REST_FIT_MAX_PASSES && !cleared; ++pass) {
+            unmet = stance;
+            const Joints j = rest_joints(fit.rig, skeleton, fit.binding);
+            if (!j.valid) {
+                fit.met = false;
+                return fit;
+            }
+            float turn = 0.0f;
+            if (axis.angle == &RestStance::leg_splay_rad) {
+                // THE LEGS: half the deficit per leg, on the hip->band lever.
+                const float leg_len = 0.5f * (glm::length(j.ankle[0] - j.hip[0])
+                                              + glm::length(j.ankle[1] - j.hip[1]));
+                const float arm = band_lever(0.5f * (j.hip[0].y + j.hip[1].y),
+                                             fit.gaps.legs.worst_y, leg_len);
+                const float legs_short =
+                    targets.legs_m + OVERSHOOT_M - fit.gaps.legs.judged_m();
+                turn = legs_short > 0.0f ? lever(0.5f * legs_short, arm) : 0.0f;
+            } else {
+                // THE ARMS: whichever of the two pairs is shorter of its target
+                // asks for the turn; each on the shoulder->band lever.
+                const float arm_len = 0.5f * (glm::length(j.wrist[0] - j.shoulder[0])
+                                              + glm::length(j.wrist[1] - j.shoulder[1]));
+                const float shoulder_y = 0.5f * (j.shoulder[0].y + j.shoulder[1].y);
+                for (int side = 0; side < 2; ++side) {
+                    const MeshGap& h = fit.gaps.hand_thigh[static_cast<std::size_t>(side)];
+                    const MeshGap& f = fit.gaps.forearm_trunk[static_cast<std::size_t>(side)];
+                    const float hand_short = targets.hand_thigh_m + OVERSHOOT_M - h.judged_m();
+                    const float fore_short =
+                        targets.forearm_trunk_m + OVERSHOOT_M - f.judged_m();
+                    if (hand_short > 0.0f) {
+                        turn = std::max(turn, lever(hand_short,
+                                                    band_lever(shoulder_y, h.worst_y, arm_len)));
+                    }
+                    if (fore_short > 0.0f) {
+                        turn = std::max(turn, lever(fore_short, band_lever(shoulder_y, f.worst_y,
+                                                                           0.6f * arm_len)));
+                    }
+                }
+            }
+            if (turn <= 0.0f) {
+                turn = BOX_STEP_RAD; // the flesh clears, only the boxes touch
+            }
+            RestStance next = stance;
+            next.*(axis.angle) += turn;
+            rebuild(next);
+            cleared = axis.clear(fit.gaps, targets);
+        }
+        if (!cleared) {
+            fit.met = false;
+            return fit; // the passes ran out: report the stance it reached
+        }
+        RestStance met = stance;
+        if (met.*(axis.angle) > unmet.*(axis.angle)) {
+            for (int step = 0; step < TIGHTEN_STEPS; ++step) {
+                RestStance mid = met;
+                mid.*(axis.angle) = 0.5f * (unmet.*(axis.angle) + met.*(axis.angle));
+                rebuild(mid);
+                if (axis.clear(fit.gaps, targets)) {
+                    met = mid;
+                } else {
+                    unmet = mid;
+                }
+            }
+            if (stance.*(axis.angle) != met.*(axis.angle)) {
+                rebuild(met);
+            }
         }
     }
-    if (stance.arm_abduction_rad != met.arm_abduction_rad
-        || stance.leg_splay_rad != met.leg_splay_rad) {
-        rebuild(met);
-    }
-    fit.met = gaps_meet(fit.gaps, targets);
+    fit.met = rest_pose_clear(fit.gaps, targets);
     return fit;
 }
 

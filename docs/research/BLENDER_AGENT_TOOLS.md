@@ -23,10 +23,11 @@ Key items:
 
 Dependencies:
 - Uses: docs/design/HUMAN_SCALE.md (канон пропорций — числа для MPFB-ручек),
-  tools/check_human_scale.cpp (судья), tools/make_human_body.py и
-  tools/graft_head.py (прежние headless-скрипты под Blender 4.2 — модуль теперь
-  bl_ext.blender_org.mpfb), docs/research/CHARACTER_PIPELINE.md и
-  CHARACTER_EDITOR_TOOLS.md (куда это встраивается).
+  tools/check_human_scale.cpp (судья), tools/make_human_body.py (headless-скрипт
+  тела; модуль MPFB теперь bl_ext.blender_org.mpfb; прежний tools/graft_head.py —
+  пересадка головы MakeHuman на манекен — снят вместе с манекеном),
+  docs/research/CHARACTER_PIPELINE.md и CHARACTER_EDITOR_TOOLS.md (куда это
+  встраивается).
 - Used by: волны линии персонажей (E3-2, E15-4), любой агент, которому нужно
   сделать модель в Blender с картинкой-обратной связью.
 

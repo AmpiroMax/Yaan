@@ -816,7 +816,8 @@ TEST_CASE("пресет: имя, рост и ползунки переживаю
 }
 
 TEST_CASE("выпечка: MORF снята, рост тот, что просили, два прогона побайтово равны") {
-    if (!body_present()) {
+    if (!body_has_morphs()) {
+        MESSAGE("у HumanBase.dfo нет секции MORF — набор пропущен");
         return;
     }
     platform::NullRenderer renderer;
@@ -876,7 +877,8 @@ TEST_CASE("выпечка: MORF снята, рост тот, что просил
 }
 
 TEST_CASE("пресет старше тела: неизвестный ползунок ПРОПУСКАЕТСЯ, а не рушит экран") {
-    if (!body_present()) {
+    if (!body_has_morphs()) {
+        MESSAGE("у HumanBase.dfo нет секции MORF — набор пропущен");
         return;
     }
     platform::NullRenderer renderer;

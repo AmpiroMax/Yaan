@@ -241,13 +241,6 @@ struct ClipEntry {
     /// walk is over a half, a run well under; a number near zero means the
     /// measurement below found no plant and the stride it reports is a guess.
     float duty = 0.0f;
-    /// WHAT THE ROLE'S OWN NAME RESOLVED TO, before build_clip_library's
-    /// measured pick had its say, and how far that clip's planted foot slid
-    /// at the gear's stride. Kept so the swap is auditable: a decision that
-    /// leaves no trace of the option it rejected cannot be checked by a test
-    /// or read in a report. -1 / 0 when the role kept its own clip.
-    int32_t named_clip = -1;
-    float named_slide_m = 0.0f;
 
     /// THE SECOND CLIP OF A BLENDED GEAR, and the weight it carries.
     ///
@@ -285,9 +278,8 @@ struct ClipEntry {
     /// a number solved on the idle and reused on the sprint overshot the
     /// reference by 49 degrees, because the sprint was already right.
     float elbow_mean_rad = 0.0f;
-    /// What the blend cost and bought, kept so the decision is auditable the
-    /// way `named_clip` keeps the rejected swap: the solo clip's slide and its
-    /// ground lift at this gear's stride.
+    /// What the blend cost and bought, kept so the decision is auditable: the
+    /// solo clip's slide and its ground lift at this gear's stride.
     float mix_solo_slide_m = 0.0f;
     float mix_solo_lift_m = 0.0f;
 

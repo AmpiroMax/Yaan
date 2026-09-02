@@ -33,11 +33,18 @@ Notes:
   that is right for THIS skeleton is a measurement, and it has to be taken on
   the skin, because a joint has no radius (the lesson the hitbox wave paid
   for twice).
-- THE SOLVE IS A LEVER, NOT A SCAN. A gap short by d centimetres at a hand
-  hanging L metres below the shoulder wants asin(d / L) of abduction; the
-  same at the ankle wants asin(d / 2 / leg) per leg. Each pass re-measures
-  after the retarget (the model's own segments, not the canon's), so the
-  small non-linearity is closed by iteration, not by a finer grid.
+- THE SOLVE IS A LEVER, NOT A SCAN. A gap short by d centimetres at a band
+  L metres below the joint the limb turns about wants asin(d / L) of turn;
+  the legs share the deficit, d / 2 each. L is the distance from the joint
+  to the WORST BAND of the gap (MeshGap::worst_y), not the whole limb: on
+  the MPFB body the legs are tightest 6 cm under the hip (the crotch), and
+  the whole-leg lever asked for a fifteenth of the angle. Each pass
+  re-measures after the retarget (the model's own segments, not the
+  canon's), so the small non-linearity is closed by iteration.
+- LEGS FIRST, THEN ARMS, each lever-then-bisect. The splay carries the
+  thighs toward the hanging hands (2 mm of hand-thigh gap per degree on
+  this body); the abduction moves nothing the legs measure. Solving in that
+  order closes the coupling in one direction.
 - MONOTONE, from zero upward. The solver never pulls a limb IN: a body whose
   hands already clear the thighs at zero abduction keeps its arms dead
   vertical, which is the tightest «по швам» there is.
@@ -63,7 +70,11 @@ AI Agents Notice (must follow):
 
 namespace dfn::anim {
 
-/// How many lever passes the solve may take before it reports what it has.
+/// How many lever passes ONE ANGLE may take before the solve reports what it
+/// has. The legs and the arms are solved one after the other (legs first:
+/// the splay moves the thighs toward the hands, the abduction moves nothing
+/// the legs care about), each with its own budget; `RestFit::passes` counts
+/// every rebuild of both, tightening included.
 inline constexpr uint32_t REST_FIT_MAX_PASSES = 12;
 
 struct RestFit {
@@ -75,11 +86,22 @@ struct RestFit {
     BodyGaps gaps;
     BodyGapTargets targets;
     uint32_t passes = 0;
-    /// True when every target was met; false when the passes ran out or the
-    /// model has no skin to measure (then `rig` is the unfitted attention
-    /// rest and `gaps.valid` is false).
+    /// True when every target was met AND the game's own boxes of the same
+    /// pairs (thigh-thigh, hand-thigh) no longer intersect; false when the
+    /// passes ran out or the model has no skin to measure (then `rig` is the
+    /// unfitted attention rest and `gaps.valid` is false).
     bool met = false;
 };
+
+/// WHAT THE SOLVE CALLS CLEAR: the REST_GAP_* rows on the skin (gaps_meet)
+/// and, on top of them, the hitboxes the game plays with — thigh against
+/// thigh, hand against thigh — not touching. The boxes are wider than the
+/// flesh at the hand's height (a thigh's box is as wide as its widest point,
+/// the buttock, and the hand hangs beside its middle), so a rest that clears
+/// the skin by the owner's 1.5 cm can still start every frame with the hand
+/// INSIDE the box the arm layer steers by. One predicate for the solver and
+/// the acceptance, so the two cannot disagree about what «по швам» means.
+[[nodiscard]] bool rest_pose_clear(const BodyGaps& gaps, const BodyGapTargets& targets);
 
 /// The solve. `legacy` = the box body's converged rest, unfitted — the
 /// "before" arm of the owner's comparison (Rule 47: both arms from one

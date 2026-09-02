@@ -342,7 +342,32 @@ int main(int argc, char** argv) {
     const auto at = [&](Bone b) {
         return joint_pos(model, bind.joint[bone_index(b)]);
     };
-    const glm::vec3 neck = at(Bone::Head);
+    // THE NECK LINE IS THE JOINT NAMED "NECK" WHEN THE SKELETON HAS ONE, and
+    // the Head joint only when it has not. The canon's neck height (0.870H,
+    // BODY_NECK_HEIGHT_FRAC: "рост минус голова") is the LOWER EDGE OF THE
+    // HEAD — the chin line. The rig binds Bone::Head to the anatomically
+    // exact "head" joint (BoneMap rank 0), and on a Rigify skeleton that
+    // joint is the BASE OF THE SKULL, 0.918H on the MPFB body: read there,
+    // the head measured 0.082H and the figure 12.2 heads, which is not a
+    // proportion of the body but of where Rigify starts its head bone. The
+    // "neck" joint (rank-1 stand-in for the same bone) is Rigify's upper
+    // neck, 0.864H here — the chin line to within a per cent. The Quaternius
+    // body put its head joint AT the chin (0.858H), which is why the old
+    // reading agreed with the canon and this one did not.
+    const auto neck_joint = [&]() {
+        int32_t found = -1;
+        for (std::size_t j = 0; j < obj->skeleton.size(); ++j) {
+            const std::string& name = obj->skeleton.joints[j].name;
+            if (dfn::anim::bone_from_joint_name(name) == Bone::Head
+                && dfn::anim::joint_name_rank(name) == 1) {
+                found = static_cast<int32_t>(j);
+                break; // root-most: joints are stored parents first
+            }
+        }
+        return found;
+    }();
+    const glm::vec3 neck =
+        neck_joint >= 0 ? joint_pos(model, neck_joint) : at(Bone::Head);
     const glm::vec3 shoulder_l = at(Bone::UpperArmL);
     const glm::vec3 shoulder_r = at(Bone::UpperArmR);
     const glm::vec3 elbow_l = at(Bone::ForearmL);

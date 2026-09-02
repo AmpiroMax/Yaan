@@ -462,11 +462,23 @@ void sample_mix(const skel::Skeleton& skeleton, const MixSource& src, float p,
     // the body as it will be DRAWN, and the body as it will be drawn is
     // lifted. The deepest contact of the whole cycle is put exactly on the
     // ground its own rest pose stands on; nothing ends up below it.
+    //
+    // AND NOTHING ENDS UP ABOVE IT EITHER: the lift is SIGNED. A clip whose
+    // feet never come down to the rest pose's ground is dropped by the same
+    // rule that lifts one whose feet go through it. Measured on the MPFB
+    // body: Crouch_Fwd_Loop retargeted onto its longer legs kept both toes
+    // 6 cm above the ground for the whole cycle, a one-sided lift left it
+    // there, no sample ever counted as "down", and the crouch walk read as
+    // a clip that covers no ground (cycle 0, duty 0). The jump triple is not
+    // grounded at all (see the standing-roles note in build_clip_library),
+    // so a signed lift cannot drag an arc down.
+    float deepest = std::numeric_limits<float>::infinity();
     for (std::size_t c = 0; c < track.joint.size(); ++c) {
         for (uint32_t k = 0; k < samples; ++k) {
-            track.lift = std::max(track.lift, track.rest_y[c] - track.joint[c][k].y);
+            deepest = std::min(deepest, track.joint[c][k].y - track.rest_y[c]);
         }
     }
+    track.lift = std::isfinite(deepest) ? -deepest : 0.0f;
     return track;
 }
 
@@ -782,34 +794,20 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                          clip.name.c_str());
         }
     }
-    // THE GEAR PLAYS THE CLIP THAT PLANTS BEST AT ITS OWN STRIDE, and not the
-    // clip whose NAME matches the gear's. Names are the asset author's guess
-    // at what a clip is for; the stride it was authored at is a fact, and the
-    // two need not agree. Measured on this asset (metres of planted-foot slide
-    // per step, at the stride each gear demands):
-    //
-    //     gear            Walk_Loop   Jog_Fwd_Loop   Sprint_Loop
-    //     WALK  1.8 m/s    [0.035]       0.237          0.046
-    //     JOG   3.0 m/s     0.033       [0.274]         0.068
-    //     RUN   6.0 m/s     0.068       [0.027]         0.133
-    //                                    ^ chosen
-    //
-    // The walk and the jog keep the clip their name points at. The RUN does
-    // not: Quaternius put `Sprint_Loop` at about 9 m/s and `Jog_Fwd_Loop` at
-    // about 6 — which is our RUN_SPEED almost exactly — so the gear named
-    // "sprint" is best served by the clip named "jog", at a stride scale of
-    // 0.81 instead of the 0.80 the sprint needs and five times less slide.
-    //
-    // AND THE JOG KEEPS ITS OWN CLIP THOUGH THE WALK'S NUMBER IS BETTER,
-    // which is the scale window below doing its job: 3 m/s is the one gear
-    // this asset has no clip near, and reaching it from Walk_Loop means
-    // stretching a walk to 1.97 of its stride. That is not a jog with a good
-    // number, it is a walk with a good number.
-    //
-    // A CLIP MUST BE CLEARLY BETTER TO TAKE A ROLE, not merely better: the
-    // factor of two below is what keeps a measurement's noise from
-    // reshuffling the gears between two runs of the same build. On a tie the
-    // name wins, because the name is a decision somebody made.
+    // THE GEAR PLAYS THE CLIP ITS NAME POINTS AT. Until 02.09 this file
+    // handed a gear whichever travelling clip slid least at the gear's
+    // stride (the sprint role played Jog_Fwd_Loop on the Quaternius body:
+    // 0.027 m of slide against Sprint_Loop's 0.133), because the stride was
+    // BENT to sim's speed and a clip bent less slides less. On the MPFB body
+    // the same rule picked the jog for the sprint again (0.032 against
+    // 0.083), and the owner's order for the feet is not "bend the clip that
+    // bends best" but "the feet stand firmly on the ground, at the root":
+    // docs/design/LOCOMOTION_GROUNDED.md — root motion from the clip's own
+    // travel, a planted foot locked, FootIk closing the rest. Under that
+    // contract a gear's speed IS its clip's authored speed, and a swap by
+    // slide would choose a body by a number the contract retires. A name is
+    // a decision somebody made; the measurements below stay as the record
+    // of what each clip does on this body.
     struct GearRow {
         ClipRole role;
         float speed;
@@ -819,81 +817,13 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         {ClipRole::Jog, static_cast<float>(config::JOG_SPEED)},
         {ClipRole::Sprint, static_cast<float>(config::RUN_SPEED)},
     };
-    constexpr float SWAP_MARGIN = 2.0f;
-    // AND IT MUST STILL BE THE MOTION ITS AUTHOR DREW. A stride scale is how
-    // far this file bends a clip away from what was animated, and past some
-    // bend the clip stops being evidence about anything: at 0.41 the jog's
-    // legs are nearly straight and the feet skim, at 1.97 the walk is a
-    // stride-length nobody walks. Either can still win on slide alone —
-    // measured, the stretched walk slides 0.033 m against the shrunk jog's
-    // 0.274 — and letting it win would be choosing a body by a number that
-    // does not describe the thing being chosen. So a candidate may only take
-    // a role while its own scale stays inside this window; outside it, the
-    // gear keeps the clip its name points at and the slide is reported as the
-    // tail it is.
+    // HOW FAR THIS FILE MAY BEND A CLIP AND STILL CALL IT THE MOTION ITS
+    // AUTHOR DREW. At 0.41 the jog's legs are nearly straight and the feet
+    // skim, at 1.97 the walk is a stride-length nobody walks. A gear whose
+    // own clip needs a scale outside this window has no clip near it, and
+    // that is the one case the blend below is for.
     constexpr float SWAP_SCALE_MIN = 0.6f;
     constexpr float SWAP_SCALE_MAX = 1.6f;
-    std::array<int32_t, CLIP_ROLE_COUNT> adopt{};
-    adopt.fill(-1);
-    std::array<int32_t, CLIP_ROLE_COUNT> named{};
-    named.fill(-1);
-    std::array<float, CLIP_ROLE_COUNT> named_slide{};
-    for (const GearRow& g : gears) {
-        const ClipEntry& own = lib[g.role];
-        if (!own.present()) {
-            continue;
-        }
-        // sim's own length(v) model, one reader of two registry rows — the
-        // same pair the test restates and for the same DAG reason.
-        const float step = static_cast<float>(config::STEP_LENGTH_BASE)
-                           + static_cast<float>(config::STEP_LENGTH_PER_MPS) * g.speed;
-        const FootSlide mine = measure_foot_slide(skeleton, binding, clips, lib,
-                                                 g.role, step, true, MEASURE_SAMPLES);
-        float best = mine.worst_per_step_m;
-        ClipRole winner = g.role;
-        for (const ClipRole r : travelling) {
-            if (r == g.role || r == ClipRole::CrouchWalk || !lib.has(r)) {
-                continue;
-            }
-            const float sc = stride_scale_for(lib[r], 2.0f * step);
-            if (sc < SWAP_SCALE_MIN || sc > SWAP_SCALE_MAX) {
-                continue;
-            }
-            const FootSlide other = measure_foot_slide(skeleton, binding, clips, lib, r,
-                                                       step, true, MEASURE_SAMPLES);
-            if (other.worst_per_step_m * SWAP_MARGIN < best) {
-                best = other.worst_per_step_m;
-                winner = r;
-            }
-        }
-        if (winner != g.role) {
-            adopt[role_index(g.role)] = static_cast<int32_t>(role_index(winner));
-            named[role_index(g.role)] = own.clip;
-            named_slide[role_index(g.role)] = mine.worst_per_step_m;
-            std::fprintf(stderr,
-                         "[anim] gear %s: \"%s\" slides %.3f m/step at this "
-                         "stride, \"%s\" only %.3f — the %s role takes the %s "
-                         "clip\n",
-                         role_name(g.role).data(),
-                         clips[static_cast<std::size_t>(own.clip)].name.c_str(),
-                         static_cast<double>(mine.worst_per_step_m),
-                         clips[static_cast<std::size_t>(lib[winner].clip)].name.c_str(),
-                         static_cast<double>(best), role_name(g.role).data(),
-                         role_name(winner).data());
-        }
-    }
-    // FROM A SNAPSHOT, so two gears adopting in the same pass cannot chain:
-    // assigning in place once made the sprint adopt the jog's SLOT after the
-    // jog had already been overwritten, and every gear ended up playing the
-    // walk.
-    const std::array<ClipEntry, CLIP_ROLE_COUNT> before_adoption = lib.role;
-    for (uint32_t r = 0; r < CLIP_ROLE_COUNT; ++r) {
-        if (adopt[r] >= 0) {
-            lib.role[r] = before_adoption[static_cast<std::size_t>(adopt[r])];
-            lib.role[r].named_clip = named[r];
-            lib.role[r].named_slide_m = named_slide[r];
-        }
-    }
     // A GEAR WITH NO CLIP NEAR IT GETS A BLEND OF THE TWO IT HAS.
     //
     // The swap above answers "which single clip is this gear best served by".

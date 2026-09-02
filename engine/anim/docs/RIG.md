@@ -151,7 +151,14 @@ one, exactly `hip_height` in the vertical one).
 
 **`DFN_REST_POSE=legacy`** builds the player's body and the screen's body in
 the converged rest, unfitted — the "before" arm of the comparison, from the
-same binary (Rule 47).
+same binary (Rule 47). Its passport on the MPFB body (02.09): legs −7.4°, arms
+0° — the legs 5.35 cm INTO each other, the hand 2.36 cm into the thigh, the
+thigh boxes intersecting; the solved rest on the same body is legs +4.6°, arms
+8.1°, gaps 2.00 / 3.10 / 5.35 cm (legs / hand-thigh / forearm-trunk), boxes
+clear. The solve goes legs first, then arms, each on the lever from the joint to
+the WORST BAND of the gap (the crotch is 6 cm under the hip; a whole-leg lever
+undershot fifteen-fold) and each tightened by bisection; «clear» includes the
+game's own boxes not touching (`anim::rest_pose_clear`).
 
 ## Contact points and grounding (locomotion-fix wave, 31.08)
 

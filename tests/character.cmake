@@ -40,6 +40,22 @@ if(TARGET dfn_characters)
     add_dependencies(character_clips_played dfn_characters)
 endif()
 
+# СНОС ОПОРНОЙ СТОПЫ — ИЗВЕСТНЫЙ ДЕФЕКТ НА ТЕЛЕ MPFB, И ОН КРАСНЫЙ НАРОЧНО.
+# Подгонка шага (stride scale) и выбор клипа по сносу уходят по заказу
+# владельца 02.09 («ноги твёрдо стоят на земле — искоренить на глубоком
+# уровне»): их заменяет заземлённая локомоция (root motion из клипа, запертая
+# опорная стопа, FootIk — docs/design/LOCOMOTION_GROUNDED.md), отдельная
+# волна. Прибор вынесен в свой рукав и помечен как sim_great_oak_stair, чтобы
+# прогон мог спросить состояние дерева БЕЗ него (`ctest -LE known-defect`);
+# чего быть не должно — ослабления полос ради зелёного свода: зелёный здесь —
+# событие, о котором этот набор и существует, чтобы объявить.
+add_dfn_test(character_clips_slide character/ClipSlideTests.cpp
+             dfn_anim dfn_render dfn_core)
+set_tests_properties(character_clips_slide PROPERTIES LABELS "known-defect")
+if(TARGET dfn_characters)
+    add_dependencies(character_clips_slide dfn_characters)
+endif()
+
 # ХИТБОКСЫ ЧАСТЕЙ ТЕЛА (волна «стойка, оружие, стопы, хитбоксы»). Тот же довод,
 # что у двух наборов выше: читает ФАЙЛ, потому что покрытие силуэта — это
 # утверждение о НАСТОЯЩЕМ скине настоящей модели, и потому линкует dfn_render

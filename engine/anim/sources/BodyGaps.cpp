@@ -106,7 +106,11 @@ struct Extremes {
         if (ia.max_z < ob.min_z - DEPTH_SLACK_M || ob.max_z < ia.min_z - DEPTH_SLACK_M) {
             continue;
         }
-        worst = std::min(worst, ob.min_x - ia.max_x);
+        const float gap = ob.min_x - ia.max_x;
+        if (gap < worst) {
+            worst = gap;
+            g.worst_y = lo + (float(k) + 0.5f) * BAND_M;
+        }
         ++g.bands;
     }
     if (g.bands > 0) {
