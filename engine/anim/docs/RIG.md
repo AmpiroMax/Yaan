@@ -84,6 +84,62 @@ mirror plane (point + horizontal normal) and applies the local mirror.
 - No fingers, no face bones. Faces are a later character-zone stage and will
   extend the enum at the end, not reshape it.
 
+## The rest pose «по швам» (owner's order 02.09)
+
+**The rest is a STANCE, not only a skeleton, and it is solved on the skin.**
+`RestStance` (Rig.h) names how the limbs hang at rest — leg splay off the
+plumb, arm abduction, elbow flexion, forward carry — and `Rig::build(p,
+stance)` turns it into the rest rotations. Two values of it exist:
+
+- `RestStance::converged(p)` — the BOX BODY's rest: legs converged to the
+  stance row (its hip joints sit on the skin, 0.334 m apart), arms dead
+  vertical. `Rig::build(p)` is this rest and is bit-for-bit what it was.
+- `RestStance::attention()` + `fit_rest_pose()` (RestFit.h) — the rest of a
+  BOUND MODEL: legs vertical under the model's own hip joints, feet flat and
+  forward, elbow at `REST_ELBOW_FLEX` (10°), arms along the sides at the
+  abduction that clears the thighs. The abduction and the splay start at zero
+  and are raised by a lever solve (asin of the deficit over the limb) until
+  the body-gap instrument (BodyGaps.h) reads the `REST_GAP_*` rows on the
+  SKIN — nога↔нога ≥ 2 cm, кисть↔бедро ≥ 1.5 cm, предплечье↔корпус ≥ 2 cm,
+  signed, by height bands — then tightened by bisection to the smallest
+  clearing angle. On HumanBase: splay 0°, abduction 6.8°, elbow 9.7°, stance
+  0.170 m (= hip joints), hand-thigh 1.63 cm, legs 2.66 cm, hands' thinnest
+  extent along X (palms to the thighs), toes 0.0° off forward.
+
+**Why solved and not authored.** The converged box rest, applied through the
+retarget to a model whose hip joints are 0.17 m apart, crossed the ankles
+inside the body's axis: measured on the character screen, the legs 8.99 cm
+into each other, the hand 2.92 cm inside the thigh, the forearm 1.25 cm
+inside the trunk — while the stand, which plays the idle clip with the stance
+layer and the arm clearance on top, reported zero intersections. A rest that
+is right for one skeleton is a number; a rest right for THIS skeleton is a
+measurement, and it has to be taken on the skin, because a joint has no
+radius.
+
+**One rest pose per body.** `anim::rest_rig_for(skeleton, skin)` is the call
+every reader of a model makes — the importer's grounding, the proportion
+judge's silhouette (and the baseline it records), the morph tool's rest space
+(so `.morf` deltas are baked against this rest and re-baked when it moves),
+the character's retarget, the character screen's portrait, the tests. The box
+rig stays the app's `body_rig_` for the boxes; a `SkinnedCharacter` carries
+its own fitted rig.
+
+**The rest is the STANCE LAYER's zero.** `build_stance_layer(rig, …)` reads
+the rest's ankle separation, elbow and hand drop through the retarget, and the
+standing half of the layer (and `calibrate_arm_relax`) aims at THOSE — the
+idle the world plays stands as wide, with the same elbow and the same hand
+height, as the rest the screen shows. The former rows `STANCE_ELBOW_STAND`,
+`STANCE_HAND_DROP`, `STANCE_WIDTH_SHOULDERS` were a second definition of the
+standing man and are retired; the run targets (`STANCE_*_RUN`) stay rows.
+
+**The FK root lifts by `Rig::rest_hip_height()`** — ankle + leg·cos(splay) —
+so the soles stay on the ground in either rest (7 mm lower in the converged
+one, exactly `hip_height` in the vertical one).
+
+**`DFN_REST_POSE=legacy`** builds the player's body and the screen's body in
+the converged rest, unfitted — the "before" arm of the comparison, from the
+same binary (Rule 47).
+
 ## Contact points and grounding (locomotion-fix wave, 31.08)
 
 The fifteen bones still have no toe, and the acceptance number the character zone

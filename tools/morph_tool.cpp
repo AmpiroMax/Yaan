@@ -47,6 +47,7 @@ AI Agents Notice (must follow):
   ARKit-целей (52 цели, 0 сдвигов, файл вырос втрое).
 */
 
+#include "engine/anim/sources/RestFit.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/render/sources/MorphBlend.h"
@@ -137,8 +138,10 @@ struct Blob {
 /// той модели, ради которой всё и затевалось.
 [[nodiscard]] bool rest_blend(const dfn::render::RegistryObject& obj,
                               std::vector<glm::mat4>& out) {
-    const dfn::anim::Rig rig =
-        dfn::anim::Rig::build(dfn::anim::RigProportions::from_config());
+    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): та, что решена по коже этого тела и
+    // которой его рисуют экран и мир. Цели, напечённые на другую рест-позу,
+    // после перевода в bind ложатся с поворотом на разницу рестов.
+    const dfn::anim::Rig rig = dfn::anim::rest_rig_for(obj.skeleton, obj.skin.vertices);
     const dfn::anim::SkinnedRigBinding skinned =
         dfn::anim::bind_skinned_rig(rig, obj.skeleton);
     if (skinned.bound_count() == 0) {
@@ -180,8 +183,7 @@ struct Blob {
 /// той подгонке под канон, ради которой всё и делается.
 [[nodiscard]] bool rest_joints(const dfn::render::RegistryObject& obj,
                                std::vector<glm::vec3>& out) {
-    const dfn::anim::Rig rig =
-        dfn::anim::Rig::build(dfn::anim::RigProportions::from_config());
+    const dfn::anim::Rig rig = dfn::anim::rest_rig_for(obj.skeleton, obj.skin.vertices);
     const dfn::anim::SkinnedRigBinding skinned =
         dfn::anim::bind_skinned_rig(rig, obj.skeleton);
     std::vector<glm::mat4> model(obj.skeleton.size());

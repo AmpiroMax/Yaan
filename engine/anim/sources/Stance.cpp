@@ -148,8 +148,12 @@ struct Flexion {
 
 } // namespace
 
-StanceLayer build_stance_layer(const skel::Skeleton& skeleton,
-                               const SkinnedRigBinding& binding) {
+namespace {
+
+/// The joint half of the layer — what measure_stance needs and the neutral
+/// does not depend on.
+[[nodiscard]] StanceLayer stance_joints(const skel::Skeleton& skeleton,
+                                        const SkinnedRigBinding& binding) {
     StanceLayer s;
     if (skeleton.empty()) {
         return s;
@@ -167,11 +171,33 @@ StanceLayer build_stance_layer(const skel::Skeleton& skeleton,
     return s;
 }
 
+} // namespace
+
+StanceLayer build_stance_layer(const Rig& rig, const skel::Skeleton& skeleton,
+                               const SkinnedRigBinding& binding) {
+    StanceLayer s = stance_joints(skeleton, binding);
+    if (!s.valid()) {
+        return s;
+    }
+    // THE NEUTRAL IS THE REST POSE, read through the retarget and measured by
+    // the SAME function the frame is judged with, so "the rest stands 0.17 m
+    // wide" and "the idle stands 0.17 m wide" are one measurement.
+    std::vector<JointLocal> rest(skeleton.size());
+    pose_local_transforms(rig, skeleton, binding, LocalPose{}, rest);
+    const StanceMetrics m = measure_stance(skeleton, binding, rest);
+    if (m.valid) {
+        s.rest_stance_width_m = m.stance_width_m;
+        s.rest_elbow_rad = 0.5f * (m.elbow_rad[0] + m.elbow_rad[1]);
+        s.rest_hand_drop_m = 0.5f * (m.hand_drop_m[0] + m.hand_drop_m[1]);
+    }
+    return s;
+}
+
 StanceMetrics measure_stance(const skel::Skeleton& skeleton,
                              const SkinnedRigBinding& binding,
                              std::span<const JointLocal> sample) {
     StanceMetrics m;
-    const StanceLayer s = build_stance_layer(skeleton, binding);
+    const StanceLayer s = stance_joints(skeleton, binding);
     if (!s.valid() || sample.size() < skeleton.size()) {
         return m;
     }
@@ -337,13 +363,16 @@ void apply_stance(const skel::Skeleton& skeleton, const StanceLayer& layer,
         // это вторая половина той же починки: сустав таза на купленном скелете
         // не обязан лежать посередине между бёдрами, а стойка — это то, на чём
         // тело СТОИТ, то есть свойство линии бёдер.
+        //
+        // ШИРИНА — ШИРИНА РЕСТ-ПОЗЫ (заказ владельца 02.09: рест — нейтраль
+        // стойки). Раньше здесь стояла доля ширины плеч по референсу; теперь
+        // цель — та колея, в которой тело стоит на экране создания: ноги
+        // вертикально под бёдрами, а решатель рест-позы уже проверил, что
+        // бёдра при этом не касаются друг друга.
         const glm::vec3 hip_mid =
             0.5f * (pos(layer.thigh[0]) + pos(layer.thigh[1]));
-        const float shoulders =
-            std::abs(pos(layer.upper_arm[0]).x - pos(layer.upper_arm[1]).x);
-        const float half =
-            0.5f * shoulders * static_cast<float>(config::STANCE_WIDTH_SHOULDERS);
-        for (int i = 0; i < 2; ++i) {
+        const float half = 0.5f * layer.rest_stance_width_m;
+        for (int i = 0; i < 2 && half > 1.0e-4f; ++i) {
             const auto k = static_cast<std::size_t>(i);
             const glm::vec3 hip = pos(layer.thigh[k]);
             const glm::vec3 foot = pos(layer.foot[k]);

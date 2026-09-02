@@ -81,6 +81,7 @@ AI Agents Notice (must follow):
 */
 
 #include "engine/anim/sources/BoneMap.h"
+#include "engine/anim/sources/RestFit.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/config/sources/Constants.h"
@@ -300,8 +301,10 @@ int main(int argc, char** argv) {
     // fit was supposed to change (Rule 47: the instrument must not lose its
     // subject exactly when the effect is present). First run of this judge did
     // exactly that and reported a 25.68-head figure.
+    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): решённая по коже этого тела — та, в
+    // которой его рисуют экран создания и мир, и в которой печётся baseline.
     const dfn::anim::Rig rig =
-        dfn::anim::Rig::build(dfn::anim::RigProportions::from_config());
+        dfn::anim::rest_rig_for(obj->skeleton, obj->skin.vertices);
     const dfn::anim::SkinnedRigBinding skinned =
         dfn::anim::bind_skinned_rig(rig, obj->skeleton);
     std::vector<glm::mat4> palette(obj->skeleton.size());

@@ -7,7 +7,8 @@ Responsibility:
   into meters (the only file in this zone reading dfn::config for body shape).
 
 Key items:
-- RigProportions::from_config(), Rig::build(), bone_name().
+- RigProportions::from_config(), RestStance::attention(), Rig::build() (both
+  overloads), bone_name().
 
 Dependencies:
 - Uses: Rig.h, generated Constants.h (via engine/core/config).
@@ -69,9 +70,21 @@ RigProportions RigProportions::from_config() {
     return p;
 }
 
-Rig Rig::build(const RigProportions& p) {
+RestStance RestStance::attention() {
+    RestStance s;
+    s.leg_splay_rad = 0.0f;
+    s.arm_abduction_rad = 0.0f;
+    s.elbow_flex_rad = static_cast<float>(config::REST_ELBOW_FLEX);
+    s.arm_forward_rad = 0.0f;
+    return s;
+}
+
+Rig Rig::build(const RigProportions& p) { return build(p, RestStance::converged(p)); }
+
+Rig Rig::build(const RigProportions& p, const RestStance& stance) {
     Rig rig;
     rig.proportions = p;
+    rig.stance = stance;
     auto& o = rig.rest_offset;
 
     // Root: pelvis joint sits at hip height above the ground point; the FK
@@ -99,20 +112,38 @@ Rig Rig::build(const RigProportions& p) {
     o[bone_index(Bone::ShinR)] = {0.0f, -p.thigh_length(), 0.0f};
     o[bone_index(Bone::FootR)] = {0.0f, -p.shin_length(), 0.0f};
 
-    // THE LEGS CONVERGE. Roll each thigh inward about its own forward axis by
-    // the derived angle; the shin inherits it (so hip, knee and ankle stay on
-    // one straight oblique line, which is the cheapest shape that both keeps
-    // the thighs a hip-breadth apart at the top and brings the ankles to a
-    // real stance) and the FOOT rolls back by the same angle so the sole is
-    // still flat on the ground. Left is -X, so its inward roll is positive.
+    // THE LEGS SPLAY (OR CONVERGE) BY THE STANCE. Roll each thigh about the
+    // body's forward axis by the splay; the shin inherits it (so hip, knee
+    // and ankle stay on one straight line, which is the cheapest shape that
+    // keeps the thighs where the hips are at the top and brings the ankles to
+    // the stance) and the FOOT rolls back by the same angle so the sole is
+    // still flat on the ground. Left is -X: a roll of +a about +Z carries a
+    // hanging limb toward +X, so the left leg's OUTWARD splay is -splay and
+    // the right leg's is +splay. The converged box rest (splay < 0) is the
+    // same lines with the sign flipped, which is why it is one formula.
     auto& r = rig.rest_rotation;
     r.fill(glm::quat{1.0f, 0.0f, 0.0f, 0.0f});
-    const float theta = p.leg_convergence();
     const glm::vec3 fwd{0.0f, 0.0f, 1.0f};
-    r[bone_index(Bone::ThighL)] = glm::angleAxis(theta, fwd);
-    r[bone_index(Bone::ThighR)] = glm::angleAxis(-theta, fwd);
-    r[bone_index(Bone::FootL)] = glm::angleAxis(-theta, fwd);
-    r[bone_index(Bone::FootR)] = glm::angleAxis(theta, fwd);
+    const float splay = stance.leg_splay_rad;
+    r[bone_index(Bone::ThighL)] = glm::angleAxis(-splay, fwd);
+    r[bone_index(Bone::ThighR)] = glm::angleAxis(splay, fwd);
+    r[bone_index(Bone::FootL)] = glm::angleAxis(splay, fwd);
+    r[bone_index(Bone::FootR)] = glm::angleAxis(-splay, fwd);
+
+    // THE ARMS HANG ALONG THE SIDES. Abduction is the same roll about the
+    // forward axis, outward per side; the forward carry is a pitch about +X
+    // (positive = hand toward -Z, the sense the elbow hinge uses); the elbow
+    // flexion is that pitch on the forearm. Order: roll first, then pitch, so
+    // "carried forward" means forward in the body's frame and not in the
+    // abducted arm's.
+    const glm::vec3 side{1.0f, 0.0f, 0.0f};
+    const glm::quat forward = glm::angleAxis(stance.arm_forward_rad, side);
+    r[bone_index(Bone::UpperArmL)] =
+        glm::normalize(glm::angleAxis(-stance.arm_abduction_rad, fwd) * forward);
+    r[bone_index(Bone::UpperArmR)] =
+        glm::normalize(glm::angleAxis(stance.arm_abduction_rad, fwd) * forward);
+    r[bone_index(Bone::ForearmL)] = glm::angleAxis(stance.elbow_flex_rad, side);
+    r[bone_index(Bone::ForearmR)] = glm::angleAxis(stance.elbow_flex_rad, side);
 
     // HINGE RANGES. Free by default (infinite); the four true hinges get a
     // range, and THE TWO JOINTS RUN IN OPPOSITE SENSES — a knee flexes with a

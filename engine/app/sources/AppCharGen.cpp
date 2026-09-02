@@ -111,7 +111,8 @@ void App::chargen_enter() {
     }
     ensure_body_rig();
     if (!chargen_body_.load(*renderer_, body_rig_,
-                            std::filesystem::path(CHARGEN_SOURCE_BODY))) {
+                            std::filesystem::path(CHARGEN_SOURCE_BODY),
+                            rest_pose_legacy_door())) {
         // ГРОМКО И БЕЗ ЭКРАНА. Экран создания персонажа без персонажа — это
         // столбец ползунков, которые ничего не двигают; лучше остаться в
         // главном меню, сказав почему.

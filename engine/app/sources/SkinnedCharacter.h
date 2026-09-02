@@ -83,9 +83,15 @@ class SkinnedCharacter {
 public:
     /// Reads the .dfo, uploads its SKIN stream and binds its SKEL to our rig.
     /// False (with a reason on stderr) leaves the object unloaded and inert.
+    /// `rig` supplies the PROPORTIONS; the rest stance is solved on this
+    /// body's skin (anim::fit_rest_pose) and the fitted rig lives here —
+    /// `legacy_rest` keeps the box body's converged rest instead, the
+    /// "before" arm of the owner's comparison (Rule 47).
     [[nodiscard]] bool load(render::RenderSystem& render_system,
                             platform::IRenderer& renderer, const anim::Rig& rig,
-                            const std::filesystem::path& path);
+                            const std::filesystem::path& path, bool legacy_rest = false);
+    /// The rig this body is bound with: config proportions, skin-fitted rest.
+    [[nodiscard]] const anim::Rig& rig() const { return rig_; }
 
     [[nodiscard]] bool ready() const { return ready_; }
     [[nodiscard]] const std::string& name() const { return name_; }
@@ -127,15 +133,15 @@ public:
     /// tick's procedural pose and root beside the previous tick's, so
     /// build_draw can interpolate either path. `standing_ground` is the
     /// player's Transform position, i.e. the capsule bottom.
-    void advance(const anim::Rig& rig, const anim::BodyDrive& drive,
-                 const glm::vec3& standing_ground, float dt);
+    void advance(const anim::BodyDrive& drive, const glm::vec3& standing_ground,
+                 float dt);
 
     /// Builds the palette for one pose and returns the draw that shows it.
     /// `hide_head` collapses the head bone so a first-person camera inside the
     /// skull sees the world instead of the inside of a face -- the skinned
     /// equivalent of the box body's hidden head segment.
-    [[nodiscard]] render::RenderSystem::SkinnedDraw build_draw(
-        const anim::Rig& rig, bool hide_head, float alpha);
+    [[nodiscard]] render::RenderSystem::SkinnedDraw build_draw(bool hide_head,
+                                                               float alpha);
 
     // --- МОРФЫ ТЕЛА (редактор персонажа, шаг 1) ---------------------------
     //
@@ -198,6 +204,9 @@ private:
 
     bool ready_ = false;
     std::string name_;
+    /// The fitted rig (see load()). The app's own rig is the box body's;
+    /// this one has the rest stance the skin asked for.
+    anim::Rig rig_{};
     std::size_t triangles_ = 0;
     skel::Skeleton skeleton_;
     /// A copy of the bind vertices, kept ONLY so the DFN_CHAR_TRACE door can

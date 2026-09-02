@@ -30,6 +30,7 @@ add_library(dfn_anim STATIC
     sources/FootIk.cpp
     sources/Hitbox.cpp
     sources/BodyGaps.cpp
+    sources/RestFit.cpp
     sources/Mirror.cpp
     sources/Body.cpp)
 

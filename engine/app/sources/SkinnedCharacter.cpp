@@ -18,6 +18,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/SkinnedCharacter.h"
 
 #include "engine/app/sources/AppDoors.h"
+#include "engine/anim/sources/RestFit.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
 #include <algorithm>
@@ -65,7 +66,7 @@ constexpr float FOOT_IK_GATE_TAU_S = 0.06f;
 
 bool SkinnedCharacter::load(render::RenderSystem& render_system,
                             platform::IRenderer& renderer, const anim::Rig& rig,
-                            const std::filesystem::path& path) {
+                            const std::filesystem::path& path, bool legacy_rest) {
     if (!std::filesystem::exists(path)) {
         std::fprintf(stderr,
                      "[character] \"%s\" is not there — the body stays as the "
@@ -97,7 +98,26 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     }
     skeleton_ = obj->skeleton;
     clips_ = obj->clips;
-    binding_ = anim::bind_skinned_rig(rig, skeleton_);
+    // THE REST POSE IS SOLVED ON THIS SKIN (owner's order 02.09): legs
+    // vertical under the hips, arms along the sides at the abduction that
+    // clears the thighs by REST_GAP_*. The app's rig supplies proportions
+    // only; a rest right for the box body crossed this model's ankles.
+    {
+        const anim::RestFit fit = anim::fit_rest_pose(
+            rig.proportions, skeleton_, obj->skin.vertices,
+            anim::BodyGapTargets::from_config(), legacy_rest);
+        rig_ = fit.rig;
+        std::fprintf(stderr,
+                     "[character] rest pose%s: leg splay %.1f deg, arm abduction %.1f "
+                     "deg, elbow %.1f deg, %u passes, %s; %s\n",
+                     legacy_rest ? " (LEGACY, the box body's)" : "",
+                     static_cast<double>(rig_.stance.leg_splay_rad * 57.29578f),
+                     static_cast<double>(rig_.stance.arm_abduction_rad * 57.29578f),
+                     static_cast<double>(rig_.stance.elbow_flex_rad * 57.29578f),
+                     fit.passes, fit.met ? "REST_GAP_* met" : "REST_GAP_* NOT MET",
+                     anim::describe_gaps(fit.gaps).c_str());
+    }
+    binding_ = anim::bind_skinned_rig(rig_, skeleton_);
     if (binding_.bound_count() == 0) {
         std::fprintf(stderr,
                      "[character] \"%s\": not one joint name maps to a rig bone "
@@ -120,7 +140,7 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     triangles_ = obj->skin.indices.size() / 3;
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
     sample_.assign(skeleton_.size(), anim::JointLocal{});
-    library_ = anim::build_clip_library(rig, skeleton_, binding_, clips_, bind_vertices_);
+    library_ = anim::build_clip_library(rig_, skeleton_, binding_, clips_, bind_vertices_);
     foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
     {
         // ЧЕРЕЗ door_value, А НЕ getenv (AppDoors.h): дверь, прочитанная мимо
@@ -142,8 +162,8 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     // отгружается СЫРОЕ тело, у которого бедро на треть толще канона, а талия
     // на пятую часть уже). Луч, спрошенный «во что попал», обязан спрашивать
     // про то тело, которое нарисовано.
-    hitboxes_ = anim::build_hitboxes(rig.proportions);
-    anim::fit_hitboxes_to_skin(hitboxes_, rig, skeleton_, binding_, bind_vertices_);
+    hitboxes_ = anim::build_hitboxes(rig_.proportions);
+    anim::fit_hitboxes_to_skin(hitboxes_, rig_, skeleton_, binding_, bind_vertices_);
     tick_sample_.assign(skeleton_.size(), anim::JointLocal{});
     // THE BLADE, uploaded beside the body. LOUD when it cannot be built: a
     // drawn weapon that draws as nothing is exactly the state the comparison
@@ -450,11 +470,12 @@ bool SkinnedCharacter::playing_clips() const {
     return ready_ && !procedural && library_.has(anim::ClipRole::Idle);
 }
 
-void SkinnedCharacter::advance(const anim::Rig& rig, const anim::BodyDrive& drive,
+void SkinnedCharacter::advance(const anim::BodyDrive& drive,
                                const glm::vec3& standing_ground, float dt) {
     if (!ready_) {
         return;
     }
+    const anim::Rig& rig = rig_;
     anim::advance_playback(library_, drive, dt, play_);
     probe_ground(drive, standing_ground, dt);
     // THE PROCEDURAL PAIR, kept whether or not the door is open: it costs one
@@ -470,13 +491,13 @@ void SkinnedCharacter::advance(const anim::Rig& rig, const anim::BodyDrive& driv
     ticked_ = true;
 }
 
-render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(const anim::Rig& rig,
-                                                              bool hide_head,
+render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
                                                               float alpha) {
     render::RenderSystem::SkinnedDraw draw;
     if (!ready_) {
         return draw;
     }
+    const anim::Rig& rig = rig_;
     const float a = std::clamp(alpha, 0.0f, 1.0f);
     // THE POSE OF THIS FRAME, not of this tick. Both arms interpolate: the
     // clip arm by its own clip time (playback_sample), the procedural arm by

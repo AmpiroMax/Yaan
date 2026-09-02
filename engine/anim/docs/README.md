@@ -15,6 +15,8 @@ upgrade behind the same bone indices.
 ## Key types
 
 - `Rig.h` — `Bone` (15, frozen order), `BONE_PARENT`, `MIRROR_BONE`,
+  `RestStance` (как висят конечности в покое: коробочный `converged(p)` и
+  строевой `attention()`), `Rig::build(p, stance)`, `Rig::rest_hip_height()`,
   `RigProportions` (meters; `from_config()` = BODY_*_FRAC rows x
   `PLAYER_CAPSULE_HEIGHT`), `Rig::build()` (rest offsets).
 - `Pose.h` — `LocalPose` (quat per bone relative to rest + pelvis offset),
@@ -84,6 +86,16 @@ upgrade behind the same bone indices.
   `hitbox_distance()` (расстояние до поверхности одной части, 0 внутри — им
   написан слой обхода тела рукой: «попал / не попал» отвечает уже ПОСЛЕ того,
   как дефект стал виден).
+- `RestFit.h` — РЕСТ-ПОЗА, РЕШЁННАЯ ПО КОЖЕ («по швам», заказ владельца
+  02.09): `fit_rest_pose()` строит риг в стойке `RestStance::attention()`
+  (ноги вертикально, локоть `REST_ELBOW_FLEX`), привязывает, меряет зазоры
+  прибором `BodyGaps.h` и поднимает отведение рук и разведение ног рычагом
+  (asin нехватки на длину звена), пока не выполнены строки `REST_GAP_*`,
+  затем ужимает бисекцией до наименьшего угла. `rest_rig_for(skeleton, skin)`
+  — ОДИН вызов на все читатели тела (импортёр, судья, морф-инструмент,
+  персонаж, экран, тесты): одна рест-поза на тело. На HumanBase: разведение
+  0°, отведение 6.8°, локоть 9.7°, колея 0.170 м, кисть-бедро +1.63 см,
+  нога-нога +2.66. Рест — нейтраль слоя стойки (`StanceLayer::rest_*`).
 - `BodyGaps.h` — ПРИБОР ЗАЗОРОВ ОДНОГО ТЕЛА (заказ владельца 02.09: «ноги
   слиплись, руки у ягодиц» НА ЭКРАНЕ СОЗДАНИЯ при нуле пересечений на
   стенде). `label_skin_parts()` (вершина → кость рига), `measure_body_gaps()`

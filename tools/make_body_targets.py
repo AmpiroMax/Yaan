@@ -181,9 +181,11 @@ SLIDERS = [
          parts=ALL_BUT_HANDS,
          note="мускулатура (полный ход, 01.09)"),
     dict(name="age", kind="macro", two=False, key="age", lo=0.5385, hi=0.95,
-         parts=ALL_BUT_HANDS, range=(0.0, 0.75),
+         parts=ALL_BUT_HANDS, range=(0.0, 0.70),
          note="возраст: сутулость и оплывший силуэт (упирается в ГОЛОВЫ НА "
-              "ФИГУРУ: сутулость опускает макушку, а сустав шеи стоит)"),
+              "ФИГУРУ: сутулость опускает макушку, а сустав шеи стоит; 0.75 → "
+              "0.70 на рест-позе «по швам» 02.09 — нейтраль 7.04 головы, и "
+              "0.75 давал 7.40, на волос за полосой)"),
     dict(name="belly", kind="target", two=False,
          hi_targets=("stomach-pregnant-incr",),
          parts=("torso", "pelvis"), band=(0.545, 0.700, 0.055),
@@ -204,9 +206,11 @@ SLIDERS = [
     dict(name="hips", kind="target", two=True,
          hi_targets=("hip-scale-horiz-incr",), lo_targets=("hip-scale-horiz-decr",),
          parts=("pelvis", "torso", "thigh.L", "thigh.R"),
-         band=(0.410, 0.640, 0.060), range=(-0.85, 0.85),
+         band=(0.410, 0.640, 0.060), range=(-0.72, 0.72),
          note="ширина таза (упирается в СВОЙ ориентир — ширину таза по мешу, "
-              "и теперь СИММЕТРИЧНО: нейтраль своя, а не чужая)"),
+              "и теперь СИММЕТРИЧНО: нейтраль своя, а не чужая; 0.85 → 0.72 "
+              "на рест-позе «по швам» 02.09: ноги вертикально под бёдрами "
+              "сузили нейтраль 0.181 → 0.176 м, и прежний край давал ±16.7 %)"),
     dict(name="buttocks", kind="target", two=True,
          hi_targets=("buttocks-volume-incr",), lo_targets=("buttocks-volume-decr",),
          parts=("pelvis", "thigh.L", "thigh.R"),

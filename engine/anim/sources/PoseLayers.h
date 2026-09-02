@@ -139,8 +139,9 @@ struct ArmRelax {
     /// mid-thigh" is a claim about height.
     float lift_rad = 0.0f;
     /// HOW MUCH ELBOW FLEXION THE LAYER ADDS (radians, negative = unfolds),
-    /// solved so that the reference pose lands on the reference's own elbow —
-    /// STANCE_ELBOW_STAND standing, STANCE_ELBOW_RUN at a full run.
+    /// solved so that the reference pose lands on the target elbow — OUR REST
+    /// POSE'S standing (REST_ELBOW_FLEX through the retarget), STANCE_ELBOW_RUN
+    /// at a full run.
     ///
     /// AN OFFSET AND NOT AN ANGLE, deliberately, and it is the same decision
     /// the adduction makes: writing the elbow every frame would pin it, and a
@@ -159,8 +160,9 @@ struct ArmRelax {
     float target_m = 0.0f;
     /// What the reference pose measured BEFORE the layer, same units.
     float reference_m = 0.0f;
-    /// The same pair for the HEIGHT target (STANCE_HAND_DROP): how far below
-    /// the pelvis line the hand is asked to hang, and where it hung before.
+    /// The same pair for the HEIGHT target (the rest pose's own hand drop):
+    /// how far below the pelvis line the hand is asked to hang, and where it
+    /// hung before.
     float target_drop_m = 0.0f;
     float reference_drop_m = 0.0f;
     /// The elbow the reference pose came in at, kept for the same reason.

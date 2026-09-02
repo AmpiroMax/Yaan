@@ -109,6 +109,17 @@ namespace dfn::app {
 /// Молчаливо: имена суставов легли, bound_count был не нулевой, ни одной
 /// жалобы. Один вход вместо двух присваиваний — чтобы «риг уже построен»
 /// нельзя было забыть спросить в третьем месте.
+bool App::rest_pose_legacy_door() {
+    // DFN_REST_POSE=legacy — ПРЕЖНЯЯ рест-поза рига (коробочная: ноги сведены
+    // углом коробочного тела, руки отвесно) для тела игрока и тела экрана
+    // создания, без решателя по коже. Контрольная рука сравнения «поза покоя
+    // по швам»: обе руки из одного бинарника, разница — ровно рест
+    // (правило 47). Читается здесь, а не в AppDoors: список файлов-читателей
+    // дверей ведёт tests/app/DoorsTests.cpp, и AppDoors.cpp в нём не стоит.
+    const char* v = door_value("DFN_REST_POSE");
+    return v != nullptr && std::string_view{v} == "legacy";
+}
+
 void App::ensure_body_rig() {
     if (body_rig_built_) {
         return;
@@ -1663,8 +1674,8 @@ bool App::enter_world(uint32_t stand) {
         }
     }
     if (!body_boxes_
-        && skinned_character_.load(render_system_, *renderer_, body_rig_,
-                                   body_path)) {
+        && skinned_character_.load(render_system_, *renderer_, body_rig_, body_path,
+                                   rest_pose_legacy_door())) {
         // ЗЕМЛЯ ПОД СТОПОЙ — ЛУЧОМ, И ЛУЧ ЖИВЁТ ЗДЕСЬ. anim не видит мира
         // (правило 1), поэтому приложение отдаёт ему ФУНКЦИЮ: точка -> высота
         // грунта под ней. Луч пускается СВЕРХУ ВНИЗ из полуметра над стопой:

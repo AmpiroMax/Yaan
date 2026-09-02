@@ -19,7 +19,8 @@ Key items:
   width against shoulder width, the shoulder-over-hip twist, thigh and arm
   swing.
 - StanceLayer / build_stance_layer(): the joints the layer speaks for, resolved
-  once per model through the same binding the frame uses.
+  once per model through the same binding the frame uses, plus the NEUTRAL —
+  stance width, elbow and hand drop read off OUR REST POSE (RestFit.h).
 - StanceDrive: how much of each correction this frame wants (run weight, the
   standing weight the leg half is gated by, the weapon weight).
 - apply_stance(): the layer, on a sampled pose, in place.
@@ -51,8 +52,11 @@ Notes:
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
 - Pure functions and plain data (Rule 8, Rule 30): no ECS, no IO, no clock.
-- The targets are NUMBERS rows and not literals here (Rule 35): the layer aims
-  at them and the acceptance test judges by them, which is two readers.
+- The RUN targets are NUMBERS rows and not literals here (Rule 35): the layer
+  aims at them and the acceptance test judges by them, which is two readers.
+  The STANDING targets are the rest pose's own numbers (owner's order 02.09):
+  the rest is solved on the skin, and a second row for "how wide a man
+  stands" would be a second definition of it.
 */
 
 #pragma once
@@ -128,6 +132,16 @@ struct StanceMetrics {
 /// asset — the measurement happens per frame, on the pose that is actually
 /// about to be drawn.
 struct StanceLayer {
+    /// THE NEUTRAL (owner's order 02.09: the rig's rest pose is the stance's
+    /// zero). The ankle separation, the elbow flexion and the hand's drop
+    /// below the pelvis, MEASURED ON OUR REST POSE through the same retarget
+    /// the frame uses — so the standing man the layer builds out of a bought
+    /// idle is the man the character screen shows, by construction and not
+    /// by two rows that happen to agree. The run targets stay rows: a rest
+    /// pose says nothing about running.
+    float rest_stance_width_m = 0.0f;
+    float rest_elbow_rad = 0.0f;
+    float rest_hand_drop_m = 0.0f;
     int32_t pelvis = -1;
     int32_t torso = -1;
     int32_t head = -1;
@@ -142,7 +156,9 @@ struct StanceLayer {
     }
 };
 
-[[nodiscard]] StanceLayer build_stance_layer(const skel::Skeleton& skeleton,
+/// The joints AND the neutral: `rig` supplies the rest pose the neutral is
+/// measured on.
+[[nodiscard]] StanceLayer build_stance_layer(const Rig& rig, const skel::Skeleton& skeleton,
                                              const SkinnedRigBinding& binding);
 
 /// HOW MUCH OF THE LAYER THIS FRAME WANTS.

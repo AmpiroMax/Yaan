@@ -1019,7 +1019,7 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     // the arm layer is solved against the asset's OWN IDLE, because that is
     // the pose the owner was looking at when he called it a combat stance.
     lib.mask = build_branch_mask(skeleton, binding);
-    lib.stance = build_stance_layer(skeleton, binding);
+    lib.stance = build_stance_layer(rig, skeleton, binding);
     lib.arms = build_arm_clearance(skeleton, binding);
     lib.mirror = build_mirror_map(skeleton);
     lib.boxes = build_hitboxes(rig.proportions);
@@ -1436,11 +1436,13 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     dose.arm = std::max(sheathed,
                         weapon * static_cast<float>(config::STANCE_WEAPON_ARM_RELAX));
     // THE ELBOW OFFSET IS THIS CLIP'S, and the target is the gear's: standing
-    // and walking the reference holds 15-20 degrees, at a run 80-90, and the
-    // clip playing may already be anywhere between. Subtracting what the clip
-    // holds is what keeps the correction a correction.
+    // and walking it is OUR REST POSE'S elbow (the neutral, REST_ELBOW_FLEX
+    // through the retarget — owner's order 02.09), at a run the reference's
+    // 80-90, and the clip playing may already be anywhere between.
+    // Subtracting what the clip holds is what keeps the correction a
+    // correction.
     const float want_elbow =
-        glm::mix(static_cast<float>(config::STANCE_ELBOW_STAND),
+        glm::mix(lib.stance.rest_elbow_rad,
                  static_cast<float>(config::STANCE_ELBOW_RUN), run);
     // ...AND WHEN THE SWORD IS OUT THE GUARD DECIDES THE ELBOW. A blade is
     // held with a bent arm and the guard clip says how bent; the layer's job

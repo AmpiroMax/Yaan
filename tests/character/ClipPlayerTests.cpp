@@ -34,6 +34,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/FootIk.h"
 #include "engine/anim/sources/PoseLayers.h"
+#include "engine/anim/sources/RestFit.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/render/sources/ObjectRegistry.h"
@@ -85,6 +86,9 @@ struct Model {
         return false;
     }
     m.obj = std::move(*o);
+    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): та же, которой тело рисуют экран
+    // создания и мир — иначе стенд судил бы позу, которой никто не видит.
+    m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
                                      m.obj.skin.vertices);
@@ -1530,8 +1534,8 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
     // колея 0.034, — и метровая полоса порвалась, хотя ПОХОДКА та же: клип
     // один, слоёв на колею у нас нет. В долях полутаза старое тело даёт 0.63,
     // новое 0.39, и одна полоса держит оба. Это тот же урок, что записан у
-    // STANCE_WIDTH_SHOULDERS: судья, выраженный долей, переживает смену тела,
-    // а судья в метрах — нет.
+    // прежней строки ширины стойки в плечах: судья, выраженный долей,
+    // переживает смену тела, а судья в метрах — нет.
     const float half_track = std::min(-track[0][1], track[1][0]);
     const float hips = pelvis_half_width(m);
     REQUIRE(hips > 1e-3f);

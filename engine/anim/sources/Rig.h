@@ -12,8 +12,11 @@ Key items:
 - RigProportions: segment lengths/joint heights in METERS, derived from the
   NUMBERS fractions x PLAYER_CAPSULE_HEIGHT (from_config()), or synthetic for
   tests.
-- Rig: rest offsets per bone (parent-joint -> this-joint), built once from
-  proportions.
+- RestStance: how the limbs hang at rest (leg splay, arm abduction, elbow
+  flexion) — the box body's converged rest and the «по швам» rest of a bound
+  model are two values of it.
+- Rig: rest offsets per bone (parent-joint -> this-joint) plus rest rotations
+  from the stance, built once from proportions.
 - MIRROR_BONE: the left<->right bone swap table for pose mirroring.
 
 Dependencies:
@@ -148,11 +151,52 @@ struct RigProportions {
     [[nodiscard]] static RigProportions from_config();
 };
 
+// HOW THE LIMBS HANG IN THE REST POSE, beyond where the joints sit. The joint
+// offsets above are the skeleton; this is the STANCE the skeleton rests in,
+// and it is what a bound model shows the moment nothing else moves it — the
+// character screen, the viewer, the neutral every layer is a delta from.
+//
+// TWO RESTS, ONE STRUCT (owner's order 02.09, «поза покоя — строевая по
+// швам»). The box body's rest converges the legs to the stance row because
+// its hip joints sit ON THE SKIN (BODY_HIP_WIDTH_FRAC is an outer breadth)
+// and hangs the arms dead vertical. A bound model has REAL hip joints, so its
+// legs stand vertical under them, and its arms have flesh beside them, so
+// they hang along the sides at an abduction that is SOLVED against the skin
+// (RestFit.h) until the hand clears the thigh and the forearm clears the
+// trunk. Both are expressed here, as four angles.
+struct RestStance {
+    /// The hip->ankle line off the plumb, radians, positive = OUTWARD (ankles
+    /// wider than hips). The converged box rest is negative.
+    float leg_splay_rad = 0.0f;
+    /// The upper arm off the plumb, radians, positive = outward (abduction).
+    float arm_abduction_rad = 0.0f;
+    /// The elbow's rest flexion, radians, positive = hand carried forward —
+    /// the same sense as the elbow hinge in `hinge_range`.
+    float elbow_flex_rad = 0.0f;
+    /// The upper arm carried forward of the plumb, radians, positive = hand
+    /// toward -Z. Zero in both rests today; a field so a solver can use it.
+    float arm_forward_rad = 0.0f;
+
+    /// THE BOX BODY'S REST: legs converged to the stance row, arms straight.
+    [[nodiscard]] static RestStance converged(const RigProportions& p) {
+        RestStance s;
+        s.leg_splay_rad = -p.leg_convergence();
+        return s;
+    }
+    /// «ПО ШВАМ»: legs vertical, elbow at REST_ELBOW_FLEX, arms along the
+    /// sides with the abduction still to be solved (RestFit.h).
+    [[nodiscard]] static RestStance attention();
+};
+
 // Rest offsets: translation from the parent's joint to this bone's joint, in
 // the parent's frame, identity rotations = standing rest pose (docs/RIG.md:
 // at yaw 0 the character faces -Z and +X is its RIGHT, so left = -X).
 struct Rig {
     RigProportions proportions;
+    /// The stance the rest rotations below were built from — kept so a reader
+    /// (a report, a test, the retarget's log) can print what the rest IS
+    /// instead of inferring it back out of quaternions.
+    RestStance stance;
     std::array<glm::vec3, BONE_COUNT> rest_offset{};
     // Rest ORIENTATION per bone, applied between the rest offset and the pose
     // quaternion: model = parent * T(rest_offset) * R(rest_rotation) * R(q).
@@ -171,7 +215,22 @@ struct Rig {
     // written after this comment. Infinite range = free bone.
     std::array<glm::vec2, BONE_COUNT> hinge_range{};
 
+    /// The box body's rest: `build(p, RestStance::converged(p))`.
     [[nodiscard]] static Rig build(const RigProportions& p);
+    /// A rest in an explicit stance. The leg splay rolls each thigh about the
+    /// body's forward axis and counter-rolls the foot so the sole stays flat;
+    /// the arm abduction rolls each upper arm outward about the same axis;
+    /// the elbow flexion pitches each forearm about its own hinge axis.
+    [[nodiscard]] static Rig build(const RigProportions& p, const RestStance& stance);
+
+    /// WHERE THE PELVIS RESTS ABOVE THE GROUND for THIS stance: a splayed (or
+    /// converged) leg spans less vertical distance than a straight one, so
+    /// the pelvis rides at ankle + leg·cos(splay). The FK root lifts by this,
+    /// which is what keeps the soles exactly on the ground in either rest.
+    [[nodiscard]] float rest_hip_height() const {
+        return proportions.ankle_height
+               + proportions.leg_length() * std::cos(stance.leg_splay_rad);
+    }
 };
 
 } // namespace dfn::anim

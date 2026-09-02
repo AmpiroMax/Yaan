@@ -4730,7 +4730,7 @@ int App::run() {
                     if (const auto* cdrive = world_.get<anim::BodyDrive>(player_)) {
                         const auto* ctr = world_.get<components::Transform>(player_);
                         skinned_character_.advance(
-                            body_rig_, *cdrive,
+                            *cdrive,
                             ctr != nullptr ? ctr->position : glm::vec3{0.0f},
                             static_cast<float>(timestep_.step_dt()));
                     }
@@ -5623,7 +5623,7 @@ int App::run() {
             render_system_.set_skinned_bodies({});
         } else if (skinned_character_.ready()) {
             skinned_draws[0] = skinned_character_.build_draw(
-                body_rig_, /*hide_head=*/!third_person_, alpha);
+                /*hide_head=*/!third_person_, alpha);
             const std::size_t count = skinned_character_.blade_drawn() ? 2u : 1u;
             if (count == 2) {
                 skinned_draws[1] = skinned_character_.blade_draw(skinned_draws[0]);

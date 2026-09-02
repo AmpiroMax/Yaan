@@ -16,6 +16,8 @@ AI Agents Notice (must follow):
 
 #include "engine/app/sources/CharGenBody.h"
 
+#include "engine/anim/sources/RestFit.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -165,7 +167,7 @@ float chargen_height_scale(float height_m) {
 // --- ТЕЛО -------------------------------------------------------------------
 
 bool CharGenBody::load(platform::IRenderer& renderer, const anim::Rig& rig,
-                       const std::filesystem::path& path) {
+                       const std::filesystem::path& path, bool legacy_rest) {
     auto object = render::read_object(path);
     if (!object || object->skin.empty()) {
         std::fprintf(stderr,
@@ -198,9 +200,26 @@ bool CharGenBody::load(platform::IRenderer& renderer, const anim::Rig& rig,
     // ползунком невозможен), поэтому пересчитывать её на движение ручки
     // было бы работой, ответ которой известен заранее.
     rest_palette_.assign(object_.skeleton.size(), glm::mat4{1.0f});
-    rig_ = rig;
+    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): пропорции — переданного рига, стойка
+    // — решённая по коже ЭТОГО тела. Тот же вызов делают мир, импортёр, судья
+    // и морф-инструмент; экран, взявший риг как есть, показывал бы позу
+    // коробочного тела на чужом скелете — те самые слипшиеся ноги.
+    {
+        const anim::RestFit fit = anim::fit_rest_pose(
+            rig.proportions, object_.skeleton, rest_, anim::BodyGapTargets::from_config(),
+            legacy_rest);
+        rig_ = fit.rig;
+        std::fprintf(stderr,
+                     "[создание] рест-поза%s: разведение ног %.1f°, отведение рук %.1f°, "
+                     "локоть %.1f°, проходов %u, пороги %s\n",
+                     legacy_rest ? " (прежняя, коробочная)" : "",
+                     static_cast<double>(rig_.stance.leg_splay_rad * 57.29578f),
+                     static_cast<double>(rig_.stance.arm_abduction_rad * 57.29578f),
+                     static_cast<double>(rig_.stance.elbow_flex_rad * 57.29578f),
+                     fit.passes, fit.met ? "выполнены" : "НЕ ВЫПОЛНЕНЫ");
+    }
     if (!object_.skeleton.empty()) {
-        binding_ = anim::bind_skinned_rig(rig, object_.skeleton);
+        binding_ = anim::bind_skinned_rig(rig_, object_.skeleton);
         if (binding_.bound_count() == 0) {
             // ГРОМКО, НО НЕ ОТКАЗ: тело покажется в СВОЕЙ привязке. Пустой
             // экран хуже T-позы, а молчание хуже обоих.
@@ -208,7 +227,7 @@ bool CharGenBody::load(platform::IRenderer& renderer, const anim::Rig& rig,
                          "[создание] ни одно имя сустава не легло на риг: тело "
                          "показано в позе привязки\n");
         } else {
-            anim::skinning_palette(rig, object_.skeleton, binding_,
+            anim::skinning_palette(rig_, object_.skeleton, binding_,
                                    anim::LocalPose{}, rest_palette_);
         }
     }

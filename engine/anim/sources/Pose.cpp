@@ -33,12 +33,13 @@ void forward_kinematics(const Rig& rig, const LocalPose& pose, const BodyRoot& r
     // Yaw rotation about +Y: sim's convention (yaw 0 -> -Z) equals a rotation
     // of -yaw around +Y in the right-handed frame... verified by test: at yaw 0
     // forward is -Z; positive yaw turns clockwise seen from above (+X first).
-    // standing_hip_height(), not hip_height: converged legs span less vertical
-    // distance than straight ones, so the pelvis rides ~7 mm lower. Taking the
+    // rest_hip_height(), not hip_height: converged (or splayed) legs span less
+    // vertical distance than straight ones, so the pelvis rides ~7 mm lower in
+    // the box rest and exactly at hip_height in the vertical one. Taking the
     // compensation here is what keeps the SOLES on the ground — a straight
-    // hip_height lift would float the whole figure by that much.
+    // hip_height lift would float the converged figure by that much.
     const glm::vec3 pelvis_world =
-        root.ground + glm::vec3{0.0f, rig.proportions.standing_hip_height(), 0.0f};
+        root.ground + glm::vec3{0.0f, rig.rest_hip_height(), 0.0f};
     glm::mat4 root_m = glm::translate(glm::mat4{1.0f}, pelvis_world);
     root_m = glm::rotate(root_m, -root.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
     root_m = glm::translate(root_m, pose.pelvis_offset);

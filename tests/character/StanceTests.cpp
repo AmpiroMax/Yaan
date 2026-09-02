@@ -40,6 +40,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/HeldBlade.h"
 #include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/PoseLayers.h"
+#include "engine/anim/sources/RestFit.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/anim/sources/Stance.h"
@@ -90,6 +91,9 @@ struct Model {
         return false;
     }
     m.obj = std::move(*o);
+    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): та же, которой тело рисуют экран
+    // создания и мир — иначе стенд судил бы позу, которой никто не видит.
+    m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
                                      m.obj.skin.vertices);
@@ -382,23 +386,33 @@ TEST_CASE("the_reference_bands") {
     CHECK(spread > 0.18f);
     CHECK(spread < 0.30f);
 
-    // 5. THE STANCE: 0.8-0.9 shoulders, knees nearly straight.
+    // 5. THE STANCE: THE REST POSE'S, knees nearly straight.
+    //
+    // THE NEUTRAL IS THE REST (owner's order 02.09): the idle stands as wide
+    // as the rig's rest pose stands — legs vertical under this body's own
+    // hip joints, 0.170 m on HumanBase — and not at a share of the shoulder
+    // width read off a Skyrim frame (0.85 shoulders was 0.31 m here, the
+    // "wide, comic" stance the owner saw twice). The character screen shows
+    // the rest; the world shows the idle; this is the line that says they
+    // are one man. The Skyrim band survives as a sanity check in shoulders:
+    // a rest narrower than half a shoulder would be a soldier at attention,
+    // wider than one would be the raskoryaka.
+    const float rest_width = m.lib.stance.rest_stance_width_m;
+    CAPTURE(rest_width);
+    CAPTURE(idle.mid.stance_width_m);
     CAPTURE(idle.mid.stance_in_shoulders());
     CAPTURE(idle_bare.mid.stance_in_shoulders());
-    CHECK(idle.mid.stance_in_shoulders() > 0.70f);
+    REQUIRE(rest_width > 0.05f);
+    CHECK(std::abs(idle.mid.stance_width_m - rest_width) < 0.01f);
+    CHECK(idle.mid.stance_in_shoulders() > 0.40f);
     CHECK(idle.mid.stance_in_shoulders() < 1.00f);
-    // THE CONTROL, MOVED TO THE POSE THAT ACTUALLY FAILS THE BAND (01.09), and
-    // this is the same correction this file already made once for the trunk.
-    // The bought UNARMED idle of the raw asset stands at 0.98 shoulders, which
-    // is INSIDE the 0.70-1.00 band: a control aimed at a number that is not
-    // true goes red on correct code, which is the one thing a control may not
-    // do. The bought DRAWN idle stands at 1.13 and is outside it — that is the
-    // wide stance the owner complained about — and the layer brings it to the
-    // same 0.85 as the unarmed one. The unarmed arm keeps a weaker but honest
-    // claim: the layer narrowed it, and by more than noise.
+    // THE CONTROL: the bought idle — unarmed and drawn — stands wider than the
+    // rest by more than noise, and the layer is what closes it. The drawn one
+    // at 1.13 shoulders is the wide stance the owner complained about.
     const Reading idle_drawn_bare = read(m, m.bare, SHOTS[3]);
     CAPTURE(idle_drawn_bare.mid.stance_in_shoulders());
     CHECK(idle_drawn_bare.mid.stance_in_shoulders() > 1.05f); // the control
+    CHECK(idle_bare.mid.stance_width_m > rest_width + 0.05f);
     CHECK(idle_bare.mid.stance_in_shoulders() > idle.mid.stance_in_shoulders()
                                                    + 0.10f);
     const float knee = 0.5f * (idle.mid.knee_rad[0] + idle.mid.knee_rad[1]);

@@ -63,6 +63,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/BodyMesh.h"
 #include "engine/anim/sources/BoneMap.h"
 #include "engine/anim/sources/SkinnedBody.h"
+#include "engine/anim/sources/RestFit.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
@@ -583,8 +584,9 @@ void carry_bind_change_into_clips(const skel::Skeleton& before,
 /// it -- the one state the fit exists to leave behind.
 void rest_extent(const skel::Skeleton& skeleton, const SkinMesh& skin, float& lo,
                  float& hi) {
-    const dfn::anim::Rig rig =
-        dfn::anim::Rig::build(dfn::anim::RigProportions::from_config());
+    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): решённая по коже — та, в которой
+    // тело стоит на экране и в мире, и ровно её подошвы заземляются здесь.
+    const dfn::anim::Rig rig = dfn::anim::rest_rig_for(skeleton, skin.vertices);
     const dfn::anim::SkinnedRigBinding sb = dfn::anim::bind_skinned_rig(rig, skeleton);
     std::vector<glm::mat4> palette(skeleton.size());
     dfn::anim::skinning_palette(rig, skeleton, sb, dfn::anim::LocalPose{}, palette);
@@ -672,8 +674,7 @@ void fit_to_canon(skel::Skeleton& skeleton, const SkinMesh& skin,
         // JOINTS ARE READ IN THE **REST** FRAME, not the bind frame, and the
         // two differ the moment a model binds in a T-pose: bind-pose shoulders
         // sit where the arms were bound, not where the figure stands.
-        const dfn::anim::Rig r =
-            dfn::anim::Rig::build(dfn::anim::RigProportions::from_config());
+        const dfn::anim::Rig r = dfn::anim::rest_rig_for(skeleton, skin.vertices);
         const dfn::anim::SkinnedRigBinding sb =
             dfn::anim::bind_skinned_rig(r, skeleton);
         dfn::anim::rest_model_matrices(r, skeleton, sb, dfn::anim::LocalPose{}, model);
@@ -828,8 +829,7 @@ void reshape_to_commoner(skel::Skeleton& skeleton, SkinMesh& skin,
     }
     const std::size_t n = skeleton.size();
     const std::size_t vn = skin.vertices.size();
-    const dfn::anim::Rig rig =
-        dfn::anim::Rig::build(dfn::anim::RigProportions::from_config());
+    const dfn::anim::Rig rig = dfn::anim::rest_rig_for(skeleton, skin.vertices);
     const dfn::anim::SkinnedRigBinding sb = dfn::anim::bind_skinned_rig(rig, skeleton);
     std::vector<glm::mat4> palette(n);
     std::vector<glm::mat4> model(n);
@@ -1721,7 +1721,7 @@ int main(int argc, char** argv) {
         float ghi = 0.0f;
         rest_extent(obj.skeleton, obj.skin, glo, ghi);
         const dfn::anim::Rig grig =
-            dfn::anim::Rig::build(dfn::anim::RigProportions::from_config());
+            dfn::anim::rest_rig_for(obj.skeleton, obj.skin.vertices);
         const dfn::anim::SkinnedRigBinding gsb =
             dfn::anim::bind_skinned_rig(grig, obj.skeleton);
         std::vector<glm::mat4> gpal(obj.skeleton.size());

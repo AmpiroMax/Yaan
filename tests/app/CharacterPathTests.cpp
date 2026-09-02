@@ -37,6 +37,7 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/BodyGaps.h"
 #include "engine/anim/sources/Hitbox.h"
+#include "engine/anim/sources/RestFit.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/platform/render/sources/null/NullRenderer.h"
@@ -109,7 +110,7 @@ TEST_CASE("the_viewer_pose_meets_the_gaps") {
     const auto obj = render::read_object(fs::path(app::CHARGEN_SOURCE_BODY));
     REQUIRE(obj);
     REQUIRE_FALSE(obj->skeleton.empty());
-    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    const anim::Rig rig = anim::rest_rig_for(obj->skeleton, obj->skin.vertices);
     const anim::SkinnedRigBinding binding = anim::bind_skinned_rig(rig, obj->skeleton);
     REQUIRE(binding.bound_count() > 0);
     anim::HitboxSet boxes = anim::build_hitboxes(rig.proportions);
@@ -134,7 +135,7 @@ TEST_CASE("the_instrument_sees_an_intersection") {
     // между прибором, который видит «слиплись», и прибором, который нет.
     const auto obj = render::read_object(fs::path(app::CHARGEN_SOURCE_BODY));
     REQUIRE(obj);
-    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    const anim::Rig rig = anim::rest_rig_for(obj->skeleton, obj->skin.vertices);
     const anim::SkinnedRigBinding binding = anim::bind_skinned_rig(rig, obj->skeleton);
     REQUIRE(binding.bound_count() > 0);
     anim::HitboxSet boxes = anim::build_hitboxes(rig.proportions);

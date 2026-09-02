@@ -30,6 +30,7 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/Hitbox.h"
+#include "engine/anim/sources/RestFit.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/render/sources/ObjectRegistry.h"
@@ -64,6 +65,9 @@ struct Model {
         return false;
     }
     m.obj = std::move(*o);
+    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): та же, которой тело рисуют экран
+    // создания и мир — иначе стенд судил бы позу, которой никто не видит.
+    m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
                                      m.obj.skin.vertices);

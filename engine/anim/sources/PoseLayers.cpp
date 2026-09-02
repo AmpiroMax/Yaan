@@ -493,14 +493,16 @@ ArmRelax calibrate_arm_relax(const Rig& rig, const skel::Skeleton& skeleton,
     pose_local_transforms(rig, skeleton, binding, LocalPose{}, rest);
     const HandSpread rest_spread = measure_hand_spread(skeleton, binding, rest);
     relax.target_m = 0.5f * (rest_spread.left + rest_spread.right);
-    // THE HEIGHT TARGET IS A ROW AND NOT THE REST POSE, and the difference is
-    // the point. Our rest pose hangs both arms dead vertical from the shoulder
-    // — a mannequin, not a stance — so its hand height is an artefact of a
-    // pose nobody stands in, while "the hands sit at mid-thigh" is something
-    // the reference frames actually show (STANCE_HAND_DROP). The sideways
-    // number survives that objection because a vertical arm's SIDEWAYS
-    // position is exactly the proportion being copied.
-    relax.target_drop_m = static_cast<float>(config::STANCE_HAND_DROP);
+    // THE HEIGHT TARGET AND THE STANDING ELBOW ARE THE REST POSE'S TOO (owner's
+    // order 02.09: the rest is the neutral). The rest used to hang both arms
+    // dead vertical — a mannequin, whose hand height was an artefact — and the
+    // height came from a row instead. The rest is now a stance solved on the
+    // skin (RestFit.h): elbow at REST_ELBOW_FLEX, hands beside the thighs, so
+    // "where the hand hangs standing" is one number with one owner, and the
+    // idle the layer builds is the man the character screen shows.
+    const StanceMetrics rest_m = measure_stance(skeleton, binding, rest);
+    relax.target_drop_m = 0.5f * (rest_m.hand_drop_m[0] + rest_m.hand_drop_m[1]);
+    const float rest_elbow = 0.5f * (rest_m.elbow_rad[0] + rest_m.elbow_rad[1]);
 
     const StanceMetrics ref = measure_stance(skeleton, binding, reference);
     relax.reference_m = 0.5f * (ref.hand_spread_m[0] + ref.hand_spread_m[1]);
@@ -509,8 +511,7 @@ ArmRelax calibrate_arm_relax(const Rig& rig, const skel::Skeleton& skeleton,
     // THE ELBOW IS AN ARITHMETIC SOLVE and needs no scan: flexion is measured
     // directly and the layer adds to it, so the offset is the difference. One
     // number for both sides, for the reason the adduction is one number.
-    relax.elbow_stand_rad =
-        static_cast<float>(config::STANCE_ELBOW_STAND) - relax.reference_elbow_rad;
+    relax.elbow_stand_rad = rest_elbow - relax.reference_elbow_rad;
     relax.elbow_run_rad =
         static_cast<float>(config::STANCE_ELBOW_RUN) - relax.reference_elbow_rad;
 
