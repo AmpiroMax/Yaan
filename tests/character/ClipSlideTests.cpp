@@ -26,11 +26,13 @@ the body of the day.
 
 THE PASSPORT (02.09, MPFB body, legs 0.459/0.493 m against the donor's
 0.40/0.43, roles by name — see clip_library_resolves_roles):
-- walk 1.8 m/s: Walk_Loop at scale 1.37 slides 3.5 cm/step (unbent: 31.8) —
+- walk 1.8 m/s: Walk_Loop at scale 1.36 slides 3.8 cm/step (unbent: 31.5) —
   inside the band;
-- run 6.0 m/s: Sprint_Loop at its own scale (the library no longer swaps in
-  the jog, which slid 3.2 cm at 0.79 against the sprint's 8.3) — outside;
-- jog 3.0 m/s: the Walk+Jog blend at weight 0.75 covers 2.50 m per cycle where
+- run 6.0 m/s: Sprint_Loop at scale 0.79 slides 8.3 cm/step, and UNBENT it
+  slides 5.6 — the bend makes this clip worse, which is the sharpest
+  statement the passport has about the bend (the library no longer swaps in
+  the jog, which slid 3.2 cm at 0.79 on the previous bake of the body);
+- jog 3.0 m/s: the Walk+Jog blend at weight 0.70 covers 2.50 m per cycle where
   2.80 is demanded (11 % short, band 5 %). ROOT CAUSE, found and left for the
   wave that owns the blend: build_clip_library scans the weight with the two
   clips' plants aligned on the SOLO jog's footfall phase, then measure_travel
@@ -70,10 +72,9 @@ TEST_CASE("foot_slide_under_the_threshold") {
     // Quaternius body at the two gears below, and the gap is named rather
     // than tuned away — artifacts/reports/locomotion-fix/index.html carries
     // every number. THE PASSPORT ON THE MPFB BODY (02.09, legs 0.459/0.493 m
-    // against the donor's 0.40/0.43): walk 3.5 cm at scale 1.37 (loose 31.8),
-    // Sprint_Loop at its own stride — see ClipSlideTests.cpp's header for the
-    // measured pair — and the jog blend covering 2.50 m where 2.80 is
-    // demanded. None of these numbers is to be tuned here: the contract that
+    // against the donor's 0.40/0.43): walk 3.8 cm at scale 1.36 (loose 31.5),
+    // Sprint_Loop 8.3 cm at 0.79 (loose 5.6 — the bend makes it worse), and
+    // the jog blend covering 2.50 m where 2.80 is demanded. None of these numbers is to be tuned here: the contract that
     // replaces the bend is docs/design/LOCOMOTION_GROUNDED.md.
     constexpr float THRESHOLD_M = 0.04f;
     // The control arm has to be far worse than the threshold, not merely
