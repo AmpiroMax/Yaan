@@ -564,7 +564,9 @@ TEST_CASE("turning_in_place_steps_the_feet_instead_of_twisting") {
     // вытяжения ноги (FootIk, 03.09) стопа сползает с якоря, не рвя ногу, —
     // крест мельче (0,30), но всё равно на порядок дальше, чем с переступом.
     CHECK(cross.worst_offset_m > 0.25f);
-    CHECK(cross.after_offset_m > 0.25f);
+    // «После поворота» у контрольной руки больше не показатель: замок,
+    // сдавшийся у вытяжения, сам отпускает стопы под корпус (7 мм через
+    // секунду) — крест виден только ВО ВРЕМЯ поворота (worst выше).
 }
 
 TEST_CASE("gear_changes_settle_where_the_gear_settles_from_standing") {
