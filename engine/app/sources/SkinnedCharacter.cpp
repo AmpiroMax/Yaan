@@ -188,7 +188,20 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
     triangles_ = obj->skin.indices.size() / 3;
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
     sample_.assign(skeleton_.size(), anim::JointLocal{});
-    library_ = anim::build_clip_library(rig_, skeleton_, binding_, clips_, bind_vertices_);
+    {
+        const char* rf = door_value("DFN_ROOT_FROM_FEET");
+        feet_drive_ = !(rf != nullptr && rf[0] == '0');
+        const char* fl = door_value("DFN_FOOT_LOCK");
+        foot_lock_ = !(fl != nullptr && fl[0] == '0');
+        const char* st = door_value("DFN_SLIDE_TRACE");
+        slide_trace_ = st != nullptr && st[0] == '1';
+        lock_params_ = anim::FootLockParams::from_config();
+    }
+    library_ = anim::build_clip_library(rig_, skeleton_, binding_, clips_, bind_vertices_,
+                                        feet_drive_);
+    if (const char* is = door_value("DFN_IDLE_SYMMETRY"); is != nullptr && is[0] == '0') {
+        library_.idle_symmetry = 0.0f;
+    }
     foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
     {
         // ЧЕРЕЗ door_value, А НЕ getenv (AppDoors.h): дверь, прочитанная мимо
@@ -528,8 +541,7 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
     // will re-measure the needs against its own interpolated pose; only the
     // GROUND is sampled here, because a raycast is the expensive half and the
     // ground under a foot does not change inside one tick.
-    if (!anim::playback_sample(skeleton_, binding_, clips_, library_, play_, 1.0f,
-                               tick_sample_)) {
+    if (!tick_sampled_) {
         return;
     }
     std::vector<glm::mat4> local(skeleton_.size());
@@ -586,7 +598,35 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     }
     const anim::Rig& rig = rig_;
     anim::advance_playback(library_, drive, dt, play_);
+    tick_sample_.resize(skeleton_.size());
+    tick_sampled_ = playing_clips()
+                    && anim::playback_sample(skeleton_, binding_, clips_, library_, play_,
+                                             1.0f, tick_sample_);
     probe_ground(drive, standing_ground, dt);
+    // КОНТАКТЫ ЭТОГО ТИКА. Без луча в мир (смотровая, тесты) вес опоры
+    // читается по плоскому грунту — та же поза и тот же вес, что у стенда;
+    // заявка от стопы не зависит от того, есть ли кому спросить высоту.
+    contact_prev_ = contact_curr_;
+    contact_curr_ = anim::ContactState{};
+    if (tick_sampled_ && foot_setup_.valid()) {
+        anim::FootIkPlan plan = plan_;
+        if (!foot_probe_.valid) {
+            anim::FootIkProbe flat;
+            flat.valid = true;
+            plan = anim::plan_foot_ik(skeleton_, foot_setup_, flat, tick_sample_);
+        }
+        contact_curr_ = anim::contact_state(skeleton_, foot_setup_, plan, tick_sample_);
+    }
+    loco_ = anim::LocomotionOut{};
+    if (feet_drive_ && library_.feet_drive && contact_prev_.valid && contact_curr_.valid
+        && drive.grounded && drive.posture_blend < 0.5f) {
+        loco_.root_delta_model =
+            anim::root_motion_step(contact_prev_, contact_curr_, dt, root_state_);
+        loco_.phase = play_.phase;
+        loco_.footfall =
+            anim::detect_footfalls(contact_prev_, contact_curr_, lock_params_.on_weight);
+        loco_.valid = true;
+    }
     // THE PROCEDURAL PAIR, kept whether or not the door is open: it costs one
     // pose evaluation a tick and it is what makes DFN_PROC_GAIT switchable
     // without a second code path through this file.
@@ -600,6 +640,51 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     ticked_ = true;
 }
 
+void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
+                                   const glm::vec3& standing_ground, float dt) {
+    if (!ready_) {
+        return;
+    }
+    root_curr_ = anim::body_root_for(drive, standing_ground);
+    if (!contact_curr_.valid || !foot_lock_) {
+        locks_ = anim::FootLockState{};
+        return;
+    }
+    const glm::mat4 to_world =
+        glm::translate(glm::mat4{1.0f}, root_curr_.ground)
+        * glm::rotate(glm::mat4{1.0f}, -root_curr_.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+    std::array<glm::vec3, 2> world{};
+    for (std::size_t side = 0; side < 2; ++side) {
+        world[side] = glm::vec3{to_world * glm::vec4{contact_curr_.point[side], 1.0f}};
+    }
+    anim::update_foot_locks(locks_, world,
+                            loco_.valid ? contact_curr_.support
+                                        : std::array<float, 2>{0.0f, 0.0f},
+                            contact_curr_.toe_point, dt, lock_params_);
+    if (slide_trace_ && (++slide_trace_ticks_ % 10u) == 0u) {
+        float worst = 0.0f;
+        for (std::size_t side = 0; side < 2; ++side) {
+            if (locks_.locked[side]) {
+                const glm::vec3 d = world[side] - locks_.anchor[side];
+                worst = std::max(worst, glm::length(glm::vec2{d.x, d.z}));
+            }
+        }
+        std::fprintf(stderr, "[slide] residual before lock %.1f mm (L %d R %d)\n",
+                     static_cast<double>(1000.0f * worst), locks_.locked[0] ? 1 : 0,
+                     locks_.locked[1] ? 1 : 0);
+    }
+}
+
+void SkinnedCharacter::set_feet_drive(bool on) {
+    feet_drive_ = on;
+    library_.feet_drive = on;
+    if (!on) {
+        loco_ = anim::LocomotionOut{};
+        locks_ = anim::FootLockState{};
+        root_state_ = anim::RootMotionState{};
+    }
+}
+
 render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
                                                               float alpha) {
     render::RenderSystem::SkinnedDraw draw;
@@ -608,6 +693,9 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
     }
     const anim::Rig& rig = rig_;
     const float a = std::clamp(alpha, 0.0f, 1.0f);
+    const anim::BodyRoot root{glm::mix(root_prev_.ground, root_curr_.ground, a),
+                              root_prev_.yaw
+                                  + a * shortest_turn(root_prev_.yaw, root_curr_.yaw)};
     // THE POSE OF THIS FRAME, not of this tick. Both arms interpolate: the
     // clip arm by its own clip time (playback_sample), the procedural arm by
     // slerping the two ticks it was evaluated at -- which is exactly what
@@ -654,6 +742,26 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
         // побитово прежний кадр, между — движение, приходящее чуть позже
         // середины. Возводить вес в квадрат ради формальной точности значило
         // бы сделать въезд вдвое вялее ради разницы, которой не видно.
+        // ЗАМОК СТОПЫ В КАДРЕ: якорь — мировая точка касания на тике; кадр
+        // переводит её в систему тела через СВОЙ (интерполированный) корень.
+        if (foot_lock_ && foot_setup_.valid()
+            && (locks_.strength[0] > 0.0f || locks_.strength[1] > 0.0f)) {
+            const glm::mat4 lock_world =
+                glm::translate(glm::mat4{1.0f}, root.ground)
+                * glm::rotate(glm::mat4{1.0f}, -root.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+            const glm::mat4 to_model = glm::inverse(lock_world);
+            std::array<glm::vec3, 2> target{};
+            std::array<float, 2> strength{};
+            for (std::size_t side = 0; side < 2; ++side) {
+                if (locks_.strength[side] <= 0.0f) {
+                    continue;
+                }
+                target[side] = glm::vec3{to_model * glm::vec4{locks_.anchor[side], 1.0f}};
+                strength[side] = locks_.strength[side];
+            }
+            anim::apply_foot_lock(skeleton_, foot_setup_, target, locks_.anchor_toe, strength,
+                                  sample_);
+        }
         if (pose_weight_ > 0.0f) {
             pose_sample_.resize(skeleton_.size());
             const anim::LocalPose live = anim::blend(pose_prev_, pose_curr_, a);
@@ -667,9 +775,6 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
         }
         anim::sample_palette(skeleton_, sample_, palette_);
     }
-    const anim::BodyRoot root{glm::mix(root_prev_.ground, root_curr_.ground, a),
-                              root_prev_.yaw
-                                  + a * shortest_turn(root_prev_.yaw, root_curr_.yaw)};
     if (hide_head) {
         // THE HEAD IS COLLAPSED, NOT CULLED, and that is the only option a
         // skinned mesh leaves: the head's triangles live in the same buffer as

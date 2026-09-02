@@ -73,6 +73,11 @@ struct BodyDrive {
     float stride_phase = 0.0f;      // sim's clock, [0,1)
     float step_length_m = 0.0f;     // sim's length(v) model output
     float speed_mps = 0.0f;         // horizontal speed
+    // ЖЕЛАЕМАЯ СКОРОСТЬ ПЕРЕДАЧИ, м/с: 0 — ввода нет. Перемещение ведёт клип
+    // (docs/design/LOCOMOTION_GROUNDED.md), поэтому роль клипа и его темп
+    // выбираются по НАМЕРЕНИЮ, а не по фактической скорости капсулы — та
+    // сама следствие клипа, и выбирать по ней клип значило бы замкнуть круг.
+    float want_speed_mps = 0.0f;
     // THE GEAR sim CHOSE, not the speed it was derived from. This zone used to
     // re-derive it by comparing speed_mps against WALK_SPEED and RUN_SPEED,
     // which is the two-copies defect (Rule 35) and became a visible one when a

@@ -70,7 +70,7 @@ struct Model {
     m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
-                                     m.obj.skin.vertices);
+                                     m.obj.skin.vertices, false);
     m.set = anim::build_hitboxes(m.rig.proportions);
     return true;
 }

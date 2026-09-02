@@ -35,15 +35,23 @@ Dependencies:
 - Used by: engine/app (SkinnedCharacter), tests.
 
 Notes:
-- THE PHASE IS STILL SIM'S CLOCK, and that is why this file may exist at all
-  (Clips.h: "never advance a phase here"). A locomotion clip's time is a pure
-  function of `stride_phase` — the same [0,1) sim advances by displacement —
-  shifted so the clip's own left footfall lands exactly on FOOTFALL_PHASE_LEFT.
-  The footfall event, the camera bob and the drawn plant therefore stay the
-  same instant; nothing in this zone integrates a clock for locomotion.
-  Non-locomotion clips (the jump triple, the interactions) DO run off their own
-  seconds, because a jump is an event with a duration and not a cycle.
-- HOW SPEED REACHES THE FEET, and it is NOT playback rate. The rate is sim's:
+- ЧАСЫ ЛОКОМОЦИИ ТЕПЕРЬ ЗДЕСЬ (решение синка 02.09, docs/design/
+  LOCOMOTION_GROUNDED.md): при `ClipLibrary::feet_drive` фаза
+  `ClipPlayback::phase` растёт своим темпом (заказ передачи / скорость клипа,
+  в полосе LOCOMOTION_TEMPO_BAND), а корень едет от опорной стопы (RootMotion.h),
+  так что событие шага, боб камеры и нарисованная постановка — один и тот же
+  миг по построению, а не по совпадению двух часов. Прежний шов (фаза сима,
+  стрид-скейл) остаётся контрольной рукой (`feet_drive = false`,
+  DFN_ROOT_FROM_FEET=0) и описан ниже как был.
+- THE PHASE WAS SIM'S CLOCK in that seam (Clips.h: "never advance a phase
+  here"): a locomotion clip's time is a pure function of `stride_phase` —
+  the [0,1) sim advances by displacement — shifted so the clip's own left
+  footfall lands exactly on FOOTFALL_PHASE_LEFT. Non-locomotion clips (the
+  jump triple, the interactions) run off their own seconds either way,
+  because a jump is an event with a duration and not a cycle.
+- HOW SPEED REACHED THE FEET IN THE OLD SEAM, and it was NOT playback rate
+  (with `feet_drive` it is the feet that set the speed, and the tempo band
+  is all the rate there is). The rate is sim's:
   one clip loop per stride cycle. Speed enters as STRIDE SCALE — the leg
   chain's rotations are scaled about our rest pose until the stance foot
   covers 2 x `step_length_m` per loop. This is the same decision `gait_pose`
@@ -241,6 +249,12 @@ struct ClipEntry {
     /// walk is over a half, a run well under; a number near zero means the
     /// measurement below found no plant and the stride it reports is a guess.
     float duty = 0.0f;
+    /// СКОРОСТЬ КЛИПА НА ЭТОМ ТЕЛЕ, м/с: ход опорной стопы за цикл ИТОГОВОЙ
+    /// записи (со смесью, при масштабе 1) на длительность цикла; ноль у клипа
+    /// без хода. Перемещение ведёт стопа (docs/design/LOCOMOTION_GROUNDED.md),
+    /// поэтому это и есть скорость передачи; заказ передачи добирается ТЕМПОМ
+    /// в полосе LOCOMOTION_TEMPO_BAND (advance_playback), а не масштабом ног.
+    float natural_mps = 0.0f;
 
     /// THE SECOND CLIP OF A BLENDED GEAR, and the weight it carries.
     ///
@@ -319,6 +333,16 @@ struct ClipLibrary {
     /// клиренс: обе руки сравнения обязаны выходить из одного бинарника.
     MirrorMap mirror;
     float mirror_dose = 0.5f;
+    /// ПЕРЕМЕЩЕНИЕ ВЕДЁТ ОПОРНАЯ СТОПА (docs/design/LOCOMOTION_GROUNDED.md):
+    /// часы локомоции живут здесь (ClipPlayback::phase), масштаб размаха ног
+    /// равен 1, темп — в полосе LOCOMOTION_TEMPO_BAND, корневое смещение за тик
+    /// выводится из стопы (RootMotion.h). false — прежний шов: фаза сим'а и
+    /// стрид-скейл, побитово прежний кадр (дверь DFN_ROOT_FROM_FEET=0 —
+    /// контрольная рука приёмки, правило 47).
+    bool feet_drive = true;
+    /// ДОЗА СИММЕТРИИ ПОКОЯ: поза Idle, смешанная со своим зеркалом на той же
+    /// фазе (строка IDLE_SYMMETRY_DOSE; 0 — клип как есть, контрольная рука).
+    float idle_symmetry = static_cast<float>(config::IDLE_SYMMETRY_DOSE);
     /// How many roles the asset actually answered. Zero means the model has
     /// clips we do not recognise, which is a naming problem and is said out
     /// loud rather than drawn as a T-pose.
@@ -345,7 +369,7 @@ struct ClipLibrary {
 [[nodiscard]] ClipLibrary build_clip_library(
     const Rig& rig, const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
     std::span<const skel::AnimClip> clips,
-    std::span<const platform::SkinnedVertex> skin = {});
+    std::span<const platform::SkinnedVertex> skin = {}, bool feet_drive = true);
 
 /// One clip at one time as the imported skeleton's local TRS. Joints the clip
 /// does not key keep their BIND values (skel::sample_clip's contract).
@@ -408,6 +432,14 @@ struct ClipPlayback {
     /// Stride scale in force this tick, and the one the previous role had.
     float stride = 1.0f;
     float previous_stride = 1.0f;
+    /// ЧАСЫ ЛОКОМОЦИИ ЭТОЙ ЗОНЫ, [0,1) на цикл L+R, когда `ClipLibrary::feet_drive`:
+    /// растут на dt·rate/длительность клипа роли, в покое стоят (как прежде
+    /// держал сим на остановке). Наружу публикуются как фаза для боба камеры и
+    /// событий шага — один интегратор, остальные читают.
+    float phase = 0.0f;
+    float prev_phase = 0.0f;
+    /// ТЕМП: заказ передачи / скорость клипа, зажатый LOCOMOTION_TEMPO_BAND.
+    float rate = 1.0f;
     /// The tick before this one, so the frame can interpolate (Rule 12's
     /// shape, applied to a pose instead of a Transform).
     float prev_time_s = 0.0f;

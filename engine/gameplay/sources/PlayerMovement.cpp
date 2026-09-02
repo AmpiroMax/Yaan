@@ -467,6 +467,27 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
         }
         speed *= medium;
         displacement = (right * axes.x + forward * axes.y) * speed * DT;
+        // НАМЕРЕНИЕ — наружу; ФАКТ — от заявки анимации, когда она есть:
+        // модуль смещения задаёт опорная стопа клипа, направление — ввод
+        // (стрейф и шаг назад пока без своих клипов). Без ввода заявка
+        // берётся как есть: ноги дошагивают остановку.
+        const float axes_len = glm::length(axes);
+        state.want_speed_mps = axes_len > 1.0e-4f ? speed : 0.0f;
+        const glm::vec3 want3 = right * axes.x + forward * axes.y;
+        const float want_len = glm::length(want3);
+        state.want_dir = want_len > 1.0e-5f ? glm::vec2{want3.x, want3.z} / want_len
+                                            : glm::vec2{0.0f, 0.0f};
+        if (step.locomotion.valid && physics.character_grounded(state.character)) {
+            const glm::vec2 req = step.locomotion.delta_xz;
+            if (axes_len > 1.0e-4f) {
+                const float mag = glm::length(req);
+                displacement.x = state.want_dir.x * mag;
+                displacement.z = state.want_dir.y * mag;
+            } else {
+                displacement.x = req.x;
+                displacement.z = req.y;
+            }
+        }
 
         // Jump. Grounded only, and never while crouched: a crouch-jump is the
         // classic way to climb geometry that was designed to stop you.
@@ -543,7 +564,34 @@ void player_post_step(PlayerState& state, platform::IPhysics& physics,
     const float speed = glm::length(moved) / DT;
     const bool striding = grounded && !swimming;
 
-    if (striding && speed > STOP_SPEED_EPS) {
+    if (striding && step.locomotion.valid) {
+        // ЧАСЫ ШАГА — У АНИМАЦИИ (docs/design/LOCOMOTION_GROUNDED.md): фаза и
+        // постановки приходят заявкой, событие шага совпадает с кадром
+        // постановки по построению, а не по совпадению двух часов.
+        state.stride_phase = step.locomotion.phase;
+        if (step.events != nullptr) {
+            const math::SurfaceClass surface = surface_under(step, position);
+            const bool wading = state.water_depth > 0.0f;
+            if (step.locomotion.footfall_left) {
+                step.events->post(
+                    FootfallEvent{step.walker, position, surface, speed, true, wading});
+            }
+            if (step.locomotion.footfall_right) {
+                step.events->post(
+                    FootfallEvent{step.walker, position, surface, speed, false, wading});
+            }
+        }
+        if (speed > STOP_SPEED_EPS) {
+            const float target = bob_amplitude_target(speed);
+            state.bob_amplitude += (target - state.bob_amplitude) * amplitude_ease_alpha(speed);
+            state.settle_elapsed = 1.0e9f;
+        } else if (state.stride_speed > STOP_SPEED_EPS) {
+            state.settle_start = bob_vertical(state.stride_phase, state.bob_amplitude);
+            state.settle_depth = bob_amplitude_target(state.stride_speed);
+            state.settle_elapsed = 0.0f;
+            state.bob_amplitude = 0.0f;
+        }
+    } else if (striding && speed > STOP_SPEED_EPS) {
         const StrideAdvance adv = advance_stride(state.stride_phase, speed, DT);
         if (adv.footfalls > 0 && step.events != nullptr) {
             const math::SurfaceClass surface = surface_under(step, position);

@@ -327,6 +327,22 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
 
+    # НОГИ НА ЗЕМЛЕ (docs/design/LOCOMOTION_GROUNDED.md, прибор №1 на пути
+    # игрока): персонаж фабрикой, тик до шага сим'а, заявка → корень,
+    # commit_root, кадр из палитры; опорная стопа за окно опоры стоит не хуже
+    # FOOT_SLIDE_MAX_M на walk/jog/run; контрольные руки — без замка и прежний шов.
+    add_dfn_test(app_grounded_locomotion app/GroundedLocomotionTests.cpp
+                 dfn_render dfn_platform_render dfn_anim dfn_core)
+    target_sources(app_grounded_locomotion PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
+    if(TARGET dfn_characters)
+        add_dependencies(app_grounded_locomotion dfn_characters)
+    endif()
+
     # НАРОДЫ КАК РАСПРЕДЕЛЕНИЯ. Предмет тут не «файл читается», а три вещи,
     # которых кадром не увидеть: народный край ОБЯЗАН лежать внутри судейского
     # (иначе экран честно нарисует полосу, за которой судья пропорций красный),

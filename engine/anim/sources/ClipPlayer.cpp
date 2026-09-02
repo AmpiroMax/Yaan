@@ -19,6 +19,9 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/ClipPlayer.h"
 
+#include "engine/anim/sources/FootIk.h"
+#include "engine/anim/sources/RootMotion.h"
+
 #include "engine/core/config/sources/Constants.h"
 
 #include <algorithm>
@@ -39,6 +42,12 @@ constexpr float PHASE_LEFT = static_cast<float>(config::FOOTFALL_PHASE_LEFT);
 /// only consumer is the role choice below. Body.cpp's `gait_fade` fades the
 /// procedural gait in over the same neighbourhood for the same reason.
 constexpr float MOVING_SPEED_MPS = 0.15f;
+constexpr float TEMPO_BAND = static_cast<float>(config::LOCOMOTION_TEMPO_BAND);
+/// СКОРОСТЬ, ПО КОТОРОЙ ВЫБИРАЕТСЯ РОЛЬ: намерение, когда перемещение ведёт
+/// стопа (иначе роль выбирала бы себя сама через капсулу), факт — в прежнем шве.
+[[nodiscard]] float drive_speed(const ClipLibrary& lib, const BodyDrive& drive) {
+    return lib.feet_drive ? drive.want_speed_mps : drive.speed_mps;
+}
 
 /// THE CEILING ON A STANCE GAIN. A gain is a ratio against a MEASURED peak,
 /// and a clip whose peak is almost nothing would ask for almost anything: the
@@ -598,6 +607,51 @@ struct TravelFit {
 /// a clip whose plant straddles the loop point is not cut in two. THE FOOT IS
 /// DOWN WHEN ANY OF ITS CONTACT JOINTS IS: a heel strike and a toe-off are
 /// the same plant seen through two different joints.
+/// СКОРОСТЬ КЛИПА ТЕМ ЖЕ ИНТЕГРАТОРОМ, ЧТО ВЕДЁТ КОРЕНЬ (RootMotion.h): два
+/// цикла через ту же выборку смеси, второй — в зачёт (первый разгоняет память
+/// скорости). Не fit_travel: та подгоняет одну прямую под лучшие 60 % «нижних»
+/// сэмплов и на смесях двух клипов с разным ходом читает быстрый участок
+/// опоры за всю опору (замер: смесь ходьбы 1.85 м/с по подгонке против 1.33
+/// по интегратору) — а капсула поедет ровно так, как едет стопа.
+[[nodiscard]] float measure_root_speed(const skel::Skeleton& skeleton,
+                                       const SkinnedRigBinding& binding,
+                                       const ContactSet& contacts, const MixSource& src,
+                                       uint32_t samples) {
+    (void)samples;
+    if (!contacts.valid() || src.a == nullptr || src.dur_a <= 0.0f) {
+        return 0.0f;
+    }
+    // НА ТИКЕ СИМА (SIM_TICK_RATE): капсула поедет с той скоростью, какую даёт
+    // интегратор на этом шаге, а не на мелкой сетке (у бега с полётом
+    // среднее опоры на 20 и на 96 сэмплах за цикл — разные числа).
+    const float hz = static_cast<float>(config::SIM_TICK_RATE);
+    const uint32_t per_cycle = std::max<uint32_t>(8, uint32_t(std::lround(src.dur_a * hz)));
+    const FootIkSetup setup = build_foot_ik(skeleton, binding, contacts);
+    if (!setup.valid()) {
+        return 0.0f;
+    }
+    FootIkProbe flat;
+    flat.valid = true;
+    std::vector<JointLocal> sample(skeleton.size());
+    std::vector<JointLocal> scratch;
+    ContactState prev;
+    RootMotionState state;
+    glm::vec3 root{0.0f};
+    const float dt = src.dur_a / float(per_cycle);
+    for (uint32_t k = 0; k <= 3 * per_cycle; ++k) {
+        sample_mix(skeleton, src, float(k % per_cycle) / float(per_cycle), sample, scratch);
+        const FootIkPlan plan = plan_foot_ik(skeleton, setup, flat, sample);
+        ContactState curr = contact_state(skeleton, setup, plan, sample);
+        if (k > 0) {
+            const glm::vec3 d = root_motion_step(prev, curr, dt, state);
+            if (k > per_cycle) {
+                root += d;
+            }
+        }
+        prev = curr;
+    }
+    return glm::length(root) / (2.0f * src.dur_a);
+}
 [[nodiscard]] float left_plant_phase(const ContactTrack& track) {
     const std::size_t n = track.samples();
     if (n < 2) {
@@ -742,11 +796,65 @@ void measure_travel(const skel::Skeleton& skeleton, const SkinnedRigBinding& bin
 
 } // namespace
 
+namespace {
+/// Скорость роли ТЕМ ЖЕ ПУТЁМ, ЧТО КАДР: часы клипа своим темпом (rate 1),
+/// playback_sample со всеми слоями, контакты и интегратор корня на тике сима;
+/// три цикла, в зачёт — после первой секунды (кроссфейд из покоя и разгон
+/// памяти скорости).
+[[nodiscard]] float measure_played_speed(const ClipLibrary& lib, const skel::Skeleton& skeleton,
+                                         const SkinnedRigBinding& binding,
+                                         std::span<const skel::AnimClip> clips, ClipRole role) {
+    const FootIkSetup setup = build_foot_ik(skeleton, binding, lib.contacts);
+    if (!setup.valid()) {
+        return 0.0f;
+    }
+    BodyDrive drive;
+    drive.grounded = true;
+    drive.want_speed_mps = 1.0f;
+    drive.speed_mps = 1.0f;
+    drive.gait = role == ClipRole::Walk ? Gait::Walk
+                 : role == ClipRole::Jog ? Gait::Jog
+                                          : Gait::Run;
+    if (role == ClipRole::CrouchWalk) {
+        drive.crouch_blend = 1.0f;
+    }
+    const float dt = 1.0f / static_cast<float>(config::SIM_TICK_RATE);
+    const float duration = lib[role].duration_s;
+    const uint32_t warm = std::max<uint32_t>(uint32_t(1.0f / dt), uint32_t(duration / dt));
+    const uint32_t total = warm + 2u * uint32_t(duration / dt) + 1u;
+    FootIkProbe flat;
+    flat.valid = true;
+    std::vector<JointLocal> sample(skeleton.size());
+    ClipPlayback play;
+    ContactState prev;
+    RootMotionState state;
+    glm::vec3 root{0.0f};
+    float seconds = 0.0f;
+    for (uint32_t k = 0; k < total; ++k) {
+        advance_playback(lib, drive, dt, play);
+        if (!playback_sample(skeleton, binding, clips, lib, play, 1.0f, sample)) {
+            return 0.0f;
+        }
+        const FootIkPlan plan = plan_foot_ik(skeleton, setup, flat, sample);
+        ContactState curr = contact_state(skeleton, setup, plan, sample);
+        const glm::vec3 d = root_motion_step(prev, curr, dt, state);
+        if (k >= warm) {
+            root += d;
+            seconds += dt;
+        }
+        prev = curr;
+    }
+    return seconds > 0.0f ? glm::length(root) / seconds : 0.0f;
+}
+} // namespace
+
 ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                                const SkinnedRigBinding& binding,
                                std::span<const skel::AnimClip> clips,
-                               std::span<const platform::SkinnedVertex> skin) {
+                               std::span<const platform::SkinnedVertex> skin,
+                               bool feet_drive) {
     ClipLibrary lib;
+    lib.feet_drive = feet_drive;
     lib.contacts = build_contacts(rig, skeleton, binding);
     for (const RoleNames& row : ROLE_NAMES) {
         ClipEntry& entry = lib.role[role_index(row.role)];
@@ -843,7 +951,7 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     // A gear whose own clip sits inside [SWAP_SCALE_MIN, SWAP_SCALE_MAX] is a
     // gear being adjusted, and blending it would trade a clip somebody drew
     // for an average of two.
-    constexpr uint32_t MIX_STEPS = 20;
+    constexpr uint32_t MIX_STEPS = 40;
     for (const GearRow& g : gears) {
         ClipEntry& entry = lib.role[role_index(g.role)];
         if (!entry.present() || entry.duration_s <= 0.0f) {
@@ -853,7 +961,20 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                            + static_cast<float>(config::STEP_LENGTH_PER_MPS) * g.speed;
         const float demanded = 2.0f * step;
         const float solo_scale = stride_scale_for(entry, demanded);
-        if (solo_scale >= SWAP_SCALE_MIN && solo_scale <= SWAP_SCALE_MAX) {
+        // ПЕРЕМЕЩЕНИЕ ВЕДЁТ СТОПА: клип «рядом» с передачей, если заказ
+        // передачи ложится на его скорость темпом в полосе; иначе — смесь.
+        // Прежний шов: «рядом» = стрид-скейл в полосе подмены.
+        const float solo_mps = feet_drive
+                                   ? measure_root_speed(skeleton, binding, lib.contacts,
+                                                        mix_of(entry, clips), MEASURE_SAMPLES)
+                                   : (entry.duration_s > 0.0f ? entry.cycle_m / entry.duration_s
+                                                              : 0.0f);
+        const bool near = feet_drive
+                              ? (solo_mps >= g.speed / (1.0f + TEMPO_BAND)
+                                 && solo_mps <= g.speed / (1.0f - TEMPO_BAND))
+                              : (solo_scale >= SWAP_SCALE_MIN
+                                 && solo_scale <= SWAP_SCALE_MAX);
+        if (near) {
             continue;
         }
         const FootSlide solo = measure_foot_slide(skeleton, binding, clips, lib, g.role,
@@ -861,6 +982,10 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         const ClipEntry solo_entry = entry;
         ClipEntry best = entry;
         float best_err = std::numeric_limits<float>::max();
+        // В ПОЛОСЕ ТЕМПА ВЫИГРЫВАЕТ НАИМЕНЬШИЙ ВЕС ПАРТНЁРА (от стопы): смесь
+        // 50 % спринта в ходьбу даёт заказанные 1.8 м/с ровно, но это уже не
+        // ходьба; 15 % трусцы дают их же темпом. Вне полосы — наименьшая ошибка.
+        bool best_in_band = false;
         for (const ClipRole r : travelling) {
             if (r == g.role || r == ClipRole::CrouchWalk || !lib.has(r)) {
                 continue;
@@ -880,10 +1005,26 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                 if (trial.stride_valid == 0 || trial.cycle_m <= 0.0f) {
                     continue;
                 }
-                const float err = std::abs(trial.cycle_m - demanded);
-                if (err < best_err) {
+                // от стопы: ошибка по СКОРОСТИ смеси (ход за цикл на длительность
+                // ведущего клипа — партнёр идёт по его фазе); прежний шов — по ходу
+                const float trial_speed =
+                    feet_drive ? measure_root_speed(skeleton, binding, lib.contacts,
+                                                    mix_of(trial, clips), MEASURE_SAMPLES)
+                               : 0.0f;
+                const float err = feet_drive ? std::abs(trial_speed - g.speed)
+                                             : std::abs(trial.cycle_m - demanded);
+                // «в полосе» — по ТЕМПУ: клип, который догоняется темпом в
+                // LOCOMOTION_TEMPO_BAND, т.е. speed/(1+b) <= clip <= speed/(1-b)
+                const bool in_band = feet_drive
+                                     && trial_speed >= g.speed / (1.0f + TEMPO_BAND)
+                                     && trial_speed <= g.speed / (1.0f - TEMPO_BAND);
+                const bool better = in_band
+                                        ? (!best_in_band || trial.mix_weight < best.mix_weight)
+                                        : (!best_in_band && err < best_err);
+                if (better) {
                     best_err = err;
                     best = trial;
+                    best_in_band = in_band;
                 }
             }
         }
@@ -897,7 +1038,8 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         // THE BLEND HAS TO EARN THE ROLE. If it does not plant better than the
         // clip it replaced, the clip stays: a body that skates on an average
         // of two animations is worse than one that skates on one.
-        if (mixed.worst_per_step_m >= solo.worst_per_step_m) {
+        // от стопы сноса нет по построению — смесь судится только по скорости
+        if (!feet_drive && mixed.worst_per_step_m >= solo.worst_per_step_m) {
             entry = solo_entry;
             std::fprintf(stderr,
                          "[anim] gear %s: no blend beat the solo clip "
@@ -1003,11 +1145,31 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         apply_stance(skeleton, lib.stance, calib, reference);
         lib.relax = calibrate_arm_relax(rig, skeleton, binding, reference);
     }
+    // СКОРОСТЬ КАЖДОЙ ПЕРЕДАЧИ НА ЭТОМ ТЕЛЕ — ЧЕРЕЗ ПУТЬ КАДРА, со всеми слоями
+    // (зеркало полуциклом, стойка, руки): капсула поедет с той скоростью, с
+    // какой едет НАРИСОВАННАЯ стопа, а зеркальная смесь на несимметричном
+    // спринте меняет ход на ±15 % (замер: 6.29 без слоёв против 7.07 с ними).
+    // Темп 1: natural_mps на время замера 0, чтобы advance_playback не гнал
+    // клип за заказом.
+    if (feet_drive) {
+        for (const ClipRole r : travelling) {
+            ClipEntry& entry = lib.role[role_index(r)];
+            if (!entry.present() || entry.duration_s <= 0.0f) {
+                continue;
+            }
+            entry.natural_mps = 0.0f;
+            entry.natural_mps = measure_played_speed(lib, skeleton, binding, clips, r);
+            std::fprintf(stderr, "[anim] gear %s: clip speed %.2f m/s%s\n",
+                         role_name(r).data(), static_cast<double>(entry.natural_mps),
+                         entry.mixed() ? " (blend)" : "");
+        }
+    }
+
     return lib;
 }
 
 ClipRole role_for_drive(const ClipLibrary& lib, const BodyDrive& drive) {
-    const bool moving = drive.speed_mps > MOVING_SPEED_MPS;
+    const bool moving = drive_speed(lib, drive) > MOVING_SPEED_MPS;
     if (!drive.grounded && lib.has(ClipRole::JumpLoop)) {
         return ClipRole::JumpLoop;
     }
@@ -1080,6 +1242,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     // twice. The standing weight is eased over the SAME time a role change
     // takes, so the knees straighten while the walk clip is fading out and not
     // a frame after it.
+    play.prev_phase = play.phase;
     play.stance_run = std::clamp(drive.run_weight, 0.0f, 1.0f);
     {
         const float want = drive.speed_mps > MOVING_SPEED_MPS ? 0.0f : 1.0f;
@@ -1162,10 +1325,26 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     // already sets the procedural gait's amplitudes and the camera's bob
     // frequency; a cycle is two steps (StepFeel's own convention).
     const float demanded = 2.0f * std::max(0.0f, drive.step_length_m);
-    play.stride = locomotion(play.role) ? stride_scale_for(cur, demanded) : 1.0f;
+    // ПЕРЕМЕЩЕНИЕ ВЕДЁТ СТОПА: масштаба размаха нет (клип играет, как
+    // поставлен), часы — свои, темп — заказ передачи на скорость клипа в
+    // полосе. Прежний шов: фаза сим'а и стрид-скейл, побитово как было.
+    play.stride = (locomotion(play.role) && !lib.feet_drive)
+                      ? stride_scale_for(cur, demanded)
+                      : 1.0f;
+    if (locomotion(play.role) && lib.feet_drive) {
+        const float want = std::max(0.0f, drive.want_speed_mps);
+        play.rate = (cur.natural_mps > 1.0e-3f && want > 0.0f)
+                        ? std::clamp(want / cur.natural_mps, 1.0f - TEMPO_BAND,
+                                     1.0f + TEMPO_BAND)
+                        : 1.0f;
+        if (cur.duration_s > 0.0f && dt > 0.0f) {
+            play.phase = wrap01(play.phase + dt * play.rate / cur.duration_s);
+        }
+    }
+    const float phase = lib.feet_drive ? play.phase : drive.stride_phase;
     if (locomotion(play.role)) {
-        play.time_s = locomotion_time(cur, drive.stride_phase);
-        play.mix_time_s = cur.mixed() ? wrap01(drive.stride_phase - PHASE_LEFT
+        play.time_s = locomotion_time(cur, phase);
+        play.mix_time_s = cur.mixed() ? wrap01(phase - PHASE_LEFT
                                                + cur.mix_footfall)
                                             * cur.mix_duration_s
                                       : 0.0f;
@@ -1178,10 +1357,10 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     if (play.fade > 0.0f) {
         const ClipEntry& prev = lib[play.previous];
         if (locomotion(play.previous)) {
-            play.previous_stride = stride_scale_for(prev, demanded);
-            play.previous_time_s = locomotion_time(prev, drive.stride_phase);
+            play.previous_stride = lib.feet_drive ? 1.0f : stride_scale_for(prev, demanded);
+            play.previous_time_s = locomotion_time(prev, phase);
             play.previous_mix_time_s =
-                prev.mixed() ? wrap01(drive.stride_phase - PHASE_LEFT + prev.mix_footfall)
+                prev.mixed() ? wrap01(phase - PHASE_LEFT + prev.mix_footfall)
                                    * prev.mix_duration_s
                              : 0.0f;
         } else if (prev.duration_s > 0.0f) {
@@ -1193,6 +1372,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         }
     }
     if (!play.primed) {
+        play.prev_phase = play.phase;
         // The first tick has no past. Copying the present into it is what
         // stops frame one from interpolating out of the bind pose.
         play.prev_time_s = play.time_s;
@@ -1281,13 +1461,41 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
         && cur.duration_s > 0.0f) {
         const float d = cur.duration_s;
         std::vector<JointLocal> half(n);
+        // ПАРТНЁР СМЕСИ ТОЖЕ НА ПОЛЦИКЛА ПОЗЖЕ: прежде его время не сдвигалось, и
+        // «поза полуциклом позже» была смесью правильного ведущего кадра с
+        // партнёром из ДРУГОЙ фазы — зеркало усредняло позу с чужой и съедало
+        // треть хода стопы (замер: ходьба 1.34 → 0.91 м/с от одного слоя).
+        const float dm = cur.mixed() ? cur.mix_duration_s : 0.0f;
         role_frame(skeleton, binding, clips, cur,
                    std::fmod(play.prev_time_s + 0.5f * d, d),
                    std::fmod(play.time_s + 0.5f * d, d),
-                   play.prev_mix_time_s, play.mix_time_s, a,
-                   glm::mix(play.prev_stride, play.stride, a), half);
+                   dm > 0.0f ? std::fmod(play.prev_mix_time_s + 0.5f * dm, dm)
+                             : play.prev_mix_time_s,
+                   dm > 0.0f ? std::fmod(play.mix_time_s + 0.5f * dm, dm) : play.mix_time_s,
+                   a, glm::mix(play.prev_stride, play.stride, a), half);
         mirror_blend(skeleton, lib.mirror, half, lib.mirror_dose, out_sample);
     }
+    // СИММЕТРИЯ ПОКОЯ (заказ владельца 02.09: «стоя ноги ровно, без выноса
+    // левой ноги»): поза Idle смешивается со своим зеркалом на ТОЙ ЖЕ фазе —
+    // тот же прибор, что симметризует походку полуциклом, но без сдвига.
+    // ТОЛЬКО НОГИ (ветвь Lower): заказ про стойку ног; таз ровняет слой
+    // стойки (он держит рыск линии бёдер), а верх покоя — дыхание, поворот
+    // головы, руки — живёт своей асимметрией, и его симметризация двигала бы
+    // хват меча (замер: наклон клинка 25,2° → 23,0° при симметрии таза).
+    const auto symmetrise_idle = [&](ClipRole role, std::span<JointLocal> pose) {
+        if (role != ClipRole::Idle || lib.idle_symmetry <= 0.0f || !lib.mirror.valid()
+            || !lib.mask.valid()) {
+            return;
+        }
+        std::vector<JointLocal> sym(pose.begin(), pose.begin() + n);
+        mirror_blend(skeleton, lib.mirror, sym, lib.idle_symmetry, sym);
+        for (std::size_t j = 0; j < n; ++j) {
+            if (lib.mask.at(j) == Branch::Lower) {
+                pose[j] = sym[j];
+            }
+        }
+    };
+    symmetrise_idle(play.role, out_sample.first(n));
     const float fade = glm::mix(play.prev_fade, play.fade, a);
     const ClipEntry& prev = lib[play.previous];
     if (fade > 0.0f && prev.present()) {
@@ -1300,6 +1508,7 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
                    play.previous_time_s, play.prev_previous_mix_time_s,
                    play.previous_mix_time_s, a,
                    glm::mix(play.prev_previous_stride, play.previous_stride, a), other);
+        symmetrise_idle(play.previous, other);
         blend_local(out_sample.first(n), other, fade, out_sample.first(n));
     }
     // THE THREE LAYERS, in the order a body wears them: the weapon guard is

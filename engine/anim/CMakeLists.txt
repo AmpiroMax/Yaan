@@ -28,6 +28,7 @@ add_library(dfn_anim STATIC
     sources/HeldBlade.cpp
     sources/ClipPlayer.cpp
     sources/FootIk.cpp
+    sources/RootMotion.cpp
     sources/Hitbox.cpp
     sources/BodyGaps.cpp
     sources/RestFit.cpp

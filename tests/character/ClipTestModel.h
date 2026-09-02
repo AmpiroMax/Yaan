@@ -74,7 +74,12 @@ struct Model {
     anim::ClipLibrary lib;
 };
 
-[[nodiscard]] bool load(Model& m) {
+/// `feet_drive` = true строит библиотеку НОВОГО шва (часы клипа в anim,
+/// перемещение от стопы, docs/design/LOCOMOTION_GROUNDED.md); по умолчанию —
+/// ПРЕЖНИЙ шов (фаза сим'а, стрид-скейл): наборы слоёв (стойка, обход рук,
+/// зеркало, IK стоп) снимают позы НА ЗАДАННОЙ ФАЗЕ через drive.stride_phase, и
+/// это их предмет; шов проверяют ClipSlideTests и app_grounded_locomotion.
+[[nodiscard]] bool load(Model& m, bool feet_drive = false) {
     if (!std::filesystem::exists(MODEL)) {
         return false;
     }
@@ -88,7 +93,7 @@ struct Model {
     m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
-                                     m.obj.skin.vertices);
+                                     m.obj.skin.vertices, feet_drive);
     return true;
 }
 

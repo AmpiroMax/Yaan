@@ -129,6 +129,13 @@ struct PlayerState {
     /// скорости передачи RUN (WEAPON_DRAWN_RUN_FACTOR).
     bool weapon_drawn = false;
     Gait gait = Gait::Walk;     // resolved each tick; read by character
+    // НАМЕРЕНИЕ, опубликованное для анимации: скорость передачи, которую просит
+    // ввод (0 — ввода нет), и мировое направление ввода (единичный, или ноль).
+    // Анимация выбирает по ним роль клипа и темп; фактическую скорость капсулы
+    // задаёт её же заявка (StepContext::locomotion), поэтому выбирать роль по
+    // факту было бы кругом.
+    float want_speed_mps = 0.0f;
+    glm::vec2 want_dir{0.0f, 0.0f};
 
     // Jump: LATCHED like pending_look, not sampled. Render outpaces the fixed
     // tick, so a press and release inside one tick would otherwise be lost —
@@ -255,6 +262,22 @@ struct StepContext {
     // the open, which is why every existing test and frame is unchanged by
     // this field's arrival.
     float brush_density = 0.0f;
+
+    // ЗАЯВКА ЛОКОМОЦИИ ОТ АНИМАЦИИ (docs/design/LOCOMOTION_GROUNDED.md; решение
+    // синка 02.09). Перемещение ведёт опорная стопа клипа: анимация говорит,
+    // на сколько корень сдвинулся за тик (мир, горизонталь), какая фаза шага и
+    // где постановки; сим проводит смещение через физику (стена, склон,
+    // ступень) и возвращает факт положением капсулы. ФЕРРИ, НЕ ВЫВОД (правило
+    // 35): у сима нет второй копии часов шага. `valid` = false — заявки нет
+    // (нет клипов, воздух, прежний шов), капсула едет от ввода как прежде.
+    struct LocomotionRequest {
+        bool valid = false;
+        glm::vec2 delta_xz{0.0f, 0.0f}; ///< метры за тик, мир (x, z)
+        float phase = 0.0f;             ///< фаза шага [0,1) — часы анимации
+        bool footfall_left = false;
+        bool footfall_right = false;
+    };
+    LocomotionRequest locomotion;
 };
 
 // --- Ref-based core (unit-testable without a World) --------------------------

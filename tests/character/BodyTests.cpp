@@ -120,6 +120,7 @@ TEST_CASE("airborne and crouch change the evaluated pose") {
     const Rig rig = Rig::build(RigProportions::from_config());
     BodyDrive drive;
     drive.speed_mps = 0.0f;
+    drive.want_speed_mps = 0.0f;
     const LocalPose standing = evaluate_body_pose(rig, drive);
     BodyDrive airborne = drive;
     airborne.grounded = false;
@@ -253,6 +254,7 @@ namespace {
     BodyDrive d;
     d.gait = gait;
     d.speed_mps = speed;
+    d.want_speed_mps = speed;
     d.stride_phase = 0.31f; // an ordinary mid-stride instant, not an extremum
     d.step_length_m = static_cast<float>(config::STEP_LENGTH_BASE)
                     + static_cast<float>(config::STEP_LENGTH_PER_MPS) * speed;

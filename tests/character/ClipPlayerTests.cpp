@@ -186,12 +186,13 @@ TEST_CASE("clip_sampling_is_a_function_of_time") {
 
 TEST_CASE("clip_playback_crossfades_and_interpolates") {
     Model m;
-    REQUIRE(load(m));
+    REQUIRE(load(m, false)); // предмет — ПРЕЖНИЙ шов: фаза сим'а и стрид-скейл (контрольная рука)
     const float dt = 1.0f / 60.0f;
 
     anim::BodyDrive drive;
     drive.grounded = true;
     drive.speed_mps = 0.0f;
+    drive.want_speed_mps = 0.0f;
     anim::ClipPlayback play;
     anim::advance_playback(m.lib, drive, dt, play);
     CHECK(play.role == anim::ClipRole::Idle);
@@ -201,6 +202,7 @@ TEST_CASE("clip_playback_crossfades_and_interpolates") {
     // instant — a body that snaps from standing to mid-stride in one tick is
     // the defect the fade exists for.
     drive.speed_mps = static_cast<float>(config::WALK_SPEED);
+    drive.want_speed_mps = static_cast<float>(config::WALK_SPEED);
     drive.step_length_m = step_length(drive.speed_mps);
     drive.gait = anim::Gait::Walk;
     anim::advance_playback(m.lib, drive, dt, play);
@@ -461,6 +463,7 @@ TEST_CASE("the_feet_stay_on_the_ground") {
         anim::BodyDrive drive;
         drive.gait = gait;
         drive.speed_mps = speed;
+        drive.want_speed_mps = speed;
         drive.step_length_m = step_length(speed);
         drive.stride_phase = phase;
         drive.grounded = true;
@@ -619,6 +622,7 @@ TEST_CASE("both_feet_stand_on_the_object_they_are_on") {
         anim::BodyDrive drive;
         drive.gait = gait;
         drive.speed_mps = speed;
+        drive.want_speed_mps = speed;
         drive.step_length_m = step_length(speed);
         drive.stride_phase = phase;
         drive.grounded = true;
@@ -892,6 +896,7 @@ TEST_CASE("a_drawn_weapon_is_an_upper_body_layer") {
         anim::BodyDrive drive;
         drive.gait = anim::Gait::Walk;
         drive.speed_mps = static_cast<float>(config::WALK_SPEED);
+        drive.want_speed_mps = static_cast<float>(config::WALK_SPEED);
         drive.step_length_m = step_length(static_cast<float>(config::WALK_SPEED));
         drive.stride_phase = 0.25f;
         drive.grounded = true;
@@ -978,6 +983,7 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
         anim::BodyDrive drive;
         drive.gait = anim::Gait::Walk;
         drive.speed_mps = speed;
+        drive.want_speed_mps = speed;
         drive.step_length_m = step_length(speed);
         drive.stride_phase = phase;
         drive.grounded = true;
@@ -1299,6 +1305,7 @@ TEST_CASE("the_hands_do_not_go_through_the_hips") {
         anim::BodyDrive drive;
         drive.gait = gait;
         drive.speed_mps = speed;
+        drive.want_speed_mps = speed;
         drive.step_length_m = step_length(speed);
         drive.stride_phase = phase;
         drive.grounded = true;
@@ -1366,7 +1373,7 @@ TEST_CASE("in_the_air_the_pose_is_the_clip") {
     // называет двух подозреваемых — подгонку шага и решатель стоп — и оба
     // проверяются здесь ЧИСЛОМ, а не прочтением кода.
     Model m;
-    REQUIRE(load(m));
+    REQUIRE(load(m, false)); // стрид-скейл есть только у прежнего шва
     REQUIRE(m.lib.has(anim::ClipRole::JumpStart));
     REQUIRE(m.lib.has(anim::ClipRole::JumpLoop));
 
@@ -1391,6 +1398,7 @@ TEST_CASE("in_the_air_the_pose_is_the_clip") {
     anim::BodyDrive drive;
     drive.gait = anim::Gait::Walk;
     drive.speed_mps = 0.0f;
+    drive.want_speed_mps = 0.0f;
     drive.step_length_m = step_length(0.0f);
     drive.grounded = true;
     for (int i = 0; i < 20; ++i) {
@@ -1429,6 +1437,7 @@ TEST_CASE("in_the_air_the_pose_is_the_clip") {
     anim::BodyDrive walk = drive;
     walk.grounded = true;
     walk.speed_mps = static_cast<float>(config::WALK_SPEED);
+    walk.want_speed_mps = static_cast<float>(config::WALK_SPEED);
     walk.step_length_m = step_length(walk.speed_mps);
     for (int i = 0; i < 20; ++i) {
         anim::advance_playback(m.lib, walk, 1.0f / 30.0f, walk_play);

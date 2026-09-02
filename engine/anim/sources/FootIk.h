@@ -205,6 +205,74 @@ struct FootGap {
                                const FootIkProbe& probe, const FootIkPlan& plan,
                                std::span<const JointLocal> sample);
 
+/// ТОЧКИ КАСАНИЯ ОБЕИХ СТОП НА ОДНОЙ ПОЗЕ, в системе тела, и вес опоры каждой
+/// (тот же, что FootIkPlan::weight). `point` — подушечка стопы (сустав носка,
+/// когда он есть, иначе лодыжка): при перекате она стоит, а лодыжка вращается
+/// вокруг неё. Это вход корневого движения от стопы (RootMotion.h) и якорь
+/// замка стопы (ниже).
+struct ContactState {
+    /// Нижняя из двух точек стопы (носок или лодыжка, каждая относительно
+    /// СВОЕЙ высоты покоя): при ударе пяткой это лодыжка, при перекате —
+    /// подушечка. Именно эта точка стоит на месте, пока стопа опорная.
+    std::array<glm::vec3, 2> point{};
+    std::array<glm::vec3, 2> ankle{};
+    std::array<glm::vec3, 2> toe{}; ///< = ankle, когда носка у скелета нет
+    /// Высота нижней точки над её высотой покоя, метры.
+    std::array<float, 2> height{};
+    /// Вес IK стоп (FootIkPlan::weight, щедрая полоса 12 см) — для подъёма
+    /// на грунт.
+    std::array<float, 2> weight{};
+    /// ВЕС ОПОРЫ ДЛЯ КОРНЕВОГО ДВИЖЕНИЯ И ЗАМКА: самая низкая стопа — 1, вторая
+    /// — по полосе FOOT_SUPPORT_BAND_M над ней; обе 0 в полёте (нижняя выше
+    /// FOOT_IK_RELEASE_M). Отдельно от `weight` намеренно: см. строку реестра.
+    std::array<float, 2> support{};
+    /// Какая точка сейчас нижняя: true — подушечка (носок), false — лодыжка.
+    std::array<bool, 2> toe_point{};
+    bool valid = false;
+    [[nodiscard]] bool any_support() const { return support[0] > 0.0f || support[1] > 0.0f; }
+};
+[[nodiscard]] ContactState contact_state(const skel::Skeleton& skeleton,
+                                         const FootIkSetup& setup, const FootIkPlan& plan,
+                                         std::span<const JointLocal> sample);
+
+/// ЗАМОК СТОПЫ (docs/design/LOCOMOTION_GROUNDED.md, §2 п. 2). Когда вес опоры
+/// переваливает `on_weight`, мировая точка касания запоминается; пока вес не
+/// упал ниже `off_weight`, стопа ставится в неё двузвенником колена; после
+/// отпускания сила замка сходит на нет за `release_s`, чтобы не было щелчка.
+/// Замок закрывает то, чего корневое движение от стопы не закрывает: капсулу,
+/// которую физика провела иначе (стена, склон, ступень), поворот на ходу,
+/// кроссфейд двух клипов с разными постановками, фильтр корня по высоте.
+struct FootLockParams {
+    float on_weight = 0.6f;
+    float off_weight = 0.3f;
+    float release_s = 0.1f;
+    /// Строки FOOT_LOCK_* реестра.
+    [[nodiscard]] static FootLockParams from_config();
+};
+struct FootLockState {
+    std::array<bool, 2> locked{};
+    std::array<glm::vec3, 2> anchor{};   ///< мировая точка касания на защёлкивании
+    std::array<bool, 2> anchor_toe{};    ///< якорь — подушечка (true) или лодыжка
+    std::array<float, 2> strength{};     ///< 0..1, сколько замка в силе
+    /// ЗАЩЁЛКНУЛСЯ НА ЭТОМ ТИКЕ — постановка стопы; читатель событий шага.
+    std::array<bool, 2> engaged{};
+};
+/// Один тик состояния замков: `contact_world` — точки касания этой позы в
+/// МИРЕ (приложение знает корень), `weight` — вес опоры.
+void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& contact_world,
+                       const std::array<float, 2>& weight,
+                       const std::array<bool, 2>& point_is_toe, float dt,
+                       const FootLockParams& params);
+/// ПРАВКА ПОЗЫ ПОД ЗАМОК: подушечка каждой стопы с силой > 0 ставится в
+/// `point_target_model` (система тела; берётся только горизонталь — высоту
+/// держит apply_foot_ik), лодыжка едет вместе с ней, колено решается
+/// двузвенником, бедро доворачивается. Цель дальше вытяжения ноги режется
+/// по досягаемости, а не растягивает ногу.
+void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
+                     const std::array<glm::vec3, 2>& point_target_model,
+                     const std::array<bool, 2>& target_is_toe,
+                     const std::array<float, 2>& strength, std::span<JointLocal> sample);
+
 /// HOW PLANTED A FOOT HAS TO BE before the instrument above judges it, and the
 /// number is DERIVED FROM THE SOLVE rather than picked.
 ///

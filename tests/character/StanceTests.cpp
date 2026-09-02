@@ -96,10 +96,11 @@ struct Model {
     m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
-                                     m.obj.skin.vertices);
+                                     m.obj.skin.vertices, false);
     m.bare = m.lib;
     m.bare.relax = anim::ArmRelax{};
     m.bare.stance = anim::StanceLayer{};
+    m.bare.idle_symmetry = 0.0f; // «как куплено»: без симметрии покоя тоже
     return true;
 }
 
@@ -130,6 +131,7 @@ void sample_shot(const Model& m, const anim::ClipLibrary& lib, const Shot& s,
     anim::BodyDrive drive;
     drive.gait = s.gait;
     drive.speed_mps = s.speed;
+    drive.want_speed_mps = s.speed;
     drive.step_length_m = step_length(s.speed);
     drive.stride_phase = phase;
     drive.grounded = true;
@@ -452,6 +454,7 @@ TEST_CASE("the_walk_gear_plays_the_walk_clip") {
     anim::BodyDrive drive;
     drive.gait = anim::Gait::Walk;
     drive.speed_mps = static_cast<float>(config::WALK_SPEED);
+    drive.want_speed_mps = static_cast<float>(config::WALK_SPEED);
     drive.step_length_m = step_length(drive.speed_mps);
     drive.grounded = true;
     const anim::ClipRole role = anim::role_for_drive(m.lib, drive);

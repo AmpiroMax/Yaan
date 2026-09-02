@@ -16,6 +16,8 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/FootIk.h"
 
+#include "engine/core/config/sources/Constants.h"
+
 #include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
@@ -173,6 +175,71 @@ FootIkPlan plan_foot_ik(const skel::Skeleton& skeleton, const FootIkSetup& setup
     return plan;
 }
 
+/// ДВУЗВЕННИК КОЛЕНА ДО ТОЧКИ: лодыжка стороны `side` ставится в T (система
+/// тела) — угол колена по закону косинусов в плоскости бедро-колено-лодыжка,
+/// затем поворот бедра дугой к цели. Один решатель на подъём (apply_foot_ik)
+/// и замок стопы (apply_foot_lock); `local`/`model` пересчитываются на месте.
+void reach_ankle(const skel::Skeleton& skeleton, const FootIkSetup& setup, std::size_t side,
+                 const glm::vec3& T, std::span<JointLocal> sample,
+                 std::vector<glm::mat4>& local, std::vector<glm::mat4>& model) {
+    const int32_t hip = setup.hip[side];
+    const int32_t knee = setup.knee[side];
+    const int32_t ankle = setup.ankle[side];
+    const glm::vec3 A = origin_of(model[static_cast<std::size_t>(hip)]);
+    const glm::vec3 B = origin_of(model[static_cast<std::size_t>(knee)]);
+    const glm::vec3 C = origin_of(model[static_cast<std::size_t>(ankle)]);
+    const float l1 = glm::length(B - A);
+    const float l2 = glm::length(C - B);
+    if (l1 > 1.0e-4f && l2 > 1.0e-4f) {
+        // THE LAW OF COSINES, on the two segments the leg is. The
+        // reach is clamped INSIDE the reachable annulus rather than
+        // at its edges: a leg asked for exactly l1 + l2 is a leg with
+        // no bend plane left, and the next frame's normal flips.
+        const float lo = std::abs(l1 - l2) + 1.0e-3f;
+        const float hi = l1 + l2 - 1.0e-3f;
+        const float r_now = std::clamp(glm::length(C - A), lo, hi);
+        const float r_want = std::clamp(glm::length(T - A), lo, hi);
+        const auto interior = [&](float r) {
+            return std::acos(std::clamp((l1 * l1 + l2 * l2 - r * r)
+                                            / (2.0f * l1 * l2),
+                                        -1.0f, 1.0f));
+        };
+        const glm::vec3 u = A - B;
+        const glm::vec3 v = C - B;
+        glm::vec3 n = glm::cross(u, v);
+        if (glm::length(n) < 1.0e-6f) {
+            // A STRAIGHT LEG HAS NO PLANE OF ITS OWN, so the knee is
+            // bent about the character's own lateral axis, which is
+            // what a knee does. Guessing a normal from the near-zero
+            // cross product would pick a direction from rounding.
+            n = glm::vec3{1.0f, 0.0f, 0.0f};
+        }
+        n = glm::normalize(n);
+        const float delta = interior(r_want) - interior(r_now);
+        if (std::abs(delta) > 1.0e-5f) {
+            turn_in_model(model_rotation(model[static_cast<std::size_t>(hip)]),
+                          glm::angleAxis(delta, n),
+                          sample[static_cast<std::size_t>(knee)]);
+        }
+        // The knee bend moved the ankle; the hip now swings the whole
+        // leg so the ankle lands ON the target rather than near it.
+        model_matrices(skeleton, sample, local, model);
+        const glm::vec3 C2 = origin_of(model[static_cast<std::size_t>(ankle)]);
+        const glm::vec3 from = C2 - A;
+        const glm::vec3 to = T - A;
+        if (glm::length(from) > 1.0e-5f && glm::length(to) > 1.0e-5f) {
+            const glm::quat swing =
+                shortest_arc(glm::normalize(from), glm::normalize(to));
+            const int32_t hp = skeleton.joints[static_cast<std::size_t>(hip)].parent;
+            const glm::quat parent_rot =
+                hp >= 0 ? model_rotation(model[static_cast<std::size_t>(hp)])
+                        : glm::quat{1.0f, 0.0f, 0.0f, 0.0f};
+            turn_in_model(parent_rot, swing, sample[static_cast<std::size_t>(hip)]);
+            model_matrices(skeleton, sample, local, model);
+        }
+    }
+}
+
 void apply_foot_ik(const skel::Skeleton& skeleton, const FootIkSetup& setup,
                    const FootIkProbe& probe, const FootIkPlan& plan, float strength,
                    std::span<JointLocal> sample) {
@@ -200,64 +267,11 @@ void apply_foot_ik(const skel::Skeleton& skeleton, const FootIkSetup& setup,
         // is a foot in flight, and pulling it down is how a walk becomes a
         // shuffle.
         const float residual = std::max(0.0f, w * plan.need[side] - root_dy);
-        const int32_t hip = setup.hip[side];
-        const int32_t knee = setup.knee[side];
         const int32_t ankle = setup.ankle[side];
-        const glm::vec3 A = origin_of(model[static_cast<std::size_t>(hip)]);
-        const glm::vec3 B = origin_of(model[static_cast<std::size_t>(knee)]);
         const glm::vec3 C = origin_of(model[static_cast<std::size_t>(ankle)]);
         if (residual > 1.0e-5f) {
-            const glm::vec3 T = C + glm::vec3{0.0f, residual, 0.0f};
-            const float l1 = glm::length(B - A);
-            const float l2 = glm::length(C - B);
-            if (l1 > 1.0e-4f && l2 > 1.0e-4f) {
-                // THE LAW OF COSINES, on the two segments the leg is. The
-                // reach is clamped INSIDE the reachable annulus rather than
-                // at its edges: a leg asked for exactly l1 + l2 is a leg with
-                // no bend plane left, and the next frame's normal flips.
-                const float lo = std::abs(l1 - l2) + 1.0e-3f;
-                const float hi = l1 + l2 - 1.0e-3f;
-                const float r_now = std::clamp(glm::length(C - A), lo, hi);
-                const float r_want = std::clamp(glm::length(T - A), lo, hi);
-                const auto interior = [&](float r) {
-                    return std::acos(std::clamp((l1 * l1 + l2 * l2 - r * r)
-                                                    / (2.0f * l1 * l2),
-                                                -1.0f, 1.0f));
-                };
-                const glm::vec3 u = A - B;
-                const glm::vec3 v = C - B;
-                glm::vec3 n = glm::cross(u, v);
-                if (glm::length(n) < 1.0e-6f) {
-                    // A STRAIGHT LEG HAS NO PLANE OF ITS OWN, so the knee is
-                    // bent about the character's own lateral axis, which is
-                    // what a knee does. Guessing a normal from the near-zero
-                    // cross product would pick a direction from rounding.
-                    n = glm::vec3{1.0f, 0.0f, 0.0f};
-                }
-                n = glm::normalize(n);
-                const float delta = interior(r_want) - interior(r_now);
-                if (std::abs(delta) > 1.0e-5f) {
-                    turn_in_model(model_rotation(model[static_cast<std::size_t>(hip)]),
-                                  glm::angleAxis(delta, n),
-                                  sample[static_cast<std::size_t>(knee)]);
-                }
-                // The knee bend moved the ankle; the hip now swings the whole
-                // leg so the ankle lands ON the target rather than near it.
-                model_matrices(skeleton, sample, local, model);
-                const glm::vec3 C2 = origin_of(model[static_cast<std::size_t>(ankle)]);
-                const glm::vec3 from = C2 - A;
-                const glm::vec3 to = T - A;
-                if (glm::length(from) > 1.0e-5f && glm::length(to) > 1.0e-5f) {
-                    const glm::quat swing =
-                        shortest_arc(glm::normalize(from), glm::normalize(to));
-                    const int32_t hp = skeleton.joints[static_cast<std::size_t>(hip)].parent;
-                    const glm::quat parent_rot =
-                        hp >= 0 ? model_rotation(model[static_cast<std::size_t>(hp)])
-                                : glm::quat{1.0f, 0.0f, 0.0f, 0.0f};
-                    turn_in_model(parent_rot, swing, sample[static_cast<std::size_t>(hip)]);
-                    model_matrices(skeleton, sample, local, model);
-                }
-            }
+            reach_ankle(skeleton, setup, side, C + glm::vec3{0.0f, residual, 0.0f},
+                        sample, local, model);
         }
         // THE ANKLE PITCHES SO THE TOE MEETS ITS OWN GROUND. Without it a flat
         // foot on a 15-degree slope buries a toe or a heel by half the foot's
@@ -360,6 +374,141 @@ float foot_penetration(const skel::Skeleton& skeleton, const FootIkSetup& setup,
         worst = std::max(worst, -g.gap[side]);
     }
     return worst;
+}
+
+
+ContactState contact_state(const skel::Skeleton& skeleton, const FootIkSetup& setup,
+                           const FootIkPlan& plan, std::span<const JointLocal> sample) {
+    ContactState out;
+    if (!setup.valid() || sample.size() < skeleton.size()) {
+        return out;
+    }
+    std::vector<glm::mat4> local;
+    std::vector<glm::mat4> model;
+    model_matrices(skeleton, sample, local, model);
+    for (std::size_t side = 0; side < 2; ++side) {
+        const glm::vec3 ankle = origin_of(model[static_cast<std::size_t>(setup.ankle[side])]);
+        out.ankle[side] = ankle;
+        out.toe[side] = ankle;
+        const float ankle_h = ankle.y - setup.ankle_rest_y[side];
+        out.point[side] = ankle;
+        out.height[side] = ankle_h;
+        if (setup.toe[side] >= 0) {
+            const glm::vec3 toe = origin_of(model[static_cast<std::size_t>(setup.toe[side])]);
+            out.toe[side] = toe;
+            const float toe_h = toe.y - setup.toe_rest_y[side];
+            if (toe_h < ankle_h) {
+                out.point[side] = toe;
+                out.height[side] = toe_h;
+                out.toe_point[side] = true;
+            }
+        }
+        out.weight[side] = std::clamp(plan.weight[side], 0.0f, 1.0f);
+    }
+    // ВЕС ОПОРЫ: самая низкая стопа ведёт, вторая — в полосе над ней; полёт —
+    // никто (см. FOOT_SUPPORT_BAND_M).
+    const float lowest = std::min(out.height[0], out.height[1]);
+    const float band = static_cast<float>(config::FOOT_SUPPORT_BAND_M);
+    for (std::size_t side = 0; side < 2; ++side) {
+        if (lowest > FOOT_IK_RELEASE_M) {
+            out.support[side] = 0.0f;
+            continue;
+        }
+        const float above = out.height[side] - lowest;
+        const float u = band > 0.0f ? std::clamp(above / band, 0.0f, 1.0f) : (above > 0.0f ? 1.0f : 0.0f);
+        out.support[side] = 1.0f - u * u * (3.0f - 2.0f * u);
+    }
+    out.valid = true;
+    return out;
+}
+
+FootLockParams FootLockParams::from_config() {
+    FootLockParams p;
+    p.on_weight = static_cast<float>(config::FOOT_LOCK_ON_WEIGHT);
+    p.off_weight = static_cast<float>(config::FOOT_LOCK_OFF_WEIGHT);
+    p.release_s = static_cast<float>(config::FOOT_LOCK_RELEASE_S);
+    return p;
+}
+
+void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& contact_world,
+                       const std::array<float, 2>& weight,
+                       const std::array<bool, 2>& point_is_toe, float dt,
+                       const FootLockParams& params) {
+    for (std::size_t side = 0; side < 2; ++side) {
+        state.engaged[side] = false;
+        if (state.locked[side]) {
+            if (weight[side] < params.off_weight) {
+                state.locked[side] = false; // отпущен: сила сходит ниже
+            } else {
+                // ПЕРЕКАТ: нижняя точка сменилась (пятка → носок) — якорь
+                // перецепляется на новую точку там, где она сейчас стоит;
+                // держать пятку на месте, когда она уже поднимается, значит
+                // ломать перекат клипа.
+                if (state.anchor_toe[side] != point_is_toe[side]) {
+                    state.anchor[side] = contact_world[side];
+                    state.anchor_toe[side] = point_is_toe[side];
+                }
+                state.strength[side] = 1.0f;
+                continue;
+            }
+        } else if (weight[side] >= params.on_weight) {
+            state.locked[side] = true;
+            state.engaged[side] = true;
+            state.anchor[side] = contact_world[side];
+            state.anchor_toe[side] = point_is_toe[side];
+            state.strength[side] = 1.0f;
+            continue;
+        }
+        const float fall = params.release_s > 0.0f ? dt / params.release_s : 1.0f;
+        state.strength[side] = std::max(0.0f, state.strength[side] - fall);
+    }
+}
+
+void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
+                     const std::array<glm::vec3, 2>& point_target_model,
+                     const std::array<bool, 2>& target_is_toe,
+                     const std::array<float, 2>& strength, std::span<JointLocal> sample) {
+    if (!setup.valid() || sample.size() < skeleton.size()) {
+        return;
+    }
+    std::vector<glm::mat4> local;
+    std::vector<glm::mat4> model;
+    model_matrices(skeleton, sample, local, model);
+    for (std::size_t side = 0; side < 2; ++side) {
+        const float k = std::clamp(strength[side], 0.0f, 1.0f);
+        if (k <= 1.0e-4f) {
+            continue;
+        }
+        // ТРИ ПРОХОДА: двузвенник ведёт ЛОДЫЖКУ, а якорь — у подушечки; поворот
+        // бедра и колена поворачивает и стопу, так что смещение «лодыжка минус
+        // подушечка» после решения уже не то, что до него. Повтор с
+        // пересчитанным смещением сходится за два-три шага (замер: 8 мм → <1).
+        for (int pass = 0; pass < 12; ++pass) {
+            const glm::vec3 A = origin_of(model[static_cast<std::size_t>(setup.hip[side])]);
+            const glm::vec3 B = origin_of(model[static_cast<std::size_t>(setup.knee[side])]);
+            const glm::vec3 C = origin_of(model[static_cast<std::size_t>(setup.ankle[side])]);
+            const glm::vec3 P = (target_is_toe[side] && setup.toe[side] >= 0)
+                                    ? origin_of(model[static_cast<std::size_t>(setup.toe[side])])
+                                    : C;
+            // Цель для ЛОДЫЖКИ: подушечка в якорь, стопа едет жёстко (лодыжка =
+            // якорь + её смещение от подушечки сейчас); только горизонталь.
+            const glm::vec3 want_point{point_target_model[side].x, P.y,
+                                       point_target_model[side].z};
+            glm::vec3 T = want_point + (C - P);
+            T = glm::mix(C, T, k);
+            // Досягаемость: дальше 99,5 % вытяжения ноги цель режется к бедру,
+            // а не растягивает ногу (0.985 оставляло 1 мм на вытянутой ноге трусцы).
+            const float reach = 0.995f * (glm::length(B - A) + glm::length(C - B));
+            const glm::vec3 from_hip = T - A;
+            if (const float d = glm::length(from_hip); d > reach && d > 1.0e-5f) {
+                T = A + from_hip * (reach / d);
+            }
+            if (glm::length(T - C) < 1.0e-4f) {
+                break;
+            }
+            reach_ankle(skeleton, setup, side, T, sample, local, model);
+        }
+    }
 }
 
 } // namespace dfn::anim

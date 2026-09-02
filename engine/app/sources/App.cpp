@@ -4633,6 +4633,31 @@ int App::run() {
                 // видимой глазом.
                 grab_input(static_cast<float>(timestep_.step_dt()));
                 park_posture();
+                // ПЕРЕМЕЩЕНИЕ ВЕДЁТ ОПОРНАЯ СТОПА (docs/design/LOCOMOTION_GROUNDED.md):
+                // анимация тикает ДО шага сим'а и выдаёт заявку на смещение
+                // капсулы; сим проводит её через физику, факт возвращается
+                // в commit_root() ниже.
+                step_ctx_.locomotion = {};
+                if (skinned_character_.ready()) {
+                    if (const auto* cdrive = world_.get<anim::BodyDrive>(player_)) {
+                        const auto* ctr = world_.get<components::Transform>(player_);
+                        const glm::vec3 feet = ctr != nullptr ? ctr->position : glm::vec3{0.0f};
+                        skinned_character_.advance(*cdrive, feet,
+                                                   static_cast<float>(timestep_.step_dt()));
+                        const anim::LocomotionOut& lo = skinned_character_.locomotion();
+                        if (lo.valid) {
+                            const float yaw = anim::body_root_for(*cdrive, feet).yaw;
+                            const glm::vec3 w = glm::vec3{
+                                glm::rotate(glm::mat4{1.0f}, -yaw, glm::vec3{0.0f, 1.0f, 0.0f})
+                                * glm::vec4{lo.root_delta_model, 0.0f}};
+                            step_ctx_.locomotion.valid = true;
+                            step_ctx_.locomotion.delta_xz = glm::vec2{w.x, w.z};
+                            step_ctx_.locomotion.phase = lo.phase;
+                            step_ctx_.locomotion.footfall_left = lo.footfall[0];
+                            step_ctx_.locomotion.footfall_right = lo.footfall[1];
+                        }
+                    }
+                }
                 gameplay::player_pre_step(world_, *physics_,
                     [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); },
                     step_ctx_);
@@ -4655,6 +4680,7 @@ int App::run() {
                         drive->grounded = !ps->airborne;
                         drive->vertical_velocity = ps->vertical_velocity;
                         drive->crouch_blend = ps->crouch_blend;
+                        drive->want_speed_mps = ps->want_speed_mps;
                         // THE GAIT ITSELF, not the speed it was derived from.
                         // While this line was missing, character re-derived the
                         // gear by comparing speed against WALK_SPEED and
@@ -4736,7 +4762,7 @@ int App::run() {
                 if (skinned_character_.ready()) {
                     if (const auto* cdrive = world_.get<anim::BodyDrive>(player_)) {
                         const auto* ctr = world_.get<components::Transform>(player_);
-                        skinned_character_.advance(
+                        skinned_character_.commit_root(
                             *cdrive,
                             ctr != nullptr ? ctr->position : glm::vec3{0.0f},
                             static_cast<float>(timestep_.step_dt()));

@@ -1,0 +1,306 @@
+/*
+Module: tests
+File: tests/app/GroundedLocomotionTests.cpp
+
+Responsibility:
+- ПРИБОР №1 ЗАПИСКИ «НОГИ НА ЗЕМЛЕ» (docs/design/LOCOMOTION_GROUNDED.md) НА
+  ПУТИ ИГРОКА: персонаж строится той же фабрикой, что в мире, тик за тиком
+  тикает ДО шага сим'а, его заявка на смещение проводится (здесь — без
+  физики, как есть), корень подтверждается commit_root(), и кадр строится
+  build_draw() — ровно тот путь, что рисует игру. Мировая точка касания
+  опорной стопы, снятая с ПАЛИТРЫ КАДРА, за окно опоры обязана стоять на
+  месте не хуже FOOT_SLIDE_MAX_M (2 мм) на ходьбе, трусце и беге.
+- Контрольные руки (правило 30, правило 47 — из одного бинарника): без
+  замка остаток заметно больше; прежний шов (капсула от сим'а, стрид-скейл)
+  сносит стопу на сантиметры.
+- Симметрия покоя (заказ владельца 02.09: «стоя ноги ровно»): в покое
+  лодыжки на одной линии по ходу; с дозой 0 — вынос ноги как в клипе.
+
+Key items:
+- the_planted_foot_stays_put_on_the_player_path: walk/jog/run, замок, кадр.
+- without_the_lock_the_residual_is_larger / the_old_seam_slides: контроли.
+- idle_feet_stand_level: симметрия покоя и её контрольная рука.
+
+Dependencies:
+- Uses: doctest, engine/app (CharacterFactory, SkinnedCharacter), engine/anim,
+  нулевой бэкенд рендера, HumanBase.dfo (цель dfn_characters).
+- Used by: ctest (app_grounded_locomotion).
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- Порог — строка реестра FOOT_SLIDE_MAX_M, не литерал; кадры — только стенды,
+  этот прибор — числа.
+*/
+
+#include "engine/app/sources/CharGenBody.h"
+#include "engine/app/sources/CharacterFactory.h"
+#include "engine/app/sources/SkinnedCharacter.h"
+#include "engine/anim/sources/Body.h"
+#include "engine/anim/sources/Rig.h"
+#include "engine/core/config/sources/Constants.h"
+#include "engine/platform/render/sources/null/NullRenderer.h"
+#include "engine/render/sources/RenderSystem.h"
+
+#include <doctest/doctest.h>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <filesystem>
+#include <vector>
+
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
+
+using namespace dfn;
+
+namespace {
+
+namespace fs = std::filesystem;
+constexpr float DT = static_cast<float>(config::SIM_DT);
+
+[[nodiscard]] bool body_present() {
+    std::error_code ec;
+    return fs::exists(app::CHARGEN_SOURCE_BODY, ec);
+}
+
+[[nodiscard]] float step_length(float speed) {
+    return static_cast<float>(config::STEP_LENGTH_BASE)
+           + static_cast<float>(config::STEP_LENGTH_PER_MPS) * speed;
+}
+
+struct Harness {
+    platform::NullRenderer renderer;
+    render::RenderSystem rs;
+    anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    app::SkinnedCharacter body;
+    app::CharacterBodies bodies;
+    bool ok = false;
+
+    Harness() {
+        app::CharacterSpec spec;
+        spec.proportions = &rig;
+        spec.mesh_asset = app::VIEWER_BODY_MESH_ID;
+        spec.blade_asset = app::VIEWER_BLADE_MESH_ID;
+        ok = app::build_character(body, bodies, rs, renderer, nullptr,
+                                  fs::path(app::CHARGEN_SOURCE_BODY), spec);
+    }
+    ~Harness() {
+        if (ok) {
+            app::release_character(body, bodies, rs, renderer, nullptr);
+        }
+    }
+    /// Мировое положение сустава из ПАЛИТРЫ кадра: transform · palette[j] ·
+    /// bind_origin[j], где bind_origin — обратная к inverse_bind.
+    [[nodiscard]] glm::vec3 joint_world(const render::RenderSystem::SkinnedDraw& d,
+                                        int32_t joint) const {
+        const auto j = static_cast<std::size_t>(joint);
+        const glm::vec3 bind = glm::vec3{glm::inverse(body.skeleton().joints[j].inverse_bind)[3]};
+        return glm::vec3{d.transform * d.palette[j] * glm::vec4{bind, 1.0f}};
+    }
+};
+
+struct Run {
+    float worst_spread_m = 0.0f;
+    float travelled_m = 0.0f;
+    uint32_t plants = 0;
+    float speed_mps = 0.0f;
+    std::array<float, 4> alpha_worst{}; ///< остаток к якорю по alpha 0.25/0.5/0.75/1
+};
+
+/// Прогон передачи по пути игрока. `legacy` — прежний шов: корень едет со
+/// скоростью сим'а, фаза от смещения (как в PlayerMovement::advance_stride).
+Run run_gear(Harness& h, anim::Gait gait, float speed, bool legacy, uint32_t ticks) {
+    Run out;
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    drive.gait = gait;
+    drive.speed_mps = speed;
+    drive.want_speed_mps = speed;
+    drive.step_length_m = step_length(speed);
+    drive.facing_yaw = 0.0f;
+    glm::vec3 root{0.0f};
+    const int32_t toe_l = h.body.skeleton().find("DEF-toe.L");
+    const int32_t toe_r = h.body.skeleton().find("DEF-toe.R");
+    REQUIRE(toe_l >= 0);
+    REQUIRE(toe_r >= 0);
+    const int32_t ankle_l = h.body.skeleton().find("DEF-foot.L");
+    const int32_t ankle_r = h.body.skeleton().find("DEF-foot.R");
+    REQUIRE(ankle_l >= 0);
+    REQUIRE(ankle_r >= 0);
+    const int32_t toes[2] = {toe_l, toe_r};
+    const int32_t ankles[2] = {ankle_l, ankle_r};
+    std::array<bool, 2> track_toe{};
+    const float on = static_cast<float>(config::FOOT_LOCK_ON_WEIGHT);
+    const float off = static_cast<float>(config::FOOT_LOCK_OFF_WEIGHT);
+    std::array<bool, 2> planted{};
+    std::array<std::vector<glm::vec3>, 2> window{};
+    const auto close_window = [&](std::size_t side) {
+        if (window[side].size() >= 4) {
+            float spread = 0.0f;
+            for (std::size_t i = 0; i < window[side].size(); ++i) {
+                for (std::size_t k = i + 1; k < window[side].size(); ++k) {
+                    const glm::vec3 d = window[side][k] - window[side][i];
+                    spread = std::max(spread, glm::length(glm::vec2{d.x, d.z}));
+                }
+            }
+            out.worst_spread_m = std::max(out.worst_spread_m, spread);
+            ++out.plants;
+        }
+        window[side].clear();
+    };
+    for (uint32_t t = 0; t < ticks; ++t) {
+        if (legacy) {
+            drive.stride_phase += speed * DT / (2.0f * drive.step_length_m);
+            drive.stride_phase -= std::floor(drive.stride_phase);
+        }
+        h.body.advance(drive, root, DT);
+        const anim::LocomotionOut& lo = h.body.locomotion();
+        if (legacy || !lo.valid) {
+            root += glm::vec3{0.0f, 0.0f, -speed * DT};
+            out.travelled_m += speed * DT;
+        } else {
+            root += lo.root_delta_model; // рыск 0: система тела = мир
+            out.travelled_m += glm::length(lo.root_delta_model);
+        }
+        h.body.commit_root(drive, root, DT);
+        // КАДРЫ между тиками: как рисует игра — на нескольких alpha
+        if (t >= 30) {
+            const anim::ContactState& c = h.body.contacts();
+            for (std::size_t side = 0; side < 2; ++side) {
+                const float w = c.support[side];
+                if (!planted[side] && w >= on) {
+                    planted[side] = true;
+                    track_toe[side] = c.toe_point[side]; // якорь замка: та же точка
+                } else if (planted[side] && w < off) {
+                    planted[side] = false;
+                    close_window(side);
+                } else if (planted[side] && track_toe[side] != c.toe_point[side]) {
+                    close_window(side); // перекат: замок перецепился — новое окно
+                    track_toe[side] = c.toe_point[side];
+                }
+            }
+            for (const float alpha : {0.25f, 0.5f, 0.75f, 1.0f}) {
+                const render::RenderSystem::SkinnedDraw d = h.body.build_draw(false, alpha);
+                REQUIRE(d.palette.size() == h.body.skeleton().size());
+                for (std::size_t side = 0; side < 2; ++side) {
+                    if (planted[side]) {
+                        const glm::vec3 p =
+                            h.joint_world(d, track_toe[side] ? toes[side] : ankles[side]);
+                        window[side].push_back(p);
+                        // диагностика: остаток к якорю замка по alpha
+                        const anim::FootLockState& lk = h.body.foot_locks();
+                        if (lk.locked[side]) {
+                            const glm::vec3 e = p - lk.anchor[side];
+                            const float r = glm::length(glm::vec2{e.x, e.z});
+                            const std::size_t ai = static_cast<std::size_t>(alpha * 4.0f) - 1;
+                            out.alpha_worst[ai] = std::max(out.alpha_worst[ai], r);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out.speed_mps = out.travelled_m / (float(ticks) * DT);
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("the_planted_foot_stays_put_on_the_player_path") {
+    if (!body_present()) {
+        MESSAGE("HumanBase.dfo нет в дереве — набор пропущен");
+        return;
+    }
+    Harness h;
+    REQUIRE(h.ok);
+    REQUIRE(h.body.feet_drive());
+    REQUIRE(h.body.foot_lock());
+    const float limit = static_cast<float>(config::FOOT_SLIDE_MAX_M);
+    struct Gear {
+        anim::Gait gait;
+        float speed;
+        const char* name;
+    };
+    const Gear gears[] = {{anim::Gait::Walk, static_cast<float>(config::WALK_SPEED), "walk"},
+                          {anim::Gait::Jog, static_cast<float>(config::JOG_SPEED), "jog"},
+                          {anim::Gait::Run, static_cast<float>(config::RUN_SPEED), "run"}};
+    for (const Gear& g : gears) {
+        const Run r = run_gear(h, g.gait, g.speed, false, 240);
+        MESSAGE(g.name << ": worst " << 1000.0f * r.worst_spread_m << " мм за " << r.plants
+                       << " опор, скорость " << r.speed_mps << " м/с при заказе " << g.speed
+                       << "; остаток к якорю по alpha 0.25/0.5/0.75/1: "
+                       << 1000.0f * r.alpha_worst[0] << " / " << 1000.0f * r.alpha_worst[1]
+                       << " / " << 1000.0f * r.alpha_worst[2] << " / "
+                       << 1000.0f * r.alpha_worst[3] << " мм");
+        CHECK(r.plants >= 4);
+        CHECK(r.worst_spread_m <= limit);
+        CHECK(r.speed_mps > 0.5f * g.speed);
+    }
+}
+
+TEST_CASE("without_the_lock_the_residual_is_larger") {
+    if (!body_present()) {
+        return;
+    }
+    Harness locked;
+    REQUIRE(locked.ok);
+    Harness loose;
+    REQUIRE(loose.ok);
+    loose.body.set_foot_lock(false);
+    const Run a = run_gear(locked, anim::Gait::Walk, static_cast<float>(config::WALK_SPEED),
+                           false, 240);
+    const Run b = run_gear(loose, anim::Gait::Walk, static_cast<float>(config::WALK_SPEED),
+                           false, 240);
+    MESSAGE("ходьба: с замком " << 1000.0f * a.worst_spread_m << " мм, без замка "
+                                << 1000.0f * b.worst_spread_m << " мм");
+    CHECK(b.worst_spread_m > a.worst_spread_m);
+}
+
+TEST_CASE("the_old_seam_slides") {
+    if (!body_present()) {
+        return;
+    }
+    Harness h;
+    REQUIRE(h.ok);
+    h.body.set_feet_drive(false);
+    h.body.set_foot_lock(false);
+    const Run r = run_gear(h, anim::Gait::Walk, static_cast<float>(config::WALK_SPEED),
+                           true, 240);
+    MESSAGE("прежний шов, ходьба: worst " << 1000.0f * r.worst_spread_m << " мм");
+    CHECK(r.plants >= 4);
+    CHECK(r.worst_spread_m > 5.0f * static_cast<float>(config::FOOT_SLIDE_MAX_M));
+}
+
+TEST_CASE("idle_feet_stand_level") {
+    if (!body_present()) {
+        return;
+    }
+    const auto ankle_fore_aft = [](bool symmetric) {
+        Harness h;
+        REQUIRE(h.ok);
+        anim::BodyDrive drive;
+        drive.grounded = true;
+        anim::ClipLibrary& lib = const_cast<anim::ClipLibrary&>(h.body.clip_library());
+        if (!symmetric) {
+            lib.idle_symmetry = 0.0f;
+        }
+        glm::vec3 root{0.0f};
+        for (int i = 0; i < 40; ++i) {
+            h.body.advance(drive, root, DT);
+            h.body.commit_root(drive, root, DT);
+        }
+        const render::RenderSystem::SkinnedDraw d = h.body.build_draw(false, 1.0f);
+        const int32_t l = h.body.skeleton().find("DEF-foot.L");
+        const int32_t r = h.body.skeleton().find("DEF-foot.R");
+        REQUIRE(l >= 0);
+        REQUIRE(r >= 0);
+        return std::abs(h.joint_world(d, l).z - h.joint_world(d, r).z);
+    };
+    const float level = ankle_fore_aft(true);
+    const float raw = ankle_fore_aft(false);
+    MESSAGE("покой: разница лодыжек по ходу " << 1000.0f * raw << " мм в клипе -> "
+                                              << 1000.0f * level << " мм с симметрией");
+    CHECK(level < 0.01f);
+    CHECK(raw > level + 0.02f);
+}

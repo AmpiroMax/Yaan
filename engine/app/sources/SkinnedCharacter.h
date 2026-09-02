@@ -58,6 +58,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/HeldBlade.h"
 #include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/Rig.h"
+#include "engine/anim/sources/RootMotion.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 #include "engine/render/sources/MorphBlend.h"
@@ -173,8 +174,31 @@ public:
     /// tick's procedural pose and root beside the previous tick's, so
     /// build_draw can interpolate either path. `standing_ground` is the
     /// player's Transform position, i.e. the capsule bottom.
+    ///
+    /// ПЕРЕМЕЩЕНИЕ ВЕДЁТ ОПОРНАЯ СТОПА (docs/design/LOCOMOTION_GROUNDED.md):
+    /// зовётся ДО шага сим'а, потому что здесь рождается заявка на смещение
+    /// капсулы за этот тик (locomotion()): корень обязан сдвинуться ровно на
+    /// столько, на сколько опорная стопа ушла под телом между прошлой и этой
+    /// позой. После шага сим'а приложение зовёт commit_root() с фактом.
     void advance(const anim::BodyDrive& drive, const glm::vec3& standing_ground,
                  float dt);
+    /// ЗАЯВКА ЭТОГО ТИКА: смещение корня в системе тела, фаза, постановки.
+    [[nodiscard]] const anim::LocomotionOut& locomotion() const { return loco_; }
+    /// КОРЕНЬ ПОСЛЕ ШАГА СИМ'А. Положение капсулы стало фактом: сюда встаёт
+    /// корень этого тика (advance() снял его до шага), и на нём защёлкиваются
+    /// и отпускаются замки стоп — якорь замка это мировая точка касания на
+    /// ФАКТИЧЕСКОМ корне, иначе замок держал бы стопу там, где капсула не была.
+    void commit_root(const anim::BodyDrive& drive, const glm::vec3& standing_ground,
+                     float dt);
+    [[nodiscard]] const anim::ContactState& contacts() const { return contact_curr_; }
+    [[nodiscard]] const anim::FootLockState& foot_locks() const { return locks_; }
+    /// Двери: DFN_ROOT_FROM_FEET=0 — прежний шов (сим двигает, стрид-скейл),
+    /// DFN_FOOT_LOCK=0 — без замка. Тесты ставят их напрямую (правило 47:
+    /// обе руки из одного бинарника).
+    void set_feet_drive(bool on);
+    void set_foot_lock(bool on) { foot_lock_ = on; }
+    [[nodiscard]] bool feet_drive() const { return feet_drive_; }
+    [[nodiscard]] bool foot_lock() const { return foot_lock_; }
 
     /// Builds the palette for one pose and returns the draw that shows it.
     /// `hide_head` collapses the head bone so a first-person camera inside the
@@ -319,6 +343,24 @@ private:
     float ik_strength_ = 0.0f;
     /// One frame's scratch for the tick-time probe pose.
     std::vector<anim::JointLocal> tick_sample_;
+    /// Поза этого тика снята (playback_sample при alpha = 1) — probe_ground и
+    /// контакты читают её, не снимая второй раз.
+    bool tick_sampled_ = false;
+
+    // --- ПЕРЕМЕЩЕНИЕ ОТ СТОПЫ И ЗАМОК (RootMotion.h, FootIk.h) --------------
+    anim::LocomotionOut loco_{};
+    anim::ContactState contact_prev_{};
+    anim::ContactState contact_curr_{};
+    anim::FootLockState locks_{};
+    /// Память корневого движения: оценка скорости тела и инерция полёта.
+    anim::RootMotionState root_state_{};
+    anim::FootLockParams lock_params_{};
+    bool feet_drive_ = true;
+    bool foot_lock_ = true;
+    /// ДВЕРЬ DFN_SLIDE_TRACE: печатать остаток, который замку приходится
+    /// закрывать (мировая точка касания до замка минус якорь), раз в 10 тиков.
+    bool slide_trace_ = false;
+    uint32_t slide_trace_ticks_ = 0;
     /// ДВЕРЬ DFN_FOOT_TRACE: печатать по стопам грунт, ЗНАКОВЫЙ зазор, вес
     /// опоры и сдвиг корня. Заведена под пункт 3 заказа 31.08 («стоя на
     /// объекте одна стопа парит»): кадр не отвечает на «парит на сантиметр»,
