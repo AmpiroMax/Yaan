@@ -113,6 +113,18 @@ DEFAULTS = {
     # ПОРЯДКУ HumanBase.glb, которые под ней не рисуются (delete_verts mhclo,
     # переведённые через служебный атрибут _HM08_INDEX).
     "clothes": "",
+    # имя набора одежды в выходном файле: <stem>.clothes.<набор>.glb (пусто —
+    # <stem>.clothes.glb); наборов может быть много на одном теле.
+    "clothes-set": "",
+    # ТРЕТИЙ ДОНОР — MIXAMO (владелец 02.09-2 скачал набор): папка с .fbx
+    # (With Skin, 30 fps), каждый файл — один клип, имя клипа = имя файла
+    # (пробелы → _), приставка --mixamo-prefix. Ход таза по горизонтали
+    # (клипы без In Place) вычитается линейно — клип становится «на месте»,
+    # как того требует корень от опорной стопы. Сырые FBX в репозиторий не
+    # кладутся (лицензия Mixamo), только испечённые клипы в glb.
+    "mixamo": "",
+    "mixamo-only": "",
+    "mixamo-prefix": "MX_",
     "tris": "0",          # без децимации: 26 756 треугольников, пальцы целы
     # МУЖЧИНА ~30 ЛЕТ, ОБЫЧНОГО СЛОЖЕНИЯ. Шкала возраста MakeHuman линейна по
     # половинам и ставит 25 лет ровно в 0.5, 90 — в 1.0; 30 лет = 0.5385.
@@ -469,6 +481,29 @@ def rig_parts(parts, mesh, rig):
         log("part %s: weights transferred (%d verts without a face nearby -> head)" % (kind, loose))
 
 
+def asset_provenance(name):
+    """Автор и лицензия ассета из паспортов паков MPFB (data/packs/*.json)."""
+    import json
+    from bl_ext.blender_org.mpfb.services.locationservice import LocationService  # type: ignore
+    packs_dir = LocationService.get_user_data("packs")
+    if os.path.isdir(packs_dir):
+        for fn in sorted(os.listdir(packs_dir)):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                meta = json.load(open(os.path.join(packs_dir, fn), encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            entry = meta.get(name)
+            if isinstance(entry, dict):
+                lic = str(entry.get("license", "")).strip() or "?"
+                author = str(entry.get("author", "")).strip() or "?"
+                if lic.upper() not in ("CC0", "CC-BY", "CC BY"):
+                    raise SystemExit("asset %s has licence %r — not CC0/CC-BY, refusing" % (name, lic))
+                return "%s, автор %s, пак %s" % (lic, author, fn.replace(".json", ""))
+    return "лицензия не найдена в паспортах паков — проверить вручную"
+
+
 def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
     """Материал части: альбедо (+нормаль) внешними файлами <часть>_albedo.png."""
     import hashlib
@@ -500,8 +535,8 @@ def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
         shutil.copyfile(path, dst)
         sha = hashlib.sha256(open(dst, "rb").read()).hexdigest()
         sums.append("%s  %s" % (sha, fname))
-        licence.append("%s — %s «%s» (%s), системные ассеты MPFB / MakeHuman, CC0 1.0; источник %s"
-                       % (fname, kind, name, os.path.basename(path), mat_path))
+        licence.append("%s — %s «%s» (%s): %s; источник %s"
+                       % (fname, kind, name, os.path.basename(path), asset_provenance(name), mat_path))
         img = bpy.data.images.get(fname)
         if img is None or os.path.abspath(bpy.path.abspath(img.filepath)) != os.path.abspath(dst):
             img = bpy.data.images.load(dst, check_existing=True)
@@ -988,6 +1023,24 @@ def retarget(rig, src_rig, moving, only=None):
 # КАРТЫ ИМЁН ЧУЖИХ РИГОВ: наша кость → кость донора. Что не названо, держит
 # покой относительно родителя (у KayKit нет ключиц, шеи и пальцев).
 DONOR_MAPS = {
+    "mixamo": {
+        "DEF-hips": "mixamorig:Hips", "DEF-spine.001": "mixamorig:Spine",
+        "DEF-spine.002": "mixamorig:Spine1", "DEF-spine.003": "mixamorig:Spine2",
+        "DEF-neck": "mixamorig:Neck", "DEF-head": "mixamorig:Head",
+        **{"DEF-shoulder.%s" % s: "mixamorig:%sShoulder" % w for s, w in (("L", "Left"), ("R", "Right"))},
+        **{"DEF-upper_arm.%s" % s: "mixamorig:%sArm" % w for s, w in (("L", "Left"), ("R", "Right"))},
+        **{"DEF-forearm.%s" % s: "mixamorig:%sForeArm" % w for s, w in (("L", "Left"), ("R", "Right"))},
+        **{"DEF-hand.%s" % s: "mixamorig:%sHand" % w for s, w in (("L", "Left"), ("R", "Right"))},
+        **{"DEF-%s.0%d.%s" % (f, n, s): "mixamorig:%sHand%s%d" % (w, m, n)
+           for s, w in (("L", "Left"), ("R", "Right"))
+           for f, m in (("f_index", "Index"), ("f_middle", "Middle"), ("f_ring", "Ring"),
+                        ("f_pinky", "Pinky"), ("thumb", "Thumb"))
+           for n in (1, 2, 3)},
+        **{"DEF-thigh.%s" % s: "mixamorig:%sUpLeg" % w for s, w in (("L", "Left"), ("R", "Right"))},
+        **{"DEF-shin.%s" % s: "mixamorig:%sLeg" % w for s, w in (("L", "Left"), ("R", "Right"))},
+        **{"DEF-foot.%s" % s: "mixamorig:%sFoot" % w for s, w in (("L", "Left"), ("R", "Right"))},
+        **{"DEF-toe.%s" % s: "mixamorig:%sToeBase" % w for s, w in (("L", "Left"), ("R", "Right"))},
+    },
     "kaykit": {
         "DEF-hips": "hips", "DEF-spine.001": "spine", "DEF-spine.003": "chest",
         "DEF-head": "head",
@@ -1003,7 +1056,8 @@ DONOR_MAPS = {
 }
 
 
-def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None):
+def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None, clip_names=None,
+                    strip_travel=False):
     """Чужой риг: мировая ориентация сопоставленной кости × покой донора⁻¹ ×
     наш покой. Оба покоя обязаны быть одной позой тела (Т-поза) — это
     проверяется здесь по плечу и бедру, а не предполагается."""
@@ -1060,11 +1114,25 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None):
     worst = 0.0
     for action in sorted(sources, key=lambda a: a.name):
         clip = action.name[:-len(decor)] if action.name.endswith(decor) else action.name
+        if clip_names and action.name in clip_names:
+            clip = clip_names[action.name]
         if only and clip not in only:
             continue
         src_rig.animation_data.action = action
         f0 = int(math.floor(action.frame_range[0]))
         f1 = int(math.ceil(action.frame_range[1]))
+        # ХОД ТАЗА ПО ГОРИЗОНТАЛИ — ДОЛОЙ (клипы Mixamo без In Place): линейный
+        # снос от первого кадра к последнему вычитается по x, y (Z — вверх),
+        # качание таза остаётся, перемещение даёт опорная стопа (RootMotion).
+        drift = None
+        if strip_travel and "DEF-hips" in bone_map:
+            hips = src_rig.pose.bones[bone_map["DEF-hips"]]
+            bpy.context.scene.frame_set(f0)
+            p0 = (to_rig @ to_src @ hips.matrix).to_translation()
+            bpy.context.scene.frame_set(f1)
+            p1 = (to_rig @ to_src @ hips.matrix).to_translation()
+            drift = Vector((p1.x - p0.x, p1.y - p0.y, 0.0))
+            log("  %s: travel %.2f m over %d frames stripped" % (clip, drift.length, f1 - f0))
         out = bpy.data.actions.new("retargeted2@" + clip)
         made.append((out, prefix + clip))
         rig.animation_data.action = out
@@ -1085,8 +1153,10 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None):
                 if p is None:
                     head = rest_head[n].copy()
                 elif n == "DEF-hips" and n in src_world:
-                    head = rest_head[n] + (src_world[n].to_translation()
-                                           - src_rest_head[n]) * hips_scale
+                    trans = src_world[n].to_translation()
+                    if drift is not None and f1 > f0:
+                        trans = trans - drift * (float(frame - f0) / float(f1 - f0))
+                    head = rest_head[n] + (trans - src_rest_head[n]) * hips_scale
                 else:
                     delta = rot_of(pose[p]) @ rest[p].to_3x3().normalized().inverted()
                     head = pose[p].to_translation() + delta @ (rest_head[n] - rest_head[p])
@@ -1192,6 +1262,39 @@ def main():
         bpy.data.objects.remove(src2, do_unlink=True)
         rig.animation_data.action = None
 
+    mixamo = opt["mixamo"]
+    if clips and mixamo:
+        if not os.path.isabs(mixamo):
+            mixamo = os.path.join(root, mixamo)
+        only3 = [x for x in opt["mixamo-only"].split(",") if x]
+        files = sorted(f for f in os.listdir(mixamo) if f.lower().endswith(".fbx"))
+        for fn in files:
+            clip = os.path.splitext(fn)[0].replace(" ", "_").replace("(", "").replace(")", "")
+            if only3 and clip not in only3:
+                continue
+            before = {o.name for o in bpy.data.objects}
+            acts_before = {a.name for a in bpy.data.actions}
+            bpy.ops.import_scene.fbx(filepath=os.path.join(mixamo, fn), use_anim=True,
+                                     ignore_leaf_bones=True, automatic_bone_orientation=False)
+            src3 = None
+            for o in bpy.data.objects:
+                if o.name not in before and o.type == "ARMATURE":
+                    src3 = o
+            if src3 is None:
+                raise SystemExit("no armature in " + fn)
+            sources = [a for a in bpy.data.actions if a.name not in acts_before]
+            if len(sources) != 1:
+                raise SystemExit("%s: expected one action, got %d" % (fn, len(sources)))
+            made += retarget_mapped(rig, src3, DONOR_MAPS["mixamo"], sources,
+                                    opt["mixamo-prefix"], clip_names={sources[0].name: clip},
+                                    strip_travel=True)
+            for o in list(bpy.data.objects):
+                if o.name not in before and o is not src3:
+                    bpy.data.objects.remove(o, do_unlink=True)
+            bpy.data.objects.remove(src3, do_unlink=True)
+            rig.animation_data.action = None
+        log("mixamo: %d clips from %s" % (len(files) if not only3 else len(only3), mixamo))
+
     # Один материал: собственные материалы MakeHuman телу не нужны — цвет по
     # частям тела кладёт импортёр (--skin-palette), а безымянный примитив
     # читатель .glb принимает за отсутствие материала.
@@ -1258,7 +1361,8 @@ def main():
     if body_parts:
         export_parts(body_parts, mesh, rig, out, "parts")
     if clothes:
-        export_parts(clothes, mesh, rig, out, "clothes", body_map=body_index_map(out))
+        suffix = "clothes" + ("." + opt["clothes-set"] if opt["clothes-set"] else "")
+        export_parts(clothes, mesh, rig, out, suffix, body_map=body_index_map(out))
     if clips:
         fix_clip_names(out, made, "_" + rig.name)
     log("wrote", out, os.path.getsize(out), "bytes")
