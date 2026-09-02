@@ -86,6 +86,12 @@ struct BodyDrive {
     // are moving at all and has no gears in it.
     Gait gait = Gait::Walk;
     float facing_yaw = 0.0f;        // radians, sim's yaw convention
+    /// НАПРАВЛЕНИЕ ЖЕЛАЕМОГО ХОДА В СИСТЕМЕ ТЕЛА (LOCOMOTION_GROUNDED.md §9):
+    /// единичный вектор, лицом в −Z; (0,0,−1) — вперёд, (+1,0,0) — вправо,
+    /// (0,0,+1) — назад. Единственный источник направления и для выбора
+    /// роли (вперёд / стрейф / назад по углу к лицу), и для корня от опорной
+    /// стопы (ось хода). Пишет приложение из ввода игрока или движитель НПС.
+    glm::vec3 move_dir_model{0.0f, 0.0f, -1.0f};
     bool grounded = true;
     float vertical_velocity = 0.0f; // m/s, + up
     float crouch_blend = 0.0f;      // sim's eased 0..1

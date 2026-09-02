@@ -82,8 +82,12 @@ struct RootMotionState {
 /// ОДИН ТИК: уточняет `curr.support` движением стоп (правит на месте) и
 /// возвращает смещение корня в системе тела, при котором опорная стопа
 /// осталась бы на месте. `dt` — шаг тика, секунды.
+/// `travel` — ось, по которой стопы уходят под телом (единичная, в системе
+/// тела): (0,0,+1) для хода вперёд, −move_dir_model вообще (§9.3) —
+/// мах/опора/отставание меряются проекцией Δp на неё.
 [[nodiscard]] glm::vec3 root_motion_step(const ContactState& prev, ContactState& curr,
-                                         float dt, RootMotionState& state);
+                                         float dt, RootMotionState& state,
+                                         const glm::vec3& travel = glm::vec3{0.0f, 0.0f, 1.0f});
 
 /// Постановки: вес опоры пересёк `on_weight` снизу вверх.
 [[nodiscard]] std::array<bool, 2> detect_footfalls(const ContactState& prev,

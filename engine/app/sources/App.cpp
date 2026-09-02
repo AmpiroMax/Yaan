@@ -4681,6 +4681,18 @@ int App::run() {
                         drive->vertical_velocity = ps->vertical_velocity;
                         drive->crouch_blend = ps->crouch_blend;
                         drive->want_speed_mps = ps->want_speed_mps;
+                        // НАПРАВЛЕНИЕ ХОДА В СИСТЕМЕ ТЕЛА (§9): ввод в мире →
+                        // поворот на +рыск (мир = R(−рыск)·тело, см. commit_root).
+                        if (glm::length(ps->want_dir) > 1.0e-4f) {
+                            const glm::vec3 world{ps->want_dir.x, 0.0f, ps->want_dir.y};
+                            const glm::mat4 to_model = glm::rotate(
+                                glm::mat4{1.0f}, ps->yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+                            const glm::vec3 m = glm::vec3{to_model * glm::vec4{world, 0.0f}};
+                            const float len = glm::length(glm::vec2{m.x, m.z});
+                            if (len > 1.0e-4f) {
+                                drive->move_dir_model = glm::vec3{m.x / len, 0.0f, m.z / len};
+                            }
+                        }
                         // THE GAIT ITSELF, not the speed it was derived from.
                         // While this line was missing, character re-derived the
                         // gear by comparing speed against WALK_SPEED and

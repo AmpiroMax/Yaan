@@ -603,3 +603,45 @@ TEST_CASE("idle_variants_take_turns_and_the_drunk_flag_wins") {
     CHECK(play.variant != m.lib.drunk_variant);
 }
 
+TEST_CASE("diagnostic_clip_foot_direction") {
+    // ПРЯМО ПО КЛИПУ: средняя скорость нижней стопы (носок) по x/z в системе
+    // модели за цикл — куда идёт клип, без машинерии корня.
+    Model m;
+    REQUIRE(load(m, false));
+    const int32_t toeL = m.obj.skeleton.find("DEF-toe.L");
+    const int32_t toeR = m.obj.skeleton.find("DEF-toe.R");
+    const int32_t hips = m.obj.skeleton.find("DEF-hips");
+    REQUIRE(toeL >= 0);
+    std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
+    std::vector<glm::mat4> local(m.obj.skeleton.size()), model(m.obj.skeleton.size());
+    for (const skel::AnimClip& clip : m.obj.clips) {
+        const std::string& n = clip.name;
+        if (n != "MX_Walking" && n != "MX_Walking_Backwards" && n != "MX_Left_Strafe_Walking"
+            && n != "MX_Right_Strafe_Walking" && n != "Walk_Loop" && n != "KK_Walking_Backwards"
+            && n != "MX_Left_Strafe" && n != "KK_Running_Strafe_Left") {
+            continue;
+        }
+        const int N = 60;
+        glm::vec3 low_sum{0.0f}; float low_n = 0.0f; glm::vec3 hips_sum{0.0f};
+        glm::vec3 prevL{0.0f}, prevR{0.0f}, prevH{0.0f};
+        for (int k = 0; k <= N; ++k) {
+            anim::sample_clip_pose(m.obj.skeleton, clip, clip.duration_s * float(k % N) / float(N), sample);
+            for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+                local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation) * glm::mat4_cast(glm::normalize(sample[j].rotation)) * glm::scale(glm::mat4{1.0f}, sample[j].scale);
+            }
+            skel::skeleton_model_matrices(m.obj.skeleton, local, model);
+            const glm::vec3 L{model[static_cast<std::size_t>(toeL)][3]}, R{model[static_cast<std::size_t>(toeR)][3]}, H{model[static_cast<std::size_t>(hips)][3]};
+            if (k > 0 && k < N) {
+                const bool lowL = L.y <= R.y;
+                const glm::vec3 d = lowL ? (L - prevL) : (R - prevR);
+                low_sum += d; low_n += 1.0f; hips_sum += H - prevH;
+            }
+            prevL = L; prevR = R; prevH = H;
+        }
+        const float dt = clip.duration_s / float(N);
+        MESSAGE(n << ": нижняя стопа идёт x " << low_sum.x / (low_n * dt) << " z " << low_sum.z / (low_n * dt)
+                  << " м/с; таз x " << hips_sum.x / (low_n * dt) << " z " << hips_sum.z / (low_n * dt) << " м/с (модель лицом в −Z)");
+    }
+    CHECK(true);
+}
+

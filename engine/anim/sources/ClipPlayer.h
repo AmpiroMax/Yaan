@@ -127,8 +127,29 @@ enum class ClipRole : uint8_t {
     /// giving it its own row here rather than a special-cased clip name is
     /// what lets it be resolved, measured and printed like every other role.
     WeaponIdle,
+    /// РОЛИ НАПРАВЛЕНИЯ (LOCOMOTION_GROUNDED.md §9): ход назад и стрейфы,
+    /// шагом и бегом. Выбираются по углу между BodyDrive::move_dir_model и
+    /// лицом; нет клипа — честный откат (StrafeRun → Strafe, Backward →
+    /// вперёд) с паспортом в журнале сборки библиотеки.
+    Backward,
+    StrafeL,
+    StrafeR,
+    StrafeRunL,
+    StrafeRunR,
 };
-inline constexpr uint32_t CLIP_ROLE_COUNT = 11;
+inline constexpr uint32_t CLIP_ROLE_COUNT = 16;
+
+/// Класс направления хода по углу к лицу (§9.2), с гистерезисом от прежнего.
+enum class MoveDir : uint8_t { Forward = 0, StrafeL, StrafeR, Backward };
+[[nodiscard]] MoveDir move_dir_class(const glm::vec3& move_dir_model, MoveDir previous);
+/// Ось, по которой стопы уходят под телом при этом ходе (для корня от стопы).
+[[nodiscard]] glm::vec3 travel_axis(const glm::vec3& move_dir_model);
+/// Направление хода, которое несёт клип роли (стрейф — ±X, назад — +Z,
+/// всё остальное — вперёд): корень от стопы меряется по оси КЛИПА, а
+/// диагональный ввод внутри класса «вперёд» доворачивает сим, не стопы.
+[[nodiscard]] glm::vec3 role_move_dir(ClipRole role);
+/// Роль перемещения (ход, трусца, бег, присед-ход, назад, стрейфы).
+[[nodiscard]] bool locomotion_role(ClipRole role);
 
 [[nodiscard]] constexpr uint32_t role_index(ClipRole r) {
     return static_cast<uint32_t>(r);
@@ -434,6 +455,7 @@ struct ClipPlayback {
     int32_t variant = -1;
     int32_t previous_variant = -1;
     float idle_s = 0.0f;       ///< сколько стоим на текущем покое
+    MoveDir move_dir = MoveDir::Forward; ///< класс направления с гистерезисом (§9.2)
     uint32_t variant_pick = 0; ///< счётчик выборов — детерминированная «случайность»
     /// 1 -> 0 while the previous role fades out. Zero means "no cross-fade".
     float fade = 0.0f;
@@ -505,6 +527,9 @@ struct ClipPlayback {
 /// airborne -> the jump triple, crouched -> the crouch pair, seated -> Sit,
 /// otherwise idle or the gear's locomotion role.
 [[nodiscard]] ClipRole role_for_drive(const ClipLibrary& lib, const BodyDrive& drive);
+/// То же с памятью класса направления (гистерезис ±DIR_HYSTERESIS_DEG).
+[[nodiscard]] ClipRole role_for_drive(const ClipLibrary& lib, const BodyDrive& drive,
+                                      MoveDir& move_dir);
 
 /// ONE FIXED TICK. Snapshots the previous tick, picks the role, starts a
 /// cross-fade if it changed, and moves both clip times: locomotion roles are

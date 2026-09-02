@@ -836,13 +836,11 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     if (feet_drive_ && library_.feet_drive && contact_prev_.valid && contact_curr_.valid
         && drive.grounded && drive.posture_blend < 0.5f) {
         glm::vec3 raw =
-            anim::root_motion_step(contact_prev_, contact_curr_, dt, root_state_);
+            anim::root_motion_step(contact_prev_, contact_curr_, dt, root_state_,
+                                   anim::travel_axis(anim::role_move_dir(play_.role)));
         // ВНЕ ЛОКОМОЦИИ — НОЛЬ: покой, присед на месте, посадка не везут тело.
         // Кроссфейд в покой дошагивает (fade > 0), после него — стоп.
-        const bool moving_role = play_.role == anim::ClipRole::Walk
-                                 || play_.role == anim::ClipRole::Jog
-                                 || play_.role == anim::ClipRole::Sprint
-                                 || play_.role == anim::ClipRole::CrouchWalk;
+        const bool moving_role = anim::locomotion_role(play_.role);
         if (!moving_role && play_.fade <= 0.0f) {
             raw = glm::vec3{0.0f};
             root_state_ = anim::RootMotionState{};

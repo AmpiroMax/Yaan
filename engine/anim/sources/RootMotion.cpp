@@ -61,7 +61,7 @@ constexpr float STEP_MEMORY_S = 0.25f;
 constexpr uint32_t HANDOFF_TICKS = 5;
 
 glm::vec3 root_motion_step(const ContactState& prev, ContactState& curr, float dt,
-                           RootMotionState& state) {
+                           RootMotionState& state, const glm::vec3& travel) {
     if (!prev.valid || !curr.valid || dt <= 0.0f) {
         return glm::vec3{0.0f};
     }
@@ -82,10 +82,12 @@ glm::vec3 root_motion_step(const ContactState& prev, ContactState& curr, float d
     }
     // ...И ОТРЫВ — ТОЖЕ ПОЛЁТ: нижняя стопа ещё в полосе, но уже идёт вперёд
     // (толчковая уходит в мах) — тело летит, а не стоит.
+    // ОСЬ ХОДА (§9.3): «вперёд» стопы — против оси travel, «назад под телом» —
+    // вдоль неё; для хода вперёд travel = +Z, для стрейфа — ±X, назад — −Z.
     const bool on_ground = curr.height[lowest] <= static_cast<float>(config::FOOT_SUPPORT_BAND_M)
-                           && -d[lowest].z / dt <= swing;
+                           && -glm::dot(d[lowest], travel) / dt <= swing;
     for (std::size_t side = 0; side < 2; ++side) {
-        const float forward = -d[side].z / dt; // лицом в −Z: вперёд = −z
+        const float forward = -glm::dot(d[side], travel) / dt;
         // (2) мах: вперёд быстрее порога — не опора
         curr.support[side] *= 1.0f - smooth01(forward / swing);
         // (3) отстающая стопа: назад медленнее половины скорости тела — садится
@@ -105,12 +107,12 @@ glm::vec3 root_motion_step(const ContactState& prev, ContactState& curr, float d
         float back_max = 0.0f;
         for (std::size_t side = 0; side < 2; ++side) {
             if (std::min(prev.support[side], curr.support[side]) > 1.0e-4f) {
-                back_max = std::max(back_max, d[side].z / dt);
+                back_max = std::max(back_max, glm::dot(d[side], travel) / dt);
             }
         }
         if (back_max > swing) {
             for (std::size_t side = 0; side < 2; ++side) {
-                const float back = d[side].z / dt;
+                const float back = glm::dot(d[side], travel) / dt;
                 curr.support[side] *= smooth01((back / back_max - 0.6f) / 0.3f);
             }
         }

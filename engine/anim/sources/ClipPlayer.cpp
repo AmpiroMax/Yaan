@@ -136,6 +136,16 @@ constexpr RoleNames ROLE_NAMES[] = {
     // body that attacks whenever it stands still.
     {ClipRole::WeaponIdle, "WeaponIdle",
      {"Sword_Idle", "Sword_Idle_Loop", "Combat_Idle_Loop", "Weapon_Idle"}},
+    {ClipRole::Backward, "Backward",
+     {"MX_Walking_Backwards", "KK_Walking_Backwards", "Walk_Back_Loop", "Walking_Backwards"}},
+    {ClipRole::StrafeL, "StrafeL",
+     {"MX_Left_Strafe_Walking", "Strafe_Left_Loop", "Walk_Left_Loop", "Left_Strafe_Walking"}},
+    {ClipRole::StrafeR, "StrafeR",
+     {"MX_Right_Strafe_Walking", "Strafe_Right_Loop", "Walk_Right_Loop", "Right_Strafe_Walking"}},
+    {ClipRole::StrafeRunL, "StrafeRunL",
+     {"MX_Left_Strafe", "KK_Running_Strafe_Left", "Run_Strafe_Left_Loop", "Jog_Left_Loop"}},
+    {ClipRole::StrafeRunR, "StrafeRunR",
+     {"MX_Right_Strafe", "KK_Running_Strafe_Right", "Run_Strafe_Right_Loop", "Jog_Right_Loop"}},
 };
 static_assert(std::size(ROLE_NAMES) == CLIP_ROLE_COUNT,
               "every role needs a row in the name table");
@@ -228,6 +238,67 @@ ClipRole role_for_gait(Gait gait) {
     }
     return ClipRole::Walk;
 }
+
+MoveDir move_dir_class(const glm::vec3& move_dir_model, MoveDir previous) {
+    // Угол между ходом и лицом (−Z): 0 — вперёд, ±90 — бок, 180 — назад.
+    const float x = move_dir_model.x;
+    const float f = -move_dir_model.z;
+    if (x * x + f * f < 1.0e-6f) {
+        return previous;
+    }
+    const float deg = glm::degrees(std::atan2(std::abs(x), f)); // 0..180
+    const float strafe = static_cast<float>(config::DIR_STRAFE_DEG);
+    const float back = static_cast<float>(config::DIR_BACK_DEG);
+    const float h = static_cast<float>(config::DIR_HYSTERESIS_DEG);
+    // ГИСТЕРЕЗИС: границу класса, в котором стоим, отодвигаем на h наружу.
+    const bool was_fwd = previous == MoveDir::Forward;
+    const bool was_back = previous == MoveDir::Backward;
+    const float fwd_edge = strafe + (was_fwd ? h : -h);
+    const float back_edge = back + (was_back ? -h : h);
+    if (deg < fwd_edge) {
+        return MoveDir::Forward;
+    }
+    if (deg >= back_edge) {
+        return MoveDir::Backward;
+    }
+    const MoveDir side = x >= 0.0f ? MoveDir::StrafeR : MoveDir::StrafeL;
+    // внутри бокового сектора сторона тоже с гистерезисом у ±90 не нужна:
+    // смена стороны — это смена знака x, границы нет посередине.
+    return side;
+}
+
+glm::vec3 travel_axis(const glm::vec3& move_dir_model) {
+    const glm::vec3 flat{move_dir_model.x, 0.0f, move_dir_model.z};
+    const float len = glm::length(flat);
+    return len > 1.0e-6f ? -flat / len : glm::vec3{0.0f, 0.0f, 1.0f};
+}
+
+glm::vec3 role_move_dir(ClipRole r) {
+    switch (r) {
+    case ClipRole::Backward: return glm::vec3{0.0f, 0.0f, 1.0f};
+    case ClipRole::StrafeL: case ClipRole::StrafeRunL: return glm::vec3{-1.0f, 0.0f, 0.0f};
+    case ClipRole::StrafeR: case ClipRole::StrafeRunR: return glm::vec3{1.0f, 0.0f, 0.0f};
+    default: return glm::vec3{0.0f, 0.0f, -1.0f};
+    }
+}
+
+bool locomotion_role(ClipRole r) {
+    return r == ClipRole::Walk || r == ClipRole::Jog || r == ClipRole::Sprint
+           || r == ClipRole::CrouchWalk || r == ClipRole::Backward
+           || r == ClipRole::StrafeL || r == ClipRole::StrafeR
+           || r == ClipRole::StrafeRunL || r == ClipRole::StrafeRunR;
+}
+
+namespace {
+MoveDir role_dir_class(ClipRole r) {
+    switch (r) {
+    case ClipRole::Backward: return MoveDir::Backward;
+    case ClipRole::StrafeL: case ClipRole::StrafeRunL: return MoveDir::StrafeL;
+    case ClipRole::StrafeR: case ClipRole::StrafeRunR: return MoveDir::StrafeR;
+    default: return MoveDir::Forward;
+    }
+}
+} // namespace
 
 void sample_clip_pose(const skel::Skeleton& skeleton, const skel::AnimClip& clip,
                       float time_s, std::span<JointLocal> out) {
@@ -624,7 +695,8 @@ struct TravelFit {
 [[nodiscard]] float measure_root_speed(const skel::Skeleton& skeleton,
                                        const SkinnedRigBinding& binding,
                                        const ContactSet& contacts, const MixSource& src,
-                                       uint32_t samples) {
+                                       uint32_t samples,
+                                       const glm::vec3& travel = glm::vec3{0.0f, 0.0f, 1.0f}) {
     (void)samples;
     if (!contacts.valid() || src.a == nullptr || src.dur_a <= 0.0f) {
         return 0.0f;
@@ -651,7 +723,7 @@ struct TravelFit {
         const FootIkPlan plan = plan_foot_ik(skeleton, setup, flat, sample);
         ContactState curr = contact_state(skeleton, setup, plan, sample);
         if (k > 0) {
-            const glm::vec3 d = root_motion_step(prev, curr, dt, state);
+            const glm::vec3 d = root_motion_step(prev, curr, dt, state, travel);
             if (k > per_cycle) {
                 root += d;
             }
@@ -820,9 +892,14 @@ namespace {
     drive.grounded = true;
     drive.want_speed_mps = 1.0f;
     drive.speed_mps = 1.0f;
-    drive.gait = role == ClipRole::Walk ? Gait::Walk
-                 : role == ClipRole::Jog ? Gait::Jog
-                                          : Gait::Run;
+    drive.gait = (role == ClipRole::Walk || role == ClipRole::Backward
+                  || role == ClipRole::StrafeL || role == ClipRole::StrafeR)
+                     ? Gait::Walk
+                 : (role == ClipRole::Jog || role == ClipRole::StrafeRunL
+                    || role == ClipRole::StrafeRunR)
+                     ? Gait::Jog
+                     : Gait::Run;
+    drive.move_dir_model = role_move_dir(role);
     if (role == ClipRole::CrouchWalk) {
         drive.crouch_blend = 1.0f;
     }
@@ -845,7 +922,7 @@ namespace {
         }
         const FootIkPlan plan = plan_foot_ik(skeleton, setup, flat, sample);
         ContactState curr = contact_state(skeleton, setup, plan, sample);
-        const glm::vec3 d = root_motion_step(prev, curr, dt, state);
+        const glm::vec3 d = root_motion_step(prev, curr, dt, state, travel_axis(role_move_dir(play.role)));
         if (k >= warm) {
             root += d;
             seconds += dt;
@@ -941,7 +1018,9 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         }
     }
     const ClipRole travelling[] = {ClipRole::Walk, ClipRole::Jog, ClipRole::Sprint,
-                                   ClipRole::CrouchWalk};
+                                   ClipRole::CrouchWalk, ClipRole::Backward,
+                                   ClipRole::StrafeL, ClipRole::StrafeR,
+                                   ClipRole::StrafeRunL, ClipRole::StrafeRunR};
     for (const ClipRole r : travelling) {
         ClipEntry& entry = lib.role[role_index(r)];
         if (!entry.present() || entry.duration_s <= 0.0f) {
@@ -983,6 +1062,11 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         {ClipRole::Walk, static_cast<float>(config::WALK_SPEED)},
         {ClipRole::Jog, static_cast<float>(config::JOG_SPEED)},
         {ClipRole::Sprint, static_cast<float>(config::RUN_SPEED)},
+        {ClipRole::Backward, static_cast<float>(config::WALK_SPEED)},
+        {ClipRole::StrafeL, static_cast<float>(config::WALK_SPEED)},
+        {ClipRole::StrafeR, static_cast<float>(config::WALK_SPEED)},
+        {ClipRole::StrafeRunL, static_cast<float>(config::JOG_SPEED)},
+        {ClipRole::StrafeRunR, static_cast<float>(config::JOG_SPEED)},
     };
     // HOW FAR THIS FILE MAY BEND A CLIP AND STILL CALL IT THE MOTION ITS
     // AUTHOR DREW. At 0.41 the jog's legs are nearly straight and the feet
@@ -1084,8 +1168,9 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         // ходьба; 15 % трусцы дают их же темпом. Вне полосы — наименьшая ошибка.
         bool best_in_band = false;
         for (const ClipRole r : travelling) {
-            if (r == g.role || r == ClipRole::CrouchWalk || !lib.has(r)) {
-                continue;
+            if (r == g.role || r == ClipRole::CrouchWalk || !lib.has(r)
+                || role_dir_class(r) != role_dir_class(g.role)) {
+                continue; // смесь — только в своём классе направления
             }
             const ClipEntry& partner = lib[r];
             if (partner.clip == entry.clip || partner.duration_s <= 0.0f) {
@@ -1106,7 +1191,8 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                 // ведущего клипа — партнёр идёт по его фазе); прежний шов — по ходу
                 const float trial_speed =
                     feet_drive ? measure_root_speed(skeleton, binding, lib.contacts,
-                                                    mix_of(trial, clips), MEASURE_SAMPLES)
+                                                    mix_of(trial, clips), MEASURE_SAMPLES,
+                                                    travel_axis(role_move_dir(g.role)))
                                : 0.0f;
                 const float err = feet_drive ? std::abs(trial_speed - g.speed)
                                              : std::abs(trial.cycle_m - demanded);
@@ -1302,11 +1388,35 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         }
     }
 
+    // ПАСПОРТ ОТКАТОВ НАПРАВЛЕНИЯ (§9.1): чего нет — и что играет вместо.
+    if (feet_drive) {
+        const struct { ClipRole want; ClipRole instead; } fallbacks[] = {
+            {ClipRole::Backward, ClipRole::Walk},
+            {ClipRole::StrafeL, ClipRole::Walk},
+            {ClipRole::StrafeR, ClipRole::Walk},
+            {ClipRole::StrafeRunL, ClipRole::StrafeL},
+            {ClipRole::StrafeRunR, ClipRole::StrafeR},
+        };
+        for (const auto& f : fallbacks) {
+            if (!lib.has(f.want)) {
+                std::fprintf(stderr, "[anim] direction %s: no clip — plays %s instead\n",
+                             role_name(f.want).data(), role_name(f.instead).data());
+            }
+        }
+    }
     return lib;
 }
 
 ClipRole role_for_drive(const ClipLibrary& lib, const BodyDrive& drive) {
+    MoveDir dir = move_dir_class(drive.move_dir_model, MoveDir::Forward);
+    return role_for_drive(lib, drive, dir);
+}
+
+ClipRole role_for_drive(const ClipLibrary& lib, const BodyDrive& drive, MoveDir& move_dir) {
     const bool moving = drive_speed(lib, drive) > MOVING_SPEED_MPS;
+    if (moving) {
+        move_dir = move_dir_class(drive.move_dir_model, move_dir);
+    }
     if (!drive.grounded && lib.has(ClipRole::JumpLoop)) {
         return ClipRole::JumpLoop;
     }
@@ -1324,9 +1434,28 @@ ClipRole role_for_drive(const ClipLibrary& lib, const BodyDrive& drive) {
         }
     }
     if (moving) {
-        const ClipRole want = role_for_gait(drive.gait);
+        // РОЛЬ ПО НАПРАВЛЕНИЮ (§9.2): назад — Backward, бок — Strafe (бегом —
+        // StrafeRun), иначе передача вперёд. Нет клипа — честный откат: бегом
+        // вбок → шагом вбок в верхней полосе темпа; назад/вбок без клипа →
+        // передача вперёд (тело едет за вводом, как прежде).
+        const ClipRole fwd = role_for_gait(drive.gait);
+        const bool run = drive.gait != Gait::Walk;
+        ClipRole want = fwd;
+        switch (move_dir) {
+        case MoveDir::Backward: want = ClipRole::Backward; break;
+        case MoveDir::StrafeL:
+            want = run && lib.has(ClipRole::StrafeRunL) ? ClipRole::StrafeRunL : ClipRole::StrafeL;
+            break;
+        case MoveDir::StrafeR:
+            want = run && lib.has(ClipRole::StrafeRunR) ? ClipRole::StrafeRunR : ClipRole::StrafeR;
+            break;
+        case MoveDir::Forward: break;
+        }
         if (lib.has(want)) {
             return want;
+        }
+        if (lib.has(fwd)) {
+            return fwd;
         }
     }
     return ClipRole::Idle;
@@ -1336,7 +1465,9 @@ namespace {
 
 [[nodiscard]] bool locomotion(ClipRole r) {
     return r == ClipRole::Walk || r == ClipRole::Jog || r == ClipRole::Sprint
-           || r == ClipRole::CrouchWalk;
+           || r == ClipRole::CrouchWalk || r == ClipRole::Backward
+           || r == ClipRole::StrafeL || r == ClipRole::StrafeR
+           || r == ClipRole::StrafeRunL || r == ClipRole::StrafeRunR;
 }
 [[nodiscard]] bool one_shot(ClipRole r) {
     return r == ClipRole::JumpStart || r == ClipRole::JumpLand;
@@ -1407,7 +1538,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
             wrap01(play.weapon_time_s / guard_entry.duration_s) * guard_entry.duration_s;
     }
 
-    ClipRole want = role_for_drive(lib, drive);
+    ClipRole want = role_for_drive(lib, drive, play.move_dir);
     // THE JUMP TRIPLE is the one sequence a state cannot answer on its own:
     // "airborne" is true for the take-off, the arc and the fall alike, and the
     // difference between them is HOW LONG WE HAVE BEEN airborne.
@@ -1629,7 +1760,12 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     // значило бы искать полуцикл у позы, у которой его нет. И до слоёв стойки
     // и рук по той же причине, по которой они идут после клипа вообще: они
     // правят то, что цикл уже сказал.
-    if (locomotion(play.role) && lib.mirror_dose > 0.0f && lib.mirror.valid()
+    // ЗЕРКАЛО ПОЛЦИКЛА — ТОЛЬКО СИММЕТРИЧНЫМ ХОДАМ: стрейф, отражённый L↔R,
+    // становится стрейфом в другую сторону, и смесь гасит боковой ход в ноль
+    // (StrafeL мерился 0,27 м/с при 1,72 у клипа, стопы ходили только по Z).
+    const bool sideways = play.role == ClipRole::StrafeL || play.role == ClipRole::StrafeR
+                          || play.role == ClipRole::StrafeRunL || play.role == ClipRole::StrafeRunR;
+    if (locomotion(play.role) && !sideways && lib.mirror_dose > 0.0f && lib.mirror.valid()
         && cur.duration_s > 0.0f) {
         const float d = cur.duration_s;
         std::vector<JointLocal> half(n);

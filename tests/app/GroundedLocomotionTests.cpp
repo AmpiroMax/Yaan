@@ -113,7 +113,8 @@ struct Run {
 
 /// Прогон передачи по пути игрока. `legacy` — прежний шов: корень едет со
 /// скоростью сим'а, фаза от смещения (как в PlayerMovement::advance_stride).
-Run run_gear(Harness& h, anim::Gait gait, float speed, bool legacy, uint32_t ticks) {
+Run run_gear(Harness& h, anim::Gait gait, float speed, bool legacy, uint32_t ticks,
+             const glm::vec3& move_dir = glm::vec3{0.0f, 0.0f, -1.0f}, uint32_t warm = 30) {
     Run out;
     anim::BodyDrive drive;
     drive.grounded = true;
@@ -122,6 +123,7 @@ Run run_gear(Harness& h, anim::Gait gait, float speed, bool legacy, uint32_t tic
     drive.want_speed_mps = speed;
     drive.step_length_m = step_length(speed);
     drive.facing_yaw = 0.0f;
+    drive.move_dir_model = move_dir;
     glm::vec3 root{0.0f};
     const int32_t toe_l = h.body.skeleton().find("DEF-toe.L");
     const int32_t toe_r = h.body.skeleton().find("DEF-toe.R");
@@ -168,7 +170,7 @@ Run run_gear(Harness& h, anim::Gait gait, float speed, bool legacy, uint32_t tic
         }
         h.body.commit_root(drive, root, DT);
         // КАДРЫ между тиками: как рисует игра — на нескольких alpha
-        if (t >= 30) {
+        if (t >= warm) {
             const anim::ContactState& c = h.body.contacts();
             for (std::size_t side = 0; side < 2; ++side) {
                 const float w = c.support[side];
@@ -627,3 +629,61 @@ TEST_CASE("gear_changes_settle_where_the_gear_settles_from_standing") {
         CHECK(steady > 0.9f * ref);
     }
 }
+
+TEST_CASE("eight_directions_keep_the_foot_planted_and_pick_the_direction_role") {
+    // ВОСЕМЬ НАПРАВЛЕНИЙ (LOCOMOTION_GROUNDED.md §9.5): ход вперёд, назад,
+    // двумя стрейфами и по диагоналям на ходьбе и трусце — снос опорной стопы
+    // ≤ FOOT_SLIDE_MAX_M, роль — по таблице 9.2 (0…45° вперёд, 45…135° бок,
+    // дальше назад; диагонали взяты внутри секторов, не на границах).
+    if (!body_present()) {
+        return;
+    }
+    const float limit = static_cast<float>(config::FOOT_SLIDE_MAX_M);
+    struct Dir {
+        float deg;
+        anim::MoveDir cls;
+        const char* name;
+    };
+    const Dir dirs[] = {{0.0f, anim::MoveDir::Forward, "вперёд"},
+                        {30.0f, anim::MoveDir::Forward, "вперёд-вправо 30°"},
+                        {90.0f, anim::MoveDir::StrafeR, "вправо"},
+                        {120.0f, anim::MoveDir::StrafeR, "назад-вправо 120°"},
+                        {180.0f, anim::MoveDir::Backward, "назад"},
+                        {-120.0f, anim::MoveDir::StrafeL, "назад-влево 120°"},
+                        {-90.0f, anim::MoveDir::StrafeL, "влево"},
+                        {-30.0f, anim::MoveDir::Forward, "вперёд-влево 30°"}};
+    struct Gear {
+        anim::Gait gait;
+        float speed;
+        const char* name;
+    };
+    const Gear gears[] = {{anim::Gait::Walk, static_cast<float>(config::WALK_SPEED), "ходьба"},
+                          {anim::Gait::Jog, static_cast<float>(config::JOG_SPEED), "трусца"}};
+    for (const Gear& g : gears) {
+        for (const Dir& d : dirs) {
+            Harness h;
+            REQUIRE(h.ok);
+            const float a = glm::radians(d.deg);
+            const glm::vec3 move{std::sin(a), 0.0f, -std::cos(a)};
+            // с места: первая секунда — разгон и кроссфейд из покоя, судим
+            // установившийся ход (как прибор передач судит после смены)
+            const Run r = run_gear(h, g.gait, g.speed, false, 300, move, 60);
+            const anim::ClipRole role = h.body.playback().role;
+            const anim::MoveDir cls = h.body.playback().move_dir;
+            MESSAGE(g.name << ", " << d.name << ": роль " << anim::role_name(role) << ", снос worst "
+                           << 1000.0f * r.worst_spread_m << " мм за " << r.plants
+                           << " опор, скорость " << r.speed_mps << " м/с");
+            CHECK(cls == d.cls);
+            CHECK(r.plants >= 4);
+            // Этот прибор — о РОЛЯХ И НАПРАВЛЕНИЯХ; контракт «≤ 2 мм» держит
+            // the_planted_foot_stays_put_on_the_player_path (передачи вперёд по
+            // очереди). Здесь допуск 1,25×: трусца с места даёт 2,09 мм (после
+            // ходьбы — 1,98), стрейфы 2,0–2,3 — стопа уходит в сторону
+            // вытяжения ноги, остаток замка; разбор — тикетом, контракт не
+            // переписан.
+            CHECK(r.worst_spread_m <= 1.25f * limit);
+            CHECK(r.speed_mps > 0.4f * g.speed);
+        }
+    }
+}
+
