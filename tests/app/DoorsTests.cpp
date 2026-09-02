@@ -72,6 +72,11 @@ const std::vector<std::string>& app_sources() {
         // DFN_BODY_FILE — во втором, и список обязан это видеть.
         "engine/app/sources/CharacterTextures.cpp",
         "engine/app/sources/CharGenBody.cpp",
+        // CharacterFactory.cpp и CharacterParts.cpp дописаны волной «части
+        // персонажа»: DFN_PARTS / DFN_CLOTHES читаются в первом, DFN_PARTS_ARM
+        // — во втором, и список обязан это видеть.
+        "engine/app/sources/CharacterFactory.cpp",
+        "engine/app/sources/CharacterParts.cpp",
         // AppInterior.cpp дописан 24.08 (И15): DFN_LOAD_LOG читается и там —
         // экран загрузки ведёт тот же список этапов, что и прибор.
         "engine/app/sources/AppInterior.cpp",

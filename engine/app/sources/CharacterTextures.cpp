@@ -79,47 +79,42 @@ bool body_palette_door() {
     return on;
 }
 
-uint32_t body_albedo_asset(render::RenderSystem& render_system,
-                           platform::IRenderer& renderer,
-                           const render::RegistryObject& object,
-                           const std::filesystem::path& dfo_path) {
-    const render::TextureRef* ref = object.texture("albedo");
-    if (ref == nullptr) {
-        return 0; // a body without a sheet is the ordinary case, not a fault
-    }
+uint32_t sheet_asset(render::RenderSystem& render_system, platform::IRenderer& renderer,
+                     const render::TextureRef& ref, const std::string& owner,
+                     const std::filesystem::path& dfo_path) {
     if (body_palette_door()) {
         return 0;
     }
-    if (const auto hit = cache().find(ref->sha256); hit != cache().end()) {
+    if (const auto hit = cache().find(ref.sha256); hit != cache().end()) {
         return hit->second;
     }
-    const std::filesystem::path file = resolve_sheet(ref->path, dfo_path);
+    const std::filesystem::path file = resolve_sheet(ref.path, dfo_path);
     const auto sha = serialization::sha256_file(file);
     if (!sha.has_value()) {
         std::fprintf(stderr,
-                     "[character] \"%s\": лист albedo \"%s\" не найден — тело "
-                     "рисуется палитрой\n",
-                     object.name.c_str(), ref->path.c_str());
-        cache().emplace(ref->sha256, 0u); // complain once, not once per body
+                     "[character] \"%s\": лист %s \"%s\" не найден — рисуется без "
+                     "него (палитрой вершин)\n",
+                     owner.c_str(), ref.role.c_str(), ref.path.c_str());
+        cache().emplace(ref.sha256, 0u); // complain once, not once per body
         return 0;
     }
-    if (*sha != ref->sha256) {
+    if (*sha != ref.sha256) {
         std::fprintf(stderr,
-                     "[character] \"%s\": лист albedo \"%s\" — НЕ ТОТ ФАЙЛ: выпечка "
-                     "видела sha256 %s, на диске %s. Перепеки тело (dfn_import_gltf) "
-                     "или верни PNG. Тело рисуется палитрой.\n",
-                     object.name.c_str(), ref->path.c_str(), ref->sha256.c_str(),
+                     "[character] \"%s\": лист %s \"%s\" — НЕ ТОТ ФАЙЛ: выпечка "
+                     "видела sha256 %s, на диске %s. Перепеки (dfn_import_gltf) "
+                     "или верни PNG. Рисуется без листа.\n",
+                     owner.c_str(), ref.role.c_str(), ref.path.c_str(), ref.sha256.c_str(),
                      sha->c_str());
-        cache().emplace(ref->sha256, 0u);
+        cache().emplace(ref.sha256, 0u);
         return 0;
     }
     const Image img = load_png(file.string());
     if (img.empty()) {
         std::fprintf(stderr,
-                     "[character] \"%s\": лист albedo \"%s\" не читается как PNG — "
-                     "тело рисуется палитрой\n",
-                     object.name.c_str(), ref->path.c_str());
-        cache().emplace(ref->sha256, 0u);
+                     "[character] \"%s\": лист %s \"%s\" не читается как PNG — "
+                     "рисуется без листа\n",
+                     owner.c_str(), ref.role.c_str(), ref.path.c_str());
+        cache().emplace(ref.sha256, 0u);
         return 0;
     }
     // DFN_BODY_MIPS=0 — контрольная рука: тот же лист одной ступенью.
@@ -135,15 +130,26 @@ uint32_t body_albedo_asset(render::RenderSystem& render_system,
     const uint32_t asset = render_system.register_texture_asset(
         renderer, static_cast<uint32_t>(img.width), static_cast<uint32_t>(img.height),
         img.rgba, /*mip_chain=*/mips);
-    cache().emplace(ref->sha256, asset);
+    cache().emplace(ref.sha256, asset);
     if (asset != 0) {
         std::fprintf(stderr,
-                     "[character] \"%s\": лист albedo %s (%dx%d, sha256 %.12s…) "
+                     "[character] \"%s\": лист %s %s (%dx%d, sha256 %.12s…) "
                      "поднят с цепочкой мипов, ассет %u\n",
-                     object.name.c_str(), ref->path.c_str(), img.width, img.height,
-                     ref->sha256.c_str(), asset);
+                     owner.c_str(), ref.role.c_str(), ref.path.c_str(), img.width,
+                     img.height, ref.sha256.c_str(), asset);
     }
     return asset;
+}
+
+uint32_t body_albedo_asset(render::RenderSystem& render_system,
+                           platform::IRenderer& renderer,
+                           const render::RegistryObject& object,
+                           const std::filesystem::path& dfo_path) {
+    const render::TextureRef* ref = object.texture("albedo");
+    if (ref == nullptr) {
+        return 0; // a body without a sheet is the ordinary case, not a fault
+    }
+    return sheet_asset(render_system, renderer, *ref, object.name, dfo_path);
 }
 
 std::size_t body_textures_loaded() {

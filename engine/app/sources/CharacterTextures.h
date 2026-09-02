@@ -9,6 +9,8 @@ Responsibility:
   тело игрока, тело экрана создания и экспонат смотровой делят один лист.
 
 Key items:
+- sheet_asset(): ОДНА ССЫЛКА TEX → номер ассета (любая роль, любой
+  владелец: кожа тела, альбедо и нормаль пряди волос, костюм).
 - body_albedo_asset(): номер ассета альбедо для SkinnedDraw::texture_asset,
   0 — «листа нет» (палитра вершин), и каждая причина нуля сказана вслух.
 - body_palette_door(): DFN_BODY_PALETTE=1 — запасная рука: лист не
@@ -56,6 +58,14 @@ namespace dfn::app {
 /// Запасная рука: DFN_BODY_PALETTE=1 — листы не поднимаются, тело красится
 /// палитрой частей (цвет вершин), как до волны.
 [[nodiscard]] bool body_palette_door();
+
+/// ОДНА ССЫЛКА НА ЛИСТ → номер ассета render, или 0 (причина сказана вслух;
+/// `owner` — чьё это, для строки в журнале). Повторный вызов с тем же sha —
+/// тот же номер; дверь DFN_BODY_PALETTE=1 — ноль без чтения.
+[[nodiscard]] uint32_t sheet_asset(render::RenderSystem& render_system,
+                                   platform::IRenderer& renderer,
+                                   const render::TextureRef& ref, const std::string& owner,
+                                   const std::filesystem::path& dfo_path);
 
 /// Альбедо тела объекта как номер ассета render, или 0. `dfo_path` — откуда
 /// объект прочитан (для поиска относительного пути листа); пустой — только

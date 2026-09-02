@@ -11,7 +11,8 @@ Responsibility:
 
 Key items:
 - CharacterSpec: что строить — риг пропорций, прежняя ли рест-поза, номера
-  мешей, куда ставить в мир, чей это entity, нужна ли своя капсула.
+  мешей, куда ставить в мир, чей это entity, нужна ли своя капсула, какие
+  наборы частей и одежды крепить (дозы DFN_PARTS / DFN_CLOTHES по именам).
 - build_character() / build_character_object(): из файла / из объекта в
   памяти (экран собирает тело из бленда и масштаба и не пишет файл, чтобы
   показать).
@@ -65,6 +66,21 @@ inline constexpr uint32_t CHARGEN_BODY_MESH_ID = 130;
 inline constexpr uint32_t CHARGEN_BLADE_MESH_ID = 131;
 inline constexpr uint32_t VIEWER_BODY_MESH_ID = 132;
 inline constexpr uint32_t VIEWER_BLADE_MESH_ID = 133;
+/// ЧАСТИ НА ТЕЛЕ (волосы, глаза, брови, ресницы, зубы, язык, костюм, ботинки
+/// — CharacterParts): по ВОСЕМЬ номеров на хозяина в той же полосе 128..159:
+/// игрок 134..141, экран 142..149, смотровая 150..157. Восьмая часть сверх
+/// полосы отказывается вслух, а не забирает чужой номер.
+inline constexpr uint32_t CHARACTER_PARTS_MAX = 8;
+inline constexpr uint32_t PLAYER_PARTS_MESH_ID_FIRST = 134;
+inline constexpr uint32_t CHARGEN_PARTS_MESH_ID_FIRST = 142;
+inline constexpr uint32_t VIEWER_PARTS_MESH_ID_FIRST = 150;
+/// НАБОРЫ ПО УМОЛЧАНИЮ, когда рядом с телом своих нет (выпечка экрана лежит
+/// в presets/, части — у исходного тела): parts.glb один (сессия 62), и
+/// выбор причёски — пока дозой DFN_PARTS по имени части.
+inline constexpr const char* DEFAULT_CHARACTER_PARTS =
+    "assets/objects/characters/HumanBase.parts.dfo";
+inline constexpr const char* DEFAULT_CHARACTER_CLOTHES =
+    "assets/objects/characters/HumanBase.clothes.dfo";
 
 struct CharacterSpec {
     /// Риг ПРОПОРЦИЙ; стойка реста решается по коже внутри.
@@ -81,6 +97,15 @@ struct CharacterSpec {
     bool make_capsule = false;
     /// Ноги капсулы, мир (низ капсулы).
     glm::vec3 capsule_feet{0.0f};
+    /// ЧАСТИ И ОДЕЖДА: пустой путь — рядом с телом (<тело>.parts.dfo /
+    /// <тело>.clothes.dfo), иначе наборы по умолчанию, если скелет тот же.
+    /// Названный путь, которого нет, — отказ вслух, а не молчаливая лысина.
+    std::filesystem::path parts;
+    std::filesystem::path clothes;
+    /// Первый номер меша частей этого хозяина (полоса CHARACTER_PARTS_MAX).
+    uint32_t parts_mesh_first = PLAYER_PARTS_MESH_ID_FIRST;
+    /// Крепить ли части/одежду вовсе (тесты, которым нужно голое тело).
+    bool attach_parts = true;
 };
 
 /// ЧТО ПОСТРОИЛА ФАБРИКА, кроме самого тела: коробки Jolt и своя капсула.

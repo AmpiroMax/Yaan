@@ -198,6 +198,7 @@ bool CharGenBody::settle(render::RenderSystem& render_system, platform::IRendere
     spec.legacy_rest = legacy_rest_;
     spec.mesh_asset = CHARGEN_BODY_MESH_ID;
     spec.blade_asset = CHARGEN_BLADE_MESH_ID;
+    spec.parts_mesh_first = CHARGEN_PARTS_MESH_ID_FIRST;
     spec.to_world = glm::mat4{1.0f};
     spec.make_capsule = true;
     spec.capsule_feet = glm::vec3{0.0f};

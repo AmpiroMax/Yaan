@@ -5659,7 +5659,10 @@ int App::run() {
         // ТОЙ ЖЕ палитре и ТОЙ ЖЕ матрице (SkinnedCharacter::blade_draw), то
         // есть на костях тела, поэтому меч не может отстать от кулака на кадр
         // — как и хитбоксы ниже, и по той же причине.
-        std::array<render::RenderSystem::SkinnedDraw, 2> skinned_draws{};
+        // ЧАСТИ ТЕЛА (волосы, глаза, одежда) — третьим и далее, той же
+        // палитрой и матрицей (SkinnedCharacter::part_draws).
+        std::vector<render::RenderSystem::SkinnedDraw>& skinned_draws = skinned_draws_;
+        skinned_draws.clear();
         if (viewer_active()) {
             // НА СМОТРОВОЙ ФИГУРЫ ИГРОКА В КАДРЕ НЕТ, И ЭТО НЕ КОСМЕТИКА:
             // предмет кадра ровно один — модель на постаменте, и вторая фигура
@@ -5669,14 +5672,13 @@ int App::run() {
             // ЭКСПОНАТ-ПЕРСОНАЖ — ТЕМ ЖЕ СПИСКОМ, ЧТО ТЕЛО ИГРОКА В МИРЕ, с
             // хитбоксами по той же матрице (CharacterFactory).
             if (viewer_character_.ready()) {
-                skinned_draws[0] = viewer_character_.build_draw(/*hide_head=*/false, alpha);
-                const std::size_t count = viewer_character_.blade_drawn() ? 2u : 1u;
-                if (count == 2) {
-                    skinned_draws[1] = viewer_character_.blade_draw(skinned_draws[0]);
+                skinned_draws.push_back(
+                    viewer_character_.build_draw(/*hide_head=*/false, alpha));
+                if (viewer_character_.blade_drawn()) {
+                    skinned_draws.push_back(viewer_character_.blade_draw(skinned_draws[0]));
                 }
-                render_system_.set_skinned_bodies(
-                    std::span<const render::RenderSystem::SkinnedDraw>{
-                        skinned_draws.data(), count});
+                viewer_character_.part_draws(skinned_draws[0], skinned_draws);
+                render_system_.set_skinned_bodies(skinned_draws);
                 if (physics_ != nullptr && viewer_bodies_.hitboxes.live()) {
                     viewer_bodies_.hitboxes.update(*physics_,
                                                    viewer_character_.hitbox_pose(),
@@ -5691,15 +5693,13 @@ int App::run() {
                 render_system_.set_skinned_bodies({});
             }
         } else if (skinned_character_.ready()) {
-            skinned_draws[0] = skinned_character_.build_draw(
-                /*hide_head=*/!third_person_, alpha);
-            const std::size_t count = skinned_character_.blade_drawn() ? 2u : 1u;
-            if (count == 2) {
-                skinned_draws[1] = skinned_character_.blade_draw(skinned_draws[0]);
+            skinned_draws.push_back(skinned_character_.build_draw(
+                /*hide_head=*/!third_person_, alpha));
+            if (skinned_character_.blade_drawn()) {
+                skinned_draws.push_back(skinned_character_.blade_draw(skinned_draws[0]));
             }
-            render_system_.set_skinned_bodies(
-                std::span<const render::RenderSystem::SkinnedDraw>{
-                    skinned_draws.data(), count});
+            skinned_character_.part_draws(skinned_draws[0], skinned_draws);
+            render_system_.set_skinned_bodies(skinned_draws);
             // ХИТБОКСЫ ЧАСТЕЙ ТЕЛА ЕДУТ ЗА НАРИСОВАННОЙ ПОЗОЙ, и именно
             // здесь, а не в тике: тело рисуется по ИНТЕРПОЛИРОВАННОЙ позе, и
             // коробки, поставленные по позе тика, отставали бы от него ровно

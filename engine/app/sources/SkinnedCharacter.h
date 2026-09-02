@@ -18,6 +18,11 @@ Key items:
 - texture_asset(): лист кожи тела (секция TEX через CharacterTextures), едет
   в SkinnedDraw::texture_asset; 0 — палитра вершин (DFN_BODY_PALETTE=1). Состояние живёт ЗДЕСЬ: у него три потребителя — доза
   DFN_MORPH, панель редактора и выпечка, — и ни один из них не окно.
+- attach_parts() / part_draws(): части на теле (волосы, глаза, одежда —
+  CharacterParts): та же палитра, та же матрица; треугольники тела, закрытые
+  частью, не рисуются (draw_indices_).
+- socket_frame(): сокет тела (секция SOCK) в модельном пространстве по
+  последней палитре — точка позируется как вершина с одним весом.
 - SKINNED_CHARACTER_MESH_ID: the RenderMesh id this occupies (50).
 
 Dependencies:
@@ -62,6 +67,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/RootMotion.h"
 #include "engine/anim/sources/SkinnedBody.h"
+#include "engine/app/sources/CharacterParts.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 #include "engine/render/sources/MorphBlend.h"
 #include "engine/render/sources/RenderSystem.h"
@@ -116,6 +122,42 @@ public:
     /// АЛЬБЕДО ТЕЛА как номер ассета render (CharacterTextures), 0 — палитра
     /// вершин. Едет в каждый SkinnedDraw этого тела и в ScreenProp экрана.
     [[nodiscard]] uint32_t texture_asset() const { return texture_asset_; }
+    // --- ЧАСТИ НА ТЕЛЕ (волна «части персонажа») -----------------------------
+    //
+    /// Прикрепляет набор из файла (секция PART): сверка скелета, масштаб по
+    /// костям, меши под номерами first_mesh_id.., листы; затем треугольники
+    /// тела, все три вершины которых закрыты частями, снимаются с отрисовки
+    /// (перекладка индексов). `selection` — доза по именам (part_selected).
+    /// False — ничего не прикреплено, причина вслух; тело рисуется как было.
+    [[nodiscard]] bool attach_parts(render::RenderSystem& render_system,
+                                    platform::IRenderer& renderer,
+                                    const std::filesystem::path& path,
+                                    uint32_t first_mesh_id, uint32_t max_parts,
+                                    const char* selection);
+    [[nodiscard]] const CharacterParts& parts() const { return parts_; }
+    /// Дро частей ПОВЕРХ дро тела: та же палитра, та же матрица, свои меши и
+    /// материалы. Зовётся после build_draw с его результатом.
+    /// Тело — по значению: вызывающий передаёт out[0] (см. CharacterParts).
+    void part_draws(render::RenderSystem::SkinnedDraw body,
+                    std::vector<render::RenderSystem::SkinnedDraw>& out) const {
+        parts_.append_draws(std::move(body), out);
+    }
+    /// ИНДЕКСЫ, КОТОРЫМИ ТЕЛО РИСУЕТСЯ: skin_indices() без треугольников,
+    /// закрытых частями. Равны skin_indices(), пока ничего не закрыто.
+    [[nodiscard]] const std::vector<uint32_t>& draw_indices() const { return draw_indices_; }
+    [[nodiscard]] std::size_t drawn_triangles() const { return draw_indices_.size() / 3; }
+
+    // --- СОКЕТЫ (секция SOCK) --------------------------------------------------
+    //
+    /// Сокеты тела, как они пришли из файла (в модельном пространстве тела).
+    [[nodiscard]] const std::vector<render::Socket>& sockets() const { return sockets_; }
+    /// РАМКА СОКЕТА В МОДЕЛЬНОМ ПРОСТРАНСТВЕ по ПОСЛЕДНЕЙ палитре
+    /// (build_draw): palette[joint] * T(rest_point) — та же арифметика, что
+    /// у вершины с одним весом, второй «где кость» не заводится. Мир —
+    /// draw.transform * эта рамка. До первого build_draw палитра — привязка,
+    /// и рамка стоит в точке покоя. False — сокета с таким именем нет.
+    [[nodiscard]] bool socket_frame(std::string_view name, glm::mat4& out) const;
+
     /// THE VERTICES AS DRAWN: the morph blend when a slider moved, the bind
     /// otherwise. Bind-pose space; the palette poses them.
     [[nodiscard]] const std::vector<platform::SkinnedVertex>& current_vertices() const {
@@ -304,6 +346,17 @@ private:
     /// вершины и оставлял свет от прежней формы — тот самый «всё кривенько»,
     /// за который импортёр уже пересчитывал нормали после --reshape.
     std::vector<uint32_t> skin_indices_;
+    /// skin_indices_ без треугольников, закрытых частями (attach_parts). ЭТИМ
+    /// списком тело кладётся на GPU — при загрузке, на морфе, на замене
+    /// вершин; полный список остаётся для нормалей бленда.
+    std::vector<uint32_t> draw_indices_;
+    /// Части на теле (волосы, глаза, одежда): снимаются вместе с телом.
+    CharacterParts parts_;
+    /// Сокеты тела (секция SOCK), масштабированные вместе с ним.
+    std::vector<render::Socket> sockets_;
+    /// Перекладка индексов тела после attach_parts; false — сказано вслух.
+    bool rebuild_draw_indices(render::RenderSystem& render_system,
+                              platform::IRenderer& renderer);
     std::vector<render::MorphTarget> morphs_;
     render::MorphState morph_{};
     std::vector<platform::SkinnedVertex> morphed_;

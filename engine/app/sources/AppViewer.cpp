@@ -266,6 +266,7 @@ void App::viewer_show(int index) {
         spec.legacy_rest = rest_pose_legacy_door();
         spec.mesh_asset = VIEWER_BODY_MESH_ID;
         spec.blade_asset = VIEWER_BLADE_MESH_ID;
+        spec.parts_mesh_first = VIEWER_PARTS_MESH_ID_FIRST;
         spec.make_capsule = true;
         spec.capsule_feet = viewer_pad_;
         spec.to_world = glm::translate(glm::mat4{1.0f}, viewer_pad_);

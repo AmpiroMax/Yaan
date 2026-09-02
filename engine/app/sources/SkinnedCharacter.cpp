@@ -91,6 +91,16 @@ void scale_registry_object(render::RegistryObject& obj, float k) {
             }
         }
     }
+    // СОКЕТЫ И ЧАСТИ ЗНАЮТ ПРО МЕТРЫ ТОЧНО ТАК ЖЕ: точка сокета — вершина с
+    // одним весом, вершины части — вершины.
+    for (render::Socket& sock : obj.sockets) {
+        sock.rest_point *= k;
+    }
+    for (render::SkinPart& part : obj.parts) {
+        for (platform::SkinnedVertex& v : part.mesh.vertices) {
+            v.position *= k;
+        }
+    }
 }
 
 bool SkinnedCharacter::load(render::RenderSystem& render_system,
@@ -185,6 +195,8 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
     texture_asset_ = body_albedo_asset(render_system, renderer, *obj, path);
     bind_vertices_ = obj->skin.vertices;
     skin_indices_ = obj->skin.indices;
+    draw_indices_ = obj->skin.indices; // ничего не закрыто, пока нет частей
+    sockets_ = obj->sockets;
     morphs_ = obj->morphs;
     morph_.resize_for(morphs_);
     source_path_ = path;
@@ -412,7 +424,7 @@ bool SkinnedCharacter::apply_morphs(render::RenderSystem& render_system,
     render::blend_morphs(bind_vertices_, morphs_, morph_.weights, skin_indices_,
                          morphed_);
     if (!render_system.replace_skinned_mesh(renderer, mesh_asset_, morphed_,
-                                            skin_indices_)) {
+                                            draw_indices_)) {
         // ГРЯЗНЫМ ОСТАВЛЯЕМ НАРОЧНО: неудачная перекладка — это тело, которое
         // на экране не то, что в состоянии, и следующий вызов обязан
         // попробовать ещё раз, а не считать себя сделанным.
@@ -431,6 +443,9 @@ void SkinnedCharacter::release(render::RenderSystem& render_system,
     if (blade_ready_) {
         (void)render_system.drop_skinned_mesh(renderer, blade_asset_);
     }
+    parts_.release(render_system, renderer);
+    draw_indices_.clear();
+    sockets_.clear();
     blade_ready_ = false;
     ready_ = false;
     ticked_ = false;
@@ -460,7 +475,7 @@ bool SkinnedCharacter::replace_vertices(render::RenderSystem& render_system,
         return false;
     }
     if (!render_system.replace_skinned_mesh(renderer, mesh_asset_, vertices,
-                                            skin_indices_)) {
+                                            draw_indices_)) {
         return false;
     }
     bind_vertices_.assign(vertices.begin(), vertices.end());
@@ -471,6 +486,93 @@ bool SkinnedCharacter::replace_vertices(render::RenderSystem& render_system,
     hitboxes_ = anim::build_hitboxes(rig_.proportions);
     anim::fit_hitboxes_to_skin(hitboxes_, rig_, skeleton_, binding_, bind_vertices_);
     return true;
+}
+
+bool SkinnedCharacter::attach_parts(render::RenderSystem& render_system,
+                                    platform::IRenderer& renderer,
+                                    const std::filesystem::path& path,
+                                    uint32_t first_mesh_id, uint32_t max_parts,
+                                    const char* selection) {
+    if (!ready_) {
+        std::fprintf(stderr, "[parts] \"%s\": тело не загружено — части не к чему "
+                             "крепить\n", path.string().c_str());
+        return false;
+    }
+    std::error_code ec;
+    if (!std::filesystem::exists(path, ec)) {
+        std::fprintf(stderr, "[parts] \"%s\": файла нет — части не прикреплены (печёт "
+                             "цель dfn_characters)\n", path.string().c_str());
+        return false;
+    }
+    const auto obj = render::read_object(path);
+    if (!obj.has_value()) {
+        std::fprintf(stderr, "[parts] \"%s\": отвергнут реестром — части не "
+                             "прикреплены\n", path.string().c_str());
+        return false;
+    }
+    if (!parts_.attach(render_system, renderer, *obj, path, skeleton_, first_mesh_id,
+                       max_parts, selection)) {
+        return false;
+    }
+    return rebuild_draw_indices(render_system, renderer);
+}
+
+bool SkinnedCharacter::rebuild_draw_indices(render::RenderSystem& render_system,
+                                            platform::IRenderer& renderer) {
+    const std::vector<uint32_t> hidden = parts_.hidden_body_vertices();
+    std::vector<uint32_t> next;
+    if (hidden.empty()) {
+        next = skin_indices_;
+    } else {
+        // ТРЕУГОЛЬНИК СНИМАЕТСЯ, ТОЛЬКО ЕСЛИ ЗАКРЫТЫ ВСЕ ТРИ ЕГО ВЕРШИНЫ: кромка
+        // костюма проходит по треугольникам с одной открытой вершиной, и снять
+        // их значило бы показать дыру между рукавом и кистью.
+        next.reserve(skin_indices_.size());
+        const auto covered = [&hidden](uint32_t i) {
+            return std::binary_search(hidden.begin(), hidden.end(), i);
+        };
+        for (std::size_t t = 0; t + 2 < skin_indices_.size(); t += 3) {
+            if (covered(skin_indices_[t]) && covered(skin_indices_[t + 1])
+                && covered(skin_indices_[t + 2])) {
+                continue;
+            }
+            next.push_back(skin_indices_[t]);
+            next.push_back(skin_indices_[t + 1]);
+            next.push_back(skin_indices_[t + 2]);
+        }
+    }
+    if (next.size() == draw_indices_.size()) {
+        draw_indices_ = std::move(next);
+        return true; // ничего не изменилось — тело на GPU уже такое
+    }
+    if (!render_system.replace_skinned_mesh(renderer, mesh_asset_, current_vertices(),
+                                            next)) {
+        std::fprintf(stderr, "[parts] тело «%s»: перекладка индексов без закрытых "
+                             "треугольников не удалась — кожа под костюмом останется\n",
+                     name_.c_str());
+        return false;
+    }
+    std::fprintf(stderr,
+                 "[parts] тело «%s»: закрыто %zu вершин, снято %zu из %zu треугольников "
+                 "тела\n",
+                 name_.c_str(), hidden.size(), (skin_indices_.size() - next.size()) / 3,
+                 skin_indices_.size() / 3);
+    draw_indices_ = std::move(next);
+    return true;
+}
+
+bool SkinnedCharacter::socket_frame(std::string_view name, glm::mat4& out) const {
+    for (const render::Socket& sock : sockets_) {
+        if (sock.name != name) {
+            continue;
+        }
+        const glm::mat4 bone = sock.joint < palette_.size()
+                                   ? palette_[sock.joint]
+                                   : glm::mat4{1.0f};
+        out = bone * glm::translate(glm::mat4{1.0f}, sock.rest_point);
+        return true;
+    }
+    return false;
 }
 
 bool SkinnedCharacter::bake_morphs(const std::filesystem::path& out, float scale) const {

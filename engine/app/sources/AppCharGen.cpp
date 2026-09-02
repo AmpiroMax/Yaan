@@ -898,6 +898,11 @@ void App::chargen_screen_prop() {
     prop.palette = draw.palette;
     prop.texture_asset = draw.texture_asset; // кожа — та же, что в мире
     prop.in_camera = in_camera;
+    // ЧАСТИ (волосы, глаза, брови, одежда) — теми же дро, что в мире; их
+    // хранилище — член App, потому что список одолжен render на кадр.
+    chargen_part_draws_.clear();
+    chargen_body_.character().part_draws(draw, chargen_part_draws_);
+    prop.parts = chargen_part_draws_;
     render_system_.set_screen_prop(prop);
     if (hitbox_draw_) {
         debug_draw_hitboxes(*renderer_, chargen_body_.character().hitboxes(),

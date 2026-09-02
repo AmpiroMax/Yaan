@@ -67,6 +67,7 @@ if(DFN_APP_READY)
         sources/PropPhysics.cpp
     sources/SkinnedCharacter.cpp
     sources/CharacterTextures.cpp
+    sources/CharacterParts.cpp
     sources/ThirdPersonRig.cpp
         sources/SeatAim.cpp
         sources/EditorCamera.cpp

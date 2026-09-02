@@ -305,9 +305,11 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Peoples.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/FaceManifest.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/UiSlider.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/UiFont.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
@@ -337,6 +339,7 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
@@ -352,11 +355,32 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
     if(TARGET dfn_characters)
         add_dependencies(app_grounded_locomotion dfn_characters)
+    endif()
+
+    # ЧАСТИ НА ТЕЛЕ (волна «части персонажа»): набор PART крепится к телу на
+    # нулевом бэкенде — сверка скелета, масштаб по костям (тело, масштабированное
+    # ростом, получает части тем же множителем), меши под номерами полосы
+    # хозяина, выбор по имени дозой, треугольники тела под костюмом сняты
+    # ровно там, где закрыты все три вершины; сокет едет с костью в клипе.
+    # Файлы — настоящие (dfn_characters); без них набор пропускается вслух.
+    add_dfn_test(app_character_parts app/CharacterPartsTests.cpp
+                 dfn_render dfn_platform_render dfn_anim dfn_core)
+    target_sources(app_character_parts PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
+    if(TARGET dfn_characters)
+        add_dependencies(app_character_parts dfn_characters)
     endif()
 
     # НАРОДЫ КАК РАСПРЕДЕЛЕНИЯ. Предмет тут не «файл читается», а три вещи,
@@ -374,6 +398,7 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)

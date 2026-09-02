@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 141> TABLE{{
+constexpr std::array<Door, 144> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -245,6 +245,15 @@ constexpr std::array<Door, 141> TABLE{{
      DoorRead::Once},
     {"DFN_BODY_FILE",
      "<путь к .dfo> — исходное тело экрана создания И мира сразу (CharGenBody chargen_source_body): фикстура приёмки, например тело с шахматным листом вместо кожи. Не для игры: выпечка экрана и пресеты остаются на своих местах.",
+     DoorRead::Once},
+    {"DFN_PARTS",
+     "какие части набора HumanBase.parts.dfo надеть на тело: пусто — все (волосы, глаза, брови, ресницы, зубы, язык), «none» — ни одной (рука «до» приёмки частей), иначе имена через запятую (hair,eyes). Выбор причёски — пока данными и этой дозой; переключатель экрана — следующая волна.",
+     DoorRead::Once},
+    {"DFN_CLOTHES",
+     "какие вещи набора HumanBase.clothes.dfo надеть: пусто — все (male_casualsuit01, shoes01), «none» — голый, иначе имена через запятую. Вещь закрывает вершины тела списком из файла — треугольники кожи под костюмом не рисуются.",
+     DoorRead::Once},
+    {"DFN_PARTS_ARM",
+     "контрольные руки приёмки частей (правило 47), слова через запятую: nocutout — карточки без выреза по альфе (и тень сплошная), flat — без двустороннего света (изнанка пряди чёрная), nonormal — без листа нормалей волос. Обе руки из одного бинарника.",
      DoorRead::Once},
     {"DFN_STAND_CAM",
      "заданная камера СТЕНДА ПЕРСОНАЖА, 1..5 (фронт / профиль / три четверти / крупно / РУКА С ОРУЖИЕМ): все приёмочные кадры фигуры снимаются только на стенде и только этими позами (правило 17a).",

@@ -17,6 +17,7 @@ AI Agents Notice (must follow):
 
 #include "engine/app/sources/CharacterFactory.h"
 
+#include "engine/app/sources/AppDoors.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/physics/sources/CollisionLayers.h"
 
@@ -52,6 +53,63 @@ void finish_bodies(SkinnedCharacter& body, CharacterBodies& bodies,
     }
 }
 
+/// ГДЕ ЛЕЖИТ НАБОР ЧАСТЕЙ ЭТОГО ТЕЛА. Названный в спеке путь — как есть (и
+/// его отсутствие — отказ вслух в attach_parts); иначе <тело>.<набор>.dfo
+/// рядом с телом; иначе набор по умолчанию, но ТОЛЬКО если у тела столько же
+/// суставов: у рыцаря-фикстуры в смотровой их 19, и «части HumanBase не
+/// сели на Knight» — не отказ, а ожидаемая тишина. Пустой путь — набора нет.
+std::filesystem::path parts_file(const std::filesystem::path& named,
+                                 const std::filesystem::path& body_path,
+                                 const char* suffix, const char* fallback,
+                                 std::size_t body_joints) {
+    if (!named.empty()) {
+        return named;
+    }
+    std::error_code ec;
+    if (!body_path.empty()) {
+        std::filesystem::path beside = body_path;
+        beside.replace_extension(std::string(suffix) + ".dfo");
+        if (std::filesystem::exists(beside, ec)) {
+            return beside;
+        }
+    }
+    const std::filesystem::path def(fallback);
+    if (std::filesystem::exists(def, ec)) {
+        const auto obj = render::read_object(def);
+        if (obj.has_value() && obj->skeleton.joints.size() == body_joints) {
+            return def;
+        }
+    }
+    return {};
+}
+
+/// ЧАСТИ И ОДЕЖДА НА ТЕЛО — второй шаг фабрики, после самого тела: дозы
+/// DFN_PARTS / DFN_CLOTHES выбирают по именам («none» — голый), наборы делят
+/// одну полосу номеров хозяина. Части, которых нет, — не ошибка постройки:
+/// тело собрано, и это сказано вслух там, где набор не нашёлся.
+void finish_parts(SkinnedCharacter& body, render::RenderSystem& render_system,
+                  platform::IRenderer& renderer, const std::filesystem::path& body_path,
+                  const CharacterSpec& spec) {
+    if (!spec.attach_parts || !body.ready()) {
+        return;
+    }
+    const std::size_t joints = body.joint_count();
+    const std::filesystem::path parts = parts_file(spec.parts, body_path, ".parts",
+                                                   DEFAULT_CHARACTER_PARTS, joints);
+    const std::filesystem::path clothes = parts_file(spec.clothes, body_path, ".clothes",
+                                                     DEFAULT_CHARACTER_CLOTHES, joints);
+    const char* parts_door = door_value("DFN_PARTS");
+    const char* clothes_door = door_value("DFN_CLOTHES");
+    if (!parts.empty()) {
+        (void)body.attach_parts(render_system, renderer, parts, spec.parts_mesh_first,
+                                CHARACTER_PARTS_MAX, parts_door);
+    }
+    if (!clothes.empty()) {
+        (void)body.attach_parts(render_system, renderer, clothes, spec.parts_mesh_first,
+                                CHARACTER_PARTS_MAX, clothes_door);
+    }
+}
+
 } // namespace
 
 bool build_character(SkinnedCharacter& body, CharacterBodies& bodies,
@@ -68,6 +126,7 @@ bool build_character(SkinnedCharacter& body, CharacterBodies& bodies,
                    spec.mesh_asset, spec.blade_asset)) {
         return false;
     }
+    finish_parts(body, render_system, renderer, path, spec);
     finish_bodies(body, bodies, physics, spec);
     return true;
 }
@@ -87,6 +146,7 @@ bool build_character_object(SkinnedCharacter& body, CharacterBodies& bodies,
                           label, spec.legacy_rest, spec.mesh_asset, spec.blade_asset)) {
         return false;
     }
+    finish_parts(body, render_system, renderer, label, spec);
     finish_bodies(body, bodies, physics, spec);
     return true;
 }
