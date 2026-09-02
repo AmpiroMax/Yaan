@@ -37,6 +37,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/UiSlider.h"
 
 #include "engine/anim/sources/Rig.h"
+#include "engine/anim/sources/SkinnedBody.h"
 #include "engine/platform/render/sources/null/NullRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
 #include "engine/render/sources/ObjectRegistry.h"
@@ -44,10 +45,13 @@ AI Agents Notice (must follow):
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <map>
+#include <span>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -892,5 +896,156 @@ TEST_CASE("пресет старше тела: неизвестный ползу
     body.apply_preset(p);
     CHECK(body.height_m() == doctest::Approx(1.70f));
     CHECK(body.weights().weights[0] == doctest::Approx(body.morphs()[0].hi));
+    body.release(rs, renderer, nullptr);
+}
+
+// --- ГОЛОВА И ЛИЦО ------------------------------------------------------------
+//
+// ДВА ПРИБОРА ОДНОГО ДЕФЕКТА (нос-шип на экране создания, 02.09). На кадре нос
+// вытягивался полосой вниз-вправо, и первая гипотеза была «цели MORF трогают
+// голову». Прибор без кадра показал другое: цели тела трогают 0 вершин головы,
+// а шип живёт в ВЕСАХ СКИНА — 496 вершин лица (нос, губы, челюсть) несли
+// DEF-neck (кончик носа: 0.745 шеи против 0.128 у соседа в 5 мм), и в клипе
+// покоя, где голова повёрнута относительно шеи, M_neck·p и M_head·p на носу
+// расходились на 30 мм. В рест-позе палитры шеи и головы совпадают — потому на
+// стенде и на DFN_CHARGEN_POSE=rest лицо было целым. Исправлено в весах
+// (fa6b26ee: лицо → DEF-head); эти два набора держат оба утверждения порознь.
+
+namespace {
+
+/// ГРАНИЦА ГОЛОВЫ — ЛИНИЯ ШЕИ, долей роста от макушки вниз. DEF-neck у
+/// HumanBase стоит на 1.501 м при росте 1.739 (0.137 роста от макушки); 0.14
+/// берёт его с запасом в полсантиметра и не привязывает набор к одному телу.
+constexpr float HEAD_FROM_TOP_FRAC = 0.14f;
+/// ЛИЦО — выше подбородка (0.125 роста от макушки: 1.52 м) и ПЕРЕД шеей
+/// (z < −0.03: персонаж смотрит вдоль −Z, docs/RIG.md).
+constexpr float FACE_FROM_TOP_FRAC = 0.125f;
+constexpr float FACE_FRONT_Z = -0.03f;
+
+[[nodiscard]] float top_y(std::span<const glm::vec3> rest) {
+    float top = -1e9f;
+    for (const glm::vec3& p : rest) {
+        top = std::max(top, p.y);
+    }
+    return top;
+}
+
+} // namespace
+
+TEST_CASE("лицо едет с головой ЖЁСТКО: в клипе покоя ни одна вершина лица не отстаёт от DEF-head больше 3 мм") {
+    if (!body_present()) {
+        MESSAGE("HumanBase.dfo нет в дереве — набор пропущен");
+        return;
+    }
+    platform::NullRenderer renderer;
+    render::RenderSystem rs;
+    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    app::CharGenBody body;
+    REQUIRE(body.load(rs, renderer, nullptr, rig, BODY_PATH));
+    std::vector<glm::vec3> rest;
+    body.character().rest_positions(rest);
+    const auto& verts = body.character().current_vertices();
+    const auto& skel = body.character().skeleton();
+    std::size_t head = skel.size();
+    for (std::size_t j = 0; j < skel.size(); ++j) {
+        if (skel.joints[j].name == "DEF-head") {
+            head = j;
+        }
+    }
+    REQUIRE(head < skel.size());
+    // ТА ЖЕ ПОЗА, ЧТО В КАДРЕ ПРИЁМКИ: 45 тиков покоя (DFN_SHOT_AFTER=45) и
+    // палитра того же build_draw, что уходит на видеокарту; alpha 0 — как у
+    // стоящей камеры меню (AppCharGen.cpp).
+    for (int frame = 0; frame < 45; ++frame) {
+        body.tick(1.0f / 60.0f);
+    }
+    const render::RenderSystem::SkinnedDraw draw = body.draw(0.0f, nullptr, glm::mat4{1.0f});
+    REQUIRE(draw.palette.size() == skel.size());
+    const float top = top_y(rest);
+    std::size_t face = 0;
+    std::size_t over = 0;
+    float worst = 0.0f;
+    std::size_t worst_i = 0;
+    for (std::size_t i = 0; i < verts.size(); ++i) {
+        if (rest[i].y < top - FACE_FROM_TOP_FRAC * top || rest[i].z > FACE_FRONT_Z) {
+            continue;
+        }
+        ++face;
+        // ЖЁСТКОЕ ДВИЖЕНИЕ ГОЛОВЫ — та же вершина, пронесённая ОДНОЙ матрицей
+        // DEF-head; остаток — то, что лицу дали чужие кости.
+        const glm::vec3 posed = anim::cpu_skin_position(verts[i], draw.palette);
+        const glm::vec3 rigid =
+            glm::vec3{draw.palette[head] * glm::vec4{verts[i].position, 1.0f}};
+        const float residual = glm::length(posed - rigid);
+        if (residual > 0.003f) {
+            ++over;
+        }
+        if (residual > worst) {
+            worst = residual;
+            worst_i = i;
+        }
+    }
+    // ЛИЦО ЕСТЬ: пустая выборка прошла бы любой порог.
+    REQUIRE(face > 1000);
+    CAPTURE(face);
+    CAPTURE(worst_i);
+    MESSAGE("лицо: " << face << " вершин, худший остаток от жёсткой головы "
+                     << worst * 1000.0f << " мм (вершина " << worst_i << "), >3 мм: " << over);
+    // ДО fa6b26ee (тот же набор на старом теле): 2843 вершины лица, худший
+    // остаток 28.9 мм, дальше 3 мм — 1055. ПОСЛЕ: худший 2.0 мм, дальше 3 мм — 0.
+    CHECK(over == 0);
+    CHECK(worst < 0.003f);
+    body.release(rs, renderer, nullptr);
+}
+
+TEST_CASE("цели тела не трогают голову: ручки частей — ни одной вершины выше шеи дальше 2 мм, макро — по паспорту") {
+    if (!body_has_morphs()) {
+        MESSAGE("у HumanBase.dfo нет секции MORF — набор пропущен");
+        return;
+    }
+    platform::NullRenderer renderer;
+    render::RenderSystem rs;
+    const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
+    app::CharGenBody body;
+    REQUIRE(body.load(rs, renderer, nullptr, rig, BODY_PATH));
+    std::vector<glm::vec3> rest;
+    body.character().rest_positions(rest);
+    const float top = top_y(rest);
+    const float neck_y = top - HEAD_FROM_TOP_FRAC * top;
+    // ПАСПОРТ МАКРО-РУЧЕК: они трогают ВСЁ тело по построению MakeHuman (возраст
+    // — сутулость, голова едет вниз целиком; вес и мышцы — шея и щёки; глубина
+    // туловища — основание шеи). Числа — замер tools/make_body_targets.py на
+    // fa6b26ee, ход головы на КРАЮ ПОЛОСЫ: age 16.1 мм, torso-depth 5.9,
+    // weight 4.6, muscle 1.8. Потолки — с запасом на четверть; ручка, которой
+    // здесь нет, обязана не тронуть НИ ОДНОЙ вершины головы.
+    const std::map<std::string, float> passport_mm{
+        {"age", 20.0f}, {"torso-depth", 8.0f}, {"weight", 6.0f}, {"muscle", 3.0f}};
+    REQUIRE(body.morphs().size() >= 10);
+    for (const render::MorphTarget& t : body.morphs()) {
+        const float band = std::max(std::fabs(t.lo), std::fabs(t.hi));
+        std::size_t head_moved = 0;
+        float head_worst = 0.0f;
+        for (const render::MorphDelta& d : t.deltas) {
+            if (d.index >= rest.size() || rest[d.index].y <= neck_y) {
+                continue;
+            }
+            const float len = glm::length(d.offset) * band;
+            // ДВА МИЛЛИМЕТРА — порог ВИДИМОГО: полвершины ключицы, зацепленные
+            // «плечами» на линии шеи на 0.18 мм, — не дефект, а край региона.
+            if (len > 0.002f) {
+                ++head_moved;
+            }
+            head_worst = std::max(head_worst, len);
+        }
+        CAPTURE(t.name);
+        MESSAGE(t.name << ": голова — " << head_moved << " вершин дальше 2 мм, макс "
+                       << head_worst * 1000.0f << " мм на краю полосы [" << t.lo << ", "
+                       << t.hi << "]");
+        if (const auto it = passport_mm.find(t.name); it != passport_mm.end()) {
+            CHECK(head_worst * 1000.0f <= it->second);
+        } else {
+            CHECK(head_moved == 0);
+        }
+    }
     body.release(rs, renderer, nullptr);
 }
