@@ -1,0 +1,22 @@
+{
+  "schema": "dfn.face-scale-baseline",
+  "version": 1,
+  "body": "human-base",
+  "source": "assets/objects/characters/HumanBase.dfo",
+  "masks": "assets/characters/targets/face.masks",
+  "decision": "FACE_CANON.md §2: полоса лицевой ручки центрируется на замере СВОЕЙ нейтрали, а не на числе из учебника",
+  "height_m": 1.738624,
+  "face": {
+    "ipd": 0.061543,
+    "eye slit width": 0.023424,
+    "eye slit height": 0.052224,
+    "face width at eyes": 0.104416,
+    "head height": 0.237513,
+    "eye line": 0.462250,
+    "five eyes": 4.457577,
+    "nose length": 0.039269,
+    "nose depth": 0.007174,
+    "nostril width": 0.059713,
+    "mouth width": 0.083143
+  }
+}

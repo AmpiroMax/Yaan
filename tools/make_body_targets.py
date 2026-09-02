@@ -3,12 +3,18 @@
 # File: tools/make_body_targets.py
 #
 # Responsibility:
-# - ПЕЧЁТ ПОЛЗУНКИ ТЕЛА ПРЯМЫМИ ЦЕЛЯМИ MPFB2: базовая модель игрока — само тело
-#   MakeHuman (tools/make_human_body.py, решение владельца 02.09), поэтому
-#   именованная цель MPFB2 (файл «индекс dx dy dz» на 19 158 вершин basemesh)
-#   и макро-решётка MakeHuman ложатся на НАШИ вершины без обёртки, проекции и
-#   масок: та же сетка, тот же индекс. Результат — переносной файл целей
-#   (.morf), который dfn_morph attach вписывает в .dfo секцией MORF.
+# - ПЕЧЁТ ПОЛЗУНКИ ТЕЛА И ЛИЦА ПРЯМЫМИ ЦЕЛЯМИ MPFB2: базовая модель игрока —
+#   само тело MakeHuman (tools/make_human_body.py, решение владельца 02.09),
+#   поэтому именованная цель MPFB2 (файл «индекс dx dy dz» на 19 158 вершин
+#   basemesh) и макро-решётка MakeHuman ложатся на НАШИ вершины без обёртки,
+#   проекции и масок: та же сетка, тот же индекс. Результат — переносной файл
+#   целей (.morf), который dfn_morph attach вписывает в .dfo секцией MORF.
+#   Ручки ТЕЛА названы здесь (SLIDERS), ручки ЛИЦА — манифестом
+#   assets/characters/targets/face.targets (сессия 62): группа, цели MPFB,
+#   полоса, подпись. Вместе с .morf пишутся МАСКИ ЛИЦА
+#   (assets/characters/targets/face.masks): области судьи лица
+#   (docs/research/FACE_CANON.md §1) в номерах вершин .dfo — маска области
+#   есть объединение целей MPFB, которые её двигают.
 #
 # Usage (headless, Blender 5.2 + MPFB 2.0.17 в системе):
 #     /Applications/Blender.app/Contents/MacOS/Blender --background \
@@ -16,7 +22,15 @@
 #         --rest <rest.bin> --out assets/objects/characters/HumanBase.morf
 #   где rest.bin выдаёт `dfn_morph rest assets/objects/characters/HumanBase.dfo`
 #   (рест-поза скина и матрица возврата на вершину). Ключи: --only имя,имя
-#   (печь не весь набор), --epsilon МЕТРЫ (порог разреженности), --dump-diag.
+#   (печь не весь набор), --epsilon МЕТРЫ (порог разреженности), --dump-diag,
+#   --bands <face.bands> (калиброванные полосы лица, см. ниже).
+#   БЕЗ BLENDER, чистым python3 — перезапись одних полос в готовом .morf:
+#     python3 tools/make_body_targets.py --reband 1 --bands <face.bands> \
+#         --out assets/objects/characters/HumanBase.morf
+#   Дельты при этом не трогаются до байта; полосы лица приходят из файла
+#   калибровки, который пишет tools/check_morph_bands.py --calibrate (двоичный
+#   поиск судьями dfn_human_scale и dfn_face_scale). Круг «печь с полосами
+#   манифеста → калибровать → перезаписать полосы» не требует второй выпечки.
 #
 # ЧТО ЗДЕСЬ ПРОИСХОДИТ, В ПЯТИ СТРОКАХ.
 #   1. Тело выращивается РОВНО так, как его печёт tools/make_human_body.py
@@ -47,10 +61,13 @@
 # Dependencies:
 # - Uses: bpy (Blender 5.2 LTS), расширение MPFB 2.0.17 (bl_ext.blender_org.mpfb
 #   или bl_ext.user_default.mpfb), аддон rigify, tools/make_human_body.py как
-#   модуль, assets/objects/characters/{UAL_Clips.glb,HumanBase.glb}; вход —
-#   rest.bin от `dfn_morph rest`.
+#   модуль, assets/objects/characters/{UAL_Clips.glb,HumanBase.glb} (атрибут
+#   _HM08_INDEX — номер вершины basemesh на каждой вершине .glb),
+#   assets/characters/targets/face.targets; вход — rest.bin от `dfn_morph rest`.
 # - Used by: рука; результат потребляет `dfn_morph attach` (CMake на сборке);
-#   полосы меряет tools/check_morph_bands.py.
+#   полосы меряет и калибрует tools/check_morph_bands.py; маски читает
+#   dfn_face_scale (tools/check_face_scale.cpp); имена ручек лица теми же
+#   правилами выводит engine/app/sources/FaceManifest.cpp.
 #
 # AI Agents Notice:
 # - Follow docs/ARCHITECTURE.md strictly.
@@ -60,17 +77,25 @@
 #   этом записка поймала чужой генератор ARKit: 52 цели, 0 сдвигов, «успех».
 # - Тело здесь НЕ перепекается и не пишется: HumanBase.glb — одобренный ассет,
 #   скрипт только читает его для сверки.
+# - ИМЯ РУЧКИ ЛИЦА ВЫВОДИТСЯ ИЗ СТЕМА ЦЕЛИ (handle_name) и ровно тем же правилом
+#   в FaceManifest.cpp: два правила — две копии; тест app_chargen сверяет, что
+#   каждая строка манифеста находит свою цель MORF по имени.
 
 import importlib
 import importlib.util
+import gzip
 import json
 import os
+import re
 import struct
 import sys
 
-import bpy  # type: ignore
 import numpy as np  # type: ignore
-from mathutils import Matrix  # type: ignore
+
+try:
+    import bpy  # type: ignore
+except ImportError:  # --reband идёт чистым python3, без Blender
+    bpy = None
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -86,11 +111,18 @@ DEFAULTS = {
     "dump-diag": "",
     "glb": "assets/objects/characters/HumanBase.glb",
     "dfo": "assets/objects/characters/HumanBase.dfo",
+    "face": "assets/characters/targets/face.targets",
+    "masks": "assets/characters/targets/face.masks",
+    # КАЛИБРОВАННЫЕ ПОЛОСЫ ЛИЦА (пишет check_morph_bands.py --calibrate). Пусто
+    # — полосы манифеста. Файла нет — тоже полосы манифеста, и это сказано
+    # вслух: полоса без калибровки — предложение, а не замер.
+    "bands": "assets/characters/targets/face.bands",
+    "reband": "",
 }
 
 
 def parse_args():
-    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    argv = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else sys.argv[1:]
     opt = dict(DEFAULTS)
     i = 0
     while i < len(argv):
@@ -99,9 +131,303 @@ def parse_args():
             raise SystemExit("unknown option: " + argv[i])
         opt[key] = argv[i + 1]
         i += 2
-    if not opt["rest"]:
+    if not opt["rest"] and not opt["reband"]:
         raise SystemExit("--rest <rest.bin> обязателен (dfn_morph rest ...)")
     return opt
+
+
+def abs_path(p):
+    return p if os.path.isabs(p) else os.path.join(ROOT, p)
+
+
+# ------------------------------------------------ 0. МАНИФЕСТ ЛИЦА -----------
+#
+# Строка: группа | ручка | цели MPFB | полоса lo hi | подпись RU | словесная пара
+# (синтаксис — в шапке самого файла). Здесь из неё берётся ТОЛЬКО то, что
+# нужно выпечке: цели по сторонам ручки и полоса; слова — дело экрана и
+# локализации.
+
+def handle_name(spec):
+    """ИМЯ РУЧКИ ИЗ СПЕЦИФИКАЦИИ ЦЕЛЕЙ. «{l,r}-eye-scale-decr/incr» → «eye-scale»,
+    «nose-point-down/up» → «nose-point», «head-oval» → «head-oval». Правило
+    одно на экспортёр и на FaceManifest.cpp."""
+    stem = spec.replace("{l,r}-", "")
+    if "/" in stem:
+        left = stem.split("/")[0]
+        return left.rsplit("-", 1)[0]
+    return stem
+
+
+def face_target_names(spec):
+    """Пары файлов целей по сторонам: (lo_targets, hi_targets). У одиночной цели
+    lo пуст."""
+    sides = ["l-", "r-"] if spec.startswith("{l,r}-") else [""]
+    stem = spec.replace("{l,r}-", "")
+    if "/" in stem:
+        left, hi_suffix = stem.split("/")
+        base, lo_suffix = left.rsplit("-", 1)
+        lo = tuple(s + base + "-" + lo_suffix for s in sides)
+        hi = tuple(s + base + "-" + hi_suffix for s in sides)
+        return lo, hi
+    return (), tuple(s + stem for s in sides)
+
+
+def read_face_manifest(path):
+    rows = []
+    with open(path, encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            cols = [c.strip() for c in line.split("|")]
+            if len(cols) != 6:
+                raise SystemExit("%s: строка не из шести колонок: %s" % (path, line))
+            lo_hi = cols[3].split()
+            if len(lo_hi) != 2:
+                raise SystemExit("%s: полоса «%s» не два числа" % (path, cols[3]))
+            lo_t, hi_t = face_target_names(cols[2])
+            name = handle_name(cols[2])
+            lo_v, hi_v = float(lo_hi[0]), float(lo_hi[1])
+            # ПАРА С ПОЛОСОЙ 0..hi (мешки, ямочка) — ОДНОСТОРОННЯЯ РУЧКА: нейтраль
+            # на нуле, ход только в incr, decr-половина не печётся. Пара с
+            # полосой lo<0<hi — двусторонняя, дельта — полуразность концов, как у
+            # ручек тела (см. SLIDERS).
+            two = bool(lo_t) and lo_v < 0.0
+            spec = dict(name=name, kind="target", two=two,
+                        hi_targets=hi_t, lo_targets=lo_t if two else (), group=cols[0],
+                        note="лицо · %s · %s" % (cols[0], cols[1]),
+                        lo=lo_v, hi=hi_v)
+            if two and not (lo_v < 0.0 < hi_v):
+                raise SystemExit("%s: у парной ручки %s полоса %s не содержит нуля"
+                                 % (path, name, cols[3]))
+            if not two and (lo_v != 0.0 or not hi_v > 0.0):
+                raise SystemExit("%s: у односторонней ручки %s полоса %s не 0..hi"
+                                 % (path, name, cols[3]))
+            rows.append(spec)
+    names = [r["name"] for r in rows]
+    if len(set(names)) != len(names):
+        dup = sorted({n for n in names if names.count(n) > 1})
+        raise SystemExit("%s: имена ручек повторяются: %s" % (path, ", ".join(dup)))
+    return rows
+
+
+def read_face_bands(path):
+    """Калиброванные полосы: строки «имя lo hi ...», остальное — комментарий."""
+    out = {}
+    if not os.path.exists(path):
+        return out
+    with open(path, encoding="utf-8") as f:
+        for raw in f:
+            line = raw.split("#")[0].strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) < 3:
+                raise SystemExit("%s: строка «%s» — не «имя lo hi»" % (path, line))
+            out[parts[0]] = (float(parts[1]), float(parts[2]))
+    return out
+
+
+# ------------------------------------------------ 0b. МАСКИ ЛИЦА -------------
+#
+# ОБЛАСТИ СУДЬИ ЛИЦА (docs/research/FACE_CANON.md §1): у лица нет суставов, и
+# размечать точки руками не нужно — файл цели MPFB2 сам является маской
+# области: он перечисляет ровно те вершины, которые двигает. Объединение всех
+# l-eye-* есть левый глаз, corner1/corner2 — внутренний и внешний углы,
+# mouth-angles — углы рта. Список ниже — это список ПРЕФИКСОВ файлов целей.
+
+FACE_REGIONS = [
+    ("eye-l", ("l-eye-",)),
+    ("eye-r", ("r-eye-",)),
+    ("eye-corner-inner-l", ("l-eye-corner1-",)),
+    ("eye-corner-outer-l", ("l-eye-corner2-",)),
+    ("eye-corner-inner-r", ("r-eye-corner1-",)),
+    ("eye-corner-outer-r", ("r-eye-corner2-",)),
+    ("eyelid-l", ("l-eye-height1-", "l-eye-height2-", "l-eye-height3-")),
+    ("eyelid-r", ("r-eye-height1-", "r-eye-height2-", "r-eye-height3-")),
+    ("mouth-angles", ("mouth-angles-",)),
+    ("lip-upper", ("mouth-upperlip-",)),
+    ("lip-lower", ("mouth-lowerlip-",)),
+    ("nostrils", ("nose-nostrils-width-",)),
+    ("nose-point", ("nose-point-down", "nose-point-up")),
+    ("nose-base", ("nose-base-",)),
+    ("ears", ("l-ear-", "r-ear-")),
+]
+
+# ТЕЛО BASEMESH БЕЗ ПОМОЩНИКОВ: вершины с этого номера — helper-геометрия
+# MakeHuman (одежда, волосы, глаза-заглушки), их нет в .glb.
+BASEMESH_BODY_VERTS = 13380
+
+# ПОЛ ЛИЦЕВОЙ ЦЕЛИ, доля роста: ниже него дельта ручки лица ОТБРАСЫВАЕТСЯ.
+# Причина, а не величина (правило 36): в файлах целей MPFB встречаются
+# ЧУЖИЕ индексы — mouth-cupidsbow и chin-width двигают вершину 4746 на
+# 0.505 роста (бедро) на 0.13 мм. Шею (0.82–0.86 роста) лицо трогать вправе:
+# высота подбородка честно тянет горло; торс — нет. 0.80 — ниже основания
+# шеи (плечи 0.818H по канону) и выше всего, что лицо двигает по праву.
+# Что отброшено — печатается: это паспорт утечки, а не молчаливая чистка.
+FACE_FLOOR_FRAC = 0.80
+
+
+def target_index_of(mpfb_targets_dir):
+    """Стем файла цели → путь, по всем категориям каталога MPFB."""
+    index = {}
+    for cat in sorted(os.listdir(mpfb_targets_dir)):
+        d = os.path.join(mpfb_targets_dir, cat)
+        if not os.path.isdir(d):
+            continue
+        for f in sorted(os.listdir(d)):
+            if f.endswith(".target.gz"):
+                index[f[:-len(".target.gz")]] = os.path.join(d, f)
+    return index
+
+
+def target_moved_vertices(path):
+    """Номера вершин basemesh, которые цель сдвигает (нулевые строки не в
+    счёт: нулевой сдвиг — не движение)."""
+    out = []
+    with gzip.open(path, "rt") as f:
+        for line in f:
+            parts = line.split()
+            if len(parts) < 4 or parts[0].startswith("#"):
+                continue
+            if float(parts[1]) == 0.0 and float(parts[2]) == 0.0 and float(parts[3]) == 0.0:
+                continue
+            out.append(int(parts[0]))
+    return out
+
+
+def read_glb_hm08(path):
+    """Атрибут _HM08_INDEX на каждой вершине .glb: номер вершины basemesh."""
+    with open(path, "rb") as f:
+        d = f.read()
+    ln = struct.unpack_from("<I", d, 12)[0]
+    js = json.loads(d[20:20 + ln])
+    bo = 20 + ln + 8
+    out = []
+    for mesh in js["meshes"]:
+        for prim in mesh["primitives"]:
+            if "_HM08_INDEX" not in prim["attributes"]:
+                raise SystemExit("%s: у меша нет атрибута _HM08_INDEX" % path)
+            a = js["accessors"][prim["attributes"]["_HM08_INDEX"]]
+            v = js["bufferViews"][a["bufferView"]]
+            off = bo + v.get("byteOffset", 0) + a.get("byteOffset", 0)
+            dtype = {5121: "<u1", 5123: "<u2", 5125: "<u4", 5126: "<f4",
+                     5122: "<i2", 5120: "<i1"}[a["componentType"]]
+            arr = np.frombuffer(d, dtype=dtype, count=a["count"], offset=off)
+            out.append(arr.astype(np.int64))
+    return np.concatenate(out)
+
+
+def build_face_masks(mpfb_targets_dir, hm08):
+    """Область → отсортированные номера вершин .dfo (все копии по швам)."""
+    index = target_index_of(mpfb_targets_dir)
+    copies = {}
+    for j, b in enumerate(hm08.tolist()):
+        copies.setdefault(b, []).append(j)
+    masks = []
+    for region, prefixes in FACE_REGIONS:
+        base = set()
+        files = 0
+        for stem, path in index.items():
+            if any(stem.startswith(p) for p in prefixes):
+                files += 1
+                base.update(i for i in target_moved_vertices(path) if i < BASEMESH_BODY_VERTS)
+        if files == 0 or not base:
+            raise SystemExit("маска «%s»: ни одного файла цели с префиксами %s"
+                             % (region, prefixes))
+        verts = sorted(j for b in base for j in copies.get(b, []))
+        if not verts:
+            raise SystemExit("маска «%s»: ни одна вершина basemesh не нашлась в .glb" % region)
+        masks.append((region, len(base), files, verts))
+    return masks
+
+
+def write_face_masks(path, masks, glb_verts):
+    with open(path, "w", encoding="utf-8") as f:
+        f.write("# МАСКИ ОБЛАСТЕЙ ЛИЦА для судьи dfn_face_scale (docs/research/FACE_CANON.md §1).\n"
+                "# Пишет tools/make_body_targets.py; маска области = объединение целей MPFB,\n"
+                "# которые её двигают, в НОМЕРАХ ВЕРШИН .dfo (порядок .glb, %d вершин; копии\n"
+                "# по швам UV входят все). Строка: <область>: <номер> <номер> ...\n"
+                % glb_verts)
+        f.write("verts %d\n" % glb_verts)
+        for region, base_count, files, verts in masks:
+            f.write("# %s: %d вершин basemesh из %d файлов целей, %d вершин .dfo\n"
+                    % (region, base_count, files, len(verts)))
+            f.write("%s: %s\n" % (region, " ".join(str(v) for v in verts)))
+
+
+# ------------------------------------------------ 0c. ПЕРЕЗАПИСЬ ПОЛОС -------
+
+def read_morf(path):
+    with open(path, "rb") as f:
+        d = f.read()
+    if d[:4] != b"DFMF":
+        raise SystemExit("%s: не .morf (магия)" % path)
+    ver, verts, count = struct.unpack_from("<III", d, 4)
+    if ver != 1:
+        raise SystemExit("%s: версия %d, знаю 1" % (path, ver))
+    off = 16
+    targets = []
+    for _ in range(count):
+        (n,) = struct.unpack_from("<I", d, off)
+        off += 4
+        name = d[off:off + n].decode("utf-8")
+        off += n
+        lo, hi, dn = struct.unpack_from("<ffI", d, off)
+        off += 12
+        raw = d[off:off + dn * 16]
+        off += dn * 16
+        targets.append([name, lo, hi, raw])
+    if off != len(d):
+        raise SystemExit("%s: хвост файла %d байт" % (path, len(d) - off))
+    return verts, targets
+
+
+def write_morf(path, verts, targets):
+    targets = sorted(targets, key=lambda t: t[0])
+    with open(path, "wb") as f:
+        f.write(b"DFMF")
+        f.write(struct.pack("<III", 1, verts, len(targets)))
+        for name, lo_v, hi_v, raw in targets:
+            enc = name.encode("utf-8")
+            f.write(struct.pack("<I", len(enc)))
+            f.write(enc)
+            f.write(struct.pack("<ffI", lo_v, hi_v, len(raw) // 16))
+            f.write(raw)
+
+
+def apply_bands(targets, bands, manifest_rows):
+    """Полосы: у ручки лица — калиброванная, если есть, иначе манифестная;
+    калибровка ОБЯЗАНА лежать внутри манифестной (сужать, не расширять)."""
+    by_name = {r["name"]: r for r in manifest_rows}
+    changed = 0
+    for t in targets:
+        row = by_name.get(t[0])
+        if row is None:
+            continue
+        lo_v, hi_v = row["lo"], row["hi"]
+        if t[0] in bands:
+            b_lo, b_hi = bands[t[0]]
+            if b_lo < lo_v - 1e-6 or b_hi > hi_v + 1e-6 or not (b_lo < b_hi):
+                raise SystemExit("калибровка %s [%g, %g] шире манифеста [%g, %g] или пуста"
+                                 % (t[0], b_lo, b_hi, lo_v, hi_v))
+            lo_v, hi_v = b_lo, b_hi
+        if (t[1], t[2]) != (lo_v, hi_v):
+            changed += 1
+        t[1], t[2] = lo_v, hi_v
+    return changed
+
+
+def reband(opt):
+    path = abs_path(opt["out"])
+    verts, targets = read_morf(path)
+    rows = read_face_manifest(abs_path(opt["face"]))
+    bands = read_face_bands(abs_path(opt["bands"])) if opt["bands"] else {}
+    changed = apply_bands(targets, bands, rows)
+    write_morf(path, verts, targets)
+    log("полосы перезаписаны: %s, %d целей, %d полос сменились, калибровка: %s"
+        % (path, len(targets), changed,
+           ("%d ручек из %s" % (len(bands), opt["bands"])) if bands else "нет"))
 
 
 def log(*a):
@@ -459,22 +785,40 @@ def read_dfo_bind_positions(path):
 
 def main():
     opt = parse_args()
+    if opt["reband"]:
+        reband(opt)
+        return
+    if bpy is None:
+        raise SystemExit("выпечка целей идёт под Blender (см. Usage); без него — только --reband")
     mhb = load_body_module()
     body_opt = dict(mhb.DEFAULTS)
     only = [x for x in opt["only"].split(",") if x]
-    sliders = [s for s in SLIDERS if not only or s["name"] in only]
+    # ЛИЦО — ИЗ МАНИФЕСТА, ТЕЛО — ОТСЮДА. Один список ручек на выпечку, чтобы
+    # .morf был ОДНИМ файлом: dfn_morph attach заменяет секцию целиком.
+    face_rows = read_face_manifest(abs_path(opt["face"])) if opt["face"] else []
+    face_names = {r["name"] for r in face_rows}
+    for s in SLIDERS:
+        if s["name"] in face_names:
+            raise SystemExit("ручка «%s» названа и телом, и манифестом лица" % s["name"])
+    sliders = [s for s in SLIDERS + face_rows if not only or s["name"] in only]
     if not sliders:
         raise SystemExit("--only не оставил ни одной ручки")
+    log("ручек: %d тела + %d лица (манифест %s)"
+        % (sum(1 for s in sliders if s["name"] not in face_names),
+           sum(1 for s in sliders if s["name"] in face_names), opt["face"]))
 
     rest, inv_blend = read_rest(opt["rest"])
-    glb_path = opt["glb"] if os.path.isabs(opt["glb"]) else os.path.join(ROOT, opt["glb"])
-    dfo_path = opt["dfo"] if os.path.isabs(opt["dfo"]) else os.path.join(ROOT, opt["dfo"])
+    glb_path = abs_path(opt["glb"])
+    dfo_path = abs_path(opt["dfo"])
     glb = read_glb_positions(glb_path)
     bind = read_dfo_bind_positions(dfo_path)
     if len(glb) != len(rest) or len(bind) != len(rest):
         raise SystemExit("%s: %d вершин, .dfo: %d, rest.bin — %d: это не одно тело"
                          % (glb_path, len(glb), len(bind), len(rest)))
     log("rest.bin: %d вершин; .glb: %d вершин; .dfo: %d вершин" % (len(rest), len(glb), len(bind)))
+    hm08 = read_glb_hm08(glb_path)
+    if len(hm08) != len(glb):
+        raise SystemExit("%s: _HM08_INDEX на %d вершинах из %d" % (glb_path, len(hm08), len(glb)))
 
     mhb.enable_addons()
     mhb.wipe()
@@ -574,6 +918,14 @@ def main():
         % (len(glb), covered, worst * 1000.0))
     if covered != len(posed):
         raise SystemExit("в .glb нашлись не все вершины тела (%d из %d)" % (covered, len(posed)))
+    # ДВА ПУТИ К НОМЕРУ BASEMESH ОБЯЗАНЫ СОЙТИСЬ: атрибут _HM08_INDEX, которым
+    # .glb несёт номер сам, и карта «координата → вершина» этого скрипта. Маски
+    # лица пишутся по атрибуту, дельты — по карте; разойдись они, судья мерил
+    # бы не те вершины, которые двигает ручка.
+    mismatch = int((orig[glb_to_body] != hm08).sum())
+    if mismatch != 0:
+        raise SystemExit("_HM08_INDEX расходится с картой координат на %d вершинах .glb" % mismatch)
+    log("_HM08_INDEX сверен с картой координат: %d вершин, расхождений 0" % len(glb))
 
     # 7. ПОДОБИЕ .glb → БИНД .dfo, ИЗМЕРЕННОЕ, А НЕ ПЕРЕСКАЗАННОЕ. Импортёр
     # разворачивает модель на --yaw 180 (x и z меняют знак) и равномерно
@@ -598,6 +950,7 @@ def main():
     out_targets = []
     diag = []
     eps = float(opt["epsilon"])
+    floor = float(rest[:, 1].min())
     for spec in sliders:
         d_full = deltas_full[spec["name"]]
         d_body = d_full[orig]
@@ -609,35 +962,51 @@ def main():
         d_rest = np.einsum("nij,nj->ni", blend, d_bind)
         length = np.linalg.norm(d_rest, axis=1)
         keep = np.nonzero(length > eps)[0]
+        if spec["name"] in face_names:
+            below = keep[(rest[keep, 1] - floor) / rest_h < FACE_FLOOR_FRAC]
+            if len(below) > 0:
+                log("%-22s ОТБРОШЕНО ниже пола лица %.2fH: %d вершин, макс %.2f мм (чужие индексы в цели MPFB)"
+                    % (spec["name"], FACE_FLOOR_FRAC, len(below), length[below].max() * 1000.0))
+                keep = keep[(rest[keep, 1] - floor) / rest_h >= FACE_FLOOR_FRAC]
         if len(keep) == 0:
             raise SystemExit("цель \"%s\" не сдвинула НИ ОДНОЙ вершины — ОТКАЗ" % spec["name"])
-        floor = float(rest[:, 1].min())
         ys = (rest[keep, 1] - floor) / rest_h
-        log("%-12s вершин %5d  макс %6.1f мм  полоса высот %.3f..%.3f"
+        log("%-22s вершин %5d  макс %6.1f мм  полоса высот %.3f..%.3f"
             % (spec["name"], len(keep), length[keep].max() * 1000.0, ys.min(), ys.max()))
         diag.append((spec["name"], len(keep), float(length[keep].max()),
                      float(ys.min()), float(ys.max()), spec["note"]))
         default = (-1.0, 1.0) if spec["two"] else (0.0, 1.0)
         lo_v, hi_v = RANGES.get(spec["name"], default)
-        out_targets.append((spec["name"], lo_v, hi_v,
-                            [(int(i), d_rest[i]) for i in keep]))
+        raw = b"".join(struct.pack("<Ifff", int(i), float(d_rest[i][0]),
+                                   float(d_rest[i][1]), float(d_rest[i][2]))
+                       for i in keep)
+        out_targets.append([spec["name"], lo_v, hi_v, raw])
 
-    out_targets.sort(key=lambda t: t[0])
-    path = opt["out"] if os.path.isabs(opt["out"]) else os.path.join(ROOT, opt["out"])
+    # ПОЛОСЫ ЛИЦА: манифест, суженный калибровкой судей (если файл есть).
+    bands = read_face_bands(abs_path(opt["bands"])) if opt["bands"] else {}
+    apply_bands(out_targets, bands, face_rows)
+    log("полосы лица: %d ручек по манифесту, калибровка судьями: %s"
+        % (len(face_rows), ("%d ручек из %s" % (len(bands), opt["bands"])) if bands
+           else "НЕТ (файла калибровки нет — полосы манифеста, предложение)"))
+
+    path = abs_path(opt["out"])
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    with open(path, "wb") as f:
-        f.write(b"DFMF")
-        f.write(struct.pack("<III", 1, len(rest), len(out_targets)))
-        for name, lo_v, hi_v, deltas in out_targets:
-            raw = name.encode("utf-8")
-            f.write(struct.pack("<I", len(raw)))
-            f.write(raw)
-            f.write(struct.pack("<ffI", lo_v, hi_v, len(deltas)))
-            for i, d in deltas:
-                f.write(struct.pack("<Ifff", i, d[0], d[1], d[2]))
-    total = sum(len(d) for _, _, _, d in out_targets)
+    write_morf(path, len(rest), out_targets)
+    total = sum(len(t[3]) // 16 for t in out_targets)
     log("написано %s: %d целей, %d дельт, %.1f КБ"
         % (path, len(out_targets), total, os.path.getsize(path) / 1024.0))
+
+    # МАСКИ ЛИЦА — по атрибуту .glb, сверенному выше с картой координат.
+    if face_rows and opt["masks"]:
+        targets_dir = os.path.dirname(os.path.dirname(
+            importlib.import_module(mhb.MPFB_PKG + ".services.targetservice")
+            .TargetService.target_full_path("head-oval")))
+        masks = build_face_masks(targets_dir, hm08)
+        masks_path = abs_path(opt["masks"])
+        write_face_masks(masks_path, masks, len(glb))
+        log("маски лица: %s — %s" % (masks_path, ", ".join(
+            "%s %d" % (r, len(v)) for r, _, _, v in masks)))
+
     if opt["dump-diag"]:
         with open(opt["dump-diag"], "w", encoding="utf-8") as f:
             f.write("name\tverts\tmax_mm\ty_lo\ty_hi\tnote\n")
