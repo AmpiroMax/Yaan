@@ -529,9 +529,9 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
         // клипа, якорь уходит за вытяжение ноги, и прежде замок держал стопу
         // на пределе (0,998 длины ноги) до самого отпускания по весу —
         // нога вытягивалась струной и щёлкала. Теперь сила замка сходит на
-        // нет по мере приближения якоря к полному вытяжению (0,96…1,02 длины
-        // ноги): стопа мягко уезжает с якоря, колено не выпрямляется в
-        // струну. Считается по позе до проходов.
+        // нет, когда якорь уходит ЗА полное вытяжение (1,0…1,06 длины ноги):
+        // стопа мягко уезжает с якоря, колено не выпрямляется в струну.
+        // Считается по позе до проходов.
         {
             const glm::vec3 A = origin_of(model[static_cast<std::size_t>(setup.hip[side])]);
             const glm::vec3 B = origin_of(model[static_cast<std::size_t>(setup.knee[side])]);
@@ -542,8 +542,12 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
             const float leg = glm::length(B - A) + glm::length(C - B);
             const glm::vec3 want{point_target_model[side].x, P.y, point_target_model[side].z};
             const float d0 = glm::length(want + (C - P) - A);
+            // Полная сила, пока якорь в пределах длины ноги (прямая нога в
+            // конце опоры — 0,98…1,0 длины, это норма ходьбы, не отрыв);
+            // сходит на нет между 1,0 и 1,06 длины — когда якорь уже за
+            // вытяжением и держать его можно только струной.
             if (leg > 1.0e-4f) {
-                const float u = std::clamp((1.02f * leg - d0) / (0.06f * leg), 0.0f, 1.0f);
+                const float u = std::clamp((1.06f * leg - d0) / (0.06f * leg), 0.0f, 1.0f);
                 k *= u * u * (3.0f - 2.0f * u);
             }
             if (k <= 1.0e-4f) {

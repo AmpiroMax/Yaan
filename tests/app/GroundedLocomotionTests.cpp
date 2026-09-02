@@ -560,8 +560,11 @@ TEST_CASE("turning_in_place_steps_the_feet_instead_of_twisting") {
     // на сход замка — и после поворота стоит под корпусом.
     CHECK(with.worst_offset_m < 0.25f);
     CHECK(with.after_offset_m < 0.06f);
-    CHECK(cross.worst_offset_m > 0.35f);
-    CHECK(cross.after_offset_m > 0.35f);
+    // Контрольная рука без переступа: раньше 0,44 м; с уступкой замка у полного
+    // вытяжения ноги (FootIk, 03.09) стопа сползает с якоря, не рвя ногу, —
+    // крест мельче (0,30), но всё равно на порядок дальше, чем с переступом.
+    CHECK(cross.worst_offset_m > 0.25f);
+    CHECK(cross.after_offset_m > 0.25f);
 }
 
 TEST_CASE("gear_changes_settle_where_the_gear_settles_from_standing") {
