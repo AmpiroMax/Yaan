@@ -107,6 +107,12 @@ DEFAULTS = {
     # выход — <stem>.parts.glb (риг + части, без клипов) и textures/<stem>/
     # <часть>_albedo.png (+ _normal.png), внешними файлами.
     "parts": "",
+    # ОДЕЖДА (CLOTHING_AND_CLOTH.md, первая волна): "имя,имя" из data/clothes/<имя>/
+    # <имя>.mhclo MPFB, той же схемой, что части, но в <stem>.clothes.glb; у
+    # каждой вещи в extras меша hide_body_vertices — индексы вершин тела ПО
+    # ПОРЯДКУ HumanBase.glb, которые под ней не рисуются (delete_verts mhclo,
+    # переведённые через служебный атрибут _HM08_INDEX).
+    "clothes": "",
     "tris": "0",          # без децимации: 26 756 треугольников, пальцы целы
     # МУЖЧИНА ~30 ЛЕТ, ОБЫЧНОГО СЛОЖЕНИЯ. Шкала возраста MakeHuman линейна по
     # половинам и ставит 25 лет ровно в 0.5, 90 — в 1.0; 30 лет = 0.5385.
@@ -359,7 +365,23 @@ def make_body(opt):
     # ВСПОМОГАТЕЛЬНАЯ ГЕОМЕТРИЯ УХОДИТ СРАЗУ. MakeHuman держит её в том же меше
     # и прячет маской; пока маска — модификатор, всякий замер меша (габарит,
     # число треугольников, дециматор) считает по НЕЙ, а не по телу.
+    # Маски ДО посадки одежды — это маска хелперов (её применяем); маски, что
+    # MPFB повесит на тело за вещи с delete_verts, — снимаем, не применяя: тело
+    # в glb остаётся целым, скрытие под одеждой едет данными (hide_body_vertices).
+    helper_masks = {m.name for m in mesh.modifiers if m.type == "MASK"}
     parts = load_parts(opt["parts"], mesh, human)
+    parts += load_parts(",".join("clothes=" + c.strip() for c in opt["clothes"].split(",") if c.strip()),
+                        mesh, human)
+    for mod in list(mesh.modifiers):
+        if mod.type == "MASK" and mod.name not in helper_masks:
+            mesh.modifiers.remove(mod)
+
+    # ИНДЕКС hm08 КАЖДОЙ ВЕРШИНЫ — атрибутом: маска снимает хелперы и сдвигает
+    # индексы, экспортёр режет вершины по швам UV; атрибут доезжает до glb
+    # (_HM08_INDEX) и по нему delete_verts одежды переводятся в порядок файла.
+    attr = mesh.data.attributes.new("_HM08_INDEX", "INT", "POINT")
+    for i in range(len(mesh.data.vertices)):
+        attr.data[i].value = i
 
     activate(mesh)
     for mod in list(mesh.modifiers):
@@ -372,7 +394,7 @@ def make_body(opt):
     return mesh, meta, parts
 
 
-PART_TYPES = ("eyes", "eyebrows", "eyelashes", "teeth", "tongue", "hair")
+PART_TYPES = ("eyes", "eyebrows", "eyelashes", "teeth", "tongue", "hair", "clothes")
 
 
 def load_parts(spec, mesh, human):
@@ -407,8 +429,8 @@ def load_parts(spec, mesh, human):
         if len(added) != 1:
             raise SystemExit("part %s: expected one mesh, got %d" % (item, len(added)))
         ob = added[0]
-        ob.name = kind
-        ob.data.name = kind
+        ob.name = kind if kind != "clothes" else name
+        ob.data.name = ob.name
         out.append((kind, name, ob, mhclo))
         log("part %s = %s: %d verts, %d tris" % (kind, name, len(ob.data.vertices), tri_count(ob)))
     return out
@@ -458,10 +480,12 @@ def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
     src = os.path.join(os.path.dirname(mat_path), tex["diffuseTexture"])
     files = [("albedo", src)]
     normal = os.path.splitext(src)[0].replace("_diffuse", "") + "_normal.png"
-    if os.path.isfile(normal):
-        files.append(("normal", normal))
-    elif "normalmapTexture" in tex and os.path.isfile(os.path.join(os.path.dirname(mat_path), tex["normalmapTexture"])):
+    if "normalmapTexture" in tex and os.path.isfile(os.path.join(os.path.dirname(mat_path), tex["normalmapTexture"])):
         files.append(("normal", os.path.join(os.path.dirname(mat_path), tex["normalmapTexture"])))
+    elif os.path.isfile(normal):
+        files.append(("normal", normal))
+    if "aomapTexture" in tex and os.path.isfile(os.path.join(os.path.dirname(mat_path), tex["aomapTexture"])):
+        files.append(("ao", os.path.join(os.path.dirname(mat_path), tex["aomapTexture"])))
     mat = bpy.data.materials.new("M_" + kind)
     mat.use_nodes = True
     nodes = mat.node_tree.nodes
@@ -469,16 +493,19 @@ def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
     bsdf = nodes.get("Principled BSDF")
     transparent = str(tex.get("transparent", "False")).lower() == "true"
     two_sided = str(tex.get("backfaceCull", "True")).lower() != "true"
+    label = kind if kind != "clothes" else name
     for role, path in files:
-        fname = "%s_%s.png" % (kind, role)
+        fname = "%s_%s.png" % (label, role)
         dst = os.path.join(tex_dir, fname)
         shutil.copyfile(path, dst)
         sha = hashlib.sha256(open(dst, "rb").read()).hexdigest()
         sums.append("%s  %s" % (sha, fname))
         licence.append("%s — %s «%s» (%s), системные ассеты MPFB / MakeHuman, CC0 1.0; источник %s"
                        % (fname, kind, name, os.path.basename(path), mat_path))
-        img = bpy.data.images.load(dst)
-        img.name = fname
+        img = bpy.data.images.get(fname)
+        if img is None or os.path.abspath(bpy.path.abspath(img.filepath)) != os.path.abspath(dst):
+            img = bpy.data.images.load(dst, check_existing=True)
+            img.name = fname
         texn = nodes.new("ShaderNodeTexImage")
         texn.image = img
         if role == "albedo":
@@ -493,11 +520,16 @@ def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
                 cut.inputs[1].default_value = 0.5
                 links.new(texn.outputs["Alpha"], cut.inputs[0])
                 links.new(cut.outputs["Value"], bsdf.inputs["Alpha"])
-        else:
+        elif role == "normal":
             img.colorspace_settings.name = "Non-Color"
             nm = nodes.new("ShaderNodeNormalMap")
             links.new(texn.outputs["Color"], nm.inputs["Color"])
             links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+        else:
+            # AO: в glTF идёт occlusionTexture (экспортёр узнаёт узел glTF Material
+            # Output); здесь — просто внешним файлом с ролью ao, узел не строим.
+            img.colorspace_settings.name = "Non-Color"
+            nodes.remove(texn)
     if hasattr(mat, "blend_method"):
         mat.blend_method = "CLIP" if transparent else "OPAQUE"
     if hasattr(mat, "surface_render_method"):
@@ -506,7 +538,60 @@ def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
     bsdf.inputs["Roughness"].default_value = 0.5
     ob.data.materials.clear()
     ob.data.materials.append(mat)
-    return [("%s_%s.png" % (kind, role), rel_dir + "/" + "%s_%s.png" % (kind, role)) for role, _ in files]
+    return [("%s_%s.png" % (label, role), rel_dir + "/" + "%s_%s.png" % (label, role)) for role, _ in files]
+
+
+def parse_delete_verts(mhclo_path):
+    """delete_verts из mhclo: индексы вершин hm08, скрытых под вещью."""
+    out = set()
+    active = False
+    for line in open(mhclo_path, encoding="utf-8"):
+        s = line.strip()
+        if not s:
+            continue
+        if s.startswith("delete_verts"):
+            active = True
+            continue
+        if active:
+            if s[0].isalpha():
+                active = False
+                continue
+            toks = s.replace("-", " - ").split()
+            i = 0
+            while i < len(toks):
+                if i + 2 < len(toks) and toks[i + 1] == "-":
+                    out.update(range(int(toks[i]), int(toks[i + 2]) + 1))
+                    i += 3
+                else:
+                    out.add(int(toks[i]))
+                    i += 1
+    return out
+
+
+def body_index_map(glb_path):
+    """hm08-индекс → список индексов вершин тела в glb (по атрибуту _HM08_INDEX)."""
+    import json
+    import struct
+    b = open(glb_path, "rb").read()
+    ln = struct.unpack_from("<I", b, 12)[0]
+    doc = json.loads(b[20:20 + ln])
+    off = 20 + ln
+    bl = struct.unpack_from("<I", b, off)[0]
+    binc = b[off + 8:off + 8 + bl]
+    prim = doc["meshes"][0]["primitives"][0]
+    if "_HM08_INDEX" not in prim["attributes"]:
+        raise SystemExit("body glb lacks _HM08_INDEX — bake the body with this tool first")
+    acc = doc["accessors"][prim["attributes"]["_HM08_INDEX"]]
+    bv = doc["bufferViews"][acc["bufferView"]]
+    fmt = {5121: "B", 5123: "H", 5125: "I", 5120: "b", 5122: "h", 5126: "f"}[acc["componentType"]]
+    size = struct.calcsize(fmt)
+    stride = bv.get("byteStride", size)
+    base = bv["byteOffset"] + acc.get("byteOffset", 0)
+    out = {}
+    for i in range(acc["count"]):
+        v = int(struct.unpack_from("<" + fmt, binc, base + i * stride)[0])
+        out.setdefault(v, []).append(i)
+    return out
 
 
 def parse_mhmat_of(mhclo_path):
@@ -1155,6 +1240,7 @@ def main():
         export_optimize_animation_size=True,
         export_optimize_animation_keep_anim_armature=True,
         export_rest_position_armature=True)
+    common["export_attributes"] = True  # _HM08_INDEX — карта вершин для скрытий одежды
     if skin_uri is None:
         bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", **common)
     else:
@@ -1167,8 +1253,12 @@ def main():
         bpy.ops.export_scene.gltf(filepath=tmp_gltf, export_format="GLTF_SEPARATE",
                                   export_keep_originals=True, **common)
         pack_glb_with_external_images(tmp_gltf, out, {"albedo.png": skin_uri})
-    if parts:
-        export_parts(parts, mesh, rig, out)
+    body_parts = [p for p in parts if p[0] != "clothes"]
+    clothes = [p for p in parts if p[0] == "clothes"]
+    if body_parts:
+        export_parts(body_parts, mesh, rig, out, "parts")
+    if clothes:
+        export_parts(clothes, mesh, rig, out, "clothes", body_map=body_index_map(out))
     if clips:
         fix_clip_names(out, made, "_" + rig.name)
     log("wrote", out, os.path.getsize(out), "bytes")
@@ -1246,8 +1336,8 @@ def apply_skin(mesh, skin_name, out_path):
     return os.path.join(rel_dir, "albedo.png").replace(os.sep, "/"), sha
 
 
-def export_parts(parts, mesh, rig, out):
-    """<stem>.parts.glb: риг + части без клипов; текстуры внешними файлами."""
+def export_parts(parts, mesh, rig, out, suffix="parts", body_map=None):
+    """<stem>.<suffix>.glb: риг + части без клипов; текстуры внешними файлами."""
     stem = os.path.splitext(os.path.basename(out))[0]
     rel_dir = "textures/" + stem
     tex_dir = os.path.join(os.path.dirname(out), "textures", stem)
@@ -1256,6 +1346,11 @@ def export_parts(parts, mesh, rig, out):
     for kind, name, ob, mhclo in parts:
         for img_name, uri in part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
             uris[img_name] = uri
+        if body_map is not None:
+            hidden = parse_delete_verts(mhclo)
+            hide = sorted(j for i in hidden for j in body_map.get(i, ()))
+            ob.data["hide_body_vertices"] = hide
+            log("clothes %s: hides %d hm08 verts -> %d verts of the body glb" % (name, len(hidden), len(hide)))
     with open(os.path.join(tex_dir, "SHA256SUMS"), "a", encoding="utf-8") as f:
         f.write("\n".join(sums) + "\n")
     with open(os.path.join(tex_dir, "LICENSE.txt"), "a", encoding="utf-8") as f:
@@ -1271,11 +1366,12 @@ def export_parts(parts, mesh, rig, out):
     bpy.ops.export_scene.gltf(
         filepath=tmp_gltf, export_format="GLTF_SEPARATE", export_keep_originals=True,
         use_selection=True, export_skins=True, export_yup=True, export_apply=True,
-        export_animations=False, export_rest_position_armature=True)
-    parts_out = os.path.join(os.path.dirname(out), stem + ".parts.glb")
+        export_animations=False, export_rest_position_armature=True,
+        export_extras=True)
+    parts_out = os.path.join(os.path.dirname(out), stem + "." + suffix + ".glb")
     pack_glb_with_external_images(tmp_gltf, parts_out, uris)
-    log("parts: %d meshes -> %s (%d bytes); textures %s" % (
-        len(parts), parts_out, os.path.getsize(parts_out), ", ".join(sorted(uris.values()))))
+    log("%s: %d meshes -> %s (%d bytes); textures %s" % (
+        suffix, len(parts), parts_out, os.path.getsize(parts_out), ", ".join(sorted(uris.values()))))
 
 
 def pack_glb_with_external_images(gltf_path, glb_path, image_uri):
@@ -1290,7 +1386,8 @@ def pack_glb_with_external_images(gltf_path, glb_path, image_uri):
     doc["buffers"][0] = {"byteLength": len(blob)}
     for img in doc.get("images", []):
         img.pop("bufferView", None)
-        name = img.get("name", "")
+        import re
+        name = re.sub(r"\.\d{3}$", "", img.get("name", ""))
         key = name if name.endswith(".png") else name + ".png"
         if key not in image_uri:
             raise SystemExit("image %r has no external uri (known: %s)" % (name, ", ".join(image_uri)))

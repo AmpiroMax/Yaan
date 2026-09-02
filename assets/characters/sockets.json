@@ -1,0 +1,114 @@
+{
+  "source": "assets/objects/characters/HumanBase.glb",
+  "space": "glb: +X left, +Y up, -Z forward",
+  "sockets": {
+    "ring.L": {
+      "bone": "DEF-f_ring.02.L",
+      "rest_point_m": [
+        0.9208,
+        0.5065,
+        -1.0118
+      ],
+      "label": "кольцо, безымянный палец левой"
+    },
+    "ring.R": {
+      "bone": "DEF-f_ring.02.R",
+      "rest_point_m": [
+        -0.9208,
+        0.5065,
+        -1.0118
+      ],
+      "label": "кольцо, безымянный палец правой"
+    },
+    "bracelet.L": {
+      "bone": "DEF-hand.L",
+      "rest_point_m": [
+        0.7608,
+        0.5019,
+        -0.9881
+      ],
+      "label": "браслет, левое запястье"
+    },
+    "bracelet.R": {
+      "bone": "DEF-hand.R",
+      "rest_point_m": [
+        -0.7608,
+        0.5019,
+        -0.9881
+      ],
+      "label": "браслет, правое запястье"
+    },
+    "amulet": {
+      "bone": "DEF-spine.003",
+      "rest_point_m": [
+        0.0,
+        0.3377,
+        -1.0932
+      ],
+      "label": "амулет на груди, у грудины"
+    },
+    "belt": {
+      "bone": "DEF-hips",
+      "rest_point_m": [
+        0.0,
+        0.0468,
+        -1.026
+      ],
+      "label": "пояс, поясница"
+    },
+    "belt.charm": {
+      "bone": "DEF-hips",
+      "rest_point_m": [
+        0.12,
+        0.0268,
+        -1.086
+      ],
+      "label": "брелок на поясе слева"
+    },
+    "weapon.R": {
+      "bone": "DEF-hand.R",
+      "rest_point_m": [
+        -0.8203,
+        0.4966,
+        -0.9739
+      ],
+      "label": "оружие в правой ладони"
+    },
+    "weapon.L": {
+      "bone": "DEF-hand.L",
+      "rest_point_m": [
+        0.8203,
+        0.4966,
+        -0.9739
+      ],
+      "label": "щит или оружие в левой ладони"
+    },
+    "back": {
+      "bone": "DEF-spine.003",
+      "rest_point_m": [
+        0.0,
+        0.3177,
+        -0.8532
+      ],
+      "label": "за спиной, между лопаток"
+    },
+    "head.top": {
+      "bone": "DEF-head",
+      "rest_point_m": [
+        -0.0,
+        0.7907,
+        -0.9854
+      ],
+      "label": "головной убор"
+    },
+    "neck": {
+      "bone": "DEF-neck",
+      "rest_point_m": [
+        -0.0,
+        0.6276,
+        -1.0452
+      ],
+      "label": "ожерелье у основания шеи"
+    }
+  }
+}
