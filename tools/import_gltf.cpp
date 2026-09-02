@@ -11,6 +11,10 @@ Responsibility:
 Key items:
 - main(): CLI (--out, --height, --yaw, --skin, --name, --fit-hips,
   --fit-canon, --reshape, --skin-palette, --root, --texture).
+- read_parts() (--parts, волна «части персонажа»): каждый узел-меш на скине
+  -- своя часть (SkinPart) со своими весами, флагами материала (MASK/порог/
+  doubleSided) и листами; --like <тело.dfo> берёт масштаб и скелет у ТОГО
+  тела, которое эти части носит.
 - read_textures(): the glTF materials' sheets (baseColorTexture -> "albedo",
   normalTexture -> "normal") become TEX references -- repo-relative path plus
   the SHA-256 of the PNG -- with an embedded image extracted next to the
@@ -74,6 +78,8 @@ AI Agents Notice (must follow):
 #include "engine/core/skeleton/sources/Skeleton.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
+#include "engine/core/serialization/sources/Json.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -122,6 +128,17 @@ struct Options {
     /// addition to) what the glTF names. The artist's iteration handle and
     /// the checker fixture's way in.
     std::vector<std::pair<std::string, std::string>> texture_overrides;
+    /// --parts: write every skinned mesh node as its OWN part (secция PART)
+    /// instead of merging them into one SKIN stream -- hair, eyes, brows.
+    bool parts = false;
+    /// --like <body.dfo>: the body these parts are worn by. Its skeleton is
+    /// copied into the file (same joints, same grounding, same inverse binds)
+    /// and its scale is what the part vertices are scaled by.
+    std::string like;
+    /// --sockets <json>: points on bones for rigid attachments
+    /// (assets/characters/sockets.json), measured in the glTF's world space
+    /// and carried into the body's own space here (section SOCK).
+    std::string sockets;
 };
 
 [[nodiscard]] glm::mat4 node_local(const cgltf_node* node) {
@@ -456,10 +473,20 @@ void read_clips(const cgltf_data* data, const JointOrder& order,
 /// The scale then rides on top: with every joint's local translation scaled by
 /// s, a joint's model matrix becomes S*J*S^-1, so the inverse bind's
 /// translation column is scaled too and the vertices with it.
+/// THE VERTEX HALF of apply_pre_transform, on its own because a parts file
+/// carries several meshes over ONE skeleton: the skeleton is re-framed once,
+/// every mesh is re-framed with the same matrix.
+void pre_transform_skin(SkinMesh& skin, const glm::mat4& pre) {
+    const glm::mat3 pre_rot{pre};
+    for (dfn::platform::SkinnedVertex& v : skin.vertices) {
+        v.position = glm::vec3{pre * glm::vec4{v.position, 1.0f}};
+        v.normal = glm::normalize(pre_rot * v.normal);
+    }
+}
+
 void apply_pre_transform(skel::Skeleton& skeleton, SkinMesh& skin,
                          std::vector<skel::AnimClip>& clips, const glm::mat4& pre) {
     const glm::mat4 pre_inv = glm::inverse(pre);
-    const glm::mat3 pre_rot{pre};
     for (skel::SkeletonJoint& j : skeleton.joints) {
         j.inverse_bind = j.inverse_bind * pre_inv;
         if (j.parent >= 0) {
@@ -478,10 +505,7 @@ void apply_pre_transform(skel::Skeleton& skeleton, SkinMesh& skin,
         }
         j.bind_rotation = glm::normalize(glm::quat_cast(basis));
     }
-    for (dfn::platform::SkinnedVertex& v : skin.vertices) {
-        v.position = glm::vec3{pre * glm::vec4{v.position, 1.0f}};
-        v.normal = glm::normalize(pre_rot * v.normal);
-    }
+    pre_transform_skin(skin, pre);
     // THE CLIPS CARRY THE ROOT'S FRAME TOO, AND THE ROTATION HALF OF THAT WAS
     // MISSING UNTIL 31.08. A clip exported from Blender keys EVERY joint,
     // root included, and a keyed rotation REPLACES the bind rotation this
@@ -1523,14 +1547,105 @@ void reshape_to_commoner(skel::Skeleton& skeleton, SkinMesh& skin,
 /// Only PNG: the loader decodes nothing else (PngImage), and a JPEG that
 /// silently became a palette body is the kind of absence this project keeps
 /// paying for.
+struct TextureRole {
+    const char* name;
+    uint8_t colour_space;
+};
+constexpr TextureRole TEXTURE_ROLES[2] = {{"albedo", dfn::render::TEXTURE_COLOUR_SRGB},
+                                          {"normal", dfn::render::TEXTURE_COLOUR_LINEAR}};
+
+/// ONE glTF IMAGE AS A TEX REFERENCE. External (a file beside the glTF) is
+/// referenced where it lies; embedded is EXTRACTED to
+/// `<glTF dir>/textures/<bake stem>/<file_stem>.png`. PNG only (see
+/// read_textures). False with a reason on stderr when there is nothing to
+/// reference.
+[[nodiscard]] bool image_to_ref(const cgltf_image* img, const cgltf_sampler* sampler,
+                                const TextureRole& role, const Options& opt,
+                                const std::string& file_stem,
+                                dfn::render::TextureRef& out) {
+    const std::filesystem::path in_dir = std::filesystem::path(opt.input).parent_path();
+    const std::string stem = std::filesystem::path(opt.out).stem().string();
+    const uint8_t wrap = sampler != nullptr
+                                 && sampler->wrap_s == cgltf_wrap_mode_clamp_to_edge
+                             ? dfn::render::TEXTURE_WRAP_CLAMP
+                             : dfn::render::TEXTURE_WRAP_REPEAT;
+    std::filesystem::path file;
+    if (img->uri != nullptr && std::strncmp(img->uri, "data:", 5) != 0) {
+        std::string uri = img->uri;
+        cgltf_decode_uri(uri.data());
+        uri.resize(std::strlen(uri.c_str()));
+        file = in_dir / uri;
+    } else {
+        // Embedded: bufferView or data URI. PNG only.
+        const uint8_t* bytes = nullptr;
+        std::size_t size = 0;
+        void* decoded = nullptr;
+        if (img->buffer_view != nullptr) {
+            bytes = cgltf_buffer_view_data(img->buffer_view);
+            size = img->buffer_view->size;
+        } else if (img->uri != nullptr) {
+            const char* comma = std::strchr(img->uri, ',');
+            if (comma != nullptr && std::strstr(img->uri, ";base64") != nullptr) {
+                // Size is unknown up front; base64 decodes to <= 3/4 of it.
+                const std::size_t cap = std::strlen(comma + 1) * 3 / 4 + 3;
+                cgltf_options o{};
+                if (cgltf_load_buffer_base64(&o, cap, comma + 1, &decoded)
+                    == cgltf_result_success) {
+                    bytes = static_cast<const uint8_t*>(decoded);
+                    size = cap;
+                }
+            }
+        }
+        const bool is_png = bytes != nullptr && size >= 8 && bytes[0] == 0x89
+                            && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G';
+        if (!is_png) {
+            std::fprintf(stderr,
+                         "[import] TEX %s: embedded image is not a PNG (mime "
+                         "\"%s\") -- REFUSED; the body draws by palette\n",
+                         role.name, img->mime_type != nullptr ? img->mime_type : "?");
+            std::free(decoded);
+            return false;
+        }
+        // A base64 image's true length is the PNG's own: trim the padding
+        // by the IEND chunk, which is the last 12 bytes of every PNG.
+        if (decoded != nullptr) {
+            const char* iend = nullptr;
+            for (std::size_t i = 0; i + 4 <= size; ++i) {
+                if (std::memcmp(bytes + i, "IEND", 4) == 0) {
+                    iend = reinterpret_cast<const char*>(bytes + i);
+                }
+            }
+            if (iend != nullptr) {
+                size = static_cast<std::size_t>(reinterpret_cast<const uint8_t*>(iend)
+                                                - bytes)
+                       + 8;
+            }
+        }
+        file = in_dir / "textures" / stem / (file_stem + ".png");
+        const bool written = write_bytes(file, bytes, size);
+        std::free(decoded);
+        if (!written) {
+            std::fprintf(stderr, "[import] TEX %s: cannot extract to \"%s\"\n",
+                         role.name, file.string().c_str());
+            return false;
+        }
+        std::printf("[import] TEX %s: embedded image extracted to %s (%zu bytes)\n",
+                    role.name, file.string().c_str(), size);
+    }
+    return texture_ref_from_file(opt, role.name, file, role.colour_space, wrap, out);
+}
+
+/// The two sheets a material may name, by role.
+void material_images(const cgltf_material* mat, const cgltf_texture* (&views)[2]) {
+    views[0] = mat != nullptr && mat->has_pbr_metallic_roughness != 0
+                   ? mat->pbr_metallic_roughness.base_color_texture.texture
+                   : nullptr;
+    views[1] = mat != nullptr ? mat->normal_texture.texture : nullptr;
+}
+
 void read_textures(const cgltf_data* data, const cgltf_skin* skin, const Options& opt,
                    dfn::render::RegistryObject& obj) {
-    struct Role {
-        const char* name;
-        uint8_t colour_space;
-    };
-    constexpr Role ROLES[2] = {{"albedo", dfn::render::TEXTURE_COLOUR_SRGB},
-                               {"normal", dfn::render::TEXTURE_COLOUR_LINEAR}};
+    const TextureRole* ROLES = TEXTURE_ROLES;
     const cgltf_image* chosen[2] = {nullptr, nullptr};
     const cgltf_sampler* sampler[2] = {nullptr, nullptr};
     for (cgltf_size n = 0; n < data->nodes_count; ++n) {
@@ -1543,11 +1658,8 @@ void read_textures(const cgltf_data* data, const cgltf_skin* skin, const Options
             if (mat == nullptr) {
                 continue;
             }
-            const cgltf_texture* views[2] = {
-                mat->has_pbr_metallic_roughness != 0
-                    ? mat->pbr_metallic_roughness.base_color_texture.texture
-                    : nullptr,
-                mat->normal_texture.texture};
+            const cgltf_texture* views[2] = {nullptr, nullptr};
+            material_images(mat, views);
             for (int r = 0; r < 2; ++r) {
                 if (views[r] == nullptr || views[r]->image == nullptr) {
                     continue;
@@ -1567,90 +1679,19 @@ void read_textures(const cgltf_data* data, const cgltf_skin* skin, const Options
             }
         }
     }
-    const std::filesystem::path in_dir = std::filesystem::path(opt.input).parent_path();
-    const std::string stem = std::filesystem::path(opt.out).stem().string();
     for (int r = 0; r < 2; ++r) {
-        const cgltf_image* img = chosen[r];
-        if (img == nullptr) {
+        if (chosen[r] == nullptr) {
             continue;
         }
-        const uint8_t wrap = sampler[r] != nullptr
-                                     && sampler[r]->wrap_s == cgltf_wrap_mode_clamp_to_edge
-                                 ? dfn::render::TEXTURE_WRAP_CLAMP
-                                 : dfn::render::TEXTURE_WRAP_REPEAT;
-        std::filesystem::path file;
-        if (img->uri != nullptr && std::strncmp(img->uri, "data:", 5) != 0) {
-            std::string uri = img->uri;
-            cgltf_decode_uri(uri.data());
-            uri.resize(std::strlen(uri.c_str()));
-            file = in_dir / uri;
-        } else {
-            // Embedded: bufferView or data URI. PNG only.
-            const uint8_t* bytes = nullptr;
-            std::size_t size = 0;
-            void* decoded = nullptr;
-            if (img->buffer_view != nullptr) {
-                bytes = cgltf_buffer_view_data(img->buffer_view);
-                size = img->buffer_view->size;
-            } else if (img->uri != nullptr) {
-                const char* comma = std::strchr(img->uri, ',');
-                if (comma != nullptr && std::strstr(img->uri, ";base64") != nullptr) {
-                    // Size is unknown up front; base64 decodes to <= 3/4 of it.
-                    const std::size_t cap = std::strlen(comma + 1) * 3 / 4 + 3;
-                    cgltf_options o{};
-                    if (cgltf_load_buffer_base64(&o, cap, comma + 1, &decoded)
-                        == cgltf_result_success) {
-                        bytes = static_cast<const uint8_t*>(decoded);
-                        size = cap;
-                    }
-                }
-            }
-            const bool is_png = bytes != nullptr && size >= 8 && bytes[0] == 0x89
-                                && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G';
-            if (!is_png) {
-                std::fprintf(stderr,
-                             "[import] TEX %s: embedded image is not a PNG (mime "
-                             "\"%s\") -- REFUSED; the body draws by palette\n",
-                             ROLES[r].name, img->mime_type != nullptr ? img->mime_type : "?");
-                std::free(decoded);
-                continue;
-            }
-            // A base64 image's true length is the PNG's own: trim the padding
-            // by the IEND chunk, which is the last 12 bytes of every PNG.
-            if (decoded != nullptr) {
-                const char* iend = nullptr;
-                for (std::size_t i = 0; i + 4 <= size; ++i) {
-                    if (std::memcmp(bytes + i, "IEND", 4) == 0) {
-                        iend = reinterpret_cast<const char*>(bytes + i);
-                    }
-                }
-                if (iend != nullptr) {
-                    size = static_cast<std::size_t>(reinterpret_cast<const uint8_t*>(iend)
-                                                    - bytes)
-                           + 8;
-                }
-            }
-            file = in_dir / "textures" / stem / (std::string(ROLES[r].name) + ".png");
-            const bool written = write_bytes(file, bytes, size);
-            std::free(decoded);
-            if (!written) {
-                std::fprintf(stderr, "[import] TEX %s: cannot extract to \"%s\"\n",
-                             ROLES[r].name, file.string().c_str());
-                continue;
-            }
-            std::printf("[import] TEX %s: embedded image extracted to %s (%zu bytes)\n",
-                        ROLES[r].name, file.string().c_str(), size);
-        }
         dfn::render::TextureRef ref;
-        if (texture_ref_from_file(opt, ROLES[r].name, file, ROLES[r].colour_space, wrap,
-                                  ref)) {
+        if (image_to_ref(chosen[r], sampler[r], ROLES[r], opt, ROLES[r].name, ref)) {
             obj.textures.push_back(std::move(ref));
         }
     }
     // --texture role=path: the given file replaces the role or adds it.
     for (const auto& [role, path] : opt.texture_overrides) {
         uint8_t colour_space = dfn::render::TEXTURE_COLOUR_SRGB;
-        for (const Role& known : ROLES) {
+        for (const TextureRole& known : TEXTURE_ROLES) {
             if (role == known.name) {
                 colour_space = known.colour_space;
             }
@@ -1681,6 +1722,348 @@ void read_textures(const cgltf_data* data, const cgltf_skin* skin, const Options
     }
 }
 
+/// EVERY SKINNED MESH NODE AS ITS OWN PART (--parts). Hair, eyes, brows,
+/// lashes, teeth and tongue arrive as six nodes on the body's skeleton, and
+/// they must NOT be merged: each has its own material -- a cutout with
+/// two-sided light for the cards, opaque for the teeth -- and one draw carries
+/// one material. The part's name is the node's (the artist named them), the
+/// flags are the first primitive's material; a node whose primitives disagree
+/// about alphaMode is reported, not averaged.
+[[nodiscard]] bool read_parts(const cgltf_data* data, const cgltf_skin* skin,
+                              const JointOrder& order, const Options& opt,
+                              dfn::render::RegistryObject& obj) {
+    constexpr uint32_t PART_DEFAULT_RGBA = 0xFFFFFFFFu; // white: the sheet is the colour
+    for (cgltf_size n = 0; n < data->nodes_count; ++n) {
+        const cgltf_node& node = data->nodes[n];
+        if (node.skin != skin || node.mesh == nullptr) {
+            continue;
+        }
+        dfn::render::SkinPart part;
+        part.name = node.name != nullptr && node.name[0] != '\0'
+                        ? node.name
+                        : (node.mesh->name != nullptr && node.mesh->name[0] != '\0'
+                               ? node.mesh->name
+                               : "part" + std::to_string(obj.parts.size()));
+        const cgltf_material* first = nullptr;
+        for (cgltf_size p = 0; p < node.mesh->primitives_count; ++p) {
+            const cgltf_primitive& prim = node.mesh->primitives[p];
+            if (prim.type != cgltf_primitive_type_triangles) {
+                continue;
+            }
+            if (!read_skin(&prim, order, skin, part.mesh,
+                           base_color_rgba(prim.material, PART_DEFAULT_RGBA))) {
+                return false;
+            }
+            if (first == nullptr) {
+                first = prim.material;
+            } else if (prim.material != nullptr && first != nullptr
+                       && (prim.material->alpha_mode != first->alpha_mode
+                           || prim.material->double_sided != first->double_sided)) {
+                std::fprintf(stderr,
+                             "[import] part \"%s\": primitive %zu has a DIFFERENT "
+                             "alphaMode/doubleSided than the first; the first "
+                             "one's flags are kept\n",
+                             part.name.c_str(), static_cast<size_t>(p));
+            }
+        }
+        if (part.mesh.empty()) {
+            std::fprintf(stderr, "[import] part \"%s\": no triangles -- skipped\n",
+                         part.name.c_str());
+            continue;
+        }
+        // WHAT THIS PART COVERS: extras.hide_body_vertices on the mesh, the
+        // MakeHuman clothes proxy's own "delete group" carried through the
+        // exporter (tools/make_human_body.py). Indices into the BODY's
+        // vertex stream; checked against the body's count in adopt_body.
+        // THIS cgltf FILLS extras.data FOR MOST OBJECTS BUT NOT FOR MESHES
+        // (mesh extras are special-cased for targetNames and left as offsets
+        // into the JSON chunk), so the text is taken by the offsets.
+        std::string_view extras_text;
+        if (node.mesh->extras.data != nullptr) {
+            extras_text = node.mesh->extras.data;
+        } else if (data->json != nullptr
+                   && node.mesh->extras.end_offset > node.mesh->extras.start_offset
+                   && node.mesh->extras.end_offset <= data->json_size) {
+            extras_text = std::string_view(data->json + node.mesh->extras.start_offset,
+                                           node.mesh->extras.end_offset
+                                               - node.mesh->extras.start_offset);
+        }
+        if (!extras_text.empty()) {
+            const dfn::serialization::JsonParseResult extras =
+                dfn::serialization::json_parse(extras_text);
+            if (!extras.ok) {
+                std::fprintf(stderr, "[import] part \"%s\": mesh extras are not JSON "
+                                     "(%s) -- no body vertices hidden\n",
+                             part.name.c_str(), extras.error.message.c_str());
+            } else if (const dfn::serialization::JsonValue* hide =
+                           extras.root.find("hide_body_vertices");
+                       hide != nullptr && hide->is_array()) {
+                part.hide_body_vertices.reserve(hide->size());
+                for (const dfn::serialization::JsonValue& v : hide->items()) {
+                    const int64_t i = v.as_i64(-1);
+                    if (i >= 0) {
+                        part.hide_body_vertices.push_back(static_cast<uint32_t>(i));
+                    }
+                }
+                std::sort(part.hide_body_vertices.begin(), part.hide_body_vertices.end());
+                part.hide_body_vertices.erase(std::unique(part.hide_body_vertices.begin(),
+                                                          part.hide_body_vertices.end()),
+                                              part.hide_body_vertices.end());
+            }
+        }
+        if (first != nullptr) {
+            // BLEND is read as a cutout too, and said out loud: the engine
+            // has no sorted-transparency path for a body, and a strand drawn
+            // with a hard edge is a strand; a strand not drawn is a bald man.
+            part.alpha_mask = first->alpha_mode != cgltf_alpha_mode_opaque;
+            part.alpha_cutoff = first->alpha_mode == cgltf_alpha_mode_mask
+                                    ? first->alpha_cutoff
+                                    : 0.5f;
+            if (first->alpha_mode == cgltf_alpha_mode_blend) {
+                std::fprintf(stderr,
+                             "[import] part \"%s\": alphaMode BLEND read as MASK "
+                             "(cutoff 0.5) -- no sorted blend on a body\n",
+                             part.name.c_str());
+            }
+            part.double_sided = first->double_sided != 0;
+            const cgltf_texture* views[2] = {nullptr, nullptr};
+            material_images(first, views);
+            for (int r = 0; r < 2; ++r) {
+                if (views[r] == nullptr || views[r]->image == nullptr) {
+                    continue;
+                }
+                dfn::render::TextureRef ref;
+                if (image_to_ref(views[r]->image, views[r]->sampler, TEXTURE_ROLES[r],
+                                 opt, part.name + "_" + TEXTURE_ROLES[r].name, ref)) {
+                    part.textures.push_back(std::move(ref));
+                }
+            }
+            // AMBIENT OCCLUSION BESIDE THE ALBEDO, by name: glTF puts AO in
+            // the material's occlusionTexture, and the MakeHuman exporter
+            // writes the sheet but does not wire it. `<part>_ao.png` next to
+            // the albedo is referenced under the role "ao" -- recorded as
+            // data now; the skinned draw has no slot for it yet (a tail).
+            if (const dfn::render::TextureRef* albedo = part.texture("albedo");
+                albedo != nullptr) {
+                std::error_code ec;
+                const std::filesystem::path albedo_file =
+                    std::filesystem::path(albedo->path).is_absolute()
+                        ? std::filesystem::path(albedo->path)
+                        : find_repo_root(opt, opt.input) / albedo->path;
+                const std::filesystem::path ao =
+                    albedo_file.parent_path() / (part.name + "_ao.png");
+                if (std::filesystem::is_regular_file(ao, ec)) {
+                    dfn::render::TextureRef ref;
+                    if (texture_ref_from_file(opt, "ao", ao,
+                                              dfn::render::TEXTURE_COLOUR_LINEAR,
+                                              dfn::render::TEXTURE_WRAP_REPEAT, ref)) {
+                        part.textures.push_back(std::move(ref));
+                    }
+                }
+            }
+        }
+        const std::string cutoff_note =
+            part.alpha_mask ? " cutoff " + std::to_string(part.alpha_cutoff) : "";
+        std::printf("[import] part \"%s\": %zu vertices, %zu triangles, %s%s%s, %zu "
+                    "sheet(s), hides %zu body vertices\n",
+                    part.name.c_str(), part.mesh.vertices.size(),
+                    part.mesh.indices.size() / 3,
+                    part.alpha_mask ? "MASK" : "OPAQUE", cutoff_note.c_str(),
+                    part.double_sided ? ", doubleSided" : "", part.textures.size(),
+                    part.hide_body_vertices.size());
+        for (const dfn::render::TextureRef& t : part.textures) {
+            std::printf("[import]     TEX %s: %s sha256 %.12s...\n", t.role.c_str(),
+                        t.path.c_str(), t.sha256.c_str());
+        }
+        obj.parts.push_back(std::move(part));
+    }
+    if (obj.parts.empty()) {
+        std::fprintf(stderr, "[import] --parts: no skinned mesh node uses this skin "
+                             "-- REFUSED\n");
+        return false;
+    }
+    return true;
+}
+
+/// THE BODY THESE PARTS ARE WORN BY (--like). Two things are taken from it
+/// and one is checked. TAKEN: the SCALE -- a parts file has no stature of its
+/// own (a lock of hair is 0.2 m tall), so the metres-per-unit come from the
+/// body's skeleton against the parts' own: the median ratio of bone offsets
+/// over every non-root joint; and the SKELETON itself -- grounding shift,
+/// inverse binds and all, so the palette the body builds poses the parts by
+/// construction. CHECKED: the parts' inverse binds after the same re-frame and
+/// scale must coincide with the body's to a millimetre, or these parts were
+/// exported from a different rig and are refused.
+[[nodiscard]] bool adopt_body(const Options& opt, dfn::render::RegistryObject& obj,
+                              float& scale_out) {
+    const auto body = dfn::render::read_object(opt.like);
+    if (!body.has_value()) {
+        std::fprintf(stderr, "[import] --like \"%s\": not a readable .dfo -- REFUSED\n",
+                     opt.like.c_str());
+        return false;
+    }
+    const skel::Skeleton& b = body->skeleton;
+    const skel::Skeleton& p = obj.skeleton;
+    if (b.joints.size() != p.joints.size()) {
+        std::fprintf(stderr,
+                     "[import] --like: the body has %zu joints, the parts %zu -- "
+                     "not the same rig, REFUSED\n",
+                     b.joints.size(), p.joints.size());
+        return false;
+    }
+    for (std::size_t i = 0; i < b.joints.size(); ++i) {
+        if (b.joints[i].name != p.joints[i].name || b.joints[i].parent != p.joints[i].parent) {
+            std::fprintf(stderr,
+                         "[import] --like: joint %zu is \"%s\" (parent %d) on the body "
+                         "and \"%s\" (parent %d) on the parts -- not the same rig, "
+                         "REFUSED\n",
+                         i, b.joints[i].name.c_str(), static_cast<int>(b.joints[i].parent),
+                         p.joints[i].name.c_str(), static_cast<int>(p.joints[i].parent));
+            return false;
+        }
+    }
+    std::vector<float> ratios;
+    for (std::size_t i = 0; i < b.joints.size(); ++i) {
+        if (b.joints[i].parent < 0) {
+            continue; // the root carries the grounding shift; not a ratio
+        }
+        const float lp = glm::length(p.joints[i].bind_translation);
+        const float lb = glm::length(b.joints[i].bind_translation);
+        if (lp > 1e-3f && lb > 1e-3f) {
+            ratios.push_back(lb / lp);
+        }
+    }
+    if (ratios.empty()) {
+        std::fprintf(stderr, "[import] --like: no joint offset to take a scale from "
+                             "-- REFUSED\n");
+        return false;
+    }
+    std::sort(ratios.begin(), ratios.end());
+    const float scale = ratios[ratios.size() / 2];
+    const float spread = (ratios.back() - ratios.front()) / scale;
+    if (spread > 0.01f) {
+        std::fprintf(stderr,
+                     "[import] --like: bone offsets scale by %.4f..%.4f (spread %.2f %%) "
+                     "-- the body was NOT a uniform scale of this rig, REFUSED\n",
+                     static_cast<double>(ratios.front()),
+                     static_cast<double>(ratios.back()), static_cast<double>(spread * 100.0f));
+        return false;
+    }
+    apply_scale(obj.skeleton, obj.skin, obj.clips, scale);
+    for (dfn::render::SkinPart& part : obj.parts) {
+        for (dfn::platform::SkinnedVertex& v : part.mesh.vertices) {
+            v.position *= scale;
+        }
+    }
+    float worst = 0.0f;
+    for (std::size_t i = 0; i < b.joints.size(); ++i) {
+        for (int c = 0; c < 4; ++c) {
+            for (int r = 0; r < 4; ++r) {
+                worst = std::max(worst, std::fabs(b.joints[i].inverse_bind[c][r]
+                                                  - p.joints[i].inverse_bind[c][r]));
+            }
+        }
+    }
+    if (worst > 1e-3f) {
+        std::fprintf(stderr,
+                     "[import] --like: inverse binds differ by up to %.4f after the same "
+                     "frame and scale -- the parts were exported from a different bind "
+                     "pose, REFUSED\n",
+                     static_cast<double>(worst));
+        return false;
+    }
+    for (const dfn::render::SkinPart& part : obj.parts) {
+        for (const uint32_t i : part.hide_body_vertices) {
+            if (i >= body->skin.vertices.size()) {
+                std::fprintf(stderr,
+                             "[import] --like: part \"%s\" hides body vertex %u, the body "
+                             "has %zu -- these parts were cut for a different body, "
+                             "REFUSED\n",
+                             part.name.c_str(), static_cast<unsigned>(i),
+                             body->skin.vertices.size());
+                return false;
+            }
+        }
+    }
+    obj.skeleton = b;
+    scale_out = scale;
+    std::printf("[import] --like %s: scale %.4f from %zu bone offsets (spread %.3f %%), "
+                "inverse binds agree to %.5f; skeleton adopted (%zu joints)\n",
+                opt.like.c_str(), static_cast<double>(scale), ratios.size(),
+                static_cast<double>(spread * 100.0f), static_cast<double>(worst),
+                b.joints.size());
+    return true;
+}
+
+/// SOCKETS FROM JSON (--sockets), carried into the body's space. The file
+/// measures every point in the glTF's WORLD space (its own words: "+X left,
+/// +Y up, -Z forward"), which is the space the skin vertices are read in
+/// before `pre` (axis fix + yaw) and the stature scale; so a socket point
+/// takes exactly the vertex path: pre, then scale. Grounding moves the ROOT
+/// JOINT and not the vertices, so it moves the sockets through the palette
+/// the same way -- nothing to do here. Refused loudly per socket when the
+/// bone is not a joint of this skin; the rest are still written.
+void read_sockets(const Options& opt, const glm::mat4& pre, float scale,
+                  dfn::render::RegistryObject& obj) {
+    std::FILE* f = std::fopen(opt.sockets.c_str(), "rb");
+    if (f == nullptr) {
+        std::fprintf(stderr, "[import] --sockets \"%s\": cannot open -- no sockets\n",
+                     opt.sockets.c_str());
+        return;
+    }
+    std::string text;
+    char buf[4096];
+    while (const std::size_t got = std::fread(buf, 1, sizeof buf, f)) {
+        text.append(buf, got);
+    }
+    std::fclose(f);
+    const dfn::serialization::JsonParseResult parsed = dfn::serialization::json_parse(text);
+    if (!parsed.ok) {
+        std::fprintf(stderr, "[import] --sockets \"%s\": %s (line %u) -- no sockets\n",
+                     opt.sockets.c_str(), parsed.error.message.c_str(),
+                     static_cast<unsigned>(parsed.error.line));
+        return;
+    }
+    const dfn::serialization::JsonValue* table = parsed.root.find("sockets");
+    if (table == nullptr || !table->is_object()) {
+        std::fprintf(stderr, "[import] --sockets: no \"sockets\" object -- no sockets\n");
+        return;
+    }
+    for (const dfn::serialization::JsonMember& m : table->members()) {
+        const std::string_view bone = m.value.get("bone").as_string();
+        const dfn::serialization::JsonValue& p = m.value.get("rest_point_m");
+        int32_t joint = -1;
+        for (std::size_t j = 0; j < obj.skeleton.joints.size(); ++j) {
+            if (obj.skeleton.joints[j].name == bone) {
+                joint = static_cast<int32_t>(j);
+                break;
+            }
+        }
+        if (joint < 0 || !p.is_array() || p.size() != 3) {
+            std::fprintf(stderr,
+                         "[import] socket \"%s\": bone \"%s\" is not a joint of this "
+                         "skin or rest_point_m is not [x,y,z] -- SKIPPED\n",
+                         m.key.c_str(), std::string(bone).c_str());
+            continue;
+        }
+        const glm::vec3 raw{static_cast<float>(p.at(0).as_number()),
+                            static_cast<float>(p.at(1).as_number()),
+                            static_cast<float>(p.at(2).as_number())};
+        dfn::render::Socket sock;
+        sock.name = m.key;
+        sock.joint = static_cast<uint32_t>(joint);
+        sock.rest_point = glm::vec3{pre * glm::vec4{raw, 1.0f}} * scale;
+        obj.sockets.push_back(std::move(sock));
+    }
+    std::printf("[import] %zu sockets from %s\n", obj.sockets.size(), opt.sockets.c_str());
+    for (const dfn::render::Socket& sk : obj.sockets) {
+        std::printf("[import]     %-12s -> %s at (%.3f %.3f %.3f)\n", sk.name.c_str(),
+                    obj.skeleton.joints[sk.joint].name.c_str(),
+                    static_cast<double>(sk.rest_point.x), static_cast<double>(sk.rest_point.y),
+                    static_cast<double>(sk.rest_point.z));
+    }
+}
+
 void usage() {
     std::fprintf(stderr,
                  "dfn_import_gltf <in.gltf|in.glb> --out <out.dfo> [--name N] "
@@ -1702,7 +2085,13 @@ void usage() {
                  "  --root DIR  repository root the TEX paths are written against\n"
                  "              (default: found by walking up from the texture)\n"
                  "  --texture ROLE=PNG  use this PNG for ROLE (albedo, normal) instead\n"
-                 "              of the glTF's own; the artist's iteration handle\n");
+                 "              of the glTF's own; the artist's iteration handle\n"
+                 "  --parts     every skinned mesh node is its OWN part (hair, eyes,\n"
+                 "              brows...) with its material flags and sheets; needs\n"
+                 "  --like BODY.dfo  the body the parts are worn by: its skeleton is\n"
+                 "              adopted and its scale applied to the part vertices\n"
+                 "  --sockets JSON  points on bones for rigid attachments, in the\n"
+                 "              glTF's world space; written as section SOCK\n");
 }
 
 } // namespace
@@ -1739,6 +2128,12 @@ int main(int argc, char** argv) {
             opt.yaw_deg = std::strtof(next("--yaw"), nullptr);
         } else if (a == "--skin") {
             opt.skin_index = std::atoi(next("--skin"));
+        } else if (a == "--parts") {
+            opt.parts = true;
+        } else if (a == "--like") {
+            opt.like = next("--like");
+        } else if (a == "--sockets") {
+            opt.sockets = next("--sockets");
         } else if (a == "--root") {
             opt.root = next("--root");
         } else if (a == "--texture") {
@@ -1824,8 +2219,25 @@ int main(int argc, char** argv) {
     // with NO material, where a white body would read as untextured error
     // geometry rather than as a stand-in.
     constexpr uint32_t PLACEHOLDER_SKIN_RGBA = 0xFF9FB4CFu; // 0xAABBGGRR
+    if (opt.parts) {
+        // PARTS ARE BAKED FOR A BODY, never on their own: without --like there
+        // is no stature to scale to and no grounding to share.
+        if (opt.like.empty() || opt.skin_palette || opt.fit_canon || opt.reshape
+            || opt.fit_hips || opt.height_m > 0.0f) {
+            std::fprintf(stderr, "[import] --parts wants --like BODY.dfo and none of "
+                                 "--height/--fit-*/--reshape/--skin-palette -- REFUSED\n");
+            cgltf_free(data);
+            return 2;
+        }
+        obj.kind = "character-parts";
+        if (!read_parts(data, skin, order, opt, obj)) {
+            cgltf_free(data);
+            return 1;
+        }
+        std::printf("[import] %zu parts on one skeleton\n", obj.parts.size());
+    }
     uint32_t merged_parts = 0;
-    for (cgltf_size n = 0; n < data->nodes_count; ++n) {
+    for (cgltf_size n = 0; n < data->nodes_count && !opt.parts; ++n) {
         const cgltf_node& node = data->nodes[n];
         if (node.skin != skin || node.mesh == nullptr) {
             continue;
@@ -1843,13 +2255,15 @@ int main(int argc, char** argv) {
             ++merged_parts;
         }
     }
-    if (merged_parts == 0) {
+    if (merged_parts == 0 && !opt.parts) {
         std::fprintf(stderr, "[import] no triangle primitive uses this skin -- REFUSED\n");
         cgltf_free(data);
         return 1;
     }
-    std::printf("[import] merged %u skinned parts into one stream\n", merged_parts);
-    read_textures(data, skin, opt, obj);
+    if (!opt.parts) {
+        std::printf("[import] merged %u skinned parts into one stream\n", merged_parts);
+        read_textures(data, skin, opt, obj);
+    }
     read_clips(data, order, obj.clips);
 
     // THE AXIS FIX: everything above the skeleton's root joint. See
@@ -1886,8 +2300,41 @@ int main(int argc, char** argv) {
                       glm::vec3{0.0f, 1.0f, 0.0f})
           * pre;
     apply_pre_transform(obj.skeleton, obj.skin, obj.clips, pre);
+    for (dfn::render::SkinPart& part : obj.parts) {
+        pre_transform_skin(part.mesh, pre);
+    }
     cgltf_free(data);
     data = nullptr;
+
+    // --- PARTS: the body's scale and skeleton, then straight to the file.
+    // Nothing below (height fit, canon, reshape, grounding, palette) is about
+    // a set of parts: every one of those reads the BODY, and the body was
+    // already read when it was baked.
+    if (opt.parts) {
+        float part_scale = 1.0f;
+        if (!adopt_body(opt, obj, part_scale)) {
+            return 1;
+        }
+        std::size_t verts = 0;
+        std::size_t tris = 0;
+        for (const dfn::render::SkinPart& part : obj.parts) {
+            verts += part.mesh.vertices.size();
+            tris += part.mesh.indices.size() / 3;
+        }
+        std::printf("[import] %s: %zu parts, %zu vertices, %zu triangles on %zu joints "
+                    "(scale %.4f, yaw %+.0f deg)\n",
+                    obj.name.c_str(), obj.parts.size(), verts, tris,
+                    obj.skeleton.joints.size(), static_cast<double>(part_scale),
+                    static_cast<double>(opt.yaw_deg));
+        if (!dfn::render::write_object(obj, opt.out)) {
+            std::fprintf(stderr, "[import] failed to write \"%s\"\n", opt.out.c_str());
+            return 1;
+        }
+        std::printf("[import] wrote %s (hash %016llx)\n", opt.out.c_str(),
+                    static_cast<unsigned long long>(
+                        dfn::render::object_content_hash(obj)));
+        return 0;
+    }
 
     // Height AFTER the axis fix and BEFORE the scale, measured from the
     // bind-pose vertices -- which at bind pose ARE the model (J*B = I), so
@@ -1983,6 +2430,13 @@ int main(int argc, char** argv) {
         }
     }
     apply_scale(obj.skeleton, obj.skin, obj.clips, scale);
+    if (!opt.sockets.empty()) {
+        if (opt.fit_canon || opt.reshape) {
+            std::fprintf(stderr, "[import] --sockets with --fit-canon/--reshape: the "
+                                 "points follow the RAW skin, not the fitted one\n");
+        }
+        read_sockets(opt, pre, scale, obj);
+    }
 
     // AFTER THE SCALE AND BEFORE THE GROUNDING, and the order is forced rather
     // than chosen. The reshape's every target is a length in METRES read from
@@ -2107,10 +2561,11 @@ int main(int argc, char** argv) {
     // valid file and still draws; what it cannot do is walk. Printing the map
     // is what turns that into a thing somebody sees on the day it happens.
     const dfn::anim::SkeletonBinding binding = dfn::anim::bind_skeleton(obj.skeleton);
-    std::printf("[import] %s: %zu joints, %zu vertices, %zu triangles, %zu clips\n",
+    std::printf("[import] %s: %zu joints, %zu vertices, %zu triangles, %zu clips, "
+                "%zu sockets\n",
                 obj.name.c_str(), obj.skeleton.joints.size(),
                 obj.skin.vertices.size(), obj.skin.indices.size() / 3,
-                obj.clips.size());
+                obj.clips.size(), obj.sockets.size());
     std::printf("[import] fit by %s: %.3f m -> %.3f m (scale %.4f); bbox height "
                 "%.3f m -> %.3f m; yaw %+.0f deg\n",
                 fit_by, static_cast<double>(fit_note_from),

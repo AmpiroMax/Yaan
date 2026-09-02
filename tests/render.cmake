@@ -19,6 +19,11 @@ add_dfn_test(render_object_registry_house render/ObjectRegistryHouseTests.cpp
 add_dfn_test(render_morph render/MorphTests.cpp dfn_render dfn_core)
 add_dfn_test(render_object_registry_texture render/ObjectRegistryTextureTests.cpp
              dfn_render dfn_core)
+# СЕКЦИЯ PART (волна «части персонажа»): части на том же скелете переживают
+# круг записи-чтения, входят в личность целиком, не трогают личность тел без
+# частей; сустав за краем скелета — отказ.
+add_dfn_test(render_object_registry_parts render/ObjectRegistryPartsTests.cpp
+             dfn_render dfn_core)
 add_dfn_test(render_bitmap_font render/BitmapFontTests.cpp dfn_render)
 add_dfn_test(render_terrain_mesher render/TerrainMesherTests.cpp dfn_render)
 add_dfn_test(render_proc_mesh render/ProcMeshTests.cpp dfn_render)

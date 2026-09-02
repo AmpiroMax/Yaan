@@ -79,6 +79,12 @@ inline constexpr serialization::SectionTag MORF = serialization::make_tag('M', '
 /// не входят (довод у TextureRef в заголовке). Версия контейнера остаётся
 /// пятой по тому же доводу, что у MORF.
 inline constexpr serialization::SectionTag TEX = serialization::make_tag('T', 'E', 'X', ' ');
+/// ЧАСТИ ПЕРСОНАЖА (волна «части персонажа»): имя, флаги материала, поток
+/// SKIN и листы — на каждую часть; одна секция на ВЕСЬ список (довод у HOUS).
+/// Версия контейнера остаётся пятой по тому же доводу, что у MORF и TEX.
+inline constexpr serialization::SectionTag PART = serialization::make_tag('P', 'A', 'R', 'T');
+/// СОКЕТЫ ТЕЛА: имя, сустав, точка покоя в модельном пространстве.
+inline constexpr serialization::SectionTag SOCK = serialization::make_tag('S', 'O', 'C', 'K');
 } // namespace section
 
 inline constexpr uint16_t SECTION_VERSION = 1;
@@ -92,7 +98,8 @@ inline constexpr uint16_t SECTION_VERSION = 1;
     if (tag == section::INFO || tag == section::WOOD || tag == section::CARD
         || tag == section::GRND || tag == section::BARK || tag == section::HOUS
         || tag == section::MTRL || tag == section::SKIN || tag == section::SKEL
-        || tag == section::ANIM || tag == section::MORF || tag == section::TEX) {
+        || tag == section::ANIM || tag == section::MORF || tag == section::TEX
+        || tag == section::PART || tag == section::SOCK) {
         return version <= SECTION_VERSION;
     }
     return true; // незнакомая: её и так пропустят
@@ -357,6 +364,62 @@ void hash_textures(serialization::Fnv1a64& h, const std::vector<TextureRef>& tex
     }
 }
 
+void write_textures_body(serialization::BinaryWriter& w,
+                         const std::vector<TextureRef>& textures) {
+    w.write_u32(static_cast<uint32_t>(textures.size()));
+    for (const TextureRef& t : textures) {
+        w.write_string(t.role);
+        w.write_string(t.path);
+        w.write_string(t.sha256);
+        w.write_u8(t.colour_space);
+        w.write_u8(t.wrap);
+    }
+}
+
+[[nodiscard]] bool read_textures_body(serialization::BinaryReader& r,
+                                      std::vector<TextureRef>& textures) {
+    const uint32_t count = r.read_u32();
+    if (static_cast<uint64_t>(count) > MAX_ELEMENTS) {
+        return false;
+    }
+    textures.resize(count);
+    for (TextureRef& t : textures) {
+        t.role = r.read_string();
+        t.path = r.read_string();
+        t.sha256 = r.read_string();
+        t.colour_space = r.read_u8();
+        t.wrap = r.read_u8();
+    }
+    return r.ok();
+}
+
+void hash_parts(serialization::Fnv1a64& h, const std::vector<SkinPart>& parts) {
+    h.update_u64(parts.size());
+    for (const SkinPart& p : parts) {
+        h.update_length_prefixed(p.name);
+        h.update_u64(p.alpha_mask ? 1u : 0u);
+        h.update_u64(std::bit_cast<uint32_t>(p.alpha_cutoff));
+        h.update_u64(p.double_sided ? 1u : 0u);
+        hash_skin(h, p.mesh);
+        hash_textures(h, p.textures);
+        h.update_u64(p.hide_body_vertices.size());
+        for (const std::uint32_t i : p.hide_body_vertices) {
+            h.update_u64(i);
+        }
+    }
+}
+
+void hash_sockets(serialization::Fnv1a64& h, const std::vector<Socket>& sockets) {
+    h.update_u64(sockets.size());
+    for (const Socket& s : sockets) {
+        h.update_length_prefixed(s.name);
+        h.update_u64(s.joint);
+        h.update_u64(std::bit_cast<uint32_t>(s.rest_point.x));
+        h.update_u64(std::bit_cast<uint32_t>(s.rest_point.y));
+        h.update_u64(std::bit_cast<uint32_t>(s.rest_point.z));
+    }
+}
+
 /// НАЗВАЛ ЛИ ОБЪЕКТ ХОТЬ ОДНО ВЕЩЕСТВО. Одно определение на запись, чтение и
 /// хэш (правило 39): разойдись эти три ответа, файл писался бы с секцией, а
 /// сверялся бы без неё — и полка отказала бы себе самой.
@@ -434,10 +497,37 @@ uint64_t object_content_hash(const RegistryObject& obj) {
     if (!obj.textures.empty()) {
         hash_textures(h, obj.textures);
     }
+    // ЧАСТИ ВХОДЯТ В ЛИЧНОСТЬ, ТОЛЬКО ЕСЛИ ОНИ ЕСТЬ — шестой случай того же
+    // довода; и входят целиком, с флагами материала и листами: та же причёска
+    // с другим листом — другая причёска.
+    if (!obj.parts.empty()) {
+        hash_parts(h, obj.parts);
+    }
+    if (!obj.sockets.empty()) {
+        hash_sockets(h, obj.sockets);
+    }
     return h.digest();
 }
 
 const TextureRef* RegistryObject::texture(std::string_view role) const {
+    for (const TextureRef& t : textures) {
+        if (t.role == role) {
+            return &t;
+        }
+    }
+    return nullptr;
+}
+
+const Socket* RegistryObject::socket(std::string_view name) const {
+    for (const Socket& s : sockets) {
+        if (s.name == name) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
+const TextureRef* SkinPart::texture(std::string_view role) const {
     for (const TextureRef& t : textures) {
         if (t.role == role) {
             return &t;
@@ -467,7 +557,7 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
     if (obj.wood.vertices.empty() && obj.cards.vertices.empty()
         && obj.ground.vertices.empty() && obj.bark.vertices.empty()
         && obj.house.empty() && obj.skin.vertices.empty()
-        && obj.skeleton.joints.empty()) {
+        && obj.skeleton.joints.empty() && obj.parts.empty()) {
         std::fprintf(stderr, "[dfo] \"%s\": refusing to write an object with no "
                              "streams -- a name pointing at nothing\n",
                      obj.name.c_str());
@@ -588,13 +678,37 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
     // побайтово тем же файлом, каким был до появления секции.
     if (!obj.textures.empty()) {
         w.begin_section(section::TEX, SECTION_VERSION);
-        w.write_u32(static_cast<uint32_t>(obj.textures.size()));
-        for (const TextureRef& t : obj.textures) {
-            w.write_string(t.role);
-            w.write_string(t.path);
-            w.write_string(t.sha256);
-            w.write_u8(t.colour_space);
-            w.write_u8(t.wrap);
+        write_textures_body(w, obj.textures);
+        w.end_section();
+    }
+    // --- ЧАСТИ ПЕРСОНАЖА. Только когда есть: тело без частей обязано быть
+    // побайтово тем же файлом, каким было до появления секции.
+    if (!obj.parts.empty()) {
+        w.begin_section(section::PART, SECTION_VERSION);
+        w.write_u32(static_cast<uint32_t>(obj.parts.size()));
+        for (const SkinPart& p : obj.parts) {
+            w.write_string(p.name);
+            w.write_u8(p.alpha_mask ? 1u : 0u);
+            w.write_f32(p.alpha_cutoff);
+            w.write_u8(p.double_sided ? 1u : 0u);
+            write_skin_body(w, p.mesh);
+            write_textures_body(w, p.textures);
+            w.write_u32(static_cast<uint32_t>(p.hide_body_vertices.size()));
+            for (const std::uint32_t i : p.hide_body_vertices) {
+                w.write_u32(i);
+            }
+        }
+        w.end_section();
+    }
+    if (!obj.sockets.empty()) {
+        w.begin_section(section::SOCK, SECTION_VERSION);
+        w.write_u32(static_cast<uint32_t>(obj.sockets.size()));
+        for (const Socket& sk : obj.sockets) {
+            w.write_string(sk.name);
+            w.write_u32(sk.joint);
+            w.write_f32(sk.rest_point.x);
+            w.write_f32(sk.rest_point.y);
+            w.write_f32(sk.rest_point.z);
         }
         w.end_section();
     }
@@ -772,17 +886,45 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
                 }
             }
         } else if (s->tag == section::TEX) {
+            if (!read_textures_body(r, obj.textures)) {
+                return std::nullopt;
+            }
+        } else if (s->tag == section::PART) {
             const uint32_t count = r.read_u32();
             if (static_cast<uint64_t>(count) > MAX_ELEMENTS) {
                 return std::nullopt;
             }
-            obj.textures.resize(count);
-            for (TextureRef& t : obj.textures) {
-                t.role = r.read_string();
-                t.path = r.read_string();
-                t.sha256 = r.read_string();
-                t.colour_space = r.read_u8();
-                t.wrap = r.read_u8();
+            obj.parts.resize(count);
+            for (SkinPart& p : obj.parts) {
+                p.name = r.read_string();
+                p.alpha_mask = r.read_u8() != 0u;
+                p.alpha_cutoff = r.read_f32();
+                p.double_sided = r.read_u8() != 0u;
+                streams_ok = read_skin_body(r, p.mesh) && streams_ok;
+                if (!read_textures_body(r, p.textures)) {
+                    return std::nullopt;
+                }
+                const uint32_t hidden = r.read_u32();
+                if (static_cast<uint64_t>(hidden) > MAX_ELEMENTS) {
+                    return std::nullopt;
+                }
+                p.hide_body_vertices.resize(hidden);
+                for (std::uint32_t& i : p.hide_body_vertices) {
+                    i = r.read_u32();
+                }
+            }
+        } else if (s->tag == section::SOCK) {
+            const uint32_t count = r.read_u32();
+            if (static_cast<uint64_t>(count) > MAX_ELEMENTS) {
+                return std::nullopt;
+            }
+            obj.sockets.resize(count);
+            for (Socket& sk : obj.sockets) {
+                sk.name = r.read_string();
+                sk.joint = r.read_u32();
+                sk.rest_point.x = r.read_f32();
+                sk.rest_point.y = r.read_f32();
+                sk.rest_point.z = r.read_f32();
             }
         }
         // Unknown tags: next_section() steps over them (Rule 7).
@@ -821,6 +963,36 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
                              obj.skin.vertices.size());
                 return std::nullopt;
             }
+        }
+    }
+    // ЧАСТЬ АДРЕСУЕТ СУСТАВ СКЕЛЕТА ПО НОМЕРУ, и номер за краем — чтение
+    // чужой матрицы палитры. Проверка после цикла по тому же доводу, что у
+    // MTRL и MORF. Отказ, а не зажим: прядь, пришитая не к тому суставу, —
+    // другая прядь под тем же именем.
+    for (const SkinPart& p : obj.parts) {
+        for (const platform::SkinnedVertex& v : p.mesh.vertices) {
+            for (int k = 0; k < 4; ++k) {
+                if (v.weights[k] > 0.0f && v.joints[k] >= obj.skeleton.joints.size()) {
+                    std::fprintf(stderr,
+                                 "[dfo] \"%s\": часть \"%s\" весит на сустав %u при "
+                                 "%zu в SKEL -- ОТКАЗ\n",
+                                 path.string().c_str(), p.name.c_str(),
+                                 static_cast<unsigned>(v.joints[k]),
+                                 obj.skeleton.joints.size());
+                    return std::nullopt;
+                }
+            }
+        }
+    }
+    // СОКЕТ АДРЕСУЕТ СУСТАВ ПО НОМЕРУ — та же проверка, тот же отказ.
+    for (const Socket& sk : obj.sockets) {
+        if (sk.joint >= obj.skeleton.joints.size()) {
+            std::fprintf(stderr,
+                         "[dfo] \"%s\": сокет \"%s\" на суставе %u при %zu в SKEL "
+                         "-- ОТКАЗ\n",
+                         path.string().c_str(), sk.name.c_str(),
+                         static_cast<unsigned>(sk.joint), obj.skeleton.joints.size());
+            return std::nullopt;
         }
     }
     // THE HASH IS VERIFIED ON EVERY READ. A registry is an index of

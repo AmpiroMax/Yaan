@@ -296,6 +296,18 @@ if(TARGET dfn_import_gltf)
         if(_fit STREQUAL "shape")
             list(APPEND _extra --reshape)
         endif()
+        # СОКЕТЫ — ВХОД ВЫПЕЧКИ ВИДИМОГО ТЕЛА (волна «части персонажа»):
+        # точки на костях (assets/characters/sockets.json, система glb)
+        # переводятся импортёром в пространство тела и пишутся секцией SOCK;
+        # тронул json — тело перепеклось. Только у HumanBase: файл измерен на
+        # нём, а фикстуры импортёра носят чужие скелеты.
+        set(_sockets)
+        if(_stem STREQUAL "HumanBase" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/characters/sockets.json")
+            set(_sockets --sockets "${CMAKE_CURRENT_SOURCE_DIR}/assets/characters/sockets.json")
+            set(_sockets_dep "${CMAKE_CURRENT_SOURCE_DIR}/assets/characters/sockets.json")
+        else()
+            set(_sockets_dep)
+        endif()
         if(EXISTS "${DFN_CHAR_DIR}/${_src}")
             # ЛИСТЫ ТЕЛА — ВХОД ВЫПЕЧКИ. Секция TEX несёт SHA-256 PNG, который
             # видел импортёр; перерисованная кожа без перепечки была бы
@@ -308,8 +320,8 @@ if(TARGET dfn_import_gltf)
                 COMMAND dfn_import_gltf "${DFN_CHAR_DIR}/${_src}"
                         --out "${DFN_CHAR_DIR}/${_stem}.dfo"
                         --name "${_name}" --height ${_height} --yaw ${_yaw} ${_extra}
-                        --root "${CMAKE_CURRENT_SOURCE_DIR}"
-                DEPENDS dfn_import_gltf "${DFN_CHAR_DIR}/${_src}" ${_sheets}
+                        --root "${CMAKE_CURRENT_SOURCE_DIR}" ${_sockets}
+                DEPENDS dfn_import_gltf "${DFN_CHAR_DIR}/${_src}" ${_sheets} ${_sockets_dep}
                 COMMENT "import ${_src} -> ${_stem}.dfo"
                 VERBATIM)
             list(APPEND DFN_CHAR_OUTPUTS "${DFN_CHAR_DIR}/${_stem}.dfo")
@@ -336,6 +348,41 @@ if(TARGET dfn_import_gltf)
             COMMENT "attach MORF -> HumanBase.dfo"
             VERBATIM)
         list(APPEND DFN_CHAR_OUTPUTS "${DFN_CHAR_DIR}/HumanBase.morphed")
+    endif()
+    # ЧАСТИ ПЕРСОНАЖА (волна «части персонажа»): волосы, глаза, брови, ресницы,
+    # зубы, язык — отдельные меши на том же скелете (HumanBase.parts.glb,
+    # сессия 62). Печётся ПОД ТЕЛО (--like): масштаб и скелет берутся у
+    # HumanBase.dfo, поэтому шаг стоит ПОСЛЕ выпечки тела и после вписывания
+    # MORF (маркер .morphed трогается последним; сама секция MORF скелета не
+    # трогает, зависимость — чтобы шаг не перепекался дважды за сборку). Листы
+    # частей (<часть>_albedo/_normal.png) — вход выпечки по тому же доводу,
+    # что у кожи: SHA-256 в секции.
+    # Одежда (HumanBase.clothes.glb: mhclo-прокси костюма и ботинок с
+    # extras.hide_body_vertices) — тот же формат PART, тот же шаг.
+    if("${DFN_CHAR_DIR}/HumanBase.dfo" IN_LIST DFN_CHAR_OUTPUTS)
+        file(GLOB _part_sheets "${DFN_CHAR_DIR}/textures/HumanBase/*_albedo.png"
+                               "${DFN_CHAR_DIR}/textures/HumanBase/*_normal.png"
+                               "${DFN_CHAR_DIR}/textures/HumanBase/*_ao.png")
+        set(_body_ready "${DFN_CHAR_DIR}/HumanBase.dfo")
+        if("${DFN_CHAR_DIR}/HumanBase.morphed" IN_LIST DFN_CHAR_OUTPUTS)
+            list(APPEND _body_ready "${DFN_CHAR_DIR}/HumanBase.morphed")
+        endif()
+        foreach(_set "parts" "clothes")
+            if(EXISTS "${DFN_CHAR_DIR}/HumanBase.${_set}.glb")
+                add_custom_command(
+                    OUTPUT "${DFN_CHAR_DIR}/HumanBase.${_set}.dfo"
+                    COMMAND dfn_import_gltf "${DFN_CHAR_DIR}/HumanBase.${_set}.glb"
+                            --out "${DFN_CHAR_DIR}/HumanBase.${_set}.dfo"
+                            --name "human-base-${_set}" --yaw 180 --parts
+                            --like "${DFN_CHAR_DIR}/HumanBase.dfo"
+                            --root "${CMAKE_CURRENT_SOURCE_DIR}"
+                    DEPENDS dfn_import_gltf "${DFN_CHAR_DIR}/HumanBase.${_set}.glb"
+                            ${_part_sheets} ${_body_ready}
+                    COMMENT "import HumanBase.${_set}.glb -> HumanBase.${_set}.dfo (--like HumanBase.dfo)"
+                    VERBATIM)
+                list(APPEND DFN_CHAR_OUTPUTS "${DFN_CHAR_DIR}/HumanBase.${_set}.dfo")
+            endif()
+        endforeach()
     endif()
     if(DFN_CHAR_OUTPUTS)
         add_custom_target(dfn_characters ALL DEPENDS ${DFN_CHAR_OUTPUTS})
