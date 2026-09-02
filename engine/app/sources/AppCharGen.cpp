@@ -373,6 +373,18 @@ void App::chargen_enter() {
                  chargen_body_.triangles(), chargen_body_.morphs().size(),
                  static_cast<double>(chargen_body_.height_m()),
                  from_preset ? ", поднят пресет" : "");
+    // ПРИБОР НА ПУТИ ИГРОКА (заказ владельца 02.09). Зазоры печатаются с ТОЙ
+    // позы, что на экране, при каждом открытии: владелец увидел слипшиеся ноги
+    // на экране создания в тот день, когда стенд отчитывался нулём
+    // пересечений, — прибор, стоящий не там, куда смотрят, не прибор.
+    {
+        const anim::BodyGaps gaps = chargen_body_.screen_gaps();
+        std::fprintf(stderr, "[создание] зазоры на экране — %s%s\n",
+                     anim::describe_gaps(gaps).c_str(),
+                     anim::gaps_meet(gaps, anim::BodyGapTargets::from_config())
+                         ? " — в порогах REST_GAP_*"
+                         : " — НИЖЕ ПОРОГОВ REST_GAP_*");
+    }
 
     // ДОЗА DFN_CHARGEN_DONE=1: нажать «Готово» и закрыть игру. Без неё весь
     // путь «ползунки → пресет → выпечка → тело в мире» проходим только рукой,

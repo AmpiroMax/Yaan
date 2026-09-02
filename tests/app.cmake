@@ -308,6 +308,17 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
 
+    # ПРИБОР НА ПУТИ ИГРОКА (заказ владельца 02.09). Меряет зазоры нога↔нога,
+    # кисть↔бедро, предплечье↔корпус на ТОЙ позе, что строят экран создания
+    # (CharGenBody, тем же вызовом, что кнопка меню) и смотровая, — а не на
+    # позе стенда. Свой рукав, а не случай в app_chargen: он ОБЯЗАН быть
+    # красным, пока рест-поза рига не выправлена, и красная строка «прибор
+    # пути игрока» читается иначе, чем красный «экран создания».
+    add_dfn_test(app_character_path app/CharacterPathTests.cpp
+                 dfn_render dfn_platform_render dfn_anim dfn_core)
+    target_sources(app_character_path PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp)
+
     # НАРОДЫ КАК РАСПРЕДЕЛЕНИЯ. Предмет тут не «файл читается», а три вещи,
     # которых кадром не увидеть: народный край ОБЯЗАН лежать внутри судейского
     # (иначе экран честно нарисует полосу, за которой судья пропорций красный),

@@ -45,6 +45,7 @@ AI Agents Notice (must follow):
 
 #pragma once
 
+#include "engine/anim/sources/BodyGaps.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
@@ -211,6 +212,14 @@ public:
     [[nodiscard]] const glm::vec3& lo() const { return lo_; }
     [[nodiscard]] const glm::vec3& hi() const { return hi_; }
 
+    /// ПРИБОР НА ПУТИ ИГРОКА: зазоры нога↔нога, кисть↔бедро, предплечье↔корпус
+    /// ТОЙ ПОЗЫ, ЧТО НА ЭКРАНЕ, — на тех же вершинах (бленд ползунков), той же
+    /// привязке и той же нулевой позе, из которых собран залитый меш. Не
+    /// «поза стенда» и не «поза мира»: владелец смотрел на экран создания и
+    /// увидел слипшиеся ноги там, где стенд отчитывался нулём пересечений, —
+    /// два разных пути позы, и прибор обязан стоять на том, куда смотрят.
+    [[nodiscard]] anim::BodyGaps screen_gaps() const;
+
     /// ПРИБОР УТЕЧКИ: сколько буферов создано и сколько уничтожено за жизнь
     /// объекта. Утечка — это разность, а не впечатление.
     [[nodiscard]] std::uint32_t uploads() const { return uploads_; }
@@ -246,6 +255,9 @@ private:
     /// невозможен.
     anim::SkinnedRigBinding binding_{};
     std::vector<glm::mat4> rest_palette_;
+    /// Риг, которым собрана привязка, — нужен прибору зазоров (коробки по
+    /// коже, нулевая поза через ретаргет).
+    anim::Rig rig_{};
     /// Бленд + скиннинг в рест-позу + заливка нового меша + уничтожение
     /// старого. Общий хвост load() и apply(): пара create/destroy обязана быть
     /// в ОДНОМ месте.

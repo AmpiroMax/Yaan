@@ -198,6 +198,7 @@ bool CharGenBody::load(platform::IRenderer& renderer, const anim::Rig& rig,
     // ползунком невозможен), поэтому пересчитывать её на движение ручки
     // было бы работой, ответ которой известен заранее.
     rest_palette_.assign(object_.skeleton.size(), glm::mat4{1.0f});
+    rig_ = rig;
     if (!object_.skeleton.empty()) {
         binding_ = anim::bind_skinned_rig(rig, object_.skeleton);
         if (binding_.bound_count() == 0) {
@@ -285,6 +286,25 @@ bool CharGenBody::set_height_m(float metres) {
     }
     height_m_ = clamped;
     return true;
+}
+
+anim::BodyGaps CharGenBody::screen_gaps() const {
+    anim::BodyGaps gaps;
+    if (object_.skeleton.empty() || blended_.empty() || binding_.bound_count() == 0) {
+        return gaps;
+    }
+    // ТА ЖЕ ПОЗА, ЧТО В rest_palette_: skinning_palette строит её из
+    // pose_local_transforms на нулевой LocalPose, и здесь берётся тот же
+    // сэмпл — второй арифметики «где стоит сустав на экране» нет.
+    std::vector<anim::JointLocal> sample(object_.skeleton.size());
+    anim::pose_local_transforms(rig_, object_.skeleton, binding_, anim::LocalPose{},
+                                sample);
+    anim::HitboxSet boxes = anim::build_hitboxes(rig_.proportions);
+    anim::fit_hitboxes_to_skin(boxes, rig_, object_.skeleton, binding_, blended_);
+    const anim::SkinParts parts =
+        anim::label_skin_parts(object_.skeleton, binding_, blended_);
+    return anim::measure_body_gaps(object_.skeleton, binding_, boxes, blended_, parts,
+                                   sample);
 }
 
 bool CharGenBody::apply(platform::IRenderer& renderer) {

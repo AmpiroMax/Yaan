@@ -29,6 +29,7 @@ add_library(dfn_anim STATIC
     sources/ClipPlayer.cpp
     sources/FootIk.cpp
     sources/Hitbox.cpp
+    sources/BodyGaps.cpp
     sources/Mirror.cpp
     sources/Body.cpp)
 
