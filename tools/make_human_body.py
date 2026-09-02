@@ -1264,12 +1264,30 @@ def main():
 
     mixamo = opt["mixamo"]
     if clips and mixamo:
-        if not os.path.isabs(mixamo):
-            mixamo = os.path.join(root, mixamo)
+        # НЕСКОЛЬКО ПАПОК ЧЕРЕЗ ЗАПЯТУЮ (россыпь + распакованные паки); имя
+        # клипа — имя файла, при совпадении в разных паках — с именем папки;
+        # манекен X_Bot/Y_Bot (Т-поза без движения) пропускается.
         only3 = [x for x in opt["mixamo-only"].split(",") if x]
-        files = sorted(f for f in os.listdir(mixamo) if f.lower().endswith(".fbx"))
-        for fn in files:
-            clip = os.path.splitext(fn)[0].replace(" ", "_").replace("(", "").replace(")", "")
+        taken = set(made)
+        todo = []
+        for folder in [x.strip() for x in mixamo.split(",") if x.strip()]:
+            if not os.path.isabs(folder):
+                folder = os.path.join(root, folder)
+            tag = os.path.basename(os.path.normpath(folder))
+            for fn in sorted(f for f in os.listdir(folder) if f.lower().endswith(".fbx")):
+                clip = os.path.splitext(fn)[0].replace(" ", "_").replace("(", "").replace(")", "")
+                clip = clip[:1].upper() + clip[1:]
+                if clip.lower() in ("x_bot", "y_bot"):
+                    continue
+                full = opt["mixamo-prefix"] + clip
+                if full in taken:
+                    clip = clip + "_" + tag
+                    full = opt["mixamo-prefix"] + clip
+                taken.add(full)
+                todo.append((folder, fn, clip))
+        files = todo
+        for folder, fn, clip in files:
+            mixamo = folder
             if only3 and clip not in only3:
                 continue
             before = {o.name for o in bpy.data.objects}
