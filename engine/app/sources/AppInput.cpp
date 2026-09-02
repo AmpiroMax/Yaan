@@ -85,6 +85,7 @@ bool App::dispatch_actions(bool chat_typing) {
         case Action::Screenshot: on_screenshot(); break;
         case Action::ToggleBody: on_toggle_body(); break;
         case Action::WeaponToggle: on_weapon_toggle(); break;
+        case Action::DrunkToggle: on_drunk_toggle(); break;
         case Action::PoseCycle: on_pose_cycle(); break;
         case Action::TrajectoryRecord: on_trajectory_record(); break;
         case Action::TrajectoryReplay: on_trajectory_replay(); break;
@@ -327,6 +328,15 @@ void App::on_weapon_toggle() {
         ps->weapon_drawn = drawn;
     }
     std::fprintf(stderr, "[character] оружие %s\n", drawn ? "в руках" : "убрано");
+}
+
+void App::on_drunk_toggle() {
+    auto* drive = world_.get<anim::BodyDrive>(player_);
+    if (drive == nullptr) {
+        return;
+    }
+    drive->drunk = !drive->drunk;
+    std::fprintf(stderr, "[character] %s\n", drive->drunk ? "пьян" : "трезв");
 }
 
 void App::on_debug_readout() { debug_overlay_ = !debug_overlay_; }

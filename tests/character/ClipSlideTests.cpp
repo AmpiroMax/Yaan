@@ -45,6 +45,7 @@ AI Agents Notice (must follow):
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <set>
 #include <string>
 #include <span>
 #include <string>
@@ -557,5 +558,48 @@ TEST_CASE("idle_feet_stand_under_the_hips") {
                      << 1000.0 * config::STANCE_FEET_APART_M);
     CHECK(std::abs(idle.second - static_cast<float>(config::STANCE_FEET_APART_M)) < 0.02f);
     CHECK(raw.second > idle.second + 0.05f); // контроль: клип шире, слой свёл
+}
+
+TEST_CASE("idle_variants_take_turns_and_the_drunk_flag_wins") {
+    // ВАРИАНТЫ ПОКОЯ (владелец 03.09): стоя, за 60 с тело сменит клип покоя
+    // не меньше двух раз; флаг «пьян» переключает на пьяный покой немедленно
+    // (после кроссфейда), трезвый — назад к клипу роли.
+    Model m;
+    REQUIRE(load(m, true));
+    if (m.lib.idle_variants.empty()) {
+        MESSAGE("в файле нет вариантов покоя MX_* — набор пропущен");
+        return;
+    }
+    REQUIRE(m.lib.drunk_variant >= 0);
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    drive.gait = anim::Gait::Walk;
+    drive.speed_mps = 0.0f;
+    drive.want_speed_mps = 0.0f;
+    drive.step_length_m = step_length(0.0f);
+    anim::ClipPlayback play;
+    std::set<int32_t> seen;
+    for (int i = 0; i < 60 * 60; ++i) {
+        anim::advance_playback(m.lib, drive, DT, play);
+        REQUIRE(play.role == anim::ClipRole::Idle);
+        seen.insert(play.variant);
+        CHECK(play.variant != m.lib.drunk_variant);
+    }
+    MESSAGE("вариантов покоя в файле " << m.lib.idle_variants.size() << ", за 60 с видели "
+                                       << seen.size() << " разных");
+    CHECK(seen.size() >= 3);
+    drive.drunk = true;
+    for (int i = 0; i < 30; ++i) {
+        anim::advance_playback(m.lib, drive, DT, play);
+    }
+    CHECK(play.variant == m.lib.drunk_variant);
+    const int32_t drunk_clip = anim::entry_for(m.lib, play.role, play.variant).clip;
+    REQUIRE(drunk_clip >= 0);
+    CHECK(m.obj.clips[static_cast<std::size_t>(drunk_clip)].name == "MX_Drunk_Idle_Variation");
+    drive.drunk = false;
+    for (int i = 0; i < 30; ++i) {
+        anim::advance_playback(m.lib, drive, DT, play);
+    }
+    CHECK(play.variant != m.lib.drunk_variant);
 }
 

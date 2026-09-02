@@ -112,6 +112,7 @@ constexpr std::array<Binding, static_cast<size_t>(Action::Count)> TABLE{{
      Scope::PlayingOnly, Scope::PlayingOnly},
     {Action::ViewerReset, K::R, K::UNKNOWN, "controls.viewer_reset",
      Scope::PlayingOnly},
+    {Action::DrunkToggle, K::H, K::UNKNOWN, "controls.drunk", Scope::PlayingOnly},
 }};
 
 // THE FLY CAMERA'S CONTINUOUS INPUTS, described rather than dispatched.
@@ -227,6 +228,7 @@ const char* key_name(platform::Key key) {
     case K::K: return "K";
     case K::T: return "T";  // оружие: достать или убрать
     case K::G: return "G";
+    case K::H: return "H";
     // Z — отмена. Подпись обязана существовать: «?» на экране управления это
     // не косметика, а признак строки, о которой человеку никто не скажет.
     case K::Z: return "Z";

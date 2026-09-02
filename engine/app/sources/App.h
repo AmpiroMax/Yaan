@@ -403,6 +403,7 @@ private:
     void on_screenshot();
     void on_toggle_body();
     void on_weapon_toggle();
+    void on_drunk_toggle();
     /// ПЕРЕБОР ПОЗ РЕЕСТРА (AppPoses.cpp). Направление берётся у НАЖАТОЙ
     /// СКОБКИ: строка таблицы одна на обе клавиши, и обработчик — единственное
     /// место, где известно, какая из них под пальцем.

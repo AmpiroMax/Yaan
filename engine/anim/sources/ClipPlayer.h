@@ -303,6 +303,13 @@ struct ClipEntry {
 
 struct ClipLibrary {
     std::array<ClipEntry, CLIP_ROLE_COUNT> role{};
+    /// ВАРИАНТЫ ПОКОЯ (владелец 03.09: «добавь ещё idle из анимаций и пьяную
+    /// версию»): стоя дольше IDLE_VARIANT_S, тело меняет клип покоя на один
+    /// из этих (MX_Idle_1…5, Happy/Sad) с обычным кроссфейдом; `drunk_variant`
+    /// — индекс пьяного покоя (MX_Drunk_Idle_Variation), его выбирает
+    /// BodyDrive::drunk (клавиша H). −1 в `ClipPlayback::variant` — клип роли.
+    std::vector<ClipEntry> idle_variants;
+    int32_t drunk_variant = -1;
     /// Where this model's feet touch, and how high they touch at rest.
     ContactSet contacts;
     /// WHICH HALF OF THE SKELETON A JOINT BELONGS TO, so the legs can walk
@@ -366,6 +373,9 @@ struct ClipLibrary {
 /// (fit_hitboxes_to_skin), which is what the arm-clearance layer inside this
 /// library measures against — see the header note there for why a canon-sized
 /// box on a raw body lets a hand into a thigh.
+/// Клип роли с учётом варианта покоя (см. ClipLibrary::idle_variants).
+[[nodiscard]] const ClipEntry& entry_for(const ClipLibrary& lib, ClipRole role, int32_t variant);
+
 [[nodiscard]] ClipLibrary build_clip_library(
     const Rig& rig, const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
     std::span<const skel::AnimClip> clips,
@@ -420,6 +430,11 @@ inline constexpr float WEAPON_CROSSFADE_S = 0.2f;
 struct ClipPlayback {
     ClipRole role = ClipRole::Idle;
     ClipRole previous = ClipRole::Idle;
+    /// Вариант покоя текущей/прошлой роли (ClipLibrary::idle_variants), −1 — клип роли.
+    int32_t variant = -1;
+    int32_t previous_variant = -1;
+    float idle_s = 0.0f;       ///< сколько стоим на текущем покое
+    uint32_t variant_pick = 0; ///< счётчик выборов — детерминированная «случайность»
     /// 1 -> 0 while the previous role fades out. Zero means "no cross-fade".
     float fade = 0.0f;
     /// Clip time in seconds for the CURRENT role and for the one fading out.

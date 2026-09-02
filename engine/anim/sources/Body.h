@@ -131,6 +131,10 @@ struct BodyDrive {
     /// вымысла. Состояний ровно два, и оба видны на кадре: руки свободны или
     /// руки заняты.
     bool weapon_drawn = false;
+    /// ПЬЯН (владелец 03.09: «на какую-нибудь кнопку я буду пьянеть», клавиша
+    /// H): покой играет пьяный клип (ClipLibrary::drunk_variant); походка
+    /// пьяной станет, когда будут клипы Drunk Walk/Run. Заявка приложения.
+    bool drunk = false;
     // Showcase override (mirror map techno-demo): SHOWCASE_NONE = live body.
     uint8_t showcase_clip = SHOWCASE_NONE;
     float showcase_time_s = 0.0f;

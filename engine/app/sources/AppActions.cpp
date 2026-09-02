@@ -63,6 +63,7 @@ constexpr std::array<ActionRoute, static_cast<size_t>(Action::Count)> ROUTES{{
     {Action::ViewerCycle, Gate::TypingEats, "on_viewer_cycle"},
     {Action::ViewerTurn, Gate::TypingEats, "on_viewer_turn"},
     {Action::ViewerReset, Gate::TypingEats, "on_viewer_reset"},
+    {Action::DrunkToggle, Gate::TypingEats, "on_drunk_toggle"},
 }};
 
 } // namespace

@@ -203,6 +203,14 @@ constexpr Bone LEG_BONES[] = {Bone::ThighL, Bone::ShinL, Bone::FootL,
 
 } // namespace
 
+const ClipEntry& entry_for(const ClipLibrary& lib, ClipRole role, int32_t variant) {
+    if (role == ClipRole::Idle && variant >= 0
+        && static_cast<std::size_t>(variant) < lib.idle_variants.size()) {
+        return lib.idle_variants[static_cast<std::size_t>(variant)];
+    }
+    return lib[role];
+}
+
 std::string_view role_name(ClipRole r) {
     for (const RoleNames& row : ROLE_NAMES) {
         if (row.role == r) {
@@ -909,6 +917,29 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     // THE STRIDE MEASUREMENTS. Only the roles that travel need them: asking
     // for a stride curve on Idle produces a row of zeros that every reader
     // would then have to special-case.
+    // ВАРИАНТЫ ПОКОЯ — по именам, что есть в файле; пьяный — отдельно.
+    {
+        const std::string_view variants[] = {"MX_Idle_1", "MX_Idle_2", "MX_Idle_3", "MX_Idle_4",
+                                             "MX_Idle_5", "MX_Happy_Idle", "MX_Sad_Idle"};
+        const auto add = [&](std::string_view want) {
+            for (std::size_t c = 0; c < clips.size(); ++c) {
+                if (same_name(clips[c].name, want) && clips[c].duration_s > 0.0f) {
+                    ClipEntry e;
+                    e.clip = static_cast<int32_t>(c);
+                    e.duration_s = clips[c].duration_s;
+                    lib.idle_variants.push_back(e);
+                    return true;
+                }
+            }
+            return false;
+        };
+        for (const std::string_view v : variants) {
+            add(v);
+        }
+        if (add("MX_Drunk_Idle_Variation")) {
+            lib.drunk_variant = static_cast<int32_t>(lib.idle_variants.size()) - 1;
+        }
+    }
     const ClipRole travelling[] = {ClipRole::Walk, ClipRole::Jog, ClipRole::Sprint,
                                    ClipRole::CrouchWalk};
     for (const ClipRole r : travelling) {
@@ -1414,19 +1445,54 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                                                : std::max(target, play.airborne - move);
     }
 
-    if (want != play.role) {
+    // ВАРИАНТ ПОКОЯ: пришли стоять — клип роли; простояли IDLE_VARIANT_S —
+    // следующий вариант по детерминированной перетасовке; пьяный флаг привода
+    // (клавиша H) выбирает пьяный покой немедленно. Смена варианта — тот же
+    // кроссфейд, что смена роли.
+    int32_t want_variant = -1;
+    if (want == ClipRole::Idle && !lib.idle_variants.empty()) {
+        const int32_t n_sober = static_cast<int32_t>(lib.idle_variants.size())
+                                - (lib.drunk_variant >= 0 ? 1 : 0);
+        if (drive.drunk && lib.drunk_variant >= 0) {
+            want_variant = lib.drunk_variant;
+            play.idle_s = 0.0f;
+        } else if (play.role != ClipRole::Idle || play.variant == lib.drunk_variant) {
+            want_variant = -1;
+            play.idle_s = 0.0f;
+        } else {
+            play.idle_s += dt;
+            want_variant = play.variant;
+            if (play.idle_s >= static_cast<float>(config::IDLE_VARIANT_S) && n_sober > 0) {
+                play.idle_s = 0.0f;
+                ++play.variant_pick;
+                const uint32_t k = (play.variant_pick * 7u + 3u) % static_cast<uint32_t>(n_sober + 1);
+                int32_t pick = k == 0u ? -1 : static_cast<int32_t>(k) - 1;
+                if (pick == lib.drunk_variant) {
+                    pick = -1;
+                }
+                want_variant = pick;
+            }
+        }
+    } else {
+        play.idle_s = 0.0f;
+    }
+    const bool variant_switch = want == ClipRole::Idle && play.role == ClipRole::Idle
+                                && want_variant != play.variant;
+    if (want != play.role || variant_switch) {
         play.previous = play.role;
+        play.previous_variant = play.variant;
         play.previous_time_s = play.time_s;
         play.previous_stride = play.stride;
         play.fade = 1.0f;
         play.role = want;
+        play.variant = want_variant;
         play.time_s = locomotion(want) ? 0.0f : 0.0f;
     }
     if (play.fade > 0.0f && dt > 0.0f) {
         play.fade = std::max(0.0f, play.fade - dt / CLIP_CROSSFADE_S);
     }
 
-    const ClipEntry& cur = lib[play.role];
+    const ClipEntry& cur = entry_for(lib, play.role, play.variant);
     // HOW WIDE THE STRIDE HAS TO BE. sim's step_length_m is the model that
     // already sets the procedural gait's amplitudes and the camera's bob
     // frequency; a cycle is two steps (StepFeel's own convention).
@@ -1461,7 +1527,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                                                 * cur.duration_s;
     }
     if (play.fade > 0.0f) {
-        const ClipEntry& prev = lib[play.previous];
+        const ClipEntry& prev = entry_for(lib, play.previous, play.previous_variant);
         if (locomotion(play.previous)) {
             play.previous_stride = lib.feet_drive ? 1.0f : stride_scale_for(prev, demanded);
             play.previous_time_s = locomotion_time(prev, phase);
@@ -1551,7 +1617,7 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
                      std::span<JointLocal> out_sample) {
     const float a = std::clamp(alpha, 0.0f, 1.0f);
     const std::size_t n = skeleton.size();
-    const ClipEntry& cur = lib[play.role];
+    const ClipEntry& cur = entry_for(lib, play.role, play.variant);
     if (!cur.present() || out_sample.size() < n) {
         return false;
     }
@@ -1603,7 +1669,7 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     };
     symmetrise_idle(play.role, out_sample.first(n));
     const float fade = glm::mix(play.prev_fade, play.fade, a);
-    const ClipEntry& prev = lib[play.previous];
+    const ClipEntry& prev = entry_for(lib, play.previous, play.previous_variant);
     if (fade > 0.0f && prev.present()) {
     // THE CROSS-FADE RUNS ON TWO FINISHED SAMPLES, not on one sample built
     // from a blended time: the two roles carry DIFFERENT STRIDE SCALES and

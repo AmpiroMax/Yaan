@@ -187,6 +187,7 @@ controls.wireframe=Каркас
 controls.screenshot=Снимок экрана — в чат карты и в трейс
 controls.toggle_body=Режим: игрок или редактор
 controls.weapon=Оружие: достать или убрать
+controls.drunk=Пьянеть / трезветь
 controls.traj_record=Запись траектории: старт и стоп
 controls.traj_replay=Повтор последней записи
 controls.chat=Окно чата
