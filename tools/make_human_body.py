@@ -94,6 +94,12 @@ DEFAULTS = {
     "donor2-map": "kaykit",
     "donor2-only": "",
     "donor2-prefix": "KK_",
+    # КОЖА (владелец 02.09-2: «нормальные текстуры, кожа»; решение лида: в
+    # .dfo — ссылки, PNG внешними файлами): имя набора кожи MPFB
+    # (data/skins/<name>/<name>.mhmat, CC0). Альбедо копируется в
+    # textures/<stem>/albedo.png рядом с выходом, glb ссылается на него
+    # ОТНОСИТЕЛЬНЫМ путём (не встраивает). Пусто — материал без текстуры.
+    "skin": "",
     "tris": "0",          # без децимации: 26 756 треугольников, пальцы целы
     # МУЖЧИНА ~30 ЛЕТ, ОБЫЧНОГО СЛОЖЕНИЯ. Шкала возраста MakeHuman линейна по
     # половинам и ставит 25 лет ровно в 0.5, 90 — в 1.0; 30 лет = 0.5385.
@@ -927,6 +933,9 @@ def main():
     # Один материал: собственные материалы MakeHuman телу не нужны — цвет по
     # частям тела кладёт импортёр (--skin-palette), а безымянный примитив
     # читатель .glb принимает за отсутствие материала.
+    skin_uri = None
+    if opt["skin"]:
+        skin_uri, _ = apply_skin(mesh, opt["skin"], out)
     if not mesh.data.materials:
         mat = bpy.data.materials.new("M_Skin")
         mat.diffuse_color = (0.76, 0.60, 0.50, 1.0)
@@ -955,8 +964,8 @@ def main():
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
     os.makedirs(os.path.dirname(out), exist_ok=True)
-    bpy.ops.export_scene.gltf(
-        filepath=out, export_format="GLB", use_selection=True,
+    common = dict(
+        use_selection=True,
         export_skins=True, export_yup=True, export_apply=True,
         export_animations=bool(clips), export_animation_mode="ACTIONS",
         export_bake_animation=False,
@@ -968,9 +977,116 @@ def main():
         export_optimize_animation_size=True,
         export_optimize_animation_keep_anim_armature=True,
         export_rest_position_armature=True)
+    if skin_uri is None:
+        bpy.ops.export_scene.gltf(filepath=out, export_format="GLB", **common)
+    else:
+        # ВНЕШНИЕ ТЕКСТУРЫ: экспорт врозь (.gltf + .bin + png), затем
+        # упаковка в glb со ссылкой на albedo.png рядом — GLB не пухнет, кожа
+        # переиспользуется между телами, sha ловит подмену (решение лида).
+        import tempfile
+        tmp = tempfile.mkdtemp(prefix="dfn_glb_")
+        tmp_gltf = os.path.join(tmp, "body.gltf")
+        bpy.ops.export_scene.gltf(filepath=tmp_gltf, export_format="GLTF_SEPARATE",
+                                  export_keep_originals=True, **common)
+        pack_glb_with_external_images(tmp_gltf, out, skin_uri)
     if clips:
         fix_clip_names(out, made, "_" + rig.name)
     log("wrote", out, os.path.getsize(out), "bytes")
+
+
+def parse_mhmat(path):
+    """Плоский текст MakeHuman: ключ значение… — нужны только текстуры."""
+    out = {}
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(None, 1)
+        if len(parts) == 2 and parts[0].endswith("Texture"):
+            out[parts[0]] = parts[1].strip()
+    return out
+
+
+def apply_skin(mesh, skin_name, out_path):
+    """Кожа MPFB как материал с альбедо; PNG — внешним файлом рядом с выходом.
+
+    Возвращает (относительный путь альбедо от glb, sha256 файла)."""
+    import hashlib
+    import shutil
+    from bl_ext.blender_org.mpfb.services.locationservice import LocationService  # type: ignore
+    skin_dir = None
+    for base in (LocationService.get_user_data("skins"), LocationService.get_mpfb_data("skins")):
+        cand = os.path.join(base, skin_name)
+        if os.path.isdir(cand):
+            skin_dir = cand
+            break
+    if skin_dir is None:
+        raise SystemExit("skin not found: " + skin_name)
+    mhmat = os.path.join(skin_dir, skin_name + ".mhmat")
+    if not os.path.isfile(mhmat):
+        cands = [f for f in os.listdir(skin_dir) if f.endswith(".mhmat")]
+        if not cands:
+            raise SystemExit("no .mhmat in " + skin_dir)
+        mhmat = os.path.join(skin_dir, cands[0])
+    tex = parse_mhmat(mhmat)
+    if "diffuseTexture" not in tex:
+        raise SystemExit("skin has no diffuseTexture: " + mhmat)
+    src = os.path.join(skin_dir, tex["diffuseTexture"])
+    stem = os.path.splitext(os.path.basename(out_path))[0]
+    rel_dir = os.path.join("textures", stem)
+    tex_dir = os.path.join(os.path.dirname(out_path), rel_dir)
+    os.makedirs(tex_dir, exist_ok=True)
+    albedo = os.path.join(tex_dir, "albedo.png")
+    shutil.copyfile(src, albedo)
+    sha = hashlib.sha256(open(albedo, "rb").read()).hexdigest()
+    with open(os.path.join(tex_dir, "SHA256SUMS"), "w", encoding="utf-8") as f:
+        f.write("%s  albedo.png\n" % sha)
+    with open(os.path.join(tex_dir, "LICENSE.txt"), "w", encoding="utf-8") as f:
+        f.write("albedo.png — кожа MPFB «%s» (%s), системные ассеты MPFB / MakeHuman,\n"
+                "CC0 1.0 (см. assets/objects/characters/MPFB_LICENSE.txt). Источник:\n"
+                "%s\nПереименовано в albedo.png без изменения пикселей; sha256 в SHA256SUMS.\n"
+                % (skin_name, os.path.basename(src), mhmat))
+    # материал: Principled BSDF + альбедо (sRGB), больше ничего — остальное
+    # (нормали, шероховатость) решает рендер-волна лида
+    img = bpy.data.images.load(albedo)
+    img.colorspace_settings.name = "sRGB"
+    mat = bpy.data.materials.new("M_Skin")
+    mat.use_nodes = True
+    nodes = mat.node_tree.nodes
+    links = mat.node_tree.links
+    bsdf = nodes.get("Principled BSDF")
+    texn = nodes.new("ShaderNodeTexImage")
+    texn.image = img
+    links.new(texn.outputs["Color"], bsdf.inputs["Base Color"])
+    bsdf.inputs["Roughness"].default_value = 0.55
+    mesh.data.materials.clear()
+    mesh.data.materials.append(mat)
+    log("skin: %s -> %s (sha256 %s…)" % (skin_name, os.path.join(rel_dir, "albedo.png"), sha[:12]))
+    return os.path.join(rel_dir, "albedo.png").replace(os.sep, "/"), sha
+
+
+def pack_glb_with_external_images(gltf_path, glb_path, image_uri):
+    """gltf + bin → glb; картинки остаются ВНЕШНИМИ (uri относительно glb)."""
+    import json
+    import struct
+    doc = json.load(open(gltf_path, encoding="utf-8"))
+    base = os.path.dirname(gltf_path)
+    if len(doc.get("buffers", [])) != 1 or "uri" not in doc["buffers"][0]:
+        raise SystemExit("expected one external .bin buffer in " + gltf_path)
+    blob = open(os.path.join(base, doc["buffers"][0]["uri"]), "rb").read()
+    doc["buffers"][0] = {"byteLength": len(blob)}
+    for img in doc.get("images", []):
+        img.pop("bufferView", None)
+        img["uri"] = image_uri
+        img["mimeType"] = "image/png"
+    text = json.dumps(doc, separators=(",", ":")).encode("utf-8")
+    text += b" " * ((4 - len(text) % 4) % 4)
+    blob += b"\0" * ((4 - len(blob) % 4) % 4)
+    out = bytearray()
+    out += struct.pack("<III", 0x46546C67, 2, 12 + 8 + len(text) + 8 + len(blob))
+    out += struct.pack("<II", len(text), 0x4E4F534A) + text
+    out += struct.pack("<II", len(blob), 0x004E4942) + blob
+    open(glb_path, "wb").write(bytes(out))
 
 
 def fix_clip_names(path, wanted, suffix):

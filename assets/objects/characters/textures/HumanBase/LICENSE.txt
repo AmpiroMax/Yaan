@@ -1,0 +1,4 @@
+albedo.png — кожа MPFB «middleage_caucasian_male» (middleage_lightskinned_male_diffuse.png), системные ассеты MPFB / MakeHuman,
+CC0 1.0 (см. assets/objects/characters/MPFB_LICENSE.txt). Источник:
+/Users/ampiro/Library/Application Support/Blender/5.2/extensions/.user/blender_org/mpfb/data/skins/middleage_caucasian_male/middleage_caucasian_male.mhmat
+Переименовано в albedo.png без изменения пикселей; sha256 в SHA256SUMS.
