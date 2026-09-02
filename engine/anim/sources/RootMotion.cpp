@@ -60,6 +60,11 @@ glm::vec3 root_motion_step(const ContactState& prev, ContactState& curr, float d
         return glm::vec3{0.0f};
     }
     const float swing = static_cast<float>(config::FOOT_SWING_SPEED_MPS);
+    // НА ЗЕМЛЕ ЛИ ХОТЬ ОДНА СТОПА — по высоте, ДО отсечек движением: инерция
+    // полёта положена только полёту. Стоящее тело (обе стопы на земле, ни
+    // одна не идёт назад) обязано дать ноль, а не прошлый ход: владелец убрал
+    // руки с клавиатуры — персонаж ехал вперёд на скорости последней опоры.
+    const bool on_ground = std::min(curr.height[0], curr.height[1]) <= FOOT_IK_RELEASE_M;
     std::array<glm::vec3, 2> d{};
     for (std::size_t side = 0; side < 2; ++side) {
         d[side] = same_joint_delta(prev, curr, side);
@@ -94,7 +99,12 @@ glm::vec3 root_motion_step(const ContactState& prev, ContactState& curr, float d
             state.window_sum = glm::vec3{0.0f};
             state.window_n = 0;
         }
-        delta = state.coast;
+        if (on_ground) {
+            state.coast = glm::vec3{0.0f};
+            delta = glm::vec3{0.0f};
+        } else {
+            delta = state.coast;
+        }
     }
     const float speed = glm::length(delta) / dt;
     state.speed_est_mps = std::max(state.speed_est_mps * std::exp(-dt / SPEED_MEMORY_S),

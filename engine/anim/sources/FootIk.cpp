@@ -490,8 +490,12 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
             const glm::vec3 P = (target_is_toe[side] && setup.toe[side] >= 0)
                                     ? origin_of(model[static_cast<std::size_t>(setup.toe[side])])
                                     : C;
-            // Цель для ЛОДЫЖКИ: подушечка в якорь, стопа едет жёстко (лодыжка =
-            // якорь + её смещение от подушечки сейчас); только горизонталь.
+            // Цель для ЛОДЫЖКИ: точка касания в якорь ПО ГОРИЗОНТАЛИ, высоту
+            // держит подъём на грунт (apply_foot_ik). Пробовали и по трём
+            // осям: высота якоря спорит с тазом клипа (купленные клипы гонят
+            // стопу под землю на 5 см, и вертикально пришпиленная стопа
+            // упирается в вытяжение ноги — 30 мм сноса по горизонтали вместо
+            // 1.2). Стопа едет жёстко: лодыжка = якорь + её смещение от точки.
             const glm::vec3 want_point{point_target_model[side].x, P.y,
                                        point_target_model[side].z};
             glm::vec3 T = want_point + (C - P);

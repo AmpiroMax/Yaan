@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 136> TABLE{{
+constexpr std::array<Door, 137> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -269,6 +269,9 @@ constexpr std::array<Door, 136> TABLE{{
      DoorRead::Once},
     {"DFN_SLIDE_TRACE",
      "1 — печатать раз в 10 тиков остаток, который замку приходится закрывать: точка касания до замка минус якорь, мм, и какие стопы замкнуты.",
+     DoorRead::Once},
+    {"DFN_ROOT_SMOOTH",
+     "0 — без сглаживания скорости капсулы (ROOT_MOTION_SMOOTH_S): капсула повторяет толчки таза клипа внутри шага. Контрольная рука к «дёргает при ходьбе».",
      DoorRead::Once},
     {"DFN_IDLE_SYMMETRY",
      "0 — покой как в клипе (левая нога вынесена вперёд, как у ассета). Иначе ноги покоя смешиваются со своим зеркалом на дозе IDLE_SYMMETRY_DOSE — заказ владельца 02.09 «стоя ноги ровно». Контрольная рука app_grounded_locomotion (idle_feet_stand_level).",

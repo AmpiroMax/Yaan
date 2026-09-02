@@ -195,6 +195,8 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         foot_lock_ = !(fl != nullptr && fl[0] == '0');
         const char* st = door_value("DFN_SLIDE_TRACE");
         slide_trace_ = st != nullptr && st[0] == '1';
+        const char* sm = door_value("DFN_ROOT_SMOOTH");
+        root_smooth_ = !(sm != nullptr && sm[0] == '0');
         lock_params_ = anim::FootLockParams::from_config();
     }
     library_ = anim::build_clip_library(rig_, skeleton_, binding_, clips_, bind_vertices_,
@@ -532,6 +534,20 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
     const float gate_k =
         dt > 0.0f ? 1.0f - std::exp(-dt / FOOT_IK_GATE_TAU_S) : 1.0f;
     ik_strength_ += (want_gate - ik_strength_) * gate_k;
+    // ПРЫЖОК КАПСУЛЫ НА СТУПЕНЬ ГАСИТСЯ КОРНЕМ СРАЗУ, а не фильтром: капсула
+    // Jolt встаёт на проступь за один тик (0.18 м), фильтр подъёма корня
+    // (FOOT_IK_ROOT_TAU_S) догоняет за пять — и пять тиков опорная стопа
+    // парила над своей ступенью на 20 см (прибор app_grounded_locomotion,
+    // синтетический марш). Корень вычитает прыжок в тот же тик, тело
+    // остаётся, где было, и уже плавно поднимается за планом.
+    if (ticked_) {
+        const float jump = standing_ground.y - last_ground_y_;
+        if (std::abs(jump) > 0.02f) {
+            root_dy_ = std::clamp(root_dy_ - jump, -anim::FOOT_IK_ROOT_LIMIT_M,
+                                  anim::FOOT_IK_ROOT_LIMIT_M);
+        }
+    }
+    last_ground_y_ = standing_ground.y;
     foot_probe_.valid = false;
     if (!ground_probe_ || !foot_setup_.valid() || !playing_clips()) {
         root_dy_ += (0.0f - root_dy_) * gate_k;
@@ -620,8 +636,31 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     loco_ = anim::LocomotionOut{};
     if (feet_drive_ && library_.feet_drive && contact_prev_.valid && contact_curr_.valid
         && drive.grounded && drive.posture_blend < 0.5f) {
-        loco_.root_delta_model =
+        glm::vec3 raw =
             anim::root_motion_step(contact_prev_, contact_curr_, dt, root_state_);
+        // ВНЕ ЛОКОМОЦИИ — НОЛЬ: покой, присед на месте, посадка не везут тело.
+        // Кроссфейд в покой дошагивает (fade > 0), после него — стоп.
+        const bool moving_role = play_.role == anim::ClipRole::Walk
+                                 || play_.role == anim::ClipRole::Jog
+                                 || play_.role == anim::ClipRole::Sprint
+                                 || play_.role == anim::ClipRole::CrouchWalk;
+        if (!moving_role && play_.fade <= 0.0f) {
+            raw = glm::vec3{0.0f};
+            root_state_ = anim::RootMotionState{};
+        }
+        // СГЛАЖИВАНИЕ КАПСУЛЫ (ROOT_MOTION_SMOOTH_S): толчки таза внутри шага
+        // не передаются капсуле; разницу закрывает замок стопы.
+        if (root_smooth_ && dt > 0.0f) {
+            const float tau = static_cast<float>(config::ROOT_MOTION_SMOOTH_S);
+            const float k = tau > 0.0f ? 1.0f - std::exp(-dt / tau) : 1.0f;
+            smoothed_delta_ += (raw - smoothed_delta_) * k;
+            if (glm::length(raw) < 1.0e-6f && glm::length(smoothed_delta_) < 1.0e-4f) {
+                smoothed_delta_ = glm::vec3{0.0f};
+            }
+            loco_.root_delta_model = smoothed_delta_;
+        } else {
+            loco_.root_delta_model = raw;
+        }
         loco_.phase = play_.phase;
         loco_.footfall =
             anim::detect_footfalls(contact_prev_, contact_curr_, lock_params_.on_weight);
@@ -682,6 +721,7 @@ void SkinnedCharacter::set_feet_drive(bool on) {
         loco_ = anim::LocomotionOut{};
         locks_ = anim::FootLockState{};
         root_state_ = anim::RootMotionState{};
+        smoothed_delta_ = glm::vec3{0.0f};
     }
 }
 
@@ -717,10 +757,14 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
         // not either tick's), while the ROOT shift comes from the tick, where
         // it was filtered. Applying an unfiltered shift per frame would put
         // the stair's whole rise into one frame at the nosing.
+        anim::FootIkPlan frame_plan{};
+        bool frame_planned = false;
         if (foot_probe_.valid) {
             anim::FootIkPlan plan =
                 anim::plan_foot_ik(skeleton_, foot_setup_, foot_probe_, sample_);
             plan.root_dy = root_dy_;
+            frame_plan = plan;
+            frame_planned = true;
             if (ik_strength_ > 0.001f) {
                 anim::apply_foot_ik(skeleton_, foot_setup_, foot_probe_, plan,
                                     ik_strength_, sample_);
@@ -761,6 +805,9 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
             }
             anim::apply_foot_lock(skeleton_, foot_setup_, target, locks_.anchor_toe, strength,
                                   sample_);
+        }
+        if (frame_planned) {
+            last_gap_ = anim::foot_gap(skeleton_, foot_setup_, foot_probe_, frame_plan, sample_);
         }
         if (pose_weight_ > 0.0f) {
             pose_sample_.resize(skeleton_.size());

@@ -192,6 +192,9 @@ public:
                      float dt);
     [[nodiscard]] const anim::ContactState& contacts() const { return contact_curr_; }
     [[nodiscard]] const anim::FootLockState& foot_locks() const { return locks_; }
+    /// ЗАЗОР СТОП ПОСЛЕДНЕГО КАДРА (знаковый, по FootIk::foot_gap) — после
+    /// подъёма на грунт и замка; прибор ступеней/склона читает его с кадра.
+    [[nodiscard]] const anim::FootGap& foot_gap_last() const { return last_gap_; }
     /// Двери: DFN_ROOT_FROM_FEET=0 — прежний шов (сим двигает, стрид-скейл),
     /// DFN_FOOT_LOCK=0 — без замка. Тесты ставят их напрямую (правило 47:
     /// обе руки из одного бинарника).
@@ -332,11 +335,15 @@ private:
     /// What the raycasts found this tick, in the body's own frame.
     anim::FootIkProbe foot_probe_{};
     anim::FootIkPlan plan_{};
+    anim::FootGap last_gap_{};
     /// THE ROOT SHIFT, FILTERED. The raw shift jumps by a whole stair rise the
     /// instant a ray crosses a nosing, and the body would tick with it; the
     /// filter spends FOOT_IK_ROOT_TAU_S getting there. Filtered here rather
     /// than inside the solve because only the caller has a clock (Rule 12).
     float root_dy_ = 0.0f;
+    /// Высота капсулы прошлого тика — чтобы её прыжок на ступень вычесть из
+    /// корня сразу (см. probe_ground).
+    float last_ground_y_ = 0.0f;
     /// How much of the solve is in force, eased. Zero in the air and in a
     /// seat: a jump that is glued to the ground is not a jump, and a seated
     /// body's feet answer to the bench.
@@ -357,6 +364,9 @@ private:
     anim::FootLockParams lock_params_{};
     bool feet_drive_ = true;
     bool foot_lock_ = true;
+    /// ROOT_MOTION_SMOOTH_S в силе (DFN_ROOT_SMOOTH=0 снимает).
+    bool root_smooth_ = true;
+    glm::vec3 smoothed_delta_{0.0f};
     /// ДВЕРЬ DFN_SLIDE_TRACE: печатать остаток, который замку приходится
     /// закрывать (мировая точка касания до замка минус якорь), раз в 10 тиков.
     bool slide_trace_ = false;

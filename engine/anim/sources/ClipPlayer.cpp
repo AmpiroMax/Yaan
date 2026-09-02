@@ -952,9 +952,19 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     // gear being adjusted, and blending it would trade a clip somebody drew
     // for an average of two.
     constexpr uint32_t MIX_STEPS = 40;
+    // СОЛО-ЗАПИСИ ДО СМЕСЕЙ: нужны, чтобы передача могла взять ЧИСТЫЙ клип
+    // другой роли (бег — клип трусцы), когда свой не в полосе темпа.
+    std::array<ClipEntry, CLIP_ROLE_COUNT> solo = lib.role;
     for (const GearRow& g : gears) {
         ClipEntry& entry = lib.role[role_index(g.role)];
         if (!entry.present() || entry.duration_s <= 0.0f) {
+            continue;
+        }
+        // ХОДЬБА — ЧИСТЫМ КЛИПОМ (владелец 02.09-2: «марш, колени высоко, задняя
+        // нога выпадом» — так выглядит ходьба, смешанная с трусцой на 42 %).
+        // Заказ WALK_SPEED, до которого чистая ходьба не дотягивает темпом,
+        // зажимается полосой; скорость печатается в загрузке.
+        if (feet_drive && g.role == ClipRole::Walk) {
             continue;
         }
         const float step = static_cast<float>(config::STEP_LENGTH_BASE)
@@ -1152,13 +1162,53 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     // Темп 1: natural_mps на время замера 0, чтобы advance_playback не гнал
     // клип за заказом.
     if (feet_drive) {
-        for (const ClipRole r : travelling) {
+        const auto played = [&](ClipRole r) {
             ClipEntry& entry = lib.role[role_index(r)];
             if (!entry.present() || entry.duration_s <= 0.0f) {
-                continue;
+                return 0.0f;
             }
             entry.natural_mps = 0.0f;
             entry.natural_mps = measure_played_speed(lib, skeleton, binding, clips, r);
+            return entry.natural_mps;
+        };
+        for (const ClipRole r : travelling) {
+            played(r);
+        }
+        // БЕГ — КЛИПОМ ТРУСЦЫ, ЕСЛИ СПРИНТ НЕ В ПОЛОСЕ (владелец 02.09-2: «при беге
+        // пролетает расстояние, а не пробегает; нужны локти согнуты, корпус
+        // вперёд, ноги чаще»): Sprint_Loop на этом теле идёт 7.8 м/с с долгим
+        // полётом, а заказ RUN_SPEED 6.0 — это темп чистого Jog_Fwd_Loop.
+        {
+            const float run = static_cast<float>(config::RUN_SPEED);
+            const ClipEntry& sprint = lib.role[role_index(ClipRole::Sprint)];
+            const ClipEntry& jog_solo = solo[role_index(ClipRole::Jog)];
+            const auto in_band = [&](float mps) {
+                return mps >= run / (1.0f + TEMPO_BAND) && mps <= run / (1.0f - TEMPO_BAND);
+            };
+            if (sprint.present() && jog_solo.present() && !in_band(sprint.natural_mps)) {
+                const ClipEntry keep = lib.role[role_index(ClipRole::Jog)];
+                lib.role[role_index(ClipRole::Jog)] = jog_solo;
+                const float jog_pure = played(ClipRole::Jog);
+                lib.role[role_index(ClipRole::Jog)] = keep;
+                if (in_band(jog_pure)) {
+                    lib.role[role_index(ClipRole::Sprint)] = jog_solo;
+                    lib.role[role_index(ClipRole::Sprint)].natural_mps = jog_pure;
+                    std::fprintf(stderr,
+                                 "[anim] gear Sprint: \"%s\" at %.2f m/s is outside the "
+                                 "tempo band of %.1f — the run plays \"%s\" (%.2f m/s)\n",
+                                 clips[static_cast<std::size_t>(sprint.clip)].name.c_str(),
+                                 static_cast<double>(sprint.natural_mps),
+                                 static_cast<double>(run),
+                                 clips[static_cast<std::size_t>(jog_solo.clip)].name.c_str(),
+                                 static_cast<double>(jog_pure));
+                }
+            }
+        }
+        for (const ClipRole r : travelling) {
+            const ClipEntry& entry = lib.role[role_index(r)];
+            if (!entry.present()) {
+                continue;
+            }
             std::fprintf(stderr, "[anim] gear %s: clip speed %.2f m/s%s\n",
                          role_name(r).data(), static_cast<double>(entry.natural_mps),
                          entry.mixed() ? " (blend)" : "");

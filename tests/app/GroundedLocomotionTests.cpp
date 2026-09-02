@@ -18,6 +18,8 @@ Responsibility:
 
 Key items:
 - the_planted_foot_stays_put_on_the_player_path: walk/jog/run, замок, кадр.
+- stairs_and_slope_keep_the_foot_planted_and_on_the_tread: синтетический марш
+  0.18/0.28 и скат 15°, корень за грунтом как капсула, снос и зазор стоп.
 - without_the_lock_the_residual_is_larger / the_old_seam_slides: контроли.
 - idle_feet_stand_level: симметрия покоя и её контрольная рука.
 
@@ -304,3 +306,160 @@ TEST_CASE("idle_feet_stand_level") {
     CHECK(level < 0.01f);
     CHECK(raw > level + 0.02f);
 }
+
+namespace {
+
+/// Прогон по СИНТЕТИЧЕСКОМУ ГРУНТУ на пути игрока: луч в мир — лямбда, корень
+/// по вертикали идёт за грунтом под капсулой, как её водит Jolt; стопы —
+/// подъём на грунт (FootIk) и замок. Меряется снос анкерной точки за окно
+/// опоры и знаковый зазор судимых стоп до их грунта.
+struct TerrainRun {
+    float worst_spread_m = 0.0f;
+    float worst_penetration_m = 0.0f;
+    float worst_float_m = 0.0f;
+    uint32_t plants = 0;
+    float climbed_m = 0.0f;
+};
+
+template <typename Ground>
+TerrainRun run_terrain(Harness& h, Ground ground, anim::Gait gait, float speed, uint32_t ticks) {
+    TerrainRun out;
+    h.body.set_ground_probe([&](const glm::vec3& w) { return ground(w.x, w.z); });
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    drive.gait = gait;
+    drive.speed_mps = speed;
+    drive.want_speed_mps = speed;
+    drive.step_length_m = step_length(speed);
+    glm::vec3 root{0.0f, ground(0.0f, 0.0f), 0.0f};
+    const int32_t toes[2] = {h.body.skeleton().find("DEF-toe.L"), h.body.skeleton().find("DEF-toe.R")};
+    const int32_t ankles[2] = {h.body.skeleton().find("DEF-foot.L"), h.body.skeleton().find("DEF-foot.R")};
+    REQUIRE(toes[0] >= 0);
+    REQUIRE(ankles[0] >= 0);
+    const float on = static_cast<float>(config::FOOT_LOCK_ON_WEIGHT);
+    const float off = static_cast<float>(config::FOOT_LOCK_OFF_WEIGHT);
+    std::array<bool, 2> planted{};
+    std::array<bool, 2> track_toe{};
+    std::array<std::vector<glm::vec3>, 2> window{};
+    const auto close_window = [&](std::size_t side) {
+        if (window[side].size() >= 4) {
+            float spread = 0.0f;
+            for (std::size_t i = 0; i < window[side].size(); ++i) {
+                for (std::size_t k = i + 1; k < window[side].size(); ++k) {
+                    const glm::vec3 d = window[side][k] - window[side][i];
+                    spread = std::max(spread, glm::length(glm::vec2{d.x, d.z}));
+                }
+            }
+            out.worst_spread_m = std::max(out.worst_spread_m, spread);
+            ++out.plants;
+        }
+        window[side].clear();
+    };
+    const float y0 = root.y;
+    for (uint32_t t = 0; t < ticks; ++t) {
+        h.body.advance(drive, root, DT);
+        const anim::LocomotionOut& lo = h.body.locomotion();
+        if (lo.valid) {
+            root += lo.root_delta_model;
+        }
+        root.y = ground(root.x, root.z); // капсула стоит на грунте
+        h.body.commit_root(drive, root, DT);
+        if (t >= 60) {
+            const anim::ContactState& c = h.body.contacts();
+            for (std::size_t side = 0; side < 2; ++side) {
+                const float w = c.support[side];
+                if (!planted[side] && w >= on) {
+                    planted[side] = true;
+                    track_toe[side] = c.toe_point[side];
+                } else if (planted[side] && w < off) {
+                    planted[side] = false;
+                    close_window(side);
+                } else if (planted[side] && track_toe[side] != c.toe_point[side]) {
+                    close_window(side);
+                    track_toe[side] = c.toe_point[side];
+                }
+            }
+            for (const float alpha : {0.5f, 1.0f}) {
+                const render::RenderSystem::SkinnedDraw d = h.body.build_draw(false, alpha);
+                for (std::size_t side = 0; side < 2; ++side) {
+                    if (planted[side]) {
+                        window[side].push_back(
+                            h.joint_world(d, track_toe[side] ? toes[side] : ankles[side]));
+                    }
+                }
+                // ПРОНИКАНИЕ — всегда (стопа ниже проступи — дефект); ПАРЕНИЕ —
+                // только у стопы с полным весом опоры: на отрыве вес IK гаснет
+                // и стопа честно поднимается, а пятка над кромкой нижней
+                // ступени — лестница, а не парение.
+                const anim::FootGap& g = h.body.foot_gap_last();
+                const anim::FootIkPlan& plan = h.body.foot_plan();
+                for (std::size_t side = 0; side < 2; ++side) {
+                    if (g.judged[side] == 0) {
+                        continue;
+                    }
+                    out.worst_penetration_m =
+                        std::max(out.worst_penetration_m, std::max(0.0f, -g.gap[side]));
+                    if (plan.weight[side] >= 0.999f) {
+                        out.worst_float_m = std::max(out.worst_float_m, std::max(0.0f, g.gap[side]));
+                    }
+                }
+            }
+        }
+    }
+    out.climbed_m = root.y - y0;
+    h.body.set_ground_probe(nullptr);
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("stairs_and_slope_keep_the_foot_planted_and_on_the_tread") {
+    if (!body_present()) {
+        return;
+    }
+    const float limit = static_cast<float>(config::FOOT_SLIDE_MAX_M);
+    // МАРШ 0.18/0.28 (строки лестниц) навстречу ходу (−Z), начиная в 1.5 м.
+    const auto stairs = [](float, float z) {
+        if (z > -1.5f) {
+            return 0.0f;
+        }
+        const float into = -1.5f - z;
+        const int step = static_cast<int>(std::floor(into / 0.28f)) + 1;
+        return 0.18f * static_cast<float>(std::min(step, 12));
+    };
+    // СКАТ 15° навстречу ходу.
+    const auto slope = [](float, float z) { return z < 0.0f ? -z * std::tan(glm::radians(15.0f)) : 0.0f; };
+    {
+        Harness h;
+        REQUIRE(h.ok);
+        const TerrainRun r = run_terrain(h, stairs, anim::Gait::Walk,
+                                         static_cast<float>(config::WALK_SPEED), 300);
+        MESSAGE("марш: снос worst " << 1000.0f * r.worst_spread_m << " мм за " << r.plants
+                                    << " опор, проникание worst " << 1000.0f * r.worst_penetration_m
+                                    << " мм, парение при полной опоре worst "
+                                    << 1000.0f * r.worst_float_m << " мм, набрал высоты "
+                                    << r.climbed_m << " м");
+        CHECK(r.plants >= 4);
+        CHECK(r.climbed_m > 0.5f);
+        CHECK(r.worst_spread_m <= limit);
+        CHECK(r.worst_penetration_m <= 0.02f);
+        CHECK(r.worst_float_m <= 0.03f);
+    }
+    {
+        Harness h;
+        REQUIRE(h.ok);
+        const TerrainRun r = run_terrain(h, slope, anim::Gait::Walk,
+                                         static_cast<float>(config::WALK_SPEED), 300);
+        MESSAGE("скат 15°: снос worst " << 1000.0f * r.worst_spread_m << " мм за " << r.plants
+                                        << " опор, проникание worst " << 1000.0f * r.worst_penetration_m
+                                        << " мм, парение при полной опоре worst "
+                                        << 1000.0f * r.worst_float_m << " мм, набрал высоты "
+                                        << r.climbed_m << " м");
+        CHECK(r.plants >= 4);
+        CHECK(r.climbed_m > 0.5f);
+        CHECK(r.worst_spread_m <= limit);
+        CHECK(r.worst_penetration_m <= 0.02f);
+        CHECK(r.worst_float_m <= 0.03f);
+    }
+}
+

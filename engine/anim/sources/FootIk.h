@@ -263,11 +263,12 @@ void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& con
                        const std::array<float, 2>& weight,
                        const std::array<bool, 2>& point_is_toe, float dt,
                        const FootLockParams& params);
-/// ПРАВКА ПОЗЫ ПОД ЗАМОК: подушечка каждой стопы с силой > 0 ставится в
+/// ПРАВКА ПОЗЫ ПОД ЗАМОК: точка касания каждой стопы с силой > 0 ставится в
 /// `point_target_model` (система тела; берётся только горизонталь — высоту
-/// держит apply_foot_ik), лодыжка едет вместе с ней, колено решается
-/// двузвенником, бедро доворачивается. Цель дальше вытяжения ноги режется
-/// по досягаемости, а не растягивает ногу.
+/// держит apply_foot_ik, а прыжок капсулы на ступень гасит корень, см.
+/// SkinnedCharacter::probe_ground), лодыжка едет вместе с ней, колено
+/// решается двузвенником, бедро доворачивается. Цель дальше вытяжения ноги
+/// режется по досягаемости, а не растягивает ногу.
 void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
                      const std::array<glm::vec3, 2>& point_target_model,
                      const std::array<bool, 2>& target_is_toe,
