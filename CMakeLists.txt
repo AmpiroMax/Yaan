@@ -297,12 +297,19 @@ if(TARGET dfn_import_gltf)
             list(APPEND _extra --reshape)
         endif()
         if(EXISTS "${DFN_CHAR_DIR}/${_src}")
+            # ЛИСТЫ ТЕЛА — ВХОД ВЫПЕЧКИ. Секция TEX несёт SHA-256 PNG, который
+            # видел импортёр; перерисованная кожа без перепечки была бы
+            # отвергнута загрузчиком («не тот файл»), поэтому PNG рядом с glb
+            # (textures/<тело>/*.png) стоят в зависимостях: тронул кожу —
+            # .dfo перепёкся. --root: пути секции считаются от корня дерева.
+            file(GLOB _sheets "${DFN_CHAR_DIR}/textures/${_stem}/*.png")
             add_custom_command(
                 OUTPUT "${DFN_CHAR_DIR}/${_stem}.dfo"
                 COMMAND dfn_import_gltf "${DFN_CHAR_DIR}/${_src}"
                         --out "${DFN_CHAR_DIR}/${_stem}.dfo"
                         --name "${_name}" --height ${_height} --yaw ${_yaw} ${_extra}
-                DEPENDS dfn_import_gltf "${DFN_CHAR_DIR}/${_src}"
+                        --root "${CMAKE_CURRENT_SOURCE_DIR}"
+                DEPENDS dfn_import_gltf "${DFN_CHAR_DIR}/${_src}" ${_sheets}
                 COMMENT "import ${_src} -> ${_stem}.dfo"
                 VERBATIM)
             list(APPEND DFN_CHAR_OUTPUTS "${DFN_CHAR_DIR}/${_stem}.dfo")

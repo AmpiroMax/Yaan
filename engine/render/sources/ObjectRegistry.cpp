@@ -74,6 +74,11 @@ inline constexpr serialization::SectionTag ANIM = serialization::make_tag('A', '
 /// которого никто не читает. Версия живёт ТАМ, ГДЕ ОНА ЧЕСТНА, — на самой
 /// секции (SECTION_VERSION и section_version_understood).
 inline constexpr serialization::SectionTag MORF = serialization::make_tag('M', 'O', 'R', 'F');
+/// ТЕКСТУРЫ ПО ССЫЛКЕ (волна «текстура на скиннинге»): роль, путь от корня
+/// репозитория, SHA-256 файла, цветовое пространство, повтор. Пиксели в файл
+/// не входят (довод у TextureRef в заголовке). Версия контейнера остаётся
+/// пятой по тому же доводу, что у MORF.
+inline constexpr serialization::SectionTag TEX = serialization::make_tag('T', 'E', 'X', ' ');
 } // namespace section
 
 inline constexpr uint16_t SECTION_VERSION = 1;
@@ -87,7 +92,7 @@ inline constexpr uint16_t SECTION_VERSION = 1;
     if (tag == section::INFO || tag == section::WOOD || tag == section::CARD
         || tag == section::GRND || tag == section::BARK || tag == section::HOUS
         || tag == section::MTRL || tag == section::SKIN || tag == section::SKEL
-        || tag == section::ANIM || tag == section::MORF) {
+        || tag == section::ANIM || tag == section::MORF || tag == section::TEX) {
         return version <= SECTION_VERSION;
     }
     return true; // незнакомая: её и так пропустят
@@ -341,6 +346,17 @@ void hash_morphs(serialization::Fnv1a64& h, const std::vector<MorphTarget>& morp
     }
 }
 
+void hash_textures(serialization::Fnv1a64& h, const std::vector<TextureRef>& textures) {
+    h.update_u64(textures.size());
+    for (const TextureRef& t : textures) {
+        h.update_length_prefixed(t.role);
+        h.update_length_prefixed(t.path);
+        h.update_length_prefixed(t.sha256);
+        h.update_u64(t.colour_space);
+        h.update_u64(t.wrap);
+    }
+}
+
 /// НАЗВАЛ ЛИ ОБЪЕКТ ХОТЬ ОДНО ВЕЩЕСТВО. Одно определение на запись, чтение и
 /// хэш (правило 39): разойдись эти три ответа, файл писался бы с секцией, а
 /// сверялся бы без неё — и полка отказала бы себе самой.
@@ -412,7 +428,22 @@ uint64_t object_content_hash(const RegistryObject& obj) {
     if (!obj.morphs.empty()) {
         hash_morphs(h, obj.morphs);
     }
+    // ТЕКСТУРЫ ВХОДЯТ В ЛИЧНОСТЬ, ТОЛЬКО ЕСЛИ ОНИ ЕСТЬ — пятый случай того же
+    // довода. И входят ВМЕСТЕ С SHA: тело, сославшееся на другой PNG, — другое
+    // тело, хотя ни одна его вершина не сдвинулась.
+    if (!obj.textures.empty()) {
+        hash_textures(h, obj.textures);
+    }
     return h.digest();
+}
+
+const TextureRef* RegistryObject::texture(std::string_view role) const {
+    for (const TextureRef& t : textures) {
+        if (t.role == role) {
+            return &t;
+        }
+    }
+    return nullptr;
 }
 
 /// The v1 identity: computed WITHOUT the bark stream, exactly as every v1
@@ -550,6 +581,20 @@ bool write_object(const RegistryObject& obj, const std::filesystem::path& path) 
                 w.write_f32(d.offset.y);
                 w.write_f32(d.offset.z);
             }
+        }
+        w.end_section();
+    }
+    // --- ТЕКСТУРЫ ПО ССЫЛКЕ. Только когда есть: объект без листа обязан быть
+    // побайтово тем же файлом, каким был до появления секции.
+    if (!obj.textures.empty()) {
+        w.begin_section(section::TEX, SECTION_VERSION);
+        w.write_u32(static_cast<uint32_t>(obj.textures.size()));
+        for (const TextureRef& t : obj.textures) {
+            w.write_string(t.role);
+            w.write_string(t.path);
+            w.write_string(t.sha256);
+            w.write_u8(t.colour_space);
+            w.write_u8(t.wrap);
         }
         w.end_section();
     }
@@ -725,6 +770,19 @@ std::optional<RegistryObject> read_object(const std::filesystem::path& path) {
                     d.offset.y = r.read_f32();
                     d.offset.z = r.read_f32();
                 }
+            }
+        } else if (s->tag == section::TEX) {
+            const uint32_t count = r.read_u32();
+            if (static_cast<uint64_t>(count) > MAX_ELEMENTS) {
+                return std::nullopt;
+            }
+            obj.textures.resize(count);
+            for (TextureRef& t : obj.textures) {
+                t.role = r.read_string();
+                t.path = r.read_string();
+                t.sha256 = r.read_string();
+                t.colour_space = r.read_u8();
+                t.wrap = r.read_u8();
             }
         }
         // Unknown tags: next_section() steps over them (Rule 7).

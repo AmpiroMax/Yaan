@@ -25,6 +25,7 @@ add_library(dfn_core STATIC
     serialization/sources/BinaryWriter.cpp
     serialization/sources/ContentHash.cpp
     serialization/sources/Json.cpp
+    serialization/sources/Sha256.cpp
     skeleton/sources/Skeleton.cpp
     time/sources/Clock.cpp
     time/sources/FixedTimestep.cpp

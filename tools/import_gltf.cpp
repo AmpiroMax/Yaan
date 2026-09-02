@@ -10,7 +10,11 @@ Responsibility:
 
 Key items:
 - main(): CLI (--out, --height, --yaw, --skin, --name, --fit-hips,
-  --fit-canon, --reshape, --skin-palette).
+  --fit-canon, --reshape, --skin-palette, --root, --texture).
+- read_textures(): the glTF materials' sheets (baseColorTexture -> "albedo",
+  normalTexture -> "normal") become TEX references -- repo-relative path plus
+  the SHA-256 of the PNG -- with an embedded image extracted next to the
+  bake (textures/<body>/<role>.png).
 - read_skeleton() / read_skin() / read_clips(): the three sections.
 - normalize_and_scale(): metres and facing, baked at import.
 - fit_to_canon(): the JOINTS to docs/design/HUMAN_SCALE.md, by moving them.
@@ -66,6 +70,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/RestFit.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/core/config/sources/Constants.h"
+#include "engine/core/serialization/sources/Sha256.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
@@ -73,6 +78,7 @@ AI Agents Notice (must follow):
 #include <array>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <glm/gtc/matrix_transform.hpp>
@@ -80,6 +86,7 @@ AI Agents Notice (must follow):
 #include <glm/gtc/type_ptr.hpp>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -107,6 +114,14 @@ struct Options {
     /// convention, docs/RIG.md). Most authoring tools export facing +Z.
     float yaw_deg = 180.0f;
     int skin_index = 0;
+    /// Repository root the TEX paths are written relative to. Empty = found
+    /// by walking up from the texture file to the first directory that holds
+    /// both `assets/` and `CMakeLists.txt`.
+    std::string root;
+    /// `--texture role=path`: use THIS PNG for the role instead of (or in
+    /// addition to) what the glTF names. The artist's iteration handle and
+    /// the checker fixture's way in.
+    std::vector<std::pair<std::string, std::string>> texture_overrides;
 };
 
 [[nodiscard]] glm::mat4 node_local(const cgltf_node* node) {
@@ -237,9 +252,10 @@ struct JointOrder {
 /// glTF's baseColorFactor is LINEAR, so the transfer function is applied here
 /// rather than left for a shader that does not know where the colour came
 /// from. A material with a base colour TEXTURE still contributes only its
-/// factor: this asset ships none (no images, no textures in the file), and the
-/// case where one exists is a texture section the .dfo does not have yet --
-/// named as a tail rather than silently averaged into a colour.
+/// factor here; the texture itself becomes a TEX reference (read_textures),
+/// and the skinned fragment stage reads the sheet INSTEAD of the vertex tint
+/// when one is bound -- so a --skin-palette body keeps its palette in the
+/// vertices as the fallback hand and wears the sheet when the sheet loads.
 [[nodiscard]] uint32_t base_color_rgba(const cgltf_material* mat, uint32_t fallback) {
     if (mat == nullptr || mat->has_pbr_metallic_roughness == 0) {
         return fallback;
@@ -1410,6 +1426,261 @@ void reshape_to_commoner(skel::Skeleton& skeleton, SkinMesh& skin,
     }
 }
 
+/// THE REPOSITORY ROOT A TEXTURE PATH IS WRITTEN AGAINST. Either given
+/// (--root, which CMake passes) or found by walking up from the file: the
+/// first ancestor holding both `assets/` and `CMakeLists.txt`. Empty when
+/// neither works -- the caller then stores the absolute path, which is
+/// right for a fixture outside the tree and wrong for a shipped body, and
+/// says so.
+[[nodiscard]] std::filesystem::path find_repo_root(const Options& opt,
+                                                   const std::filesystem::path& from) {
+    std::error_code ec;
+    if (!opt.root.empty()) {
+        return std::filesystem::weakly_canonical(opt.root, ec);
+    }
+    std::filesystem::path dir = std::filesystem::weakly_canonical(from, ec).parent_path();
+    for (int depth = 0; depth < 12 && !dir.empty(); ++depth) {
+        if (std::filesystem::is_directory(dir / "assets", ec)
+            && std::filesystem::is_regular_file(dir / "CMakeLists.txt", ec)) {
+            return dir;
+        }
+        const std::filesystem::path up = dir.parent_path();
+        if (up == dir) {
+            break;
+        }
+        dir = up;
+    }
+    return {};
+}
+
+/// ONE TEXTURE REFERENCE from a PNG on disk: repo-relative path (or absolute,
+/// loudly, when the file is outside the tree) plus the SHA-256 of its bytes.
+[[nodiscard]] bool texture_ref_from_file(const Options& opt, const std::string& role,
+                                         const std::filesystem::path& file,
+                                         uint8_t colour_space, uint8_t wrap,
+                                         dfn::render::TextureRef& out) {
+    std::error_code ec;
+    const std::filesystem::path abs = std::filesystem::weakly_canonical(file, ec);
+    if (!std::filesystem::is_regular_file(abs, ec)) {
+        std::fprintf(stderr, "[import] TEX %s: \"%s\" is not a file -- REFUSED\n",
+                     role.c_str(), file.string().c_str());
+        return false;
+    }
+    const auto sha = dfn::serialization::sha256_file(abs);
+    if (!sha.has_value()) {
+        std::fprintf(stderr, "[import] TEX %s: cannot read \"%s\" -- REFUSED\n",
+                     role.c_str(), abs.string().c_str());
+        return false;
+    }
+    const std::filesystem::path root = find_repo_root(opt, abs);
+    std::string stored;
+    if (!root.empty()) {
+        const std::filesystem::path rel = std::filesystem::relative(abs, root, ec);
+        if (!ec && !rel.empty() && rel.native().rfind("..", 0) != 0) {
+            stored = rel.generic_string();
+        }
+    }
+    if (stored.empty()) {
+        stored = abs.generic_string();
+        std::fprintf(stderr,
+                     "[import] TEX %s: \"%s\" lies outside the repository -- the "
+                     "ABSOLUTE path is stored (a fixture, not a shipped body)\n",
+                     role.c_str(), stored.c_str());
+    }
+    out.role = role;
+    out.path = stored;
+    out.sha256 = *sha;
+    out.colour_space = colour_space;
+    out.wrap = wrap;
+    return true;
+}
+
+/// WRITES an image's bytes to `dst` (creating the directory) -- the embedded
+/// case, where the glTF carries the PNG inside its binary chunk or a data URI.
+[[nodiscard]] bool write_bytes(const std::filesystem::path& dst, const uint8_t* bytes,
+                               std::size_t size) {
+    std::error_code ec;
+    std::filesystem::create_directories(dst.parent_path(), ec);
+    std::FILE* f = std::fopen(dst.string().c_str(), "wb");
+    if (f == nullptr) {
+        return false;
+    }
+    const bool ok = std::fwrite(bytes, 1, size, f) == size;
+    std::fclose(f);
+    return ok;
+}
+
+/// THE MATERIALS' SHEETS, as TEX references. One draw per character means ONE
+/// sheet per role: the first primitive naming an image for a role wins, and a
+/// later primitive naming a DIFFERENT image is reported out loud rather than
+/// averaged into anything -- a body split across two atlases is a body the
+/// pipeline does not yet draw, and it must be visible on the day it arrives.
+///
+/// EXTERNAL images (uri = a file beside the glTF) are referenced where they
+/// lie; EMBEDDED ones (bufferView or data URI) are EXTRACTED to
+/// `<glTF dir>/textures/<bake stem>/<role>.png` and referenced there, so the
+/// artist's file and the game's file are the same bytes in one place.
+/// Only PNG: the loader decodes nothing else (PngImage), and a JPEG that
+/// silently became a palette body is the kind of absence this project keeps
+/// paying for.
+void read_textures(const cgltf_data* data, const cgltf_skin* skin, const Options& opt,
+                   dfn::render::RegistryObject& obj) {
+    struct Role {
+        const char* name;
+        uint8_t colour_space;
+    };
+    constexpr Role ROLES[2] = {{"albedo", dfn::render::TEXTURE_COLOUR_SRGB},
+                               {"normal", dfn::render::TEXTURE_COLOUR_LINEAR}};
+    const cgltf_image* chosen[2] = {nullptr, nullptr};
+    const cgltf_sampler* sampler[2] = {nullptr, nullptr};
+    for (cgltf_size n = 0; n < data->nodes_count; ++n) {
+        const cgltf_node& node = data->nodes[n];
+        if (node.skin != skin || node.mesh == nullptr) {
+            continue;
+        }
+        for (cgltf_size p = 0; p < node.mesh->primitives_count; ++p) {
+            const cgltf_material* mat = node.mesh->primitives[p].material;
+            if (mat == nullptr) {
+                continue;
+            }
+            const cgltf_texture* views[2] = {
+                mat->has_pbr_metallic_roughness != 0
+                    ? mat->pbr_metallic_roughness.base_color_texture.texture
+                    : nullptr,
+                mat->normal_texture.texture};
+            for (int r = 0; r < 2; ++r) {
+                if (views[r] == nullptr || views[r]->image == nullptr) {
+                    continue;
+                }
+                if (chosen[r] == nullptr) {
+                    chosen[r] = views[r]->image;
+                    sampler[r] = views[r]->sampler;
+                } else if (chosen[r] != views[r]->image) {
+                    std::fprintf(stderr,
+                                 "[import] TEX %s: material \"%s\" names a SECOND "
+                                 "image (\"%s\"); one draw carries one sheet, the "
+                                 "first one is kept\n",
+                                 ROLES[r].name, mat->name != nullptr ? mat->name : "?",
+                                 views[r]->image->uri != nullptr ? views[r]->image->uri
+                                                                 : "(embedded)");
+                }
+            }
+        }
+    }
+    const std::filesystem::path in_dir = std::filesystem::path(opt.input).parent_path();
+    const std::string stem = std::filesystem::path(opt.out).stem().string();
+    for (int r = 0; r < 2; ++r) {
+        const cgltf_image* img = chosen[r];
+        if (img == nullptr) {
+            continue;
+        }
+        const uint8_t wrap = sampler[r] != nullptr
+                                     && sampler[r]->wrap_s == cgltf_wrap_mode_clamp_to_edge
+                                 ? dfn::render::TEXTURE_WRAP_CLAMP
+                                 : dfn::render::TEXTURE_WRAP_REPEAT;
+        std::filesystem::path file;
+        if (img->uri != nullptr && std::strncmp(img->uri, "data:", 5) != 0) {
+            std::string uri = img->uri;
+            cgltf_decode_uri(uri.data());
+            uri.resize(std::strlen(uri.c_str()));
+            file = in_dir / uri;
+        } else {
+            // Embedded: bufferView or data URI. PNG only.
+            const uint8_t* bytes = nullptr;
+            std::size_t size = 0;
+            void* decoded = nullptr;
+            if (img->buffer_view != nullptr) {
+                bytes = cgltf_buffer_view_data(img->buffer_view);
+                size = img->buffer_view->size;
+            } else if (img->uri != nullptr) {
+                const char* comma = std::strchr(img->uri, ',');
+                if (comma != nullptr && std::strstr(img->uri, ";base64") != nullptr) {
+                    // Size is unknown up front; base64 decodes to <= 3/4 of it.
+                    const std::size_t cap = std::strlen(comma + 1) * 3 / 4 + 3;
+                    cgltf_options o{};
+                    if (cgltf_load_buffer_base64(&o, cap, comma + 1, &decoded)
+                        == cgltf_result_success) {
+                        bytes = static_cast<const uint8_t*>(decoded);
+                        size = cap;
+                    }
+                }
+            }
+            const bool is_png = bytes != nullptr && size >= 8 && bytes[0] == 0x89
+                                && bytes[1] == 'P' && bytes[2] == 'N' && bytes[3] == 'G';
+            if (!is_png) {
+                std::fprintf(stderr,
+                             "[import] TEX %s: embedded image is not a PNG (mime "
+                             "\"%s\") -- REFUSED; the body draws by palette\n",
+                             ROLES[r].name, img->mime_type != nullptr ? img->mime_type : "?");
+                std::free(decoded);
+                continue;
+            }
+            // A base64 image's true length is the PNG's own: trim the padding
+            // by the IEND chunk, which is the last 12 bytes of every PNG.
+            if (decoded != nullptr) {
+                const char* iend = nullptr;
+                for (std::size_t i = 0; i + 4 <= size; ++i) {
+                    if (std::memcmp(bytes + i, "IEND", 4) == 0) {
+                        iend = reinterpret_cast<const char*>(bytes + i);
+                    }
+                }
+                if (iend != nullptr) {
+                    size = static_cast<std::size_t>(reinterpret_cast<const uint8_t*>(iend)
+                                                    - bytes)
+                           + 8;
+                }
+            }
+            file = in_dir / "textures" / stem / (std::string(ROLES[r].name) + ".png");
+            const bool written = write_bytes(file, bytes, size);
+            std::free(decoded);
+            if (!written) {
+                std::fprintf(stderr, "[import] TEX %s: cannot extract to \"%s\"\n",
+                             ROLES[r].name, file.string().c_str());
+                continue;
+            }
+            std::printf("[import] TEX %s: embedded image extracted to %s (%zu bytes)\n",
+                        ROLES[r].name, file.string().c_str(), size);
+        }
+        dfn::render::TextureRef ref;
+        if (texture_ref_from_file(opt, ROLES[r].name, file, ROLES[r].colour_space, wrap,
+                                  ref)) {
+            obj.textures.push_back(std::move(ref));
+        }
+    }
+    // --texture role=path: the given file replaces the role or adds it.
+    for (const auto& [role, path] : opt.texture_overrides) {
+        uint8_t colour_space = dfn::render::TEXTURE_COLOUR_SRGB;
+        for (const Role& known : ROLES) {
+            if (role == known.name) {
+                colour_space = known.colour_space;
+            }
+        }
+        dfn::render::TextureRef ref;
+        if (!texture_ref_from_file(opt, role, path, colour_space,
+                                   dfn::render::TEXTURE_WRAP_REPEAT, ref)) {
+            continue;
+        }
+        bool replaced = false;
+        for (dfn::render::TextureRef& t : obj.textures) {
+            if (t.role == role) {
+                t = ref;
+                replaced = true;
+            }
+        }
+        if (!replaced) {
+            obj.textures.push_back(std::move(ref));
+        }
+        std::printf("[import] TEX %s: --texture override -> %s\n", role.c_str(),
+                    path.c_str());
+    }
+    for (const dfn::render::TextureRef& t : obj.textures) {
+        std::printf("[import] TEX %s: %s sha256 %s (%s, %s)\n", t.role.c_str(),
+                    t.path.c_str(), t.sha256.c_str(),
+                    t.colour_space == dfn::render::TEXTURE_COLOUR_SRGB ? "sRGB" : "linear",
+                    t.wrap == dfn::render::TEXTURE_WRAP_CLAMP ? "clamp" : "repeat");
+    }
+}
+
 void usage() {
     std::fprintf(stderr,
                  "dfn_import_gltf <in.gltf|in.glb> --out <out.dfo> [--name N] "
@@ -1427,7 +1698,11 @@ void usage() {
                  "                 five clothing colours) instead of by the file's\n"
                  "                 own materials -- for a model whose materials are\n"
                  "                 a mannequin's rather than a person's\n"
-                 "  --yaw     degrees baked in so the model faces -Z (default 180)\n");
+                 "  --yaw     degrees baked in so the model faces -Z (default 180)\n"
+                 "  --root DIR  repository root the TEX paths are written against\n"
+                 "              (default: found by walking up from the texture)\n"
+                 "  --texture ROLE=PNG  use this PNG for ROLE (albedo, normal) instead\n"
+                 "              of the glTF's own; the artist's iteration handle\n");
 }
 
 } // namespace
@@ -1464,6 +1739,17 @@ int main(int argc, char** argv) {
             opt.yaw_deg = std::strtof(next("--yaw"), nullptr);
         } else if (a == "--skin") {
             opt.skin_index = std::atoi(next("--skin"));
+        } else if (a == "--root") {
+            opt.root = next("--root");
+        } else if (a == "--texture") {
+            const std::string spec = next("--texture");
+            const std::size_t eq = spec.find('=');
+            if (eq == std::string::npos || eq == 0 || eq + 1 >= spec.size()) {
+                std::fprintf(stderr, "[import] --texture wants ROLE=PATH, got \"%s\"\n",
+                             spec.c_str());
+                return 2;
+            }
+            opt.texture_overrides.emplace_back(spec.substr(0, eq), spec.substr(eq + 1));
         } else if (a == "-h" || a == "--help") {
             usage();
             return 0;
@@ -1563,6 +1849,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::printf("[import] merged %u skinned parts into one stream\n", merged_parts);
+    read_textures(data, skin, opt, obj);
     read_clips(data, order, obj.clips);
 
     // THE AXIS FIX: everything above the skeleton's root joint. See

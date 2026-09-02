@@ -15,6 +15,7 @@
 add_dfn_test(test_ecs core/EcsTests.cpp dfn_core)
 add_dfn_test(test_house_passability core/HousePassabilityTests.cpp dfn_world)
 add_dfn_test(test_json core/JsonTests.cpp dfn_core)
+add_dfn_test(test_sha256 core/Sha256Tests.cpp dfn_core)
 add_dfn_test(test_time core/TimeTests.cpp dfn_core)
 add_dfn_test(test_events core/EventBusTests.cpp dfn_core)
 add_dfn_test(test_math core/MathTests.cpp dfn_core)

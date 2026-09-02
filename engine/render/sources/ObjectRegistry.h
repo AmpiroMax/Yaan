@@ -13,6 +13,8 @@ Key items:
 - RegistryObject: name/kind/source + the three mesh streams + content hash.
 - MorphTarget / MorphDelta: один ползунок редактора персонажа — имя, полоса и
   разреженная дельта на вершинах SKIN (секция MORF).
+- TextureRef: лист объекта по ССЫЛКЕ — роль, путь от корня репозитория,
+  SHA-256 содержимого PNG, цветовое пространство, повтор (секция TEX).
 - write_object() / read_object(): one object per .dfo file.
 - object_content_hash(): the FROZEN fnv1a64 identity of the payload.
 
@@ -48,6 +50,7 @@ AI Agents Notice (must follow):
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace dfn::render {
@@ -142,6 +145,43 @@ struct MorphTarget {
     std::vector<MorphDelta> deltas;
 };
 
+/// ОДНА ТЕКСТУРА ОБЪЕКТА ПО ССЫЛКЕ (.dfo, секция TEX; волна «текстура на
+/// скиннинге»). Пиксели в файл объекта НЕ входят: они лежат PNG-файлом в
+/// дереве (assets/objects/characters/textures/<тело>/<роль>.png), а здесь —
+/// роль, путь от корня репозитория, SHA-256 содержимого, цветовое
+/// пространство и режим повтора.
+///
+/// ПОЧЕМУ ССЫЛКА, А НЕ ПИКСЕЛИ (решение координатора 02.09). Художник
+/// итерирует кожу в PNG и смотрит результат, не перепекая тело; тот же PNG
+/// разделяют несколько тел (народ — один альбедо на десятки лиц); и файл
+/// объекта остаётся мегабайтами геометрии, а не десятками мегабайт пикселей.
+///
+/// SHA-256 — ЛИЧНОСТЬ ФАЙЛА, КОТОРЫЙ ВИДЕЛА ВЫПЕЧКА. Загрузчик пересчитывает
+/// его над тем PNG, что нашёл, и несовпадение — отказ текстуры вслух (тело
+/// рисуется палитрой), а не «почти та кожа»: та же дисциплина, что у хэша
+/// содержимого самого объекта. Стандартный алгоритм, а не fnv — чтобы число
+/// сходилось с SHA256SUMS автора и с `shasum -a 256` на глаз.
+struct TextureRef {
+    /// Роль листа: "albedo", "normal", "roughness"… Строка, а не перечисление:
+    /// набор ролей растёт с материалами, а файл — нет.
+    std::string role;
+    /// Путь от корня репозитория, прямыми косыми: "assets/objects/characters/
+    /// textures/HumanBase/albedo.png". Загрузчик решает его от текущего
+    /// каталога (игра запускается из корня), затем от каталога .dfo вверх.
+    std::string path;
+    /// 64 шестнадцатеричных знака нижним регистром.
+    std::string sha256;
+    /// 0 — sRGB (альбедо), 1 — линейное (нормали, шероховатость).
+    std::uint8_t colour_space = 0;
+    /// 0 — повтор (repeat), 1 — зажим к краю (clamp).
+    std::uint8_t wrap = 0;
+};
+
+inline constexpr std::uint8_t TEXTURE_COLOUR_SRGB = 0;
+inline constexpr std::uint8_t TEXTURE_COLOUR_LINEAR = 1;
+inline constexpr std::uint8_t TEXTURE_WRAP_REPEAT = 0;
+inline constexpr std::uint8_t TEXTURE_WRAP_CLAMP = 1;
+
 /// One baked object of the registry. The three streams mirror FloraMesh on
 /// purpose: `wood` draws with the "prop" program, `cards` with "foliage" plus
 /// the leaf atlas, `ground` draws with the wood and never reaches collision —
@@ -192,6 +232,14 @@ struct RegistryObject {
     /// байт-в-байт» проверяла бы удачу. Экспортёр пишет цели ОТСОРТИРОВАННЫМИ
     /// ПО ИМЕНИ, читатель порядок файла не трогает.
     std::vector<MorphTarget> morphs;
+    /// ТЕКСТУРЫ ОБЪЕКТА ПО ССЫЛКЕ (секция TEX). Пусто у всего, что не носит
+    /// листа, — и ровно поэтому их файлы не изменились ни на бит: пустой
+    /// список в личность объекта не входит (пятый случай довода HOUS/MTRL/
+    /// SKIN/MORF). Непустой — входит ЦЕЛИКОМ, включая sha: тело с другой
+    /// кожей — другое тело.
+    std::vector<TextureRef> textures;
+    /// Первая ссылка названной роли или nullptr.
+    [[nodiscard]] const TextureRef* texture(std::string_view role) const;
     /// fnv1a64 over the payload streams (see object_content_hash). Stored in
     /// the file AND recomputed on read; a mismatch is a refused file, because
     /// a registry whose identities cannot be trusted indexes nothing.
