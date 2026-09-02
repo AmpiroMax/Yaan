@@ -51,6 +51,19 @@ ProcMesh.h owns the id map; do not register before their ack).
 
 ## The stride-phase seam (sim's clock — agreed, pinned 10:08:2026)
 
+**РЕШЕНИЕ ГРУППОВОГО СИНКА 02.09 (координатор daggerfall-n-63, anim, sim; правило
+26): этот шов ЗАМЕНЯЕТСЯ.** Владелец потребовал, чтобы ноги твёрдо стояли на
+земле, а снос стопы при нынешнем порядке «капсула → фаза → клип → стопа»
+структурный (три источника скорости стопы сходятся только в среднем за цикл).
+Новый порядок «клип → опорная стопа → корень → капсула»: время локомоционного
+клипа живёт в anim, корневое смещение за тик выводится из ОПОРНОЙ СТОПЫ
+финальной позы, sim/физика проводят заявку и возвращают факт, foot lock держит
+остаток, `FootfallEvent` и боб камеры идут от контакта клипа. Полный текст,
+приборы приёмки и порядок волн — docs/design/LOCOMOTION_GROUNDED.md. Абзац ниже
+описывает шов, который действует ДО сдачи той волны; после неё он переписывается
+целиком.
+
+
 The stride cycle lives ONCE, in sim's `PlayerState` (Rule 35, state form). This
 zone consumes it as a plain parameter ferried by the app; it never derives phase
 from speed itself. Agreed semantics (pinned with sim 10:08:2026, lead-landed):
