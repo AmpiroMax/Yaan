@@ -67,6 +67,11 @@ const std::vector<std::string>& app_sources() {
         // SkinnedCharacter.cpp дописан 30.08 (волна импорта и скиннинга):
         // DFN_CHAR_TRACE читается там, и список обязан это видеть.
         "engine/app/sources/SkinnedCharacter.cpp",
+        // CharacterTextures.cpp и CharGenBody.cpp дописаны 02.09 (волна
+        // «текстура на скиннинге»): DFN_BODY_PALETTE читается в первом,
+        // DFN_BODY_FILE — во втором, и список обязан это видеть.
+        "engine/app/sources/CharacterTextures.cpp",
+        "engine/app/sources/CharGenBody.cpp",
         // AppInterior.cpp дописан 24.08 (И15): DFN_LOAD_LOG читается и там —
         // экран загрузки ведёт тот же список этапов, что и прибор.
         "engine/app/sources/AppInterior.cpp",

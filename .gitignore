@@ -48,6 +48,11 @@ assets/objects/characters/*.dfo
 # как .glb лежит с лицензией. Производная здесь только отметка о том, что
 # секция MORF уже вписана в .dfo (её ставит CMake).
 assets/objects/characters/*.morphed
+# ЛИСТЫ, ИЗВЛЕЧЁННЫЕ ИМПОРТЁРОМ ИЗ ВСТРОЕННЫХ КАРТИНОК glb (секция TEX) —
+# производная того же .glb, что и .dfo, и печётся тем же шагом. Листы,
+# лежащие РЯДОМ с glb внешним файлом (HumanBase: кожа MPFB с SHA256SUMS и
+# лицензией), — исходник и в git.
+assets/objects/characters/textures/Knight/
 # Пресеты ползунков, записанные из панели редактора: это работа человека за
 # столом, а не исходник дерева.
 assets/characters/presets/

@@ -1655,8 +1655,8 @@ bool App::enter_world(uint32_t stand) {
     // видел на экране создания» было правдой ПО СОВПАДЕНИЮ.
     const char* body_v1 = door_value("DFN_BODY_V1");
     std::filesystem::path body_path((body_v1 != nullptr && body_v1[0] == '1')
-                                        ? CHARGEN_SOURCE_BODY_V1
-                                        : CHARGEN_SOURCE_BODY);
+                                        ? std::filesystem::path(CHARGEN_SOURCE_BODY_V1)
+                                        : chargen_source_body());
     // ИГРОК ХОДИТ ТЕМ ТЕЛОМ, КОТОРОЕ СОЗДАЛ, И ЭТО ФАЙЛ, А НЕ НАСТРОЙКА.
     // Экран создания печёт .dfo с применёнными ползунками и СНЯТОЙ секцией
     // MORF — схема Creation Kit: мир грузит обычного персонажа и про ползунки

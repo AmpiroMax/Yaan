@@ -122,8 +122,7 @@ void App::chargen_enter() {
     // хитбоксы по коже, тела Jolt. physics_ есть и в меню — он поднимается в
     // init(), мира для него не нужно.
     if (!chargen_body_.load(render_system_, *renderer_, physics_.get(), body_rig_,
-                            std::filesystem::path(CHARGEN_SOURCE_BODY),
-                            rest_pose_legacy_door())) {
+                            chargen_source_body(), rest_pose_legacy_door())) {
         // ГРОМКО И БЕЗ ЭКРАНА. Экран создания персонажа без персонажа — это
         // столбец ползунков, которые ничего не двигают; лучше остаться в
         // главном меню, сказав почему.
@@ -394,9 +393,9 @@ void App::chargen_enter() {
     std::fprintf(stderr,
                  "[создание] экран открыт: тело %s (хэш %016llx), %zu "
                  "треугольников, %zu целей MORF, рост %.3f м%s\n",
-                 CHARGEN_SOURCE_BODY,
+                 chargen_source_body().string().c_str(),
                  static_cast<unsigned long long>(
-                     chargen_body_hash(std::filesystem::path(CHARGEN_SOURCE_BODY))),
+                     chargen_body_hash(chargen_source_body())),
                  chargen_body_.triangles(), chargen_body_.morphs().size(),
                  static_cast<double>(chargen_body_.height_m()),
                  from_preset ? ", поднят пресет" : "");
@@ -897,6 +896,7 @@ void App::chargen_screen_prop() {
     render::RenderSystem::ScreenProp prop;
     prop.mesh_asset = draw.mesh_asset;
     prop.palette = draw.palette;
+    prop.texture_asset = draw.texture_asset; // кожа — та же, что в мире
     prop.in_camera = in_camera;
     render_system_.set_screen_prop(prop);
     if (hitbox_draw_) {

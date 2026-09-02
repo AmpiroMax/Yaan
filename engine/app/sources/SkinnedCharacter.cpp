@@ -18,6 +18,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/SkinnedCharacter.h"
 
 #include "engine/app/sources/AppDoors.h"
+#include "engine/app/sources/CharacterTextures.h"
 #include "engine/anim/sources/RestFit.h"
 #include "engine/render/sources/ObjectRegistry.h"
 
@@ -178,6 +179,10 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
                                              obj->skin.indices)) {
         return false;
     }
+    // КОЖА: секция TEX → PNG → GPU с мипами, кэш по sha (один лист на мир,
+    // экран и смотровую). Ноль — палитра вершин, и каждая причина нуля уже
+    // сказана вслух там, где она найдена.
+    texture_asset_ = body_albedo_asset(render_system, renderer, *obj, path);
     bind_vertices_ = obj->skin.vertices;
     skin_indices_ = obj->skin.indices;
     morphs_ = obj->morphs;
@@ -734,6 +739,7 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
     if (!ready_) {
         return draw;
     }
+    draw.texture_asset = texture_asset_;
     const anim::Rig& rig = rig_;
     const float a = std::clamp(alpha, 0.0f, 1.0f);
     const anim::BodyRoot root{glm::mix(root_prev_.ground, root_curr_.ground, a),
@@ -900,6 +906,9 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::blade_draw(
     const render::RenderSystem::SkinnedDraw& body) const {
     render::RenderSystem::SkinnedDraw draw = body;
     draw.mesh_asset = blade_asset_;
+    // Клинок красится своими вершинами; лист кожи развёрнут по телу, а не
+    // по стали.
+    draw.texture_asset = 0;
     return draw;
 }
 

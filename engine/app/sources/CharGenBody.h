@@ -135,6 +135,12 @@ inline constexpr const char* CHARGEN_SOURCE_BODY =
 inline constexpr const char* CHARGEN_SOURCE_BODY_V1 =
     "assets/objects/characters/HumanBaseV1.dfo";
 
+/// ФАЙЛ ИСХОДНОГО ТЕЛА, КАКИМ ЕГО ВИДЯТ ЭКРАН И МИР: CHARGEN_SOURCE_BODY,
+/// или путь из двери DFN_BODY_FILE — фикстура приёмки (тело с шахматным
+/// листом), которая обязана заменить тело В ОБОИХ потребителях сразу, иначе
+/// «экран = мир» проверялось бы на разных телах.
+[[nodiscard]] std::filesystem::path chargen_source_body();
+
 /// СОДЕРЖИМОЕ ФАЙЛА ТЕЛА ОДНИМ ЧИСЛОМ, или 0, если файла нет.
 ///
 /// НЕ УКРАШЕНИЕ ЖУРНАЛА. «Экран показывает то же тело, что мир» — утверждение

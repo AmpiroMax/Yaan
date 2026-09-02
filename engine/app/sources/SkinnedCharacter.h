@@ -14,7 +14,9 @@ Key items:
 - SkinnedCharacter::build_draw(): alpha -> RenderSystem::SkinnedDraw, the pose
   interpolated between the two ticks the way render interpolates a Transform.
 - morphs() / set_morph_weight() / apply_morphs() / bake_morphs(): ползунки тела
-  (секция MORF). Состояние живёт ЗДЕСЬ: у него три потребителя — доза
+  (секция MORF).
+- texture_asset(): лист кожи тела (секция TEX через CharacterTextures), едет
+  в SkinnedDraw::texture_asset; 0 — палитра вершин (DFN_BODY_PALETTE=1). Состояние живёт ЗДЕСЬ: у него три потребителя — доза
   DFN_MORPH, панель редактора и выпечка, — и ни один из них не окно.
 - SKINNED_CHARACTER_MESH_ID: the RenderMesh id this occupies (50).
 
@@ -111,6 +113,9 @@ public:
     [[nodiscard]] const anim::Rig& rig() const { return rig_; }
     [[nodiscard]] const anim::SkinnedRigBinding& binding() const { return binding_; }
     [[nodiscard]] uint32_t mesh_asset() const { return mesh_asset_; }
+    /// АЛЬБЕДО ТЕЛА как номер ассета render (CharacterTextures), 0 — палитра
+    /// вершин. Едет в каждый SkinnedDraw этого тела и в ScreenProp экрана.
+    [[nodiscard]] uint32_t texture_asset() const { return texture_asset_; }
     /// THE VERTICES AS DRAWN: the morph blend when a slider moved, the bind
     /// otherwise. Bind-pose space; the palette poses them.
     [[nodiscard]] const std::vector<platform::SkinnedVertex>& current_vertices() const {
@@ -278,6 +283,8 @@ private:
     std::string name_;
     uint32_t mesh_asset_ = SKINNED_CHARACTER_MESH_ID;
     uint32_t blade_asset_ = anim::HELD_BLADE_MESH_ID;
+    /// Лист кожи (секция TEX → CharacterTextures); 0 — без листа.
+    uint32_t texture_asset_ = 0;
     bool rest_only_ = false;
     /// The fitted rig (see load()). The app's own rig is the box body's;
     /// this one has the rest stance the skin asked for.

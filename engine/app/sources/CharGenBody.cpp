@@ -19,6 +19,8 @@ AI Agents Notice (must follow):
 
 #include "engine/app/sources/CharGenBody.h"
 
+#include "engine/app/sources/AppDoors.h"
+
 #include "engine/anim/sources/Body.h"
 #include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/SkinnedBody.h"
@@ -65,6 +67,19 @@ void grow_bound(glm::vec3& lo, glm::vec3& hi, const std::vector<glm::vec3>& pts)
 }
 
 } // namespace
+
+std::filesystem::path chargen_source_body() {
+    static const std::filesystem::path chosen = [] {
+        const char* v = door_value("DFN_BODY_FILE");
+        if (v != nullptr && v[0] != '\0') {
+            std::fprintf(stderr, "[character] DFN_BODY_FILE: исходное тело экрана и "
+                                 "мира — %s\n", v);
+            return std::filesystem::path(v);
+        }
+        return std::filesystem::path(CHARGEN_SOURCE_BODY);
+    }();
+    return chosen;
+}
 
 std::uint64_t chargen_body_hash(const std::filesystem::path& path) {
     // ПОТОКОМ, А НЕ ЦЕЛИКОМ В ПАМЯТЬ: файл тела весит 7.6 МБ, и держать его

@@ -304,6 +304,7 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Peoples.cpp
@@ -311,6 +312,17 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/UiFont.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Localization.cpp)
+
+    # ЛИСТ ПЕРСОНАЖА (волна «текстура на скиннинге»): секция TEX → PNG → sha
+    # сверен → GPU один раз на sha; контрольная рука — неверный sha даёт ноль.
+    # Нулевой бэкенд считает живые текстуры (правило 3) — единственный прибор,
+    # который видит «лист поднят дважды».
+    add_dfn_test(app_character_textures app/CharacterTexturesTests.cpp
+                 dfn_render dfn_platform_render dfn_core)
+    target_sources(app_character_textures PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
 
     # ПРИБОР НА ПУТИ ИГРОКА (заказ владельца 02.09). Меряет зазоры нога↔нога,
     # кисть↔бедро, предплечье↔корпус на ТОЙ позе, что строят экран создания
@@ -324,6 +336,8 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
 
@@ -337,6 +351,8 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
     if(TARGET dfn_characters)
@@ -357,6 +373,8 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
 
