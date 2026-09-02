@@ -239,6 +239,14 @@ target_link_libraries(dfn_human_scale PRIVATE dfn_render dfn_anim dfn_core)
 add_executable(dfn_morph tools/morph_tool.cpp)
 target_link_libraries(dfn_morph PRIVATE dfn_render dfn_anim dfn_core)
 
+# СУДЬЯ ЛИЦА (dfn_face_scale, волна «лицо ползунками»). Одиннадцать мерок по
+# МАСКАМ ОБЛАСТЕЙ (assets/characters/targets/face.masks — вершины, которые
+# двигают цели MPFB глаз, углов, век, рта, носа, ушей) на той же рест-позе,
+# что у судьи тела; полоса — вокруг СВОЕЙ нейтрали (baseline лица рядом с
+# телом), см. шапку tools/check_face_scale.cpp и docs/research/FACE_CANON.md.
+add_executable(dfn_face_scale tools/check_face_scale.cpp)
+target_link_libraries(dfn_face_scale PRIVATE dfn_render dfn_anim dfn_core)
+
 # ВЫПЕЧКА ПЕРСОНАЖЕЙ (dfn_characters). Правило дерева: исходник в git, выпечка
 # производная (.gitignore, решение владельца 17.08) — значит .glb лежит в
 # репозитории с лицензией рядом, а .dfo печётся здесь и в git не едет.
@@ -435,6 +443,30 @@ if(TARGET dfn_human_scale AND TARGET dfn_characters)
                          PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
+# ЛИЦО ОТГРУЖЕННОГО ТЕЛА — ПО СВОЕМУ BASELINE (HumanBase.face.json, замер
+# нейтрали судьёй лица): та же мысль, что у human_scale_player — строка ловит
+# молчаливый сдвиг лица при перепечке, а не судит его учебником (FACE_CANON §2:
+# маска цели шире анатомической точки, и учебник отверг бы нейтраль).
+# Контрольная рука (правило 30): HumanBaseV1 — тот же .glb, суставы двинуты
+# --fit-canon (голова +17 %) — ОБЯЗАНА быть отвергнута тем же baseline.
+if(TARGET dfn_face_scale AND TARGET dfn_characters
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/characters/targets/face.masks"
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/objects/characters/HumanBase.face.json")
+    add_test(NAME face_scale_player
+             COMMAND dfn_face_scale assets/objects/characters/HumanBase.dfo
+                     --masks assets/characters/targets/face.masks
+                     --baseline assets/objects/characters/HumanBase.face.json
+                     --tolerance 0.02 --eyeline-tolerance 0.005)
+    add_test(NAME face_scale_baseline_rejects_v1
+             COMMAND dfn_face_scale assets/objects/characters/HumanBaseV1.dfo
+                     --masks assets/characters/targets/face.masks
+                     --baseline assets/objects/characters/HumanBase.face.json
+                     --tolerance 0.02 --eyeline-tolerance 0.005)
+    set_tests_properties(face_scale_baseline_rejects_v1 PROPERTIES WILL_FAIL TRUE)
+    set_tests_properties(face_scale_player face_scale_baseline_rejects_v1
+                         PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
+endif()
+
 # ПОЛЗУНКИ НА КРАЙНИХ ПОЛОЖЕНИЯХ (приёмка волны морфов, пункт 5 заказа). Судья
 # пропорций прогоняется на ОБОИХ концах КАЖДОГО ползунка — 22 тела, — и красная
 # строка означает ровно одно: полоса ползунка шире допустимого, то есть её надо
@@ -451,7 +483,12 @@ endif()
 # ЗАЧЕМ ЭТО В ctest, А НЕ В ОТЧЁТЕ. Полосы полос — числа, замеренные один раз;
 # без теста они остаются верными до первой перепечки тела и молча перестают быть
 # верными после неё, а узнать об этом было бы некому.
-if(TARGET dfn_morph AND TARGET dfn_human_scale AND TARGET dfn_characters
+# ЛИЦО — ТЕМ ЖЕ НАБОРОМ (волна «лицо ползунками»): концы лицевых ручек судит
+# ещё и dfn_face_scale по baseline лица; полосы компоновочных ручек найдены
+# двоичным поиском обоими судьями (tools/check_morph_bands.py --calibrate →
+# assets/characters/targets/face.bands), ручки-«черты» ходят весь манифест.
+if(TARGET dfn_morph AND TARGET dfn_human_scale AND TARGET dfn_face_scale
+   AND TARGET dfn_characters
    AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/assets/objects/characters/HumanBase.morf")
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_Interpreter_FOUND)
@@ -462,7 +499,12 @@ if(TARGET dfn_morph AND TARGET dfn_human_scale AND TARGET dfn_characters
                          --judge $<TARGET_FILE:dfn_human_scale>
                          --body assets/objects/characters/HumanBase.dfo
                          --baseline
-                         assets/objects/characters/HumanBase.scale.json)
+                         assets/objects/characters/HumanBase.scale.json
+                         --face-judge $<TARGET_FILE:dfn_face_scale>
+                         --face-manifest assets/characters/targets/face.targets
+                         --masks assets/characters/targets/face.masks
+                         --face-baseline
+                         assets/objects/characters/HumanBase.face.json)
         set_tests_properties(morph_bands PROPERTIES
                              WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
     endif()
