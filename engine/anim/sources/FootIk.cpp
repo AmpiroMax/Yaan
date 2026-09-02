@@ -520,9 +520,35 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
     std::vector<glm::mat4> model;
     model_matrices(skeleton, sample, local, model);
     for (std::size_t side = 0; side < 2; ++side) {
-        const float k = std::clamp(strength[side], 0.0f, 1.0f);
+        float k = std::clamp(strength[side], 0.0f, 1.0f);
         if (k <= 1.0e-4f) {
             continue;
+        }
+        // ЗАМОК СДАЁТСЯ, А НЕ РВЁТ НОГУ (владелец 03.09: «при беге ноги тянутся,
+        // потом отрываются»): когда тело убегает от якоря быстрее, чем стопа
+        // клипа, якорь уходит за вытяжение ноги, и прежде замок держал стопу
+        // на пределе (0,998 длины ноги) до самого отпускания по весу —
+        // нога вытягивалась струной и щёлкала. Теперь сила замка сходит на
+        // нет по мере приближения якоря к полному вытяжению (0,96…1,02 длины
+        // ноги): стопа мягко уезжает с якоря, колено не выпрямляется в
+        // струну. Считается по позе до проходов.
+        {
+            const glm::vec3 A = origin_of(model[static_cast<std::size_t>(setup.hip[side])]);
+            const glm::vec3 B = origin_of(model[static_cast<std::size_t>(setup.knee[side])]);
+            const glm::vec3 C = origin_of(model[static_cast<std::size_t>(setup.ankle[side])]);
+            const glm::vec3 P = (target_is_toe[side] && setup.toe[side] >= 0)
+                                    ? origin_of(model[static_cast<std::size_t>(setup.toe[side])])
+                                    : C;
+            const float leg = glm::length(B - A) + glm::length(C - B);
+            const glm::vec3 want{point_target_model[side].x, P.y, point_target_model[side].z};
+            const float d0 = glm::length(want + (C - P) - A);
+            if (leg > 1.0e-4f) {
+                const float u = std::clamp((1.02f * leg - d0) / (0.06f * leg), 0.0f, 1.0f);
+                k *= u * u * (3.0f - 2.0f * u);
+            }
+            if (k <= 1.0e-4f) {
+                continue;
+            }
         }
         // ТРИ ПРОХОДА: двузвенник ведёт ЛОДЫЖКУ, а якорь — у подушечки; поворот
         // бедра и колена поворачивает и стопу, так что смещение «лодыжка минус
