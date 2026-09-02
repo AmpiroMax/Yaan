@@ -1,0 +1,50 @@
+HumanCommoner.glb — generated with MPFB2 (MakeHuman Plugin for Blender) v2.0.17
+in Blender 4.2.9 LTS. The mesh is a derivative of the MakeHuman core base mesh
+and of MakeHuman macro-modelling targets.
+
+MPFB / MakeHuman use a SPLIT LICENSE. Verbatim from the project's license page
+https://static.makehumancommunity.org/about/license.html :
+
+    "Both MakeHuman and MPFB are open source projects with a split license,
+     with the goal that there should be as close to no restrictions whatsoever
+     on the graphics parts.
+
+     The asset license
+     All core assets are shared under Creative Commons, CC0. The effective
+     consequence of this is that you are free to do as you see fit with the
+     asset or derivates of the assets. You do not need to pay anything, include
+     any copyright notices nor give attribution.
+
+     The source code license
+     The source code of MPFB is shared under GPL and the source code of
+     MakeHuman is shared under AGPL."
+
+And verbatim from https://static.makehumancommunity.org/makehuman/faq/are_makehuman_files_free.html :
+
+    "Are MakeHuman files free?
+     Yes. The asset license is CC0. In practice this imposes no restriction on
+     your use of the core assets, be they used through MakeHuman or copied
+     through some other means.
+
+     For example you can:
+       - Use a character model in a closed source game without need for
+         attribution
+       - Sell a character model
+       - Take all mesh and target assets and build a character generator of
+         your own, with no restriction on what license that character generator
+         needs to have"
+
+WHAT THIS MEANS FOR US: this .glb contains ONLY assets (base mesh + macro
+targets + the MPFB-shipped Rigify metarig definition), no MPFB source code.
+It is therefore CC0 — usable in Daggerfall N with no attribution requirement
+and with no GPL obligation on our engine. The GPLv3 applies to the MPFB add-on
+code, which we merely ran as a tool and do not redistribute.
+
+Upstream: https://github.com/makehumancommunity/mpfb2 (v2.0.17)
+
+ДВА ИСТОЧНИКА В ОДНОМ ФАЙЛЕ (с 01.09). HumanCommoner.glb несёт МЕШ И СКЕЛЕТ
+из MakeHuman/MPFB2 (см. выше) и СОРОК ШЕСТЬ КЛИПОВ, перенесённых на этот
+скелет с манекена Quaternius Universal Animation Library (HumanBase.glb):
+ретаргет tools/make_human_body.py --clips. Клипы Quaternius — CC0, лицензия
+рядом в QUATERNIUS_LICENSE.txt (Models by @Quaternius). Обе половины CC0,
+поэтому и на файл в целом ограничений нет.
