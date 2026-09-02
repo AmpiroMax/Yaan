@@ -246,6 +246,12 @@ struct FootLockParams {
     float on_weight = 0.6f;
     float off_weight = 0.3f;
     float release_s = 0.1f;
+    /// ПЕРЕСТУП ПРИ ПОВОРОТЕ НА МЕСТЕ (владелец 02.09-2: от первого лица
+    /// «ноги прикреплены к точкам и скручиваются крестиком»): корпус ушёл
+    /// над замкнутой стопой дальше этого угла — замок отпускает её, стопа
+    /// уходит под корпус и замыкается заново; вторая стопа ждёт `step_s`.
+    float twist_max_rad = 0.6f;
+    float step_s = 0.2f;
     /// Строки FOOT_LOCK_* реестра.
     [[nodiscard]] static FootLockParams from_config();
 };
@@ -256,12 +262,17 @@ struct FootLockState {
     std::array<float, 2> strength{};     ///< 0..1, сколько замка в силе
     /// ЗАЩЁЛКНУЛСЯ НА ЭТОМ ТИКЕ — постановка стопы; читатель событий шага.
     std::array<bool, 2> engaged{};
+    std::array<float, 2> anchor_yaw{}; ///< рыск корпуса на защёлкивании
+    std::array<float, 2> hold_s{};     ///< после переступа: столько не замыкать
+    float step_cooldown_s = 0.0f;      ///< вторая стопа не переступает, пока идёт
+    float last_yaw = 0.0f;             ///< рыск прошлого тика — покой корпуса
+    float still_s = 0.0f;              ///< сколько корпус уже не вращается
 };
 /// Один тик состояния замков: `contact_world` — точки касания этой позы в
 /// МИРЕ (приложение знает корень), `weight` — вес опоры.
 void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& contact_world,
                        const std::array<float, 2>& weight,
-                       const std::array<bool, 2>& point_is_toe, float dt,
+                       const std::array<bool, 2>& point_is_toe, float body_yaw, float dt,
                        const FootLockParams& params);
 /// ПРАВКА ПОЗЫ ПОД ЗАМОК: точка касания каждой стопы с силой > 0 ставится в
 /// `point_target_model` (система тела; берётся только горизонталь — высоту

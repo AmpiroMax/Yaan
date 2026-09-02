@@ -192,6 +192,8 @@ public:
                      float dt);
     [[nodiscard]] const anim::ContactState& contacts() const { return contact_curr_; }
     [[nodiscard]] const anim::FootLockState& foot_locks() const { return locks_; }
+    /// Параметры замка — приборам: контрольная рука «без переступа».
+    [[nodiscard]] anim::FootLockParams& lock_params() { return lock_params_; }
     /// ЗАЗОР СТОП ПОСЛЕДНЕГО КАДРА (знаковый, по FootIk::foot_gap) — после
     /// подъёма на грунт и замка; прибор ступеней/склона читает его с кадра.
     [[nodiscard]] const anim::FootGap& foot_gap_last() const { return last_gap_; }

@@ -51,6 +51,7 @@ AI Agents Notice (must follow):
 #include <filesystem>
 #include <vector>
 
+#include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
@@ -399,7 +400,10 @@ TerrainRun run_terrain(Harness& h, Ground ground, anim::Gait gait, float speed, 
                     }
                     out.worst_penetration_m =
                         std::max(out.worst_penetration_m, std::max(0.0f, -g.gap[side]));
-                    if (plan.weight[side] >= 0.999f) {
+                    // ПАРЕНИЕ — ТОЛЬКО У ОПОРНОЙ СТОПЫ: вес плана IK ≥ 0.999 есть и у
+                    // маха, что проходит низко над ступенью (зазор 3 см при
+                    // весе опоры 0) — это не парение, а мах.
+                    if (plan.weight[side] >= 0.999f && c.support[side] >= on) {
                         out.worst_float_m = std::max(out.worst_float_m, std::max(0.0f, g.gap[side]));
                     }
                 }
@@ -463,3 +467,158 @@ TEST_CASE("stairs_and_slope_keep_the_foot_planted_and_on_the_tread") {
     }
 }
 
+TEST_CASE("turning_in_place_steps_the_feet_instead_of_twisting") {
+    // ПОВОРОТ НА МЕСТЕ (владелец 02.09-2: от первого лица «ноги прикреплены к
+    // точкам и скручиваются крестиком»): корпус за 2 с уходит на 180°, стопы
+    // обязаны переступить — угол между стопой и корпусом не растёт дальше
+    // FOOT_LOCK_TWIST_MAX_RAD, а после поворота стопы стоят под корпусом там
+    // же, где стояли до него. Контрольная рука — замок без переступа: крест.
+    if (!body_present()) {
+        MESSAGE("HumanBase.dfo нет в дереве — набор пропущен");
+        return;
+    }
+    struct Turn {
+        float worst_offset_m = 0.0f; ///< худший уход лодыжки от места под корпусом за поворот
+        float after_offset_m = 0.0f; ///< то же через секунду после поворота
+    };
+    const auto turn = [&](bool stepping) {
+        Harness h;
+        REQUIRE(h.ok);
+        if (!stepping) {
+            h.body.lock_params().twist_max_rad = 100.0f;
+        }
+        anim::BodyDrive drive;
+        drive.grounded = true;
+        drive.gait = anim::Gait::Walk;
+        drive.speed_mps = 0.0f;
+        drive.want_speed_mps = 0.0f;
+        drive.step_length_m = step_length(0.0f);
+        drive.facing_yaw = 0.0f;
+        const glm::vec3 root{0.0f};
+        const int32_t toes[2] = {h.body.skeleton().find("DEF-toe.L"),
+                                 h.body.skeleton().find("DEF-toe.R")};
+        const int32_t ankles[2] = {h.body.skeleton().find("DEF-foot.L"),
+                                   h.body.skeleton().find("DEF-foot.R")};
+        REQUIRE(toes[0] >= 0);
+        REQUIRE(ankles[1] >= 0);
+        // стопа в системе корпуса: положение лодыжки и курс носок−лодыжка
+        const auto in_body = [&](float yaw, std::size_t side, glm::vec3& ankle, float& heading) {
+            const render::RenderSystem::SkinnedDraw d = h.body.build_draw(false, 1.0f);
+            const glm::mat4 to_body =
+                glm::rotate(glm::mat4{1.0f}, yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+            const glm::vec3 a =
+                glm::vec3{to_body * glm::vec4{h.joint_world(d, ankles[side]) - root, 1.0f}};
+            const glm::vec3 t =
+                glm::vec3{to_body * glm::vec4{h.joint_world(d, toes[side]) - root, 1.0f}};
+            ankle = a;
+            heading = std::atan2(t.x - a.x, -(t.z - a.z));
+        };
+        const auto wrap = [](float a) {
+            while (a > glm::pi<float>()) a -= 2.0f * glm::pi<float>();
+            while (a < -glm::pi<float>()) a += 2.0f * glm::pi<float>();
+            return a;
+        };
+        Turn out;
+        std::array<glm::vec3, 2> ankle0{};
+        std::array<float, 2> heading0{};
+        const uint32_t settle = 60, turning = 120, hold = 60;
+        for (uint32_t tick = 0; tick < settle + turning + hold; ++tick) {
+            if (tick >= settle && tick < settle + turning) {
+                drive.facing_yaw = glm::pi<float>() * float(tick - settle + 1) / float(turning);
+            }
+            h.body.advance(drive, root, DT);
+            h.body.commit_root(drive, root, DT);
+            if (tick == settle - 1) {
+                for (std::size_t s = 0; s < 2; ++s) {
+                    in_body(drive.facing_yaw, s, ankle0[s], heading0[s]);
+                }
+            } else if (tick >= settle) {
+                for (std::size_t s = 0; s < 2; ++s) {
+                    glm::vec3 a;
+                    float hd = 0.0f;
+                    in_body(drive.facing_yaw, s, a, hd);
+                    (void)hd;
+                    const glm::vec3 e = a - ankle0[s];
+                    const float off = glm::length(glm::vec2{e.x, e.z});
+                    out.worst_offset_m = std::max(out.worst_offset_m, off);
+                    if (tick == settle + turning + hold - 1) {
+                        out.after_offset_m = std::max(out.after_offset_m, off);
+                    }
+                }
+            }
+        }
+        return out;
+    };
+    const Turn with = turn(true);
+    const Turn cross = turn(false);
+    MESSAGE("поворот 180° за 2 с: с переступом лодыжка уходила от места под корпусом не дальше "
+            << 1000.0f * with.worst_offset_m << " мм, через секунду после поворота "
+            << 1000.0f * with.after_offset_m << " мм; без переступа "
+            << 1000.0f * cross.worst_offset_m << " и " << 1000.0f * cross.after_offset_m << " мм");
+    // Крест: лодыжки на 0,4 м от своих мест (стопы разошлись за спину). С
+    // переступом стопа уходит не дальше плеча поворота на пороге — с запасом
+    // на сход замка — и после поворота стоит под корпусом.
+    CHECK(with.worst_offset_m < 0.25f);
+    CHECK(with.after_offset_m < 0.06f);
+    CHECK(cross.worst_offset_m > 0.35f);
+    CHECK(cross.after_offset_m > 0.35f);
+}
+
+TEST_CASE("gear_changes_settle_where_the_gear_settles_from_standing") {
+    // СМЕНА ПЕРЕДАЧИ НА ХОДУ: трусца после ходьбы обязана ехать так же, как
+    // трусца с места (прибор передач мерил трусцу после ходьбы одним телом и
+    // получил 2,3–2,5 м/с против 2,9 с места — передача застревала).
+    if (!body_present()) {
+        return;
+    }
+    struct Gear {
+        anim::Gait gait;
+        float speed;
+        const char* name;
+    };
+    const Gear gears[] = {{anim::Gait::Walk, static_cast<float>(config::WALK_SPEED), "ходьба"},
+                          {anim::Gait::Jog, static_cast<float>(config::JOG_SPEED), "трусца"},
+                          {anim::Gait::Run, static_cast<float>(config::RUN_SPEED), "бег"},
+                          {anim::Gait::Jog, static_cast<float>(config::JOG_SPEED), "трусца после бега"},
+                          {anim::Gait::Walk, static_cast<float>(config::WALK_SPEED), "ходьба после трусцы"}};
+    const auto steady_speed = [&](Harness& h, const Gear& g, glm::vec3& root) {
+        anim::BodyDrive drive;
+        drive.grounded = true;
+        drive.gait = g.gait;
+        drive.speed_mps = g.speed;
+        drive.want_speed_mps = g.speed;
+        drive.step_length_m = step_length(g.speed);
+        drive.facing_yaw = 0.0f;
+        float steady = 0.0f;
+        for (uint32_t t = 0; t < 300; ++t) {
+            h.body.advance(drive, root, DT);
+            const anim::LocomotionOut& lo = h.body.locomotion();
+            if (lo.valid) {
+                root += lo.root_delta_model;
+                if (t >= 120) {
+                    steady += glm::length(lo.root_delta_model);
+                }
+            }
+            h.body.commit_root(drive, root, DT);
+        }
+        return steady / (180.0f * DT);
+    };
+    // эталон: каждая передача с места, свежим телом
+    float from_standing[3] = {0.0f, 0.0f, 0.0f};
+    for (int i = 0; i < 3; ++i) {
+        Harness h;
+        REQUIRE(h.ok);
+        glm::vec3 root{0.0f};
+        from_standing[i] = steady_speed(h, gears[i], root);
+    }
+    Harness h;
+    REQUIRE(h.ok);
+    glm::vec3 root{0.0f};
+    for (const Gear& g : gears) {
+        const float ref = from_standing[g.gait == anim::Gait::Walk ? 0 : g.gait == anim::Gait::Jog ? 1 : 2];
+        const float steady = steady_speed(h, g, root);
+        MESSAGE(g.name << ": установившаяся " << steady << " м/с, с места " << ref << ", заказ "
+                       << g.speed);
+        CHECK(steady > 0.9f * ref);
+    }
+}

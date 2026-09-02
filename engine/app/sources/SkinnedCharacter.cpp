@@ -702,7 +702,7 @@ void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
     anim::update_foot_locks(locks_, world,
                             loco_.valid ? contact_curr_.support
                                         : std::array<float, 2>{0.0f, 0.0f},
-                            contact_curr_.toe_point, dt, lock_params_);
+                            contact_curr_.toe_point, root_curr_.yaw, dt, lock_params_);
     if (slide_trace_ && (++slide_trace_ticks_ % 10u) == 0u) {
         float worst = 0.0f;
         for (std::size_t side = 0; side < 2; ++side) {

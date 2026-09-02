@@ -23,6 +23,7 @@ AI Agents Notice (must follow):
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <vector>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
@@ -471,7 +472,14 @@ void apply_stance(const skel::Skeleton& skeleton, const StanceLayer& layer,
         // бёдра при этом не касаются друг друга.
         const glm::vec3 hip_mid =
             0.5f * (pos(layer.thigh[0]) + pos(layer.thigh[1]));
-        const float half = 0.5f * layer.rest_stance_width_m;
+        // ШИРИНА — STANCE_FEET_APART_M, А НЕ ШИРИНА РЕСТ-ПОЗЫ (владелец 02.09-2:
+        // «слишком широко ноги стоят в покое»). Рест-поза на отгруженном теле
+        // меряется 356 мм между лодыжками при 215 между бёдрами — риг просит
+        // 114 (BODY_STANCE_WIDTH_FRAC), но на импортированный скелет схождение
+        // ног не доносится; это отдельный дефект рест-позы, стойка от него
+        // отвязана и стоит на названном числе.
+        const float half = 0.5f * static_cast<float>(config::STANCE_FEET_APART_M);
+        (void)layer.rest_stance_width_m;
         for (int i = 0; i < 2 && half > 1.0e-4f; ++i) {
             const auto k = static_cast<std::size_t>(i);
             const glm::vec3 hip = pos(layer.thigh[k]);

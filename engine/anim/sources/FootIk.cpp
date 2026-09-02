@@ -427,18 +427,62 @@ FootLockParams FootLockParams::from_config() {
     p.on_weight = static_cast<float>(config::FOOT_LOCK_ON_WEIGHT);
     p.off_weight = static_cast<float>(config::FOOT_LOCK_OFF_WEIGHT);
     p.release_s = static_cast<float>(config::FOOT_LOCK_RELEASE_S);
+    p.twist_max_rad = static_cast<float>(config::FOOT_LOCK_TWIST_MAX_RAD);
+    p.step_s = static_cast<float>(config::FOOT_LOCK_STEP_S);
     return p;
 }
 
 void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& contact_world,
                        const std::array<float, 2>& weight,
-                       const std::array<bool, 2>& point_is_toe, float dt,
+                       const std::array<bool, 2>& point_is_toe, float body_yaw, float dt,
                        const FootLockParams& params) {
+    const auto wrap = [](float a) {
+        const float two_pi = 2.0f * glm::pi<float>();
+        a = std::fmod(a + glm::pi<float>(), two_pi);
+        if (a < 0.0f) {
+            a += two_pi;
+        }
+        return a - glm::pi<float>();
+    };
+    state.step_cooldown_s = std::max(0.0f, state.step_cooldown_s - dt);
+    // ДОСАДКА ПОСЛЕ ПОВОРОТА: корпус встал — стопы, оставшиеся под ним
+    // повёрнутыми больше трети порога, переступают по одной, пока не встанут
+    // под корпус; иначе после разворота на 180° человек стоял бы с тазом,
+    // развёрнутым к стопам на 30°, сколько угодно.
+    const float dyaw = std::abs(wrap(body_yaw - state.last_yaw));
+    state.last_yaw = body_yaw;
+    state.still_s = dyaw > 1.0e-3f ? 0.0f : state.still_s + dt;
+    const float twist_limit = state.still_s >= params.step_s ? params.twist_max_rad / 3.0f
+                                                             : params.twist_max_rad;
+    // ПЕРЕСТУПАЕТ ОДНА СТОПА ЗА РАЗ — та, над которой корпус ушёл дальше;
+    // вторая ждёт FOOT_LOCK_STEP_S, иначе обе уходят разом (подскок на месте).
+    std::size_t first = 2;
+    float worst_twist = 0.0f;
+    for (std::size_t side = 0; side < 2; ++side) {
+        if (state.locked[side]) {
+            const float twist = std::abs(wrap(body_yaw - state.anchor_yaw[side]));
+            if (twist > worst_twist) {
+                worst_twist = twist;
+                first = side;
+            }
+        }
+    }
     for (std::size_t side = 0; side < 2; ++side) {
         state.engaged[side] = false;
+        state.hold_s[side] = std::max(0.0f, state.hold_s[side] - dt);
         if (state.locked[side]) {
+            const float twist = std::abs(wrap(body_yaw - state.anchor_yaw[side]));
             if (weight[side] < params.off_weight) {
                 state.locked[side] = false; // отпущен: сила сходит ниже
+            } else if (twist > twist_limit && side == first
+                       && state.step_cooldown_s <= 0.0f) {
+                // ПЕРЕСТУП: корпус ушёл дальше, чем бедро может довернуть
+                // (владелец 02.09-2: «ноги скручиваются крестиком»). Замок
+                // сходит за FOOT_LOCK_RELEASE_S, стопа уходит под корпус, и
+                // до того замыкать её заново нельзя.
+                state.locked[side] = false;
+                state.hold_s[side] = params.release_s;
+                state.step_cooldown_s = params.step_s;
             } else {
                 // ПЕРЕКАТ: нижняя точка сменилась (пятка → носок) — якорь
                 // перецепляется на новую точку там, где она сейчас стоит;
@@ -451,11 +495,12 @@ void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& con
                 state.strength[side] = 1.0f;
                 continue;
             }
-        } else if (weight[side] >= params.on_weight) {
+        } else if (weight[side] >= params.on_weight && state.hold_s[side] <= 0.0f) {
             state.locked[side] = true;
             state.engaged[side] = true;
             state.anchor[side] = contact_world[side];
             state.anchor_toe[side] = point_is_toe[side];
+            state.anchor_yaw[side] = body_yaw;
             state.strength[side] = 1.0f;
             continue;
         }
@@ -483,7 +528,10 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
         // бедра и колена поворачивает и стопу, так что смещение «лодыжка минус
         // подушечка» после решения уже не то, что до него. Повтор с
         // пересчитанным смещением сходится за два-три шага (замер: 8 мм → <1).
-        for (int pass = 0; pass < 12; ++pass) {
+        // 24 прохода, не 12: инерция на смене опоры (RootMotion.cpp) даёт замку
+        // до 2 см расхождения за окно, и 12 проходов оставляли 2,2 мм на беге
+        // трусцой при пороге 2.
+        for (int pass = 0; pass < 36; ++pass) {
             const glm::vec3 A = origin_of(model[static_cast<std::size_t>(setup.hip[side])]);
             const glm::vec3 B = origin_of(model[static_cast<std::size_t>(setup.knee[side])]);
             const glm::vec3 C = origin_of(model[static_cast<std::size_t>(setup.ankle[side])]);
@@ -502,7 +550,7 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
             T = glm::mix(C, T, k);
             // Досягаемость: дальше 99,5 % вытяжения ноги цель режется к бедру,
             // а не растягивает ногу (0.985 оставляло 1 мм на вытянутой ноге трусцы).
-            const float reach = 0.995f * (glm::length(B - A) + glm::length(C - B));
+            const float reach = 0.998f * (glm::length(B - A) + glm::length(C - B));
             const glm::vec3 from_hip = T - A;
             if (const float d = glm::length(from_hip); d > reach && d > 1.0e-5f) {
                 T = A + from_hip * (reach / d);

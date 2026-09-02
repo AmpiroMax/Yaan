@@ -438,7 +438,13 @@ TEST_CASE("the_reference_bands") {
     CAPTURE(idle.mid.stance_in_shoulders());
     CAPTURE(idle_bare.mid.stance_in_shoulders());
     REQUIRE(rest_width > 0.05f);
-    CHECK(std::abs(idle.mid.stance_width_m - rest_width) < 0.01f);
+    // КОЛЕЯ — STANCE_FEET_APART_M (владелец 02.09-2: «слишком широко ноги стоят
+    // в покое»), а не ширина рест-позы: рест на отгруженном теле меряется
+    // 356 мм при 215 между бёдрами (риг просит 114 — схождение ног на
+    // импортированный скелет не доносится, дефект рест-позы, лиду).
+    CAPTURE(rest_width);
+    CHECK(std::abs(idle.mid.stance_width_m - static_cast<float>(config::STANCE_FEET_APART_M))
+          < 0.01f);
     CHECK(idle.mid.stance_in_shoulders() > 0.40f);
     CHECK(idle.mid.stance_in_shoulders() < 1.00f);
     // THE CONTROL: the bought idle — unarmed and drawn — stands wider than the

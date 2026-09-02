@@ -983,6 +983,22 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     // СОЛО-ЗАПИСИ ДО СМЕСЕЙ: нужны, чтобы передача могла взять ЧИСТЫЙ клип
     // другой роли (бег — клип трусцы), когда свой не в полосе темпа.
     std::array<ClipEntry, CLIP_ROLE_COUNT> solo = lib.role;
+    // СОБСТВЕННАЯ СКОРОСТЬ КАЖДОГО КЛИПА — ПУТЁМ КАДРА, в том же порядке, в
+    // каком роли меряются в конце (Walk → Jog → Sprint): интегратор по
+    // выборкам давал Jog_Fwd_Loop 6,58 м/с при 3,51 путём кадра, и трусца
+    // уезжала в смесь 50 % с ходьбой, хотя чистый клип в полосе.
+    std::array<float, CLIP_ROLE_COUNT> solo_played{};
+    if (feet_drive) {
+        for (const ClipRole r : travelling) {
+            ClipEntry& e = lib.role[role_index(r)];
+            if (!e.present() || e.duration_s <= 0.0f) {
+                continue;
+            }
+            e.natural_mps = 0.0f;
+            e.natural_mps = measure_played_speed(lib, skeleton, binding, clips, r);
+            solo_played[role_index(r)] = e.natural_mps;
+        }
+    }
     for (const GearRow& g : gears) {
         ClipEntry& entry = lib.role[role_index(g.role)];
         if (!entry.present() || entry.duration_s <= 0.0f) {
@@ -1003,8 +1019,7 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
         // передачи ложится на его скорость темпом в полосе; иначе — смесь.
         // Прежний шов: «рядом» = стрид-скейл в полосе подмены.
         const float solo_mps = feet_drive
-                                   ? measure_root_speed(skeleton, binding, lib.contacts,
-                                                        mix_of(entry, clips), MEASURE_SAMPLES)
+                                   ? solo_played[role_index(g.role)]
                                    : (entry.duration_s > 0.0f ? entry.cycle_m / entry.duration_s
                                                               : 0.0f);
         const bool near = feet_drive
@@ -1012,6 +1027,19 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                                  && solo_mps <= g.speed / (1.0f - TEMPO_BAND))
                               : (solo_scale >= SWAP_SCALE_MIN
                                  && solo_scale <= SWAP_SCALE_MAX);
+        if (feet_drive) {
+            std::fprintf(stderr,
+                         "[anim] gear %s: \"%s\" alone plays %.2f m/s (entry dur %.3f, clip dur %.3f, mix %d) for %.2f ordered "
+                         "(band %.2f..%.2f) — %s\n",
+                         role_name(g.role).data(),
+                         clips[static_cast<std::size_t>(entry.clip)].name.c_str(),
+                         static_cast<double>(solo_mps), static_cast<double>(entry.duration_s),
+                         static_cast<double>(clips[static_cast<std::size_t>(entry.clip)].duration_s),
+                         entry.mixed() ? 1 : 0, static_cast<double>(g.speed),
+                         static_cast<double>(g.speed / (1.0f + TEMPO_BAND)),
+                         static_cast<double>(g.speed / (1.0f - TEMPO_BAND)),
+                         near ? "in band, plays alone" : "outside, looking for a blend");
+        }
         if (near) {
             continue;
         }

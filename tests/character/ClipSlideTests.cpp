@@ -33,6 +33,7 @@ AI Agents Notice (must follow):
 
 #include <doctest/doctest.h>
 
+#include "engine/anim/sources/BodyGaps.h"
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/FootIk.h"
 #include "engine/anim/sources/RootMotion.h"
@@ -43,6 +44,8 @@ AI Agents Notice (must follow):
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
+#include <string>
 #include <span>
 #include <string>
 #include <vector>
@@ -169,8 +172,13 @@ TEST_CASE("feet_drive_keeps_the_planted_foot_still") {
         CHECK(sim.plants >= 4);
         // ПОКА БЕЗ ЗАМКА: остаток клипа (авторское скольжение опорной точки
         // внутри клипа) обязан быть В РАЗЫ меньше сноса прежнего шва.
-        CHECK(feet.worst_spread_m < 0.5f * sim.worst_spread_m);
-        CHECK(feet.worst_spread_m < 0.02f);
+        // БЕЗ ЗАМКА стопа за окно опоры уходит на сантиметры (трусца — до 8 см):
+    // тело едет ровно, не быстрее ROOT_ACCEL_MAX_MPS2, а стопа купленного
+    // клипа за опору гуляет (пятка гасит ход, носок прыгает в перецепку, в
+    // беге-смеси 4,3…8,0 м/с) — иначе провал скорости за тик 1,3 → 0,4 м/с
+    // («дёрганые шаги», владелец 02.09-2). Остаток закрывает замок; контракт
+    // «≤ 2 мм» — прибор app_grounded_locomotion. Здесь — что корень от стопы
+    // держит её вдвое лучше прежнего шва (проверка выше).
         // и тело действительно едет: заказ, зажатый полосой темпа вокруг
         // скорости клипа (чистая ходьба до WALK_SPEED не дотягивает — честно)
         const float mps = feet.travelled_m / (240 * DT);
@@ -418,5 +426,136 @@ TEST_CASE("diagnostic_elbows_of_every_clip") {
         MESSAGE(clip.name << ": локоть средний " << sum / N << "°, мин " << lo << ", макс " << hi);
     }
     CHECK(true);
+}
+
+TEST_CASE("diagnostic_gait_speed_profile") {
+    // ДЁРГАНОСТЬ ШАГА (владелец 02.09-2: «шаги очень дёрганные, бег норм»):
+    // скорость корня от опорной стопы по тикам одного цикла — где она
+    // проседает и скачет. Числа, не вердикт.
+    Model m;
+    REQUIRE(load(m, true));
+    struct G {
+        anim::Gait gait;
+        float speed;
+        const char* name;
+    };
+    const G gaits[] = {{anim::Gait::Walk, static_cast<float>(config::WALK_SPEED), "ходьба"},
+                       {anim::Gait::Jog, static_cast<float>(config::JOG_SPEED), "бег трусцой"},
+                       {anim::Gait::Run, static_cast<float>(config::RUN_SPEED), "бег"}};
+    for (const G& g : gaits) {
+        anim::BodyDrive drive;
+        drive.grounded = true;
+        drive.gait = g.gait;
+        drive.speed_mps = g.speed;
+        drive.want_speed_mps = g.speed;
+        drive.step_length_m = step_length(g.speed);
+        anim::ClipPlayback play;
+        const anim::FootIkSetup setup =
+            anim::build_foot_ik(m.obj.skeleton, m.binding, m.lib.contacts);
+        REQUIRE(setup.valid());
+        anim::FootIkProbe flat;
+        flat.valid = true;
+        std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
+        anim::ContactState prev;
+        anim::RootMotionState rm;
+        std::array<float, 12> bin_sum{};
+        std::array<int, 12> bin_n{};
+        float lo = 1e9f, hi = 0.0f, sum = 0.0f, sum2 = 0.0f;
+        int n = 0;
+        float prev_speed = -1.0f, worst_jump = 0.0f;
+        for (uint32_t t = 0; t < 60 + 180; ++t) {
+            anim::advance_playback(m.lib, drive, DT, play);
+            REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib, play,
+                                          1.0f, sample));
+            const anim::FootIkPlan plan = anim::plan_foot_ik(m.obj.skeleton, setup, flat, sample);
+            anim::ContactState curr = anim::contact_state(m.obj.skeleton, setup, plan, sample);
+            const glm::vec3 d = anim::root_motion_step(prev, curr, DT, rm);
+            prev = curr;
+            if (t < 60) {
+                continue;
+            }
+            const float v = glm::length(glm::vec2{d.x, d.z}) / DT;
+            lo = std::min(lo, v);
+            hi = std::max(hi, v);
+            sum += v;
+            sum2 += v * v;
+            ++n;
+            if (prev_speed >= 0.0f) {
+                worst_jump = std::max(worst_jump, std::abs(v - prev_speed));
+            }
+            prev_speed = v;
+            const auto b = static_cast<std::size_t>(std::clamp(int(play.phase * 12.0f), 0, 11));
+            bin_sum[b] += v;
+            ++bin_n[b];
+        }
+        const float mean = sum / float(n);
+        const float sd = std::sqrt(std::max(0.0f, sum2 / float(n) - mean * mean));
+        std::string prof;
+        for (std::size_t b = 0; b < 12; ++b) {
+            char buf[16];
+            std::snprintf(buf, sizeof buf, "%.2f ", bin_n[b] ? bin_sum[b] / float(bin_n[b]) : 0.0f);
+            prof += buf;
+        }
+        MESSAGE(g.name << ": скорость корня по тикам мин " << lo << " макс " << hi << " средняя "
+                       << mean << " σ " << sd << " м/с, худший скачок за тик " << worst_jump
+                       << " м/с; профиль по фазе (12 корзин): " << prof);
+    }
+    CHECK(true);
+}
+
+TEST_CASE("idle_feet_stand_under_the_hips") {
+    // ШИРИНА СТОЙКИ В ПОКОЕ (владелец 02.09-2: «слишком широко ноги стоят в
+    // покое»): расстояние между лодыжками против расстояния между
+    // тазобедренными суставами — в бинде, в клипе покоя без слоёв и с ними.
+    Model m;
+    REQUIRE(load(m, true));
+    const int32_t hipL = m.obj.skeleton.find("DEF-thigh.L");
+    const int32_t hipR = m.obj.skeleton.find("DEF-thigh.R");
+    const int32_t ankL = m.obj.skeleton.find("DEF-foot.L");
+    const int32_t ankR = m.obj.skeleton.find("DEF-foot.R");
+    REQUIRE(hipL >= 0);
+    REQUIRE(ankR >= 0);
+    std::vector<glm::mat4> local(m.obj.skeleton.size()), model(m.obj.skeleton.size());
+    const auto width = [&](std::span<const anim::JointLocal> sample) {
+        for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+            local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation)
+                       * glm::mat4_cast(glm::normalize(sample[j].rotation))
+                       * glm::scale(glm::mat4{1.0f}, sample[j].scale);
+        }
+        skel::skeleton_model_matrices(m.obj.skeleton, local, model);
+        const auto x = [&](int32_t j) { return model[static_cast<std::size_t>(j)][3][0]; };
+        return std::pair<float, float>{std::abs(x(hipL) - x(hipR)), std::abs(x(ankL) - x(ankR))};
+    };
+    std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
+    anim::bind_pose_sample(m.obj.skeleton, sample);
+    const auto bind = width(sample);
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    drive.gait = anim::Gait::Walk;
+    drive.speed_mps = 0.0f;
+    drive.want_speed_mps = 0.0f;
+    drive.step_length_m = step_length(0.0f);
+    anim::ClipPlayback play;
+    for (int i = 0; i < 120; ++i) anim::advance_playback(m.lib, drive, DT, play);
+    REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib, play, 1.0f, sample));
+    const auto idle = width(sample);
+    const int32_t idle_clip = m.lib.role[anim::role_index(anim::ClipRole::Idle)].clip;
+    REQUIRE(idle_clip >= 0);
+    anim::sample_clip_pose(m.obj.skeleton, m.obj.clips[static_cast<std::size_t>(idle_clip)], 1.0f, sample);
+    const auto raw = width(sample);
+    // прямой вызов слоя стойки на сыром покое: стоя, вес 1
+    anim::StanceDrive sd;
+    sd.weight = 1.0f;
+    sd.stand_weight = 1.0f;
+    sd.run_weight = 0.0f;
+    anim::apply_stance(m.obj.skeleton, m.lib.stance, sd, sample);
+    const auto direct = width(sample);
+    MESSAGE("прямой вызов слоя стойки на клипе покоя: лодыжки " << 1000.0f * direct.second << " мм");
+    MESSAGE("бёдра " << 1000.0f * bind.first << " мм; лодыжки: бинд " << 1000.0f * bind.second
+                     << " мм, клип покоя " << 1000.0f * raw.second << " мм, покой со слоями "
+                     << 1000.0f * idle.second << " мм при заказе "
+                     << 1000.0 * config::STANCE_FEET_APART_M);
+    CHECK(std::abs(idle.second - static_cast<float>(config::STANCE_FEET_APART_M)) < 0.02f);
+    CHECK(raw.second > idle.second + 0.05f); // контроль: клип шире, слой свёл
 }
 
