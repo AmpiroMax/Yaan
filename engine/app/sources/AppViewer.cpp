@@ -55,8 +55,12 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/ModelConvert.h"
 #include "engine/app/sources/UiFont.h"
 
+#include "engine/anim/sources/BodyGaps.h"
+
 #include "engine/core/serialization/sources/ContentHash.h"
 #include "engine/render/sources/BitmapFont.h"
+
+#include <glm/gtc/matrix_transform.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -187,6 +191,8 @@ void App::viewer_leave() {
     }
     if (renderer_ != nullptr) {
         render_system_.drop_scatter(*renderer_, VIEWER_MESH_KEY);
+        release_character(viewer_character_, viewer_bodies_, render_system_, *renderer_,
+                          physics_.get());
     }
     viewer_mode_ = false;
     viewer_items_.clear();
@@ -243,8 +249,43 @@ void App::viewer_show(int index) {
     for (const render::HouseSubmesh& hs : obj->house) {
         grow_bound(lo, hi, hs.mesh);
     }
+    // ПЕРСОНАЖ — ТОЙ ЖЕ СУЩНОСТЬЮ, ЧТО В МИРЕ (решение владельца 02.09,
+    // вариант В): скин со скелетом и клипами строится фабрикой персонажа —
+    // рест-поза по коже, клип покоя со слоями, хитбоксы, тела Jolt — и
+    // рисуется как тело, а не запекается в постамент позой привязки. Скин
+    // без клипов (фигурка без анимаций) остаётся экспонатом-слепком.
+    release_character(viewer_character_, viewer_bodies_, render_system_, *renderer_,
+                      physics_.get());
+    const bool character =
+        !obj->skin.empty() && !obj->skeleton.empty() && !obj->clips.empty();
     render::MeshData skin;
-    if (!obj->skin.empty()) {
+    if (character) {
+        ensure_body_rig();
+        CharacterSpec spec;
+        spec.proportions = &body_rig_;
+        spec.legacy_rest = rest_pose_legacy_door();
+        spec.mesh_asset = VIEWER_BODY_MESH_ID;
+        spec.blade_asset = VIEWER_BLADE_MESH_ID;
+        spec.make_capsule = true;
+        spec.capsule_feet = viewer_pad_;
+        spec.to_world = glm::translate(glm::mat4{1.0f}, viewer_pad_);
+        if (build_character_object(viewer_character_, viewer_bodies_, render_system_,
+                                   *renderer_, physics_.get(), *obj, conv.dfo, spec)) {
+            std::vector<glm::vec3> rest;
+            viewer_character_.rest_positions(rest);
+            for (const glm::vec3& p : rest) {
+                lo = glm::min(lo, p);
+                hi = glm::max(hi, p);
+            }
+            std::fprintf(stderr, "[смотровая] персонаж фабрикой: %s\n",
+                         anim::describe_gaps(character_rest_gaps(viewer_character_)).c_str());
+        } else {
+            std::fprintf(stderr, "[смотровая] персонаж не собрался фабрикой — показан "
+                                 "слепком привязки\n");
+            append_skin(skin, obj->skin);
+            grow_bound(lo, hi, skin);
+        }
+    } else if (!obj->skin.empty()) {
         append_skin(skin, obj->skin);
         grow_bound(lo, hi, skin);
     }
@@ -262,6 +303,7 @@ void App::viewer_show(int index) {
     // (imported figures), and only the measured bottom reconciles the two.
     const glm::vec3 at{viewer_pad_.x, viewer_pad_.y - lo.y * viewer_scale_,
                        viewer_pad_.z};
+    viewer_feet_ = at;
     const float yaw = viewer_view_.model_yaw;
     render::MeshData wood;
     render::MeshData cards;

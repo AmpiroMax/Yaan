@@ -44,6 +44,7 @@ if(DFN_APP_READY)
         sources/AppDoors.cpp
     sources/AppStand.cpp
     sources/BodyHitboxes.cpp
+    sources/CharacterFactory.cpp
         sources/AppEditorWiring.cpp
         sources/AppHouse.cpp
         sources/AppHud.cpp

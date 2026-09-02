@@ -3,38 +3,46 @@ Module: engine/app
 File: engine/app/sources/CharGenBody.h
 
 Responsibility:
-- ТЕЛО ЭКРАНА СОЗДАНИЯ ПЕРСОНАЖА: одно тело на видеокарте, показанное в
-  РЕСТ-ПОЗЕ, с живым бленДОМ морф-целей и равномерным масштабом роста; плюс
-  два файла, которыми оно уезжает в мир, — пресет (числа) и выпеченный .dfo
-  (геометрия). Ни окна, ни холста, ни ввода: всё это в CharGen.h.
+- ТЕЛО ЭКРАНА СОЗДАНИЯ ПЕРСОНАЖА: НАСТОЯЩИЙ ИГРОВОЙ ПЕРСОНАЖ (SkinnedCharacter
+  через ту же фабрику, что зовёт мир, — рест-поза по коже, клип покоя со
+  слоем стойки и обходом рук, хитбоксы по коже, тела Jolt), поверх которого
+  живут ползунки: бленд морф-целей, равномерный масштаб роста, пресет и
+  выпечка. Ни окна, ни холста, ни ввода: всё это в CharGen.h.
 
 Key items:
-- CharGenBody: load / apply / release, веса ползунков, рост, счётчики заливок.
-- bake(): выпечка .dfo — морфы применены, секция MORF снята, скелет и меш
-  умножены на масштаб роста. Схема Skyrim: в мир уезжает готовый меш.
-- save_preset() / load_preset(): числа ползунков, рост и имя.
+- CharGenBody: load / apply / settle / tick / draw / release, веса ползунков,
+  рост, пресет, выпечка, прибор зазоров.
+- baked_object(): ОДНО тело для экрана и для выпечки — бленд ползунков и
+  масштаб роста, применённые к исходному объекту. Экран показывает его,
+  «Готово» пишет его: в мир уходит ровно то, что было на экране, по
+  построению, а не по совпадению.
 - CHARGEN_* : полоса роста и пути двух файлов.
 
 Dependencies:
-- Uses: engine/render (ObjectRegistry, MorphBlend), engine/platform IRenderer,
-  engine/core skeleton.
-- Used by: engine/app (AppCharGen.cpp), tests/app/CharGenTests.cpp — и тест
-  гоняет ЕГО ЖЕ, с нулевым бэкендом, поэтому «вход-выход не течёт мешами»
-  проверяется счётчиком живых буферов, а не глазами.
+- Uses: engine/app SkinnedCharacter / CharacterFactory / BodyHitboxes,
+  engine/render (ObjectRegistry, MorphBlend, RenderSystem), engine/platform
+  IRenderer / IPhysics, engine/anim (Rig, BodyGaps).
+- Used by: engine/app (AppCharGen.cpp), tests/app/CharGenTests.cpp,
+  tests/app/CharacterPathTests.cpp — и тесты гоняют ЕГО ЖЕ с нулевым
+  бэкендом.
 
 Notes:
-- ПОЧЕМУ НЕ SkinnedCharacter. Тот живёт в МИРЕ: ему нужны риг, привязка,
-  клипы, решатель стоп и зарегистрированный скиннованный меш. Экран создания
-  открывается из ГЛАВНОГО МЕНЮ, где мира нет вовсе, и показывает тело в
-  рест-позе — то есть ровно то, что морф и меняет. Здесь нет ни одной кости в
-  движении, и заводить их ради портрета значило бы поднимать мир, чтобы
-  посмотреть на лицо.
-- ПОЧЕМУ РЕСТ-ПОЗА ЧЕСТНА. Рест — это и есть поза привязки: вершины потока
-  SKIN с единичной палитрой. Смотровая показывает скины так же и по той же
-  причине (AppViewer.cpp).
-- ЗАЛИВКА ПАРОЙ. Новый меш создаётся ПЕРЕД тем, как уничтожается старый, и
-  оба счётчика растут в одном месте — утечка становится арифметикой, а не
-  наблюдением.
+- ПОЧЕМУ ТЕПЕРЬ SkinnedCharacter (решение владельца 02.09, вариант В).
+  Прежний экран показывал слепок: вершины, скиннованные один раз в нулевую
+  позу рига через ретаргет, — другой путь позы, чем у мира, и на нём ноги
+  слиплись там, где стенд отчитывался нулём пересечений. Один путь
+  построения персонажа (CharacterFactory) на мир, экран и смотровую — и
+  прибор, стоящий на экране, меряет то, чем игрок пойдёт.
+- ДВЕ СКОРОСТИ У ПОЛЗУНКА. apply() — только меш: бленд, масштаб, замена
+  буфера и коробки по коже — на каждый кадр перетаскивания. settle() — ПОЛНАЯ
+  пересборка тела фабрикой из baked_object(): рест-поза решается заново по
+  уже вылепленной коже (широкий таз просит больше отведения рук), библиотека
+  клипов калибруется заново. 200 мс, и потому на ОТПУСКАНИИ ручки, на шаге
+  стрелкой, на пресете и на «Готово», а не на каждом кадре.
+- РОСТ ЖИВЁТ В ГЕОМЕТРИИ, А НЕ В МАТРИЦЕ КАДРА, потому что в мир уезжает
+  геометрия: тело экрана = тело выпечки, и масштаб в матрице был бы вторым
+  ростом, который выпечке пришлось бы повторять. chargen_in_camera получает
+  множитель 1 и уже масштабированный габарит.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Зона app (lead) владеет этим файлом.
@@ -47,13 +55,16 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/BodyGaps.h"
 #include "engine/anim/sources/Rig.h"
-#include "engine/anim/sources/SkinnedBody.h"
+#include "engine/app/sources/CharacterFactory.h"
+#include "engine/app/sources/SkinnedCharacter.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
+#include "engine/platform/physics/interfaces/IPhysics.h"
 #include "engine/platform/render/interfaces/IRenderer.h"
 #include "engine/render/sources/MorphBlend.h"
 #include "engine/render/sources/ObjectRegistry.h"
-#include "engine/render/sources/ProcMesh.h"
+#include "engine/render/sources/RenderSystem.h"
 
+#include <glm/mat4x4.hpp>
 #include <glm/vec3.hpp>
 
 #include <cstdint>
@@ -118,14 +129,6 @@ inline constexpr const char* CHARGEN_BAKED_PATH =
 /// человека, просто разного, и заметить это можно только поставив два кадра
 /// рядом. Владелец 01.09 и поставил — и спросил, почему на экране создания не
 /// тот, кого он видел в смотровой.
-///
-/// ЧТО ЗАМЕР СКАЗАЛ ПРО ЭТОТ ВОПРОС, чтобы следующий не искал заново: тело
-/// ОДНО И ТО ЖЕ (13 744 треугольника, 11 целей MORF, один файл), а разошлись
-/// ПОЗЫ — смотровая рисует модель в её собственной позе привязки (T-поза
-/// импортёра), экран создания и мир — в НАШЕЙ рест-позе через ретаргет. Разница
-/// силуэта между ними — это разница поз, и мерить её надо судьёй
-/// (`dfn_human_scale`, он считает по той же рест-позе), а не глазами по двум
-/// кадрам из двух разных мест.
 inline constexpr const char* CHARGEN_SOURCE_BODY =
     "assets/objects/characters/HumanBase.dfo";
 /// ТА ЖЕ МОДЕЛЬ БЕЗ `--reshape` — рука «до» двери DFN_BODY_V1 (правило 47).
@@ -140,10 +143,11 @@ inline constexpr const char* CHARGEN_SOURCE_BODY_V1 =
 /// из них между запусками. Хэш печатается в журнал экрана и сверяется набором.
 [[nodiscard]] std::uint64_t chargen_body_hash(const std::filesystem::path& path);
 
-/// ГЛИНА ПОРТРЕТА. Тот же серый, которым смотровая красит скин без текстуры
-/// (AppViewer.cpp): белое альбедо плюс портретный свет дают белый силуэт без
-/// единой складки, а затенение и есть форма.
-inline constexpr glm::vec3 CHARGEN_CLAY{0.60f, 0.58f, 0.55f};
+/// ХЭШ ПОЗЫ/МЕША: положения вершин тела в рест-позе рига, квантованные до
+/// десятой миллиметра, свёрнутые fnv1a64. Им написана приёмка «после «Готово»
+/// в мир уходит ровно то, что было на экране»: экран считает его со своего
+/// тела, мир — с загруженной выпечки, и два числа обязаны совпасть.
+[[nodiscard]] std::uint64_t chargen_pose_hash(const SkinnedCharacter& body);
 
 /// ЧИСЛА ПРЕСЕТА, БЕЗ ТЕЛА. Ровно то, что игрок накрутил: имена целей и веса,
 /// рост в метрах и имя персонажа. Тело из этого выводится, а не хранится.
@@ -168,27 +172,21 @@ struct CharGenPreset {
 
 class CharGenBody {
 public:
-    /// Читает .dfo, берёт его цели MORF и заливает рест-позу на видеокарту.
-    /// False (и жалоба в поток ошибок) оставляет объект пустым и безвредным.
-    /// `rig` нужен ровно за одним: перевести привязку модели в НАШУ рест-позу.
-    /// Импортированное тело привязано в T-позе с разведёнными руками, и экран,
-    /// показавший привязку как есть, показал бы манекен из импортёра, а не
-    /// персонажа, которым игрок пойдёт в мир. Ретаргет (anim::bind_skinned_rig)
-    /// на НУЛЕВОЙ позе ставит модель ровно в рест нашего рига — и рест этот
-    /// РЕШАЕТСЯ по коже тела (anim::fit_rest_pose): ноги вертикально под
-    /// бёдрами, руки вдоль боков с зазором, — тот же вызов, которым тело
-    /// строится в мире. От переданного рига берутся ПРОПОРЦИИ.
-    /// `legacy_rest` — прежняя коробочная рест-поза (сведённые ноги, прямые
-    /// руки), контрольная рука сравнения из того же бинарника (правило 47).
-    [[nodiscard]] bool load(platform::IRenderer& renderer, const anim::Rig& rig,
-                            const std::filesystem::path& path, bool legacy_rest = false);
-    /// Риг с РЕШЁННОЙ по коже стойкой — тот, которым собрана привязка.
-    [[nodiscard]] const anim::Rig& rig() const { return rig_; }
-    void release(platform::IRenderer& renderer);
-    [[nodiscard]] bool ready() const { return mesh_ != 0 && program_ != 0; }
+    /// Читает .dfo, берёт его цели MORF и строит ИГРОВОГО персонажа фабрикой
+    /// (CharacterFactory: рест-поза по коже, клипы, хитбоксы, тела Jolt —
+    /// `physics` может быть null в наборе). False (и жалоба в поток ошибок)
+    /// оставляет объект пустым и безвредным. `rig` даёт ПРОПОРЦИИ;
+    /// `legacy_rest` — прежняя коробочная рест-поза, рука «до» (правило 47).
+    [[nodiscard]] bool load(render::RenderSystem& render_system,
+                            platform::IRenderer& renderer, platform::IPhysics* physics,
+                            const anim::Rig& rig, const std::filesystem::path& path,
+                            bool legacy_rest = false);
+    void release(render::RenderSystem& render_system, platform::IRenderer& renderer,
+                 platform::IPhysics* physics);
+    [[nodiscard]] bool ready() const { return character_.ready(); }
 
     [[nodiscard]] const std::vector<render::MorphTarget>& morphs() const {
-        return object_.morphs;
+        return source_.morphs;
     }
     [[nodiscard]] const render::MorphState& weights() const { return weights_; }
     /// Ставит вес, ЗАЖИМАЯ его в полосу цели (полоса лежит в файле и измерена
@@ -206,30 +204,43 @@ public:
     bool set_height_m(float metres);
     [[nodiscard]] float height_scale() const { return chargen_height_scale(height_m_); }
 
-    /// ПЕРЕСЧЁТ И ПЕРЕЗАЛИВКА — на движение ручки, не покадрово (MorphBlend.h:
-    /// 0.146 мс на 8546 вершин и 11 целей). Рост сюда НЕ входит: он живёт в
-    /// матрице кадра, и перепекать меш ради масштаба было бы работой впустую.
-    bool apply(platform::IRenderer& renderer);
+    /// БЫСТРАЯ ПОЛОВИНА: бленд + масштаб + замена меша + коробки по коже.
+    /// На движение ручки, не покадрово (MorphBlend.h: 0.146 мс на 8546
+    /// вершин и 11 целей).
+    bool apply(render::RenderSystem& render_system, platform::IRenderer& renderer);
+    /// МЕДЛЕННАЯ ПОЛОВИНА: тело пересобрано фабрикой из baked_object() —
+    /// рест-поза решена заново по вылепленной коже, клипы откалиброваны,
+    /// тела Jolt поставлены. На отпускании ручки, шаге стрелкой, пресете.
+    bool settle(render::RenderSystem& render_system, platform::IRenderer& renderer,
+                platform::IPhysics* physics);
 
-    [[nodiscard]] std::uint32_t mesh() const { return mesh_; }
-    [[nodiscard]] std::uint32_t program() const { return program_; }
-    [[nodiscard]] std::size_t triangles() const { return triangles_; }
-    /// Габарит РЕСТ-ПОЗЫ с текущими ползунками, в осях модели.
+    /// ОДИН ТИК ТЕЛА: клип покоя со слоями, как в мире. `dt` — секунды.
+    void tick(float dt);
+    /// КАДР: палитра позы тела и коробки, сдвинутые в мир матрицей `to_world`
+    /// (та же, которой рисуют). Возвращает draw с палитрой.
+    [[nodiscard]] render::RenderSystem::SkinnedDraw draw(float alpha,
+                                                         platform::IPhysics* physics,
+                                                         const glm::mat4& to_world);
+
+    /// ИГРОВОЙ ПЕРСОНАЖ ЭКРАНА — тот же класс, что у игрока в мире.
+    [[nodiscard]] const SkinnedCharacter& character() const { return character_; }
+    [[nodiscard]] SkinnedCharacter& character() { return character_; }
+    [[nodiscard]] const CharacterBodies& bodies() const { return bodies_; }
+    [[nodiscard]] std::size_t triangles() const { return character_.triangle_count(); }
+    /// Габарит РЕСТ-ПОЗЫ с текущими ползунками и ростом, в осях модели
+    /// (уже в метрах роста: масштаб сидит в геометрии).
     [[nodiscard]] const glm::vec3& lo() const { return lo_; }
     [[nodiscard]] const glm::vec3& hi() const { return hi_; }
 
     /// ПРИБОР НА ПУТИ ИГРОКА: зазоры нога↔нога, кисть↔бедро, предплечье↔корпус
-    /// ТОЙ ПОЗЫ, ЧТО НА ЭКРАНЕ, — на тех же вершинах (бленд ползунков), той же
-    /// привязке и той же нулевой позе, из которых собран залитый меш. Не
-    /// «поза стенда» и не «поза мира»: владелец смотрел на экран создания и
-    /// увидел слипшиеся ноги там, где стенд отчитывался нулём пересечений, —
-    /// два разных пути позы, и прибор обязан стоять на том, куда смотрят.
+    /// в рест-позе ТОГО тела, что на экране, — те же вершины, та же привязка,
+    /// та же нулевая поза, из которых собран портрет.
     [[nodiscard]] anim::BodyGaps screen_gaps() const;
 
-    /// ПРИБОР УТЕЧКИ: сколько буферов создано и сколько уничтожено за жизнь
-    /// объекта. Утечка — это разность, а не впечатление.
-    [[nodiscard]] std::uint32_t uploads() const { return uploads_; }
-    [[nodiscard]] std::uint32_t drops() const { return drops_; }
+    /// ТЕЛО КАК ОНО УЕДЕТ В МИР: исходный объект с блендом ползунков, снятой
+    /// секцией MORF и масштабом роста. Экран строится из НЕГО, «Готово» пишет
+    /// ЕГО. Детерминирован.
+    [[nodiscard]] render::RegistryObject baked_object() const;
 
     /// Пресет из текущего состояния (плюс переданное имя).
     [[nodiscard]] CharGenPreset preset(std::string name) const;
@@ -237,37 +248,28 @@ public:
     /// называются вслух: пресет старше тела — не повод отказать в экране.
     void apply_preset(const CharGenPreset& preset);
 
-    /// ВЫПЕЧКА. Морфы применены, секция MORF снята, скелет, меш и переносы
-    /// клипов умножены на масштаб роста. Возвращает false и говорит вслух.
+    /// ВЫПЕЧКА: baked_object() на диск. Возвращает false и говорит вслух.
     [[nodiscard]] bool bake(const std::filesystem::path& out) const;
 
 private:
-    render::RegistryObject object_{};
-    std::vector<platform::SkinnedVertex> rest_;   ///< вершины как в файле
-    std::vector<platform::SkinnedVertex> blended_;///< рабочий буфер бленда
+    render::RegistryObject source_{};             ///< как в файле, с MORF
+    std::vector<platform::SkinnedVertex> blended_; ///< рабочий буфер бленда
     render::MorphState weights_{};
     float height_m_ = CHARGEN_BODY_HEIGHT_M;
-    std::uint32_t mesh_ = 0;
-    std::uint32_t program_ = 0;
-    std::size_t triangles_ = 0;
     glm::vec3 lo_{0.0f};
     glm::vec3 hi_{0.0f};
-    std::uint32_t uploads_ = 0;
-    std::uint32_t drops_ = 0;
+    std::filesystem::path source_path_;
+    anim::Rig proportions_{};
+    bool legacy_rest_ = false;
+    /// Масштаб роста, с которым тело собрано последним settle(): apply()
+    /// масштабирует вершины им же, чтобы меш не ушёл от костей до отпускания.
+    float settled_scale_ = 1.0f;
 
-    /// ПАЛИТРА НАШЕЙ РЕСТ-ПОЗЫ (нулевой LocalPose через ретаргет). Считается
-    /// один раз при загрузке: скелет от ползунков не меняется — морф двигает
-    /// МЕШ, а не суставы, и это ровно та причина, по которой рост ползунком
-    /// невозможен.
-    anim::SkinnedRigBinding binding_{};
-    std::vector<glm::mat4> rest_palette_;
-    /// Риг, которым собрана привязка, — нужен прибору зазоров (коробки по
-    /// коже, нулевая поза через ретаргет).
-    anim::Rig rig_{};
-    /// Бленд + скиннинг в рест-позу + заливка нового меша + уничтожение
-    /// старого. Общий хвост load() и apply(): пара create/destroy обязана быть
-    /// в ОДНОМ месте.
-    bool upload(platform::IRenderer& renderer);
+    SkinnedCharacter character_{};
+    CharacterBodies bodies_{};
+
+    /// Габарит рест-позы — с тела, как оно есть сейчас.
+    void measure_bounds();
 };
 
 /// ЗАПИСЬ И ЧТЕНИЕ ПРЕСЕТА. Отдельно от класса, потому что читать пресет

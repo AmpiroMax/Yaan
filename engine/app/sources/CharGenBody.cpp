@@ -3,12 +3,15 @@ Module: engine/app
 File: engine/app/sources/CharGenBody.cpp
 
 Responsibility:
-- Тело экрана создания персонажа на видеокарте, его бленд, выпечка и пресет.
-  Договор и все числа — в CharGenBody.h.
+- Тело экрана создания персонажа: игровой персонаж фабрикой, бленд ползунков,
+  масштаб роста, выпечка и пресет. Договор и все числа — в CharGenBody.h.
 
 Dependencies:
-- Uses: engine/render (ObjectRegistry, MorphBlend), engine/platform IRenderer.
-- Used by: engine/app AppCharGen.cpp, tests/app/CharGenTests.cpp.
+- Uses: engine/app CharacterFactory / SkinnedCharacter, engine/anim (RestFit,
+  BodyGaps, Hitbox), engine/render (ObjectRegistry, MorphBlend),
+  engine/core serialization (fnv1a64).
+- Used by: engine/app AppCharGen.cpp, tests/app/CharGenTests.cpp,
+  tests/app/CharacterPathTests.cpp.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly. Зона app (lead) владеет этим файлом.
@@ -16,7 +19,10 @@ AI Agents Notice (must follow):
 
 #include "engine/app/sources/CharGenBody.h"
 
-#include "engine/anim/sources/RestFit.h"
+#include "engine/anim/sources/Body.h"
+#include "engine/anim/sources/Hitbox.h"
+#include "engine/anim/sources/SkinnedBody.h"
+#include "engine/core/serialization/sources/ContentHash.h"
 
 #include <algorithm>
 #include <array>
@@ -30,104 +36,27 @@ namespace dfn::app {
 
 namespace {
 
-/// СКИННОВАННЫЕ ВЕРШИНЫ В ОБЫЧНЫЕ, ЧЕРЕЗ ПАЛИТРУ РЕСТ-ПОЗЫ. Линейный
-/// блендскиннинг на четырёх слотах — та же формула, что у программы на
-/// видеокарте, только один раз на движение ручки, а не каждый кадр.
-///
-/// НОРМАЛЬ ЕДЕТ ЛИНЕЙНОЙ ЧАСТЬЮ ТОЙ ЖЕ МАТРИЦЫ, без обратно-транспонированной:
-/// в палитре рест-позы нет неоднородного масштаба (это переносы и повороты
-/// суставов), а для таких матриц обратная транспонированная равна самой
-/// линейной части. Нормализация после суммы обязательна — веса смешивают
-/// повороты, и сумма единичной длины не имеет.
-void skin_to_mesh(const std::vector<platform::SkinnedVertex>& src,
-                  const std::vector<std::uint32_t>& indices,
-                  const std::vector<glm::mat4>& palette, render::MeshData& dst) {
-    dst.vertices.clear();
-    dst.indices.clear();
-    const std::uint32_t clay = render::pack(CHARGEN_CLAY);
-    dst.vertices.reserve(src.size());
-    for (const platform::SkinnedVertex& v : src) {
-        if (palette.empty()) {
-            dst.vertices.push_back({v.position, v.normal, v.uv, clay});
-            continue;
-        }
-        glm::vec3 p{0.0f};
-        glm::vec3 n{0.0f};
-        float total = 0.0f;
-        for (int i = 0; i < 4; ++i) {
-            const float w = v.weights[i];
-            if (w <= 0.0f) {
-                continue;
-            }
-            const std::size_t j = v.joints[i];
-            if (j >= palette.size()) {
-                continue;
-            }
-            const glm::mat4& m = palette[j];
-            p += w * glm::vec3(m * glm::vec4(v.position, 1.0f));
-            n += w * (glm::mat3(m) * v.normal);
-            total += w;
-        }
-        if (total <= 0.0f) {
-            // ВЕРШИНА БЕЗ ЕДИНОГО ВЕСА — не ошибка формата, а вершина, которую
-            // никто не гнёт: она остаётся там, где лежит.
-            dst.vertices.push_back({v.position, v.normal, v.uv, clay});
-            continue;
-        }
-        dst.vertices.push_back({p / total, glm::normalize(n), v.uv, clay});
-    }
-    dst.indices = indices;
+/// ПРИВОД ПОКОЯ — тот же BodyDrive, которым мир ведёт стоящего игрока: шаг
+/// ноль, земля есть, оружие в ножнах. Тело на экране стоит так, как стоит в
+/// мире, потому что стоит оно тем же кодом.
+[[nodiscard]] anim::BodyDrive idle_drive() {
+    anim::BodyDrive d;
+    d.gait = anim::Gait::Walk;
+    d.speed_mps = 0.0f;
+    d.step_length_m = 0.0f;
+    d.stride_phase = 0.0f;
+    d.grounded = true;
+    d.weapon_drawn = false;
+    d.run_weight = 0.0f;
+    return d;
 }
 
-/// РАВНОМЕРНЫЙ МАСШТАБ ВСЕГО, ЧТО ЗНАЕТ ПРО МЕТРЫ.
-///
-/// ПОЧЕМУ ЭТОГО ДОСТАТОЧНО И ПОЧЕМУ ЭТО НЕ ЛОМАЕТ СКИННИНГ. Модельная
-/// матрица сустава — произведение локальных T·R·S по цепочке. Умножив КАЖДЫЙ
-/// локальный перенос на k, получаем B' = S_k · B · S_k⁻¹ (сопряжение
-/// однородным масштабом: перенос умножается на k, поворот и масштаб не
-/// меняются, произведения телескопируются). Обратная привязка тогда
-/// IB' = S_k · IB · S_k⁻¹, вершина p' = k·p, и скиннинг даёт ровно k·v.
-/// То есть тело едет целиком, а ни одна ПРОПОРЦИЯ не трогается — почему
-/// судья и пропускает оба конца полосы, в отличие от морфа.
-///
-/// ПЕРЕНОСЫ КЛИПОВ ТОЖЕ. Клип везёт абсолютные переносы суставов в метрах
-/// модели; оставить их прежними значило бы, что на первом же кадре анимации
-/// тело возвращается к старому росту рывком.
-void scale_object(render::RegistryObject& obj, float k) {
-    if (std::fabs(k - 1.0f) < 1e-6f) {
-        return;
-    }
-    for (platform::SkinnedVertex& v : obj.skin.vertices) {
-        v.position *= k;
-    }
-    for (skel::SkeletonJoint& j : obj.skeleton.joints) {
-        j.bind_translation *= k;
-        // IB' = S_k · IB · S_k⁻¹: строка переносов умножается на k, а
-        // ЛИНЕЙНАЯ часть остаётся — сопряжение однородным масштабом её не
-        // трогает. Пишется покомпонентно, чтобы это было видно, а не
-        // выведено из двух умножений матриц.
-        j.inverse_bind[3] = glm::vec4(glm::vec3(j.inverse_bind[3]) * k, 1.0f);
-    }
-    for (skel::AnimClip& clip : obj.clips) {
-        for (skel::AnimChannel& ch : clip.channels) {
-            if (ch.path != skel::AnimPath::Translation) {
-                continue;
-            }
-            for (glm::vec4& value : ch.values) {
-                value.x *= k;
-                value.y *= k;
-                value.z *= k;
-            }
-        }
-    }
-}
-
-void grow_bound(glm::vec3& lo, glm::vec3& hi, const render::MeshData& mesh) {
+void grow_bound(glm::vec3& lo, glm::vec3& hi, const std::vector<glm::vec3>& pts) {
     lo = glm::vec3{1e9f};
     hi = glm::vec3{-1e9f};
-    for (const platform::Vertex& v : mesh.vertices) {
-        lo = glm::min(lo, v.position);
-        hi = glm::max(hi, v.position);
+    for (const glm::vec3& p : pts) {
+        lo = glm::min(lo, p);
+        hi = glm::max(hi, p);
     }
     if (hi.x < lo.x) {
         lo = glm::vec3{0.0f};
@@ -164,9 +93,33 @@ float chargen_height_scale(float height_m) {
     return clamped / CHARGEN_BODY_HEIGHT_M;
 }
 
+
+std::uint64_t chargen_pose_hash(const SkinnedCharacter& body) {
+    std::vector<glm::vec3> pos;
+    body.rest_positions(pos);
+    if (pos.empty()) {
+        return 0;
+    }
+    // ДЕСЯТАЯ МИЛЛИМЕТРА: два пути (бленд в памяти и чтение выпечки с диска)
+    // обязаны дать одну геометрию до float, но хэш по сырым битам поймал бы
+    // и разницу в последнем разряде от порядка сложения; квант держит
+    // утверждение «то же тело», а не «те же биты».
+    std::string bytes;
+    bytes.reserve(pos.size() * 12);
+    for (const glm::vec3& p : pos) {
+        for (int k = 0; k < 3; ++k) {
+            const auto q = static_cast<std::int32_t>(std::lround(p[k] * 10000.0f));
+            const char* c = reinterpret_cast<const char*>(&q);
+            bytes.append(c, 4);
+        }
+    }
+    return serialization::fnv1a64(bytes);
+}
+
 // --- ТЕЛО -------------------------------------------------------------------
 
-bool CharGenBody::load(platform::IRenderer& renderer, const anim::Rig& rig,
+bool CharGenBody::load(render::RenderSystem& render_system, platform::IRenderer& renderer,
+                       platform::IPhysics* physics, const anim::Rig& rig,
                        const std::filesystem::path& path, bool legacy_rest) {
     auto object = render::read_object(path);
     if (!object || object->skin.empty()) {
@@ -175,12 +128,13 @@ bool CharGenBody::load(platform::IRenderer& renderer, const anim::Rig& rig,
                      path.string().c_str());
         return false;
     }
-    object_ = std::move(*object);
-    rest_ = object_.skin.vertices;
-    weights_.resize_for(object_.morphs);
+    source_ = std::move(*object);
+    source_path_ = path;
+    proportions_ = rig;
+    legacy_rest_ = legacy_rest;
+    weights_.resize_for(source_.morphs);
     height_m_ = CHARGEN_BODY_HEIGHT_M;
-    triangles_ = object_.skin.indices.size() / 3;
-    if (object_.morphs.empty()) {
+    if (source_.morphs.empty()) {
         // ГРОМКО, НО НЕ ОТКАЗ: тело без секции MORF показать МОЖНО (это
         // выпеченный персонаж), просто крутить у него нечего. Тихое согласие
         // здесь выглядело бы как «ползунки есть, но не работают».
@@ -189,96 +143,70 @@ bool CharGenBody::load(platform::IRenderer& renderer, const anim::Rig& rig,
                      "не будет (тело уже выпечено?)\n",
                      path.string().c_str());
     }
-    const platform::ProgramHandle program = renderer.load_program("prop");
-    if (!program.valid()) {
-        std::fprintf(stderr, "[создание] программа prop не загрузилась\n");
-        return false;
-    }
-    program_ = program.id;
-    // ПАЛИТРА РЕСТ-ПОЗЫ — ОДИН РАЗ. Скелет от ползунков не меняется (морф
-    // двигает МЕШ, а не суставы — это и есть причина, по которой рост
-    // ползунком невозможен), поэтому пересчитывать её на движение ручки
-    // было бы работой, ответ которой известен заранее.
-    rest_palette_.assign(object_.skeleton.size(), glm::mat4{1.0f});
-    // ОДНА РЕСТ-ПОЗА НА ТЕЛО (RestFit.h): пропорции — переданного рига, стойка
-    // — решённая по коже ЭТОГО тела. Тот же вызов делают мир, импортёр, судья
-    // и морф-инструмент; экран, взявший риг как есть, показывал бы позу
-    // коробочного тела на чужом скелете — те самые слипшиеся ноги.
-    {
-        const anim::RestFit fit = anim::fit_rest_pose(
-            rig.proportions, object_.skeleton, rest_, anim::BodyGapTargets::from_config(),
-            legacy_rest);
-        rig_ = fit.rig;
-        std::fprintf(stderr,
-                     "[создание] рест-поза%s: разведение ног %.1f°, отведение рук %.1f°, "
-                     "локоть %.1f°, проходов %u, пороги %s\n",
-                     legacy_rest ? " (прежняя, коробочная)" : "",
-                     static_cast<double>(rig_.stance.leg_splay_rad * 57.29578f),
-                     static_cast<double>(rig_.stance.arm_abduction_rad * 57.29578f),
-                     static_cast<double>(rig_.stance.elbow_flex_rad * 57.29578f),
-                     fit.passes, fit.met ? "выполнены" : "НЕ ВЫПОЛНЕНЫ");
-    }
-    if (!object_.skeleton.empty()) {
-        binding_ = anim::bind_skinned_rig(rig_, object_.skeleton);
-        if (binding_.bound_count() == 0) {
-            // ГРОМКО, НО НЕ ОТКАЗ: тело покажется в СВОЕЙ привязке. Пустой
-            // экран хуже T-позы, а молчание хуже обоих.
-            std::fprintf(stderr,
-                         "[создание] ни одно имя сустава не легло на риг: тело "
-                         "показано в позе привязки\n");
-        } else {
-            anim::skinning_palette(rig_, object_.skeleton, binding_,
-                                   anim::LocalPose{}, rest_palette_);
-        }
-    }
-    return upload(renderer);
+    return settle(render_system, renderer, physics);
 }
 
-bool CharGenBody::upload(platform::IRenderer& renderer) {
-    render::blend_morphs(rest_, object_.morphs, weights_.weights,
-                         object_.skin.indices, blended_);
-    render::MeshData mesh;
-    skin_to_mesh(blended_, object_.skin.indices, rest_palette_, mesh);
-    grow_bound(lo_, hi_, mesh);
-    // ПАРА, А НЕ ПОСЛЕДОВАТЕЛЬНОСТЬ: новый создаётся ПЕРЕД уничтожением
-    // старого, поэтому неудача заливки оставляет на экране прежнее тело, а не
-    // дыру. Тот же порядок, что у replace_skinned_mesh шага 1.
-    const platform::MeshHandle fresh = renderer.create_mesh(mesh.vertices, mesh.indices);
-    if (!fresh.valid()) {
-        std::fprintf(stderr, "[создание] меш тела не залился на видеокарту\n");
+void CharGenBody::release(render::RenderSystem& render_system, platform::IRenderer& renderer,
+                          platform::IPhysics* physics) {
+    release_character(character_, bodies_, render_system, renderer, physics);
+    source_ = render::RegistryObject{};
+    blended_.clear();
+    weights_ = render::MorphState{};
+    height_m_ = CHARGEN_BODY_HEIGHT_M;
+    lo_ = glm::vec3{0.0f};
+    hi_ = glm::vec3{0.0f};
+}
+
+render::RegistryObject CharGenBody::baked_object() const {
+    render::RegistryObject baked = source_;
+    if (!source_.morphs.empty()) {
+        std::vector<platform::SkinnedVertex> blended;
+        render::blend_morphs(source_.skin.vertices, source_.morphs, weights_.weights,
+                             source_.skin.indices, blended);
+        baked.skin.vertices = std::move(blended);
+    }
+    // СЕКЦИЯ MORF СНИМАЕТСЯ — как Creation Kit пишет FaceGeom: мир грузит
+    // обычного персонажа и про ползунки не знает вовсе.
+    baked.morphs.clear();
+    scale_registry_object(baked, chargen_height_scale(height_m_));
+    baked.source += " chargen:baked";
+    return baked;
+}
+
+bool CharGenBody::settle(render::RenderSystem& render_system, platform::IRenderer& renderer,
+                         platform::IPhysics* physics) {
+    if (source_.skin.empty()) {
         return false;
     }
-    ++uploads_;
-    if (mesh_ != 0) {
-        renderer.destroy_mesh(platform::MeshHandle{mesh_});
-        ++drops_;
+    CharacterSpec spec;
+    spec.proportions = &proportions_;
+    spec.legacy_rest = legacy_rest_;
+    spec.mesh_asset = CHARGEN_BODY_MESH_ID;
+    spec.blade_asset = CHARGEN_BLADE_MESH_ID;
+    spec.to_world = glm::mat4{1.0f};
+    spec.make_capsule = true;
+    spec.capsule_feet = glm::vec3{0.0f};
+    if (!build_character_object(character_, bodies_, render_system, renderer, physics,
+                                baked_object(), source_path_, spec)) {
+        std::fprintf(stderr, "[создание] тело экрана не собралось фабрикой\n");
+        return false;
     }
-    mesh_ = fresh.id;
+    settled_scale_ = chargen_height_scale(height_m_);
+    measure_bounds();
     return true;
 }
 
-void CharGenBody::release(platform::IRenderer& renderer) {
-    if (mesh_ != 0) {
-        renderer.destroy_mesh(platform::MeshHandle{mesh_});
-        ++drops_;
-    }
-    mesh_ = 0;
-    program_ = 0;
-    triangles_ = 0;
-    object_ = render::RegistryObject{};
-    rest_.clear();
-    blended_.clear();
-    rest_palette_.clear();
-    binding_ = anim::SkinnedRigBinding{};
-    weights_ = render::MorphState{};
-    height_m_ = CHARGEN_BODY_HEIGHT_M;
+void CharGenBody::measure_bounds() {
+    std::vector<glm::vec3> pos;
+    character_.rest_positions(pos);
+    grow_bound(lo_, hi_, pos);
 }
 
 bool CharGenBody::set_weight(std::size_t index, float value) {
-    if (index >= object_.morphs.size() || index >= weights_.weights.size()) {
+    if (index >= source_.morphs.size() || index >= weights_.weights.size()) {
         return false;
     }
-    const render::MorphTarget& target = object_.morphs[index];
+    const render::MorphTarget& target = source_.morphs[index];
     const float clamped = std::clamp(value, target.lo, target.hi);
     if (clamped == weights_.weights[index]) {
         return false;
@@ -288,12 +216,12 @@ bool CharGenBody::set_weight(std::size_t index, float value) {
 }
 
 bool CharGenBody::set_weight(std::string_view name, float value) {
-    const int slot = render::morph_index(object_.morphs, name);
+    const int slot = render::morph_index(source_.morphs, name);
     return slot >= 0 && set_weight(static_cast<std::size_t>(slot), value);
 }
 
 void CharGenBody::reset() {
-    weights_.resize_for(object_.morphs);
+    weights_.resize_for(source_.morphs);
     height_m_ = CHARGEN_BODY_HEIGHT_M;
 }
 
@@ -307,30 +235,64 @@ bool CharGenBody::set_height_m(float metres) {
     return true;
 }
 
-anim::BodyGaps CharGenBody::screen_gaps() const {
-    anim::BodyGaps gaps;
-    if (object_.skeleton.empty() || blended_.empty() || binding_.bound_count() == 0) {
-        return gaps;
-    }
-    // ТА ЖЕ ПОЗА, ЧТО В rest_palette_: skinning_palette строит её из
-    // pose_local_transforms на нулевой LocalPose, и здесь берётся тот же
-    // сэмпл — второй арифметики «где стоит сустав на экране» нет.
-    std::vector<anim::JointLocal> sample(object_.skeleton.size());
-    anim::pose_local_transforms(rig_, object_.skeleton, binding_, anim::LocalPose{},
-                                sample);
-    anim::HitboxSet boxes = anim::build_hitboxes(rig_.proportions);
-    anim::fit_hitboxes_to_skin(boxes, rig_, object_.skeleton, binding_, blended_);
-    const anim::SkinParts parts =
-        anim::label_skin_parts(object_.skeleton, binding_, blended_);
-    return anim::measure_body_gaps(object_.skeleton, binding_, boxes, blended_, parts,
-                                   sample);
-}
-
-bool CharGenBody::apply(platform::IRenderer& renderer) {
-    if (program_ == 0) {
+bool CharGenBody::apply(render::RenderSystem& render_system, platform::IRenderer& renderer) {
+    if (!character_.ready()) {
         return false;
     }
-    return upload(renderer);
+    // БЫСТРАЯ ПОЛОВИНА: та же арифметика, что у baked_object(), но только
+    // вершины — скелет от ползунков не меняется, а от роста меняется, и рост
+    // здесь трогать нельзя: он ждёт settle(). Вершины масштабируются тем же
+    // множителем, что и скелет тела при последнем settle() — иначе меш ушёл
+    // бы от костей на разницу ростов до отпускания ручки.
+    if (!source_.morphs.empty()) {
+        render::blend_morphs(source_.skin.vertices, source_.morphs, weights_.weights,
+                             source_.skin.indices, blended_);
+    } else {
+        blended_ = source_.skin.vertices;
+    }
+    // Масштаб роста, под которым собрано текущее тело, — тот, что стоял на
+    // последнем settle(): переносы привязки в character_ уже умножены на
+    // него, и вершины обязаны идти с тем же множителем.
+    const float settled_scale = settled_scale_;
+    if (std::fabs(settled_scale - 1.0f) > 1e-6f) {
+        for (platform::SkinnedVertex& v : blended_) {
+            v.position *= settled_scale;
+        }
+    }
+    if (!character_.replace_vertices(render_system, renderer, blended_)) {
+        return false;
+    }
+    measure_bounds();
+    return true;
+}
+
+void CharGenBody::tick(float dt) {
+    if (!character_.ready()) {
+        return;
+    }
+    character_.advance(idle_drive(), glm::vec3{0.0f}, dt);
+}
+
+render::RenderSystem::SkinnedDraw CharGenBody::draw(float alpha, platform::IPhysics* physics,
+                                                    const glm::mat4& to_world) {
+    render::RenderSystem::SkinnedDraw d;
+    if (!character_.ready()) {
+        return d;
+    }
+    d = character_.build_draw(/*hide_head=*/false, alpha);
+    // КОРОБКИ — ТОЙ ЖЕ МАТРИЦЕЙ, ЧТО МЕШ. В мире это draw.transform; на
+    // экране предмет висит в осях камеры, и «мир» коробок — это та же
+    // матрица, которой холст переводит его в мир.
+    if (physics != nullptr && bodies_.hitboxes.live()) {
+        bodies_.hitboxes.update(*physics, character_.hitbox_pose(), to_world);
+    }
+    return d;
+}
+
+anim::BodyGaps CharGenBody::screen_gaps() const {
+    // ТОТ ЖЕ ПРИБОР, ЧТО У СМОТРОВОЙ И МИРА (CharacterFactory.h): второй
+    // арифметики «где стоит сустав на экране» нет.
+    return character_rest_gaps(character_);
 }
 
 // --- ПРЕСЕТ -----------------------------------------------------------------
@@ -339,9 +301,9 @@ CharGenPreset CharGenBody::preset(std::string name) const {
     CharGenPreset out;
     out.name = std::move(name);
     out.height_m = height_m_;
-    out.sliders.reserve(object_.morphs.size());
-    for (std::size_t i = 0; i < object_.morphs.size(); ++i) {
-        out.sliders.emplace_back(object_.morphs[i].name, weights_.weights[i]);
+    out.sliders.reserve(source_.morphs.size());
+    for (std::size_t i = 0; i < source_.morphs.size(); ++i) {
+        out.sliders.emplace_back(source_.morphs[i].name, weights_.weights[i]);
     }
     return out;
 }
@@ -353,7 +315,7 @@ void CharGenBody::apply_preset(const CharGenPreset& preset) {
     // знает список народов.
     (void)set_height_m(preset.height_m);
     for (const auto& [name, value] : preset.sliders) {
-        const int slot = render::morph_index(object_.morphs, name);
+        const int slot = render::morph_index(source_.morphs, name);
         if (slot < 0) {
             std::fprintf(stderr,
                          "[создание] в пресете есть ползунок \"%s\", которого нет "
@@ -366,20 +328,11 @@ void CharGenBody::apply_preset(const CharGenPreset& preset) {
 }
 
 bool CharGenBody::bake(const std::filesystem::path& out) const {
-    if (rest_.empty()) {
-        std::fprintf(stderr, "[создание] печь нечего: тело не загружено\n");
+    if (source_.skin.empty()) {
+        std::fprintf(stderr, "[создание] выпечка: тело не загружено\n");
         return false;
     }
-    render::RegistryObject baked = object_;
-    std::vector<platform::SkinnedVertex> blended;
-    render::blend_morphs(rest_, object_.morphs, weights_.weights,
-                         object_.skin.indices, blended);
-    baked.skin.vertices = std::move(blended);
-    // СЕКЦИЯ MORF СНИМАЕТСЯ — как Creation Kit пишет FaceGeom: мир грузит
-    // обычного персонажа и про ползунки не знает вовсе.
-    baked.morphs.clear();
-    scale_object(baked, chargen_height_scale(height_m_));
-    baked.source += " chargen:baked";
+    const render::RegistryObject baked = baked_object();
     std::error_code ec;
     std::filesystem::create_directories(out.parent_path(), ec);
     if (!render::write_object(baked, out)) {

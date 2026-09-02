@@ -43,6 +43,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/GrabDrive.h"
 #include "engine/app/sources/PropPhysics.h"
 #include "engine/app/sources/BodyHitboxes.h"
+#include "engine/app/sources/CharacterFactory.h"
 #include "engine/app/sources/SkinnedCharacter.h"
 #include "engine/app/sources/FurnitureSeats.h"
 #include "engine/app/sources/EditorCamera.h"
@@ -353,6 +354,8 @@ private:
     /// на движение ручки, отрисовка холста. Возвращает false, когда экран
     /// закрылся в этом же кадре.
     bool chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved);
+    /// Один тик тела экрана (клип покоя со слоями, как в мире), секунды.
+    void chargen_tick(float dt);
     /// Довести ОДНУ сдвинутую строку до тела: вес — в бленд, рост — в
     /// множитель кадра. Возвращает true, если меш надо перекладывать.
     bool chargen_apply_row(std::size_t row_index);
@@ -1107,6 +1110,13 @@ private:
     /// отвечает на «сколько пар меша создано и уничтожено», чего кадр не
     /// показывает.
     std::uint64_t viewer_swaps_ = 0;
+    /// ЭКСПОНАТ-ПЕРСОНАЖ: построен той же фабрикой, что игрок и тело экрана
+    /// создания (CharacterFactory), играет клип покоя со слоями, несёт
+    /// хитбоксы и капсулу Jolt. Пустой, пока на постаменте не персонаж.
+    SkinnedCharacter viewer_character_{};
+    CharacterBodies viewer_bodies_{};
+    /// Ноги экспоната на постаменте (мир) — корень его позы.
+    glm::vec3 viewer_feet_{0.0f};
 
     // --- ЭКРАН СОЗДАНИЯ ПЕРСОНАЖА ----------------------------------------
     // ФЛАГ, А НЕ СТРАНИЦА МЕНЮ, и это то же различение, что у смотровой выше:
@@ -1125,6 +1135,11 @@ private:
     /// нужны видеокарта и испечённый шрифт, а на месте init() ещё не
     /// готово ни то, ни другое.
     bool chargen_dose_read_ = false;
+    /// Ползунок сдвинут (быстрая половина сделана), а полная пересборка тела
+    /// фабрикой (settle) ждёт отпускания ручки.
+    bool chargen_settle_pending_ = false;
+    /// Доза DFN_HITBOX_DRAW=1 — коробки частей линиями (экран, смотровая, мир).
+    bool hitbox_draw_ = false;
     /// НАРОДЫ ДЕРЕВА, прочитанные на входе в экран. Пустой список —
     /// законное состояние (вкладка происхождения тогда серая), а не отказ.
     std::vector<People> chargen_peoples_{};
@@ -1648,7 +1663,7 @@ private:
     /// капсулы движения: капсула отвечает «куда пройти», хитбоксы — «во что
     /// попали», и один слой на оба вопроса заставил бы локомоцию цепляться за
     /// собственные локти.
-    BodyHitboxes body_hitboxes_{};
+    CharacterBodies player_bodies_{};
     /// Дверь дозы: 1 — рисовать коробки, как до этой волны.
     bool body_boxes_ = false;
     ecs::EntityId mirror_puppet_{}; // DFN_MIRROR/DFN_SHOWCASE double, 0 when absent

@@ -54,6 +54,7 @@ AI Agents Notice (must follow):
 #include <cstdlib>
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace dfn::app {
 
@@ -110,7 +111,17 @@ void App::chargen_enter() {
         return;
     }
     ensure_body_rig();
-    if (!chargen_body_.load(*renderer_, body_rig_,
+    // ДОЗА DFN_HITBOX_DRAW=1 — коробки частей линиями; читается на первом
+    // экране и действует на все три тела (экран, смотровая, мир).
+    if (const char* h = door_value("DFN_HITBOX_DRAW"); h != nullptr && h[0] == '1') {
+        hitbox_draw_ = true;
+        renderer_->set_debug_lines(true);
+    }
+    // НАСТОЯЩИЙ ИГРОВОЙ ПЕРСОНАЖ — той же фабрикой, что зовёт мир (решение
+    // владельца 02.09, вариант В): рест-поза по коже, клип покоя со слоями,
+    // хитбоксы по коже, тела Jolt. physics_ есть и в меню — он поднимается в
+    // init(), мира для него не нужно.
+    if (!chargen_body_.load(render_system_, *renderer_, physics_.get(), body_rig_,
                             std::filesystem::path(CHARGEN_SOURCE_BODY),
                             rest_pose_legacy_door())) {
         // ГРОМКО И БЕЗ ЭКРАНА. Экран создания персонажа без персонажа — это
@@ -122,6 +133,13 @@ void App::chargen_enter() {
     chargen_open_ = true;
     chargen_cursor_ = glm::vec2{-1.0f, -1.0f};
     chargen_orbiting_ = false;
+    chargen_settle_pending_ = false;
+    // ДОЗА DFN_CHARGEN_POSE=rest — чистая рест-поза вместо клипа покоя со
+    // слоями: рука сравнения «нейтраль против покоя мира» из одного бинарника.
+    if (const char* pose = door_value("DFN_CHARGEN_POSE");
+        pose != nullptr && std::string_view{pose} == "rest") {
+        chargen_body_.character().set_rest_only(true);
+    }
 
     // РУЧКИ СОБИРАЮТСЯ ИЗ ТЕЛА, А НЕ ИЗ СПИСКА ЗДЕСЬ. Полосы — из секции MORF,
     // где они лежат измеренными приёмкой шага 1; новая цель в файле сама
@@ -329,7 +347,8 @@ void App::chargen_enter() {
             (void)chargen_.set_value(name, value);
             chargen_push_to_body(name);
         }
-        (void)chargen_body_.apply(*renderer_);
+        (void)chargen_body_.apply(render_system_, *renderer_);
+        chargen_settle_pending_ = true;
     }
 
     // ДОЗА DFN_CHARGEN_COMPARE=1: держать призрак «до» с первого кадра. Без
@@ -345,6 +364,13 @@ void App::chargen_enter() {
     // ДОЗА DFN_CHARGEN_VIEW=<рыскание>,<тангаж>,<приближение> — кадрирование
     // без мыши. Три состояния экрана снимаются одной сборкой и одной рукой
     // (правило 47), а не «поверни и щёлкни».
+    // ВСЁ, ЧТО НАКРУТИЛИ ДОЗЫ, САДИТСЯ ЗДЕСЬ: одна пересборка тела фабрикой
+    // на входе, а не по одной на каждую дозу.
+    if (chargen_settle_pending_) {
+        (void)chargen_body_.settle(render_system_, *renderer_, physics_.get());
+        chargen_settle_pending_ = false;
+    }
+
     if (const char* v = door_value("DFN_CHARGEN_VIEW"); v != nullptr && *v != '\0') {
         char* end = nullptr;
         CharGenView& view = chargen_.view();
@@ -404,17 +430,22 @@ void App::chargen_leave() {
         return;
     }
     if (renderer_ != nullptr) {
-        chargen_body_.release(*renderer_);
+        chargen_body_.release(render_system_, *renderer_, physics_.get());
         render_system_.set_screen_prop(render::RenderSystem::ScreenProp{});
     }
     chargen_open_ = false;
     chargen_orbiting_ = false;
-    std::fprintf(stderr,
-                 "[создание] экран закрыт: заливок меша %u, уничтожений %u "
-                 "(живых %d)\n",
-                 chargen_body_.uploads(), chargen_body_.drops(),
-                 static_cast<int>(chargen_body_.uploads())
-                     - static_cast<int>(chargen_body_.drops()));
+    std::fprintf(stderr, "[создание] экран закрыт: тело снято, меши и тела Jolt "
+                         "отпущены\n");
+}
+
+void App::chargen_tick(float dt) {
+    if (!chargen_open_) {
+        return;
+    }
+    // СЧЁТНЫЙ ПРОГОН — ФИКСИРОВАННЫЙ ШАГ: кадр приёмки обязан быть функцией
+    // номера кадра, а не того, сколько успела машина (правило 13).
+    chargen_body_.tick(counted_run() ? 1.0f / 60.0f : dt);
 }
 
 // --- КАДР -------------------------------------------------------------------
@@ -586,7 +617,15 @@ bool App::chargen_frame(int hud_w, int hud_h, int mx, int my, bool pointer_moved
     }
 
     if (body_dirty) {
-        (void)chargen_body_.apply(*renderer_);
+        (void)chargen_body_.apply(render_system_, *renderer_);
+        chargen_settle_pending_ = true;
+    }
+    // ПОЛНАЯ ПЕРЕСБОРКА — КОГДА РУЧКУ ОТПУСТИЛИ (или шагнули стрелкой): рест
+    // решается заново по вылепленной коже, клипы калибруются. 200 мс, и они
+    // не имеют права попасть в кадр перетаскивания.
+    if (chargen_settle_pending_ && !chargen_.dragging()) {
+        (void)chargen_body_.settle(render_system_, *renderer_, physics_.get());
+        chargen_settle_pending_ = false;
     }
     chargen_.draw(render_system_.hud());
     render_system_.set_hud_visible(true);
@@ -679,7 +718,8 @@ void App::chargen_apply_archetype() {
         (void)chargen_.set_value(b.name, folk->centre_of(kind, b.name));
         (void)chargen_push_to_body(b.name);
     }
-    (void)chargen_body_.apply(*renderer_);
+    (void)chargen_body_.apply(render_system_, *renderer_);
+    chargen_settle_pending_ = true;
     chargen_.set_status(std::string(loc("chargen.status.archetype")));
 }
 
@@ -700,7 +740,8 @@ void App::chargen_random() {
         (void)chargen_.set_value(name, value);
         (void)chargen_push_to_body(name);
     }
-    (void)chargen_body_.apply(*renderer_);
+    (void)chargen_body_.apply(render_system_, *renderer_);
+    chargen_settle_pending_ = true;
     chargen_.set_status(std::string(loc("chargen.status.random")));
 }
 
@@ -746,7 +787,8 @@ void App::chargen_show_compare(bool on) {
             }
         }
     }
-    (void)chargen_body_.apply(*renderer_);
+    (void)chargen_body_.apply(render_system_, *renderer_);
+    chargen_settle_pending_ = true;
 }
 
 // --- «ГОТОВО» ---------------------------------------------------------------
@@ -763,7 +805,16 @@ void App::chargen_commit() {
         }
     }
     const bool wrote = write_chargen_preset(preset_path, preset);
+    // САДИМ ТЕЛО ПЕРЕД ВЫПЕЧКОЙ: то, что уедет в мир, обязано быть тем, что
+    // стоит на экране, — и хэш позы печатается, чтобы это было проверяемо.
+    if (chargen_settle_pending_) {
+        (void)chargen_body_.settle(render_system_, *renderer_, physics_.get());
+        chargen_settle_pending_ = false;
+    }
     const bool baked = chargen_body_.bake(baked_path);
+    std::fprintf(stderr, "[создание] хэш позы/меша на экране %016llx\n",
+                 static_cast<unsigned long long>(
+                     chargen_pose_hash(chargen_body_.character())));
     std::string status(loc(wrote && baked ? "chargen.status.done"
                                           : "chargen.status.failed"));
     chargen_.set_status(status);
@@ -797,9 +848,11 @@ void App::chargen_screen_prop() {
     const glm::vec3 up = glm::normalize(glm::cross(right, fwd));
     const glm::vec3 eye = camera_.interpolated_pose(0.0f).position;
 
+    // МНОЖИТЕЛЬ 1: рост сидит в геометрии тела (CharGenBody.h), и габарит уже
+    // в метрах роста.
     const glm::mat4 in_camera =
-        chargen_in_camera(camera_, chargen_body_.lo(), chargen_body_.hi(),
-                          chargen_body_.height_scale(), chargen_.view());
+        chargen_in_camera(camera_, chargen_body_.lo(), chargen_body_.hi(), 1.0f,
+                          chargen_.view());
     // ЯКОРЬ СВЕТА — ТА ЖЕ ТОЧКА, ЧТО СТОИТ В СЕРЕДИНЕ КАДРА, и та же матрица,
     // которой фигуру рисуют. Свет, посчитанный по второй арифметике, разошёлся
     // бы с фигурой на первом же изменении кадрирования, и разошёлся бы молча.
@@ -834,11 +887,23 @@ void App::chargen_screen_prop() {
                                  CHARGEN_RIM_RADIUS_FRAC));
     render_system_.set_transient_lights(menu_lights_);
 
+    // ИГРОВОЙ ПЕРСОНАЖ — ЕГО ПАЛИТРОЙ, тем же submit_skinned, что тела мира.
+    // Матрица «в мир» коробок — та же, которой холст переводит предмет экрана
+    // (RenderSystem::render: inverse(view) * in_camera); камера меню стоит, и
+    // alpha для неё — ноль.
+    const glm::mat4 to_world = glm::inverse(camera_.view(0.0f)) * in_camera;
+    const render::RenderSystem::SkinnedDraw draw =
+        chargen_body_.draw(0.0f, physics_.get(), to_world);
     render::RenderSystem::ScreenProp prop;
-    prop.mesh = chargen_body_.mesh();
-    prop.program = chargen_body_.program();
+    prop.mesh_asset = draw.mesh_asset;
+    prop.palette = draw.palette;
     prop.in_camera = in_camera;
     render_system_.set_screen_prop(prop);
+    if (hitbox_draw_) {
+        debug_draw_hitboxes(*renderer_, chargen_body_.character().hitboxes(),
+                            chargen_body_.character().hitbox_pose(), to_world,
+                            0xFF44FF44u);
+    }
 }
 
 } // namespace dfn::app

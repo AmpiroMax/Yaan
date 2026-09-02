@@ -89,9 +89,49 @@ public:
     /// "before" arm of the owner's comparison (Rule 47).
     [[nodiscard]] bool load(render::RenderSystem& render_system,
                             platform::IRenderer& renderer, const anim::Rig& rig,
-                            const std::filesystem::path& path, bool legacy_rest = false);
+                            const std::filesystem::path& path, bool legacy_rest = false,
+                            uint32_t mesh_asset = SKINNED_CHARACTER_MESH_ID,
+                            uint32_t blade_asset = anim::HELD_BLADE_MESH_ID);
+    /// THE SAME, FROM AN OBJECT ALREADY IN MEMORY — the half load() is made
+    /// of. It exists so the character screen can build the SAME character the
+    /// world will load from its bake (morphs applied, height scaled) without a
+    /// file in between; `label` is what the log calls it.
+    [[nodiscard]] bool load_object(render::RenderSystem& render_system,
+                                   platform::IRenderer& renderer, const anim::Rig& rig,
+                                   render::RegistryObject object,
+                                   const std::filesystem::path& label,
+                                   bool legacy_rest = false,
+                                   uint32_t mesh_asset = SKINNED_CHARACTER_MESH_ID,
+                                   uint32_t blade_asset = anim::HELD_BLADE_MESH_ID);
+    /// Drops the meshes and forgets the body. A body that lives shorter than
+    /// the world (the screen's, the viewer's) has to give its ids back.
+    void release(render::RenderSystem& render_system, platform::IRenderer& renderer);
     /// The rig this body is bound with: config proportions, skin-fitted rest.
     [[nodiscard]] const anim::Rig& rig() const { return rig_; }
+    [[nodiscard]] const anim::SkinnedRigBinding& binding() const { return binding_; }
+    [[nodiscard]] uint32_t mesh_asset() const { return mesh_asset_; }
+    /// THE VERTICES AS DRAWN: the morph blend when a slider moved, the bind
+    /// otherwise. Bind-pose space; the palette poses them.
+    [[nodiscard]] const std::vector<platform::SkinnedVertex>& current_vertices() const {
+        return morph_dirty_ || morphed_.size() != bind_vertices_.size() ? bind_vertices_
+                                                                        : morphed_;
+    }
+    [[nodiscard]] const std::vector<uint32_t>& skin_indices() const { return skin_indices_; }
+    /// THE BODY IN OUR REST POSE, model space, CPU-skinned — what the screen
+    /// frames by and what the "screen = world" hash is taken over. Not the
+    /// idle's pose: the clip breathes, the rest does not.
+    void rest_positions(std::vector<glm::vec3>& out) const;
+    /// PURE REST, NO CLIP: build_draw poses the body in the rig's rest instead
+    /// of the idle with its layers — the dose (DFN_CHARGEN_POSE=rest) that
+    /// shows the neutral itself.
+    void set_rest_only(bool on) { rest_only_ = on; }
+    [[nodiscard]] bool rest_only() const { return rest_only_; }
+    /// REPLACES THE SKIN ONLY (mesh, bind vertices, skin-fitted hitboxes) and
+    /// keeps the rig, the binding and the clip library — the fast half of a
+    /// slider drag. The rest is NOT re-solved here; load_object() does that.
+    bool replace_vertices(render::RenderSystem& render_system,
+                          platform::IRenderer& renderer,
+                          std::span<const platform::SkinnedVertex> vertices);
 
     [[nodiscard]] bool ready() const { return ready_; }
     [[nodiscard]] const std::string& name() const { return name_; }
@@ -175,7 +215,10 @@ public:
     /// ВЫПЕЧКА ПО «ГОТОВО»: тело с применёнными ползунками и БЕЗ секции MORF,
     /// как Creation Kit пишет FaceGeom. Мир грузит обычного персонажа и про
     /// ползунки не знает.
-    [[nodiscard]] bool bake_morphs(const std::filesystem::path& out) const;
+    /// `scale` — равномерный масштаб роста (scale_registry_object): в мир
+    /// уезжает тело того роста, что на экране.
+    [[nodiscard]] bool bake_morphs(const std::filesystem::path& out,
+                                   float scale = 1.0f) const;
     /// Пресет — ТОЛЬКО ЧИСЛА ПОЛЗУНКОВ (json). Тем же порядком, что в файле.
     [[nodiscard]] bool save_preset(const std::filesystem::path& out) const;
 
@@ -204,6 +247,9 @@ private:
 
     bool ready_ = false;
     std::string name_;
+    uint32_t mesh_asset_ = SKINNED_CHARACTER_MESH_ID;
+    uint32_t blade_asset_ = anim::HELD_BLADE_MESH_ID;
+    bool rest_only_ = false;
     /// The fitted rig (see load()). The app's own rig is the box body's;
     /// this one has the rest stance the skin asked for.
     anim::Rig rig_{};
@@ -227,6 +273,10 @@ private:
     std::vector<platform::SkinnedVertex> morphed_;
     bool morph_dirty_ = false;
     std::filesystem::path source_path_;
+    /// THE OBJECT AS IT ARRIVED — materials, provenance, everything the reader
+    /// brought — kept so bake_morphs writes the whole body and not the half
+    /// this class works with; and so a body built from memory can bake.
+    render::RegistryObject source_object_;
     std::vector<skel::AnimClip> clips_;
     anim::SkinnedRigBinding binding_;
     anim::ClipLibrary library_{};
@@ -292,5 +342,14 @@ private:
     anim::HitboxSet hitboxes_{};
     anim::HitboxPose hitbox_pose_{};
 };
+
+/// РАВНОМЕРНЫЙ МАСШТАБ ВСЕГО, ЧТО ЗНАЕТ ПРО МЕТРЫ: вершины скина, переносы
+/// привязки (и строка переносов обратной привязки), переносы клипов. Модельная
+/// матрица сустава — произведение локальных T·R·S; умножив каждый локальный
+/// перенос на k, получаем сопряжение однородным масштабом, при котором
+/// скиннинг даёт ровно k·v: тело едет целиком, ни одна ПРОПОРЦИЯ не трогается
+/// — почему судья и пропускает оба конца полосы роста, в отличие от морфа.
+/// Один на выпечку и на экран (правило 32).
+void scale_registry_object(render::RegistryObject& obj, float k);
 
 } // namespace dfn::app

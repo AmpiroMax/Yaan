@@ -3256,7 +3256,14 @@ int App::run() {
             // second draws the same frame (Rule 13). Clamped, because a menu
             // left open while the machine swapped must not teleport the motes.
             const auto menu_now = std::chrono::steady_clock::now();
-            menu_.tick(std::min(0.1f, std::chrono::duration<float>(menu_now - last).count()));
+            const float menu_dt =
+                std::min(0.1f, std::chrono::duration<float>(menu_now - last).count());
+            menu_.tick(menu_dt);
+            // ТЕЛО ЭКРАНА СОЗДАНИЯ ТИКАЕТ ТЕМИ ЖЕ ЧАСАМИ: клип покоя со слоями
+            // — тот же, что в мире, и стоять он обязан там же, где меню
+            // считает пыль. Счётный прогон получает фиксированный шаг ВНУТРИ
+            // chargen_tick (правило 13).
+            chargen_tick(menu_dt);
             // ЧАСЫ МЕНЮ ШЛИ ПОЧТИ ОСТАНОВИВШИСЬ, И ЭТО БЫЛА ПРИЧИНА «ЗАСТАВКА
             // ВИСИТ И ЖДЁТ КЛИКА» (владелец, 27.08). Метка `last` двигалась в
             // САМОМ КОНЦЕ ветки меню — последней строкой перед continue, — а
@@ -4735,6 +4742,19 @@ int App::run() {
                             static_cast<float>(timestep_.step_dt()));
                     }
                 }
+                // ЭКСПОНАТ СМОТРОВОЙ — ТЕМ ЖЕ ТИКОМ, приводом покоя: стоит на
+                // постаменте так, как игрок стоит в мире.
+                if (viewer_character_.ready()) {
+                    anim::BodyDrive idle;
+                    idle.gait = anim::Gait::Walk;
+                    idle.grounded = true;
+                    // ЛИЦОМ К ЗРИТЕЛЮ: тело смотрит в −Z при рыске 0 (docs/RIG.md),
+                    // а постамент повёрнут к глазу спиной по этой оси — полоборота
+                    // сверху, и Q/E крутят его дальше.
+                    idle.facing_yaw = viewer_view_.model_yaw + glm::pi<float>();
+                    viewer_character_.advance(idle, viewer_feet_,
+                                              static_cast<float>(timestep_.step_dt()));
+                }
                 // КАМЕРА ПОЗЫ — СРАЗУ ЗА ТЕЛОМ: update_bodies только что
                 // опубликовал глаз НАРИСОВАННОЙ позы, и ставить камеру раньше
                 // значило бы читать позу прошлого тика. Стоит ДО update_hover,
@@ -5620,7 +5640,30 @@ int App::run() {
             // в нём была бы вторым предметом сравнения. Пустой список, а не
             // «не звать»: несозванный set_skinned_bodies оставил бы список
             // ПРОШЛОГО кадра, то есть фигуру, застывшую там, где она была.
-            render_system_.set_skinned_bodies({});
+            // ЭКСПОНАТ-ПЕРСОНАЖ — ТЕМ ЖЕ СПИСКОМ, ЧТО ТЕЛО ИГРОКА В МИРЕ, с
+            // хитбоксами по той же матрице (CharacterFactory).
+            if (viewer_character_.ready()) {
+                skinned_draws[0] = viewer_character_.build_draw(/*hide_head=*/false, alpha);
+                const std::size_t count = viewer_character_.blade_drawn() ? 2u : 1u;
+                if (count == 2) {
+                    skinned_draws[1] = viewer_character_.blade_draw(skinned_draws[0]);
+                }
+                render_system_.set_skinned_bodies(
+                    std::span<const render::RenderSystem::SkinnedDraw>{
+                        skinned_draws.data(), count});
+                if (physics_ != nullptr && viewer_bodies_.hitboxes.live()) {
+                    viewer_bodies_.hitboxes.update(*physics_,
+                                                   viewer_character_.hitbox_pose(),
+                                                   skinned_draws[0].transform);
+                }
+                if (hitbox_draw_) {
+                    debug_draw_hitboxes(*renderer_, viewer_character_.hitboxes(),
+                                        viewer_character_.hitbox_pose(),
+                                        skinned_draws[0].transform, 0xFF44FF44u);
+                }
+            } else {
+                render_system_.set_skinned_bodies({});
+            }
         } else if (skinned_character_.ready()) {
             skinned_draws[0] = skinned_character_.build_draw(
                 /*hide_head=*/!third_person_, alpha);
@@ -5638,15 +5681,21 @@ int App::run() {
             // что и у меша (draw.transform), поэтому «во что целишься» и «во
             // что попадаешь» — одно место, а не два похожих.
             if (physics_ != nullptr) {
-                if (!body_hitboxes_.live()) {
-                    body_hitboxes_.create(*physics_, player_,
-                                          skinned_character_.hitboxes(),
-                                          skinned_character_.hitbox_pose(),
-                                          skinned_draws[0].transform);
+                if (!player_bodies_.hitboxes.live()) {
+                    player_bodies_.hitboxes.create(*physics_, player_,
+                                                   skinned_character_.hitboxes(),
+                                                   skinned_character_.hitbox_pose(),
+                                                   skinned_draws[0].transform);
                 } else {
-                    body_hitboxes_.update(*physics_, skinned_character_.hitbox_pose(),
-                                          skinned_draws[0].transform);
+                    player_bodies_.hitboxes.update(*physics_,
+                                                   skinned_character_.hitbox_pose(),
+                                                   skinned_draws[0].transform);
                 }
+            }
+            if (hitbox_draw_) {
+                debug_draw_hitboxes(*renderer_, skinned_character_.hitboxes(),
+                                    skinned_character_.hitbox_pose(),
+                                    skinned_draws[0].transform, 0xFF44FF44u);
             }
         }
         render_system_.render(world_, *renderer_, camera_, alpha);

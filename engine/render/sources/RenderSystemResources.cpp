@@ -1129,6 +1129,19 @@ bool RenderSystem::replace_skinned_mesh(
     return true;
 }
 
+bool RenderSystem::drop_skinned_mesh(platform::IRenderer& renderer, uint32_t mesh_asset) {
+    const auto it = mesh_cache_.find(mesh_asset);
+    if (it == mesh_cache_.end()) {
+        std::fprintf(stderr,
+                     "[render] drop_skinned_mesh: под номером %u ничего нет\n",
+                     mesh_asset);
+        return false;
+    }
+    renderer.destroy_mesh(platform::MeshHandle{it->second});
+    mesh_cache_.erase(it);
+    return true;
+}
+
 void RenderSystem::set_skinned_bodies(std::span<const SkinnedDraw> bodies) {
     skinned_bodies_.assign(bodies.begin(), bodies.end());
 }

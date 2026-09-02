@@ -1336,7 +1336,30 @@ void RenderSystem::render(ecs::World& world, platform::IRenderer& renderer,
     // Матрица приходит в осях камеры и здесь переводится в мир: холст меню
     // висит перед глазом, и предмет обязан висеть там же, где бы ни стояла
     // камера в момент выхода в меню.
-    if (screen_prop_.valid()) {
+    if (screen_prop_.skinned()) {
+        // СКИННОВАННЫЙ ПРЕДМЕТ ЭКРАНА — тем же submit_skinned и той же
+        // программой, что тела мира: экран создания показывает игрового
+        // персонажа с его палитрой костей, и второго пути рисования у него
+        // нет (правило 32).
+        const auto it = mesh_cache_.find(screen_prop_.mesh_asset);
+        if (it == mesh_cache_.end()) {
+            if (warned_missing_meshes_.insert(screen_prop_.mesh_asset).second) {
+                std::fprintf(stderr,
+                             "[render] screen prop wants skinned mesh asset %u, "
+                             "which is not registered — it draws as NOTHING\n",
+                             screen_prop_.mesh_asset);
+            }
+        } else if (skinned_program_ != 0) {
+            platform::DrawParams params;
+            params.material = screen_prop_.material;
+            renderer.submit_skinned(platform::MeshHandle{it->second},
+                                    platform::ProgramHandle{skinned_program_},
+                                    glm::inverse(camera.view(alpha)) * screen_prop_.in_camera,
+                                    screen_prop_.palette, platform::TextureHandle{},
+                                    params);
+        }
+        screen_prop_ = ScreenProp{};
+    } else if (screen_prop_.valid()) {
         // ВЕЩЕСТВО ПРЕДМЕТА ЭКРАНА (зона МАТЕРИАЛЫ, 28.08; волна 3). Дро
         // НАЗЫВАЕТ вещество и больше ничего: числа берёт бэкенд из реестра.
         // До волны 3 здесь стояло два поля отражения, скопированных из записи,

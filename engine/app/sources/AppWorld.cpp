@@ -1673,9 +1673,24 @@ bool App::enter_world(uint32_t stand) {
                                  "создания: %s\n", baked.string().c_str());
         }
     }
+    // ОДИН ПУТЬ ПОСТРОЕНИЯ ПЕРСОНАЖА (CharacterFactory.h): тот же вызов, что
+    // у экрана создания и у смотровой. Капсула у игрока своя (PlayerState),
+    // хитбоксы Jolt ставятся здесь же, в рест-позе, а не «на первом кадре».
+    CharacterSpec player_spec;
+    player_spec.proportions = &body_rig_;
+    player_spec.legacy_rest = rest_pose_legacy_door();
+    player_spec.owner = player_;
+    player_spec.make_capsule = false;
+    if (const auto* ptr = world_.get<components::Transform>(player_); ptr != nullptr) {
+        player_spec.to_world = glm::translate(glm::mat4{1.0f}, ptr->position);
+    }
+    if (const char* h = door_value("DFN_HITBOX_DRAW"); h != nullptr && h[0] == '1') {
+        hitbox_draw_ = true;
+        renderer_->set_debug_lines(true);
+    }
     if (!body_boxes_
-        && skinned_character_.load(render_system_, *renderer_, body_rig_, body_path,
-                                   rest_pose_legacy_door())) {
+        && build_character(skinned_character_, player_bodies_, render_system_, *renderer_,
+                           physics_.get(), body_path, player_spec)) {
         // ЗЕМЛЯ ПОД СТОПОЙ — ЛУЧОМ, И ЛУЧ ЖИВЁТ ЗДЕСЬ. anim не видит мира
         // (правило 1), поэтому приложение отдаёт ему ФУНКЦИЮ: точка -> высота
         // грунта под ней. Луч пускается СВЕРХУ ВНИЗ из полуметра над стопой:

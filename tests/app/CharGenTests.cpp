@@ -40,6 +40,7 @@ AI Agents Notice (must follow):
 #include "engine/platform/render/sources/null/NullRenderer.h"
 #include "engine/render/sources/FirstPersonCamera.h"
 #include "engine/render/sources/ObjectRegistry.h"
+#include "engine/render/sources/RenderSystem.h"
 
 #include <doctest/doctest.h>
 
@@ -592,27 +593,33 @@ TEST_CASE("тело: движение ручки — это ПАРА созда�
         return;
     }
     platform::NullRenderer renderer;
+    render::RenderSystem rs;
     const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
     app::CharGenBody body;
-    REQUIRE(body.load(renderer, rig, BODY_PATH));
+    REQUIRE(body.load(rs, renderer, nullptr, rig, BODY_PATH));
     CHECK(body.ready());
-    // КОНТРОЛЬ: пока тело показано, живой меш ОБЯЗАН быть. Без этой строки
-    // утверждение держалось бы и для экрана, который не залил ничего.
-    CHECK(renderer.live_meshes() == 1);
+    // КОНТРОЛЬ: пока тело показано, живые меши ОБЯЗАНЫ быть — тело и клинок
+    // в руке (игровой персонаж несёт оба). Без этой строки утверждение
+    // держалось бы и для экрана, который не залил ничего.
+    const std::uint32_t shown = renderer.live_meshes();
+    CHECK(shown >= 1);
     REQUIRE_FALSE(body.morphs().empty());
 
     for (int i = 0; i < 60; ++i) {
         const std::size_t slot = static_cast<std::size_t>(i) % body.morphs().size();
         const render::MorphTarget& t = body.morphs()[slot];
         (void)body.set_weight(slot, (i % 2 == 0) ? t.hi : t.lo);
-        REQUIRE(body.apply(renderer));
-        REQUIRE(renderer.live_meshes() == 1);
+        // БЫСТРАЯ ПОЛОВИНА — замена буфера парой create/destroy (RenderSystem::
+        // replace_skinned_mesh): число живых не растёт.
+        REQUIRE(body.apply(rs, renderer));
+        REQUIRE(renderer.live_meshes() == shown);
     }
-    CHECK(body.uploads() == 61);
-    CHECK(body.drops() == 60);
-    body.release(renderer);
+    // МЕДЛЕННАЯ ПОЛОВИНА — полная пересборка фабрикой: старые номера
+    // отпускаются ПЕРЕД новой регистрацией, число живых то же.
+    REQUIRE(body.settle(rs, renderer, nullptr));
+    CHECK(renderer.live_meshes() == shown);
+    body.release(rs, renderer, nullptr);
     CHECK(renderer.live_meshes() == 0);
-    CHECK(body.uploads() == body.drops());
 }
 
 TEST_CASE("тело экрана — ТОТ ЖЕ ФАЙЛ, что грузит мир, и он СКИНИРОВАННЫЙ") {
@@ -656,12 +663,13 @@ TEST_CASE("тело экрана — ТОТ ЖЕ ФАЙЛ, что грузит �
     // И ТО, ЧТО ЭКРАН ДЕЙСТВИТЕЛЬНО ЗАЛИЛ ИМЕННО ЭТУ ГЕОМЕТРИЮ, а не «тоже
     // что-то»: число треугольников экрана равно числу треугольников файла.
     platform::NullRenderer renderer;
+    render::RenderSystem rs;
     const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
     app::CharGenBody body;
-    REQUIRE(body.load(renderer, rig, app::CHARGEN_SOURCE_BODY));
+    REQUIRE(body.load(rs, renderer, nullptr, rig, app::CHARGEN_SOURCE_BODY));
     CHECK(body.triangles() == obj->skin.indices.size() / 3);
     CHECK(body.morphs().size() == obj->morphs.size());
-    body.release(renderer);
+    body.release(rs, renderer, nullptr);
 }
 
 TEST_CASE("MORF-бленд ЖИВОЙ: вес двигает вершины, а не только число на экране") {
@@ -674,32 +682,34 @@ TEST_CASE("MORF-бленд ЖИВОЙ: вес двигает вершины, а 
         return;
     }
     platform::NullRenderer renderer;
+    render::RenderSystem rs;
     const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
     app::CharGenBody body;
-    REQUIRE(body.load(renderer, rig, app::CHARGEN_SOURCE_BODY));
+    REQUIRE(body.load(rs, renderer, nullptr, rig, app::CHARGEN_SOURCE_BODY));
     const glm::vec3 lo0 = body.lo();
     const glm::vec3 hi0 = body.hi();
     int moved = 0;
     for (std::size_t i = 0; i < body.morphs().size(); ++i) {
         const render::MorphTarget& t = body.morphs()[i];
-        app::CharGenBody one;
-        REQUIRE(one.load(renderer, rig, app::CHARGEN_SOURCE_BODY));
+        // ОДНО ТЕЛО, ОДИН ПОЛЗУНОК ЗА РАЗ: тело экрана держит номера мешей
+        // игрового персонажа (CharacterFactory), и второе тело на той же
+        // системе рендера получило бы отказ «номер занят» — правильный.
+        body.reset();
         // КРАЙ ПОЛОСЫ, А НЕ СЕРЕДИНА: у половины целей нейтраль стоит НА краю
         // (belly [0, 0.45], age [0, 0.55]), и «сдвинуть в середину» для них
         // значит сдвинуть меньше, чем позволяет цель.
         const float far_end = (std::fabs(t.hi) > std::fabs(t.lo)) ? t.hi : t.lo;
-        REQUIRE(one.set_weight(i, far_end));
-        REQUIRE(one.apply(renderer));
-        if (glm::length(one.lo() - lo0) + glm::length(one.hi() - hi0) > 1e-4f) {
+        REQUIRE(body.set_weight(i, far_end));
+        REQUIRE(body.apply(rs, renderer));
+        if (glm::length(body.lo() - lo0) + glm::length(body.hi() - hi0) > 1e-4f) {
             ++moved;
         }
-        one.release(renderer);
     }
     // НЕ «ХОТЬ ОДНА»: цель, которая не двигает габарит, ещё может двигать
     // вершины внутри силуэта (мускулатура), поэтому порог — большинство, а не
     // все. Ноль сдвинувших значил бы, что бленда нет вовсе.
     CHECK(moved >= static_cast<int>(body.morphs().size()) / 2);
-    body.release(renderer);
+    body.release(rs, renderer, nullptr);
 }
 
 TEST_CASE("тело: вес зажимается ПОЛОСОЙ ЦЕЛИ из файла") {
@@ -708,15 +718,16 @@ TEST_CASE("тело: вес зажимается ПОЛОСОЙ ЦЕЛИ из ф
         return;
     }
     platform::NullRenderer renderer;
+    render::RenderSystem rs;
     const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
     app::CharGenBody body;
-    REQUIRE(body.load(renderer, rig, BODY_PATH));
+    REQUIRE(body.load(rs, renderer, nullptr, rig, BODY_PATH));
     const render::MorphTarget& t = body.morphs()[0];
     (void)body.set_weight(0, 1e6f);
     CHECK(body.weights().weights[0] == doctest::Approx(t.hi));
     (void)body.set_weight(0, -1e6f);
     CHECK(body.weights().weights[0] == doctest::Approx(t.lo));
-    body.release(renderer);
+    body.release(rs, renderer, nullptr);
 }
 
 // --- ПУТЬ ИГРОКА ЧИСТ -------------------------------------------------------
@@ -809,9 +820,10 @@ TEST_CASE("выпечка: MORF снята, рост тот, что просил
         return;
     }
     platform::NullRenderer renderer;
+    render::RenderSystem rs;
     const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
     app::CharGenBody body;
-    REQUIRE(body.load(renderer, rig, BODY_PATH));
+    REQUIRE(body.load(rs, renderer, nullptr, rig, BODY_PATH));
     // ГАБАРИТ ПОТОКА SKIN — ЭТО НЕ РОСТ ФИГУРЫ, и это стоит сказать числом,
     // потому что выглядит одинаково. Вершины .dfo лежат в пространстве
     // ПРИВЯЗКИ (T-поза с разведёнными руками): их размах по вертикали
@@ -856,7 +868,7 @@ TEST_CASE("выпечка: MORF снята, рост тот, что просил
     CHECK(app::chargen_height_scale(0.5f)
           == doctest::Approx(app::CHARGEN_HEIGHT_MIN_M / app::CHARGEN_BODY_HEIGHT_M));
 
-    body.release(renderer);
+    body.release(rs, renderer, nullptr);
     std::error_code ec;
     fs::remove(a, ec);
     fs::remove(b, ec);
@@ -868,14 +880,15 @@ TEST_CASE("пресет старше тела: неизвестный ползу
         return;
     }
     platform::NullRenderer renderer;
+    render::RenderSystem rs;
     const anim::Rig rig = anim::Rig::build(anim::RigProportions::from_config());
     app::CharGenBody body;
-    REQUIRE(body.load(renderer, rig, BODY_PATH));
+    REQUIRE(body.load(rs, renderer, nullptr, rig, BODY_PATH));
     app::CharGenPreset p;
     p.height_m = 1.70f;
     p.sliders = {{"нет-такой-цели", 0.5f}, {body.morphs()[0].name, body.morphs()[0].hi}};
     body.apply_preset(p);
     CHECK(body.height_m() == doctest::Approx(1.70f));
     CHECK(body.weights().weights[0] == doctest::Approx(body.morphs()[0].hi));
-    body.release(renderer);
+    body.release(rs, renderer, nullptr);
 }

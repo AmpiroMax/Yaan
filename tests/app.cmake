@@ -302,6 +302,10 @@ if(TARGET dfn_render AND TARGET dfn_core)
     target_sources(app_chargen PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGen.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Peoples.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/UiSlider.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/UiFont.cpp
@@ -317,7 +321,11 @@ if(TARGET dfn_render AND TARGET dfn_core)
     add_dfn_test(app_character_path app/CharacterPathTests.cpp
                  dfn_render dfn_platform_render dfn_anim dfn_core)
     target_sources(app_character_path PRIVATE
-        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp)
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
 
     # НАРОДЫ КАК РАСПРЕДЕЛЕНИЯ. Предмет тут не «файл читается», а три вещи,
     # которых кадром не увидеть: народный край ОБЯЗАН лежать внутри судейского
@@ -330,7 +338,11 @@ if(TARGET dfn_render AND TARGET dfn_core)
                  dfn_anim dfn_core)
     target_sources(app_peoples PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/Peoples.cpp
-        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp)
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
 
     add_dfn_test(app_hud_screen app/HudScreenTests.cpp dfn_render dfn_core)
     # СБОРКА КАДРА — на тот же рукав (слой 3 разбора App.cpp). Отдельные куски

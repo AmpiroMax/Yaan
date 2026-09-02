@@ -319,6 +319,13 @@ public:
         std::span<const platform::SkinnedVertex> vertices,
         std::span<const uint32_t> indices);
 
+    /// СНЯТЬ СКИННОВАННЫЙ МЕШ С НОМЕРА: буфер уничтожается, номер свободен.
+    /// Нужен телам, которые живут КОРОЧЕ мира — персонажу экрана создания и
+    /// экспонату смотровой: без снятия второй вход на экран получал бы отказ
+    /// «номер занят» от собственного прошлого входа. False — под номером
+    /// ничего не было (и это сказано вслух).
+    bool drop_skinned_mesh(platform::IRenderer& renderer, uint32_t mesh_asset);
+
     /// ONE SKINNED DRAW, submitted this frame. `palette` is borrowed for the
     /// duration of the render() call and nothing else -- render owns no bones.
     struct SkinnedDraw {
@@ -539,12 +546,21 @@ public:
         uint32_t mesh = 0;    ///< MeshHandle::id
         uint32_t program = 0; ///< ProgramHandle::id
         glm::mat4 in_camera{1.0f};
+        /// СКИННОВАННЫЙ ПРЕДМЕТ ЭКРАНА (экран создания персонажа, 02.09):
+        /// когда `palette` не пуста, рисуется зарегистрированный скиннованный
+        /// меш `mesh_asset` (register_skinned_mesh) программой «skinned» с
+        /// этой палитрой костей, а `mesh`/`program` не читаются. Тот же путь
+        /// и та же программа, что у тела в мире, — экран показывает ИГРОВОГО
+        /// персонажа, а не его слепок. Палитра одолжена на один render().
+        uint32_t mesh_asset = 0;
+        std::span<const glm::mat4> palette;
         /// ИЗ ЧЕГО ЭТОТ ПРЕДМЕТ СДЕЛАН (зона МАТЕРИАЛЫ, 28.08). MATERIAL_NONE
         /// — «не сказано», то есть прежний ламберт по цвету вершины, кадр
         /// бит-в-бит. Первый клиент — золотой герб: у металла блик окрашен
         /// им самим, и никакой цвет вершины этого не выражает.
         core::MaterialId material = core::MATERIAL_NONE;
-        [[nodiscard]] bool valid() const { return mesh != 0 && program != 0; }
+        [[nodiscard]] bool skinned() const { return mesh_asset != 0 && !palette.empty(); }
+        [[nodiscard]] bool valid() const { return skinned() || (mesh != 0 && program != 0); }
     };
     /// Живёт ОДИН кадр и снимается сразу после отправки — как временные
     /// светы: игровой кадр, который его не ставил, не должен унаследовать

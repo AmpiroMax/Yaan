@@ -64,9 +64,38 @@ constexpr float FOOT_IK_GATE_TAU_S = 0.06f;
 
 } // namespace
 
+void scale_registry_object(render::RegistryObject& obj, float k) {
+    if (std::fabs(k - 1.0f) < 1e-6f) {
+        return;
+    }
+    for (platform::SkinnedVertex& v : obj.skin.vertices) {
+        v.position *= k;
+    }
+    for (skel::SkeletonJoint& j : obj.skeleton.joints) {
+        j.bind_translation *= k;
+        // IB' = S_k · IB · S_k⁻¹: строка переносов умножается на k, а
+        // ЛИНЕЙНАЯ часть остаётся — сопряжение однородным масштабом её не
+        // трогает.
+        j.inverse_bind[3] = glm::vec4(glm::vec3(j.inverse_bind[3]) * k, 1.0f);
+    }
+    for (skel::AnimClip& clip : obj.clips) {
+        for (skel::AnimChannel& ch : clip.channels) {
+            if (ch.path != skel::AnimPath::Translation) {
+                continue;
+            }
+            for (glm::vec4& value : ch.values) {
+                value.x *= k;
+                value.y *= k;
+                value.z *= k;
+            }
+        }
+    }
+}
+
 bool SkinnedCharacter::load(render::RenderSystem& render_system,
                             platform::IRenderer& renderer, const anim::Rig& rig,
-                            const std::filesystem::path& path, bool legacy_rest) {
+                            const std::filesystem::path& path, bool legacy_rest,
+                            uint32_t mesh_asset, uint32_t blade_asset) {
     if (!std::filesystem::exists(path)) {
         std::fprintf(stderr,
                      "[character] \"%s\" is not there — the body stays as the "
@@ -75,12 +104,31 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
                      path.string().c_str());
         return false;
     }
-    const auto obj = render::read_object(path);
+    auto obj = render::read_object(path);
     if (!obj.has_value()) {
         std::fprintf(stderr, "[character] \"%s\" refused by the registry\n",
                      path.string().c_str());
         return false;
     }
+    return load_object(render_system, renderer, rig, std::move(*obj), path, legacy_rest,
+                       mesh_asset, blade_asset);
+}
+
+bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
+                                   platform::IRenderer& renderer, const anim::Rig& rig,
+                                   render::RegistryObject object,
+                                   const std::filesystem::path& path, bool legacy_rest,
+                                   uint32_t mesh_asset, uint32_t blade_asset) {
+    // A SECOND LOAD GIVES THE FIRST ONE'S IDS BACK FIRST: the screen rebuilds
+    // its character on every settled slider, and a register on an occupied id
+    // is refused out loud (RenderSystem), which is right for two owners and
+    // wrong for one owner twice.
+    if (ready_) {
+        release(render_system, renderer);
+    }
+    mesh_asset_ = mesh_asset;
+    blade_asset_ = blade_asset;
+    const render::RegistryObject* obj = &object;
     if (obj->skin.empty() || obj->skeleton.empty()) {
         std::fprintf(stderr,
                      "[character] \"%s\" carries no SKIN/SKEL section — it is "
@@ -126,8 +174,7 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
                      path.string().c_str());
         return false;
     }
-    if (!render_system.register_skinned_mesh(renderer, SKINNED_CHARACTER_MESH_ID,
-                                             obj->skin.vertices,
+    if (!render_system.register_skinned_mesh(renderer, mesh_asset_, obj->skin.vertices,
                                              obj->skin.indices)) {
         return false;
     }
@@ -136,6 +183,7 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     morphs_ = obj->morphs;
     morph_.resize_for(morphs_);
     source_path_ = path;
+    source_object_ = *obj;
     name_ = obj->name;
     triangles_ = obj->skin.indices.size() / 3;
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
@@ -164,6 +212,14 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
     // про то тело, которое нарисовано.
     hitboxes_ = anim::build_hitboxes(rig_.proportions);
     anim::fit_hitboxes_to_skin(hitboxes_, rig_, skeleton_, binding_, bind_vertices_);
+    // THE BOXES START AT THE REST POSE, so a caller that creates the Jolt
+    // bodies right after load() has a pose to place them by — before any frame
+    // was drawn. build_draw overwrites it every frame.
+    {
+        std::vector<anim::JointLocal> rest(skeleton_.size());
+        anim::pose_local_transforms(rig_, skeleton_, binding_, anim::LocalPose{}, rest);
+        hitbox_pose_ = anim::hitbox_pose(hitboxes_, skeleton_, binding_, rest);
+    }
     tick_sample_.assign(skeleton_.size(), anim::JointLocal{});
     // THE BLADE, uploaded beside the body. LOUD when it cannot be built: a
     // drawn weapon that draws as nothing is exactly the state the comparison
@@ -187,12 +243,12 @@ bool SkinnedCharacter::load(render::RenderSystem& render_system,
                      "not bind, so there is no line to lay a sword along. The guard "
                      "pose will play over an EMPTY hand.\n",
                      path.string().c_str());
-    } else if (!render_system.register_skinned_mesh(renderer, anim::HELD_BLADE_MESH_ID,
+    } else if (!render_system.register_skinned_mesh(renderer, blade_asset_,
                                                     blade_.vertices, blade_.indices)) {
         std::fprintf(stderr,
                      "[character] the blade mesh (id %u) was refused by the registry "
                      "— the guard pose will play over an EMPTY hand\n",
-                     anim::HELD_BLADE_MESH_ID);
+                     blade_asset_);
     } else {
         blade_ready_ = true;
     }
@@ -332,8 +388,8 @@ bool SkinnedCharacter::apply_morphs(render::RenderSystem& render_system,
     }
     render::blend_morphs(bind_vertices_, morphs_, morph_.weights, skin_indices_,
                          morphed_);
-    if (!render_system.replace_skinned_mesh(renderer, SKINNED_CHARACTER_MESH_ID,
-                                            morphed_, skin_indices_)) {
+    if (!render_system.replace_skinned_mesh(renderer, mesh_asset_, morphed_,
+                                            skin_indices_)) {
         // ГРЯЗНЫМ ОСТАВЛЯЕМ НАРОЧНО: неудачная перекладка — это тело, которое
         // на экране не то, что в состоянии, и следующий вызов обязан
         // попробовать ещё раз, а не считать себя сделанным.
@@ -343,22 +399,75 @@ bool SkinnedCharacter::apply_morphs(render::RenderSystem& render_system,
     return true;
 }
 
-bool SkinnedCharacter::bake_morphs(const std::filesystem::path& out) const {
-    // ЧИТАЕМ ИСХОДНЫЙ ФАЙЛ ЗАНОВО, а не пишем то, что держим в памяти. В памяти
-    // у нас скин, скелет и клипы — но НЕ материалы кусков, не происхождение и
+void SkinnedCharacter::release(render::RenderSystem& render_system,
+                               platform::IRenderer& renderer) {
+    if (!ready_) {
+        return;
+    }
+    (void)render_system.drop_skinned_mesh(renderer, mesh_asset_);
+    if (blade_ready_) {
+        (void)render_system.drop_skinned_mesh(renderer, blade_asset_);
+    }
+    blade_ready_ = false;
+    ready_ = false;
+    ticked_ = false;
+    play_ = anim::ClipPlayback{};
+    morph_dirty_ = false;
+    morphed_.clear();
+}
+
+void SkinnedCharacter::rest_positions(std::vector<glm::vec3>& out) const {
+    out.clear();
+    if (!ready_) {
+        return;
+    }
+    std::vector<glm::mat4> palette(skeleton_.size());
+    anim::skinning_palette(rig_, skeleton_, binding_, anim::LocalPose{}, palette);
+    const std::vector<platform::SkinnedVertex>& verts = current_vertices();
+    out.reserve(verts.size());
+    for (const platform::SkinnedVertex& v : verts) {
+        out.push_back(anim::cpu_skin_position(v, palette));
+    }
+}
+
+bool SkinnedCharacter::replace_vertices(render::RenderSystem& render_system,
+                                        platform::IRenderer& renderer,
+                                        std::span<const platform::SkinnedVertex> vertices) {
+    if (!ready_ || vertices.size() != bind_vertices_.size()) {
+        return false;
+    }
+    if (!render_system.replace_skinned_mesh(renderer, mesh_asset_, vertices,
+                                            skin_indices_)) {
+        return false;
+    }
+    bind_vertices_.assign(vertices.begin(), vertices.end());
+    morphed_.clear();
+    morph_dirty_ = false;
+    // THE BOXES FOLLOW THE FLESH: a wider hip is a wider hip box, on the same
+    // rest the rest of the table was fitted on.
+    hitboxes_ = anim::build_hitboxes(rig_.proportions);
+    anim::fit_hitboxes_to_skin(hitboxes_, rig_, skeleton_, binding_, bind_vertices_);
+    return true;
+}
+
+bool SkinnedCharacter::bake_morphs(const std::filesystem::path& out, float scale) const {
+    // ПИШЕМ ОБЪЕКТ, КАКИМ ОН ПРИШЁЛ, а не то, с чем работает класс: в работе у
+    // нас скин, скелет и клипы — но НЕ материалы кусков, не происхождение и
     // не всё, что читатель мог принести; выпечка, потерявшая половину объекта,
-    // была бы «почти тем же телом», а такого не бывает.
-    const auto obj = render::read_object(source_path_);
-    if (!obj.has_value()) {
-        std::fprintf(stderr, "[character] выпечка: не читается \"%s\"\n",
+    // была бы «почти тем же телом», а такого не бывает. Копия держится с
+    // загрузки, а не перечитывается: тело экрана может быть собрано из
+    // памяти, и файла у него нет.
+    if (!ready_ || source_object_.skin.empty()) {
+        std::fprintf(stderr, "[character] выпечка: тело не загружено (%s)\n",
                      source_path_.string().c_str());
         return false;
     }
-    render::RegistryObject baked = *obj;
+    render::RegistryObject baked = source_object_;
     std::vector<platform::SkinnedVertex> blended;
     render::blend_morphs(baked.skin.vertices, baked.morphs, morph_.weights,
                          baked.skin.indices, blended);
     baked.skin.vertices = std::move(blended);
+    scale_registry_object(baked, scale);
     // СЕКЦИЯ СНИМАЕТСЯ — схема Skyrim: ползунки живут только в редакторе, в мир
     // уезжает выпеченное (docs/research/CHARACTER_EDITOR_TOOLS.md §1.3).
     baked.morphs.clear();
@@ -503,9 +612,15 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
     // clip arm by its own clip time (playback_sample), the procedural arm by
     // slerping the two ticks it was evaluated at -- which is exactly what
     // render does to a Transform, one level up from a matrix.
-    if (!playing_clips()
-        || !anim::playback_sample(skeleton_, binding_, clips_, library_, play_, a,
-                                  sample_)) {
+    if (rest_only_) {
+        // THE NEUTRAL ITSELF: no clip, no layer, no foot solve — the rig's
+        // rest through the retarget, which is what the rest fit was solved
+        // on and what the "screen = world" hash is taken over.
+        anim::pose_local_transforms(rig, skeleton_, binding_, anim::LocalPose{}, sample_);
+        anim::sample_palette(skeleton_, sample_, palette_);
+    } else if (!playing_clips()
+               || !anim::playback_sample(skeleton_, binding_, clips_, library_, play_, a,
+                                         sample_)) {
         const anim::LocalPose pose = anim::blend(pose_prev_, pose_curr_, a);
         anim::skinning_palette(rig, skeleton_, binding_, pose, palette_);
     } else {
@@ -581,7 +696,7 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
     draw.transform = glm::translate(glm::mat4{1.0f}, root.ground)
                      * glm::rotate(glm::mat4{1.0f}, -root.yaw,
                                    glm::vec3{0.0f, 1.0f, 0.0f});
-    draw.mesh_asset = SKINNED_CHARACTER_MESH_ID;
+    draw.mesh_asset = mesh_asset_;
     draw.palette = palette_;
     // THE HITBOXES OF THIS FRAME, from the SAME sample the palette was built
     // from. Computing them from a second sample — the tick's, say — is how the
@@ -629,7 +744,7 @@ bool SkinnedCharacter::blade_drawn() const {
 render::RenderSystem::SkinnedDraw SkinnedCharacter::blade_draw(
     const render::RenderSystem::SkinnedDraw& body) const {
     render::RenderSystem::SkinnedDraw draw = body;
-    draw.mesh_asset = anim::HELD_BLADE_MESH_ID;
+    draw.mesh_asset = blade_asset_;
     return draw;
 }
 
