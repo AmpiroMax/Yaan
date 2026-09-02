@@ -375,7 +375,9 @@ if(TARGET dfn_import_gltf)
         if("${DFN_CHAR_DIR}/HumanBase.morphed" IN_LIST DFN_CHAR_OUTPUTS)
             list(APPEND _body_ready "${DFN_CHAR_DIR}/HumanBase.morphed")
         endif()
-        foreach(_set "parts" "clothes")
+        # Наборы одежды: HumanBase.clothes.glb (костюм/ботинки MakeHuman) и
+        # HumanBase.clothes.viking.glb (туника/штаны/сапоги, CC0 сообщества).
+        foreach(_set "parts" "clothes" "clothes.viking")
             if(EXISTS "${DFN_CHAR_DIR}/HumanBase.${_set}.glb")
                 add_custom_command(
                     OUTPUT "${DFN_CHAR_DIR}/HumanBase.${_set}.dfo"
