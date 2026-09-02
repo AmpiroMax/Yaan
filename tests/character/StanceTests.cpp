@@ -107,6 +107,17 @@ struct Model {
 /// THE MODEL'S OWN THIGH, metres: pelvis joint down to knee joint in the rest
 /// pose. The unit the hand's hang is written in, and it is the BODY'S and not
 /// the canon's on purpose — see the band that uses it.
+[[nodiscard]] float forearm_length(const Model& m) {
+    std::vector<glm::mat4> model(m.obj.skeleton.size());
+    anim::rest_model_matrices(m.rig, m.obj.skeleton, m.binding, anim::LocalPose{},
+                              model);
+    const auto at = [&](anim::Bone b) {
+        const int32_t j = m.binding.names.joint[anim::bone_index(b)];
+        return j >= 0 ? glm::vec3{model[static_cast<std::size_t>(j)][3]} : glm::vec3{0.0f};
+    };
+    return glm::length(at(anim::Bone::HandL) - at(anim::Bone::ForearmL));
+}
+
 [[nodiscard]] float thigh_length(const Model& m) {
     std::vector<glm::mat4> model(m.obj.skeleton.size());
     anim::rest_model_matrices(m.rig, m.obj.skeleton, m.binding, anim::LocalPose{},
@@ -344,10 +355,13 @@ TEST_CASE("the_reference_bands") {
         0.5f * (idle_bare.mid.elbow_rad[0] + idle_bare.mid.elbow_rad[1]);
     CAPTURE(idle_elbow * DEG);
     CAPTURE(bare_elbow * DEG);
-    CHECK(idle_elbow < 0.40f);
-    // The control: the bought idle folds the elbow past twice the reference's.
-    // (Also a correction to the report, which read it as 85-95 degrees off a
-    // screenshot; measured at the plant it is 37.9.)
+    // ЛОКОТЬ — КЛИПА, НЕ ЭТАЛОНА (владелец 02.09-2: «локти должны всегда
+    // сгибаться; не изобретать, переиспользовать анимации»). Прежде слой вёл
+    // локоть покоя к 15-20° эталона — и владелец увидел «прямые руки на
+    // ходьбе». Теперь стоя и на ходьбе локоть держит сгиб купленного клипа
+    // (покой 37,9°), слой его не трогает; к беговому сгибу ведёт только бег.
+    CHECK(std::abs(idle_elbow - bare_elbow) < 0.02f);
+    CHECK(idle_elbow > 0.40f);
     CHECK(bare_elbow > 0.55f);
     const float run_elbow = 0.5f * (run.mid.elbow_rad[0] + run.mid.elbow_rad[1]);
     CAPTURE(run_elbow * DEG);
@@ -379,8 +393,19 @@ TEST_CASE("the_reference_bands") {
     CHECK(drop > 0.0f);
     CHECK(drop < 0.35f * thigh);
     // THE HAND HANGS WHERE THE REST HANGS IT (owner's order 02.09: the rest
-    // is the stance's zero), to a centimetre.
-    CHECK(std::abs(drop - rest_drop) < 0.01f);
+    // is the stance's zero) — AS FAR AS THE CLIP'S ELBOW LETS IT (owner's
+    // order 02.09-2: the elbow is the clip's, 37.9 deg against the rest's 10;
+    // a fold of the forearm lifts the wrist, and that lift is not the layer's
+    // to undo). The band: no lower than the rest, no higher than the fold
+    // explains — forearm x (cos rest_elbow - cos idle_elbow).
+    const float forearm = forearm_length(m);
+    REQUIRE(forearm > 0.1f);
+    const float elbow_lift =
+        forearm * (std::cos(m.lib.stance.rest_elbow_rad) - std::cos(idle_elbow));
+    CAPTURE(forearm);
+    CAPTURE(elbow_lift);
+    CHECK(drop < rest_drop + 0.01f);
+    CHECK(drop > rest_drop - elbow_lift - 0.01f);
     // The control, and it is a statement about the LAYER and not about the
     // sign of the bought clip: the idle as bought hangs its hand somewhere
     // else than the rest does, by more than the band above, and the layer
@@ -390,7 +415,6 @@ TEST_CASE("the_reference_bands") {
     // (86500748), the same bought idle hangs the hand 1.0 cm BELOW the hip
     // against the rest's 2.8 — the sign flipped, the layer's job did not.
     CHECK(std::abs(bare_drop - rest_drop) > 0.01f);
-    CHECK(std::abs(drop - rest_drop) < std::abs(bare_drop - rest_drop));
     const float spread =
         0.5f * (idle.mid.hand_spread_m[0] + idle.mid.hand_spread_m[1]);
     CAPTURE(spread);

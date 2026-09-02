@@ -43,6 +43,7 @@ AI Agents Notice (must follow):
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -304,3 +305,118 @@ TEST_CASE("gears_reach_their_ordered_speed") {
     // контроль: у покоя скорости нет
     CHECK(m.lib[anim::ClipRole::Idle].natural_mps == doctest::Approx(0.0f));
 }
+
+TEST_CASE("diagnostic_idle_posture") {
+    // ОСАНКА ПОКОЯ (владелец 02.09-2: «спина не ровная, таз выведен вперёд»):
+    // наклон таза и позвоночника и вынос таза над лодыжками — бинд / клип
+    // покоя как куплен / со слоями.
+    Model m;
+    REQUIRE(load(m, false));
+    std::vector<anim::JointLocal> bind(m.obj.skeleton.size());
+    for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+        const skel::SkeletonJoint& sj = m.obj.skeleton.joints[j];
+        bind[j].translation = sj.bind_translation;
+        bind[j].rotation = sj.bind_rotation;
+        bind[j].scale = sj.bind_scale;
+    }
+    const auto report = [&](const char* tag, std::span<const anim::JointLocal> pose) {
+        std::vector<glm::mat4> local(m.obj.skeleton.size()), model(m.obj.skeleton.size());
+        for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+            local[j] = glm::translate(glm::mat4{1.0f}, pose[j].translation)
+                       * glm::mat4_cast(glm::normalize(pose[j].rotation))
+                       * glm::scale(glm::mat4{1.0f}, pose[j].scale);
+        }
+        skel::skeleton_model_matrices(m.obj.skeleton, local, model);
+        const auto at = [&](const char* n) {
+            const int32_t j = m.obj.skeleton.find(n);
+            REQUIRE(j >= 0);
+            return glm::vec3{model[static_cast<std::size_t>(j)][3]};
+        };
+        const glm::vec3 hips = at("DEF-hips"), sp1 = at("DEF-spine.001"), sp3 = at("DEF-spine.003"),
+                        neck = at("DEF-neck"), fl = at("DEF-foot.L"), fr = at("DEF-foot.R");
+        const glm::vec3 ankles = 0.5f * (fl + fr);
+        const auto lean = [](const glm::vec3& a, const glm::vec3& b) {
+            const glm::vec3 d = b - a;
+            return glm::degrees(std::atan2(-d.z, d.y)); // + вперёд (−Z)
+        };
+        MESSAGE(tag << ": таз впереди лодыжек " << 1000.0f * (ankles.z - hips.z) << " мм; "
+                    << "наклон таз→spine.001 " << lean(hips, sp1) << "°, spine.001→spine.003 "
+                    << lean(sp1, sp3) << "°, spine.003→шея " << lean(sp3, neck)
+                    << "°, таз→шея " << lean(hips, neck) << "°");
+    };
+    report("бинд", bind);
+    std::vector<anim::JointLocal> pose;
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    anim::ClipPlayback play;
+    for (int i = 0; i < 60; ++i) {
+        anim::advance_playback(m.lib, drive, DT, play);
+    }
+    pose.assign(m.obj.skeleton.size(), anim::JointLocal{});
+    REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib, play, 1.0f, pose));
+    report("покой со слоями", pose);
+    anim::ClipLibrary bare = m.lib;
+    bare.stance = anim::StanceLayer{};
+    bare.relax = anim::ArmRelax{};
+    bare.idle_symmetry = 0.0f;
+    bare.arm_clearance_m = 0.0f;
+    anim::ClipPlayback play2;
+    for (int i = 0; i < 60; ++i) {
+        anim::advance_playback(bare, drive, DT, play2);
+    }
+    REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, bare, play2, 1.0f, pose));
+    report("покой как куплен", pose);
+    struct Variant { const char* name; bool stance; bool symmetry; bool relax; };
+    const Variant variants[] = {{"только стойка", true, false, false},
+                                {"только симметрия ног", false, true, false},
+                                {"только руки", false, false, true}};
+    for (const Variant& v : variants) {
+        anim::ClipLibrary lib = m.lib;
+        if (!v.stance) lib.stance = anim::StanceLayer{};
+        if (!v.symmetry) lib.idle_symmetry = 0.0f;
+        if (!v.relax) { lib.relax = anim::ArmRelax{}; lib.arm_clearance_m = 0.0f; }
+        anim::ClipPlayback p3;
+        for (int i = 0; i < 60; ++i) anim::advance_playback(lib, drive, DT, p3);
+        REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, lib, p3, 1.0f, pose));
+        report(v.name, pose);
+    }
+    CHECK(true);
+}
+
+TEST_CASE("diagnostic_elbows_of_every_clip") {
+    // ЛОКТИ ПО ВСЕМ КЛИПАМ (владелец 02.09-2: «локти должны сгибаться всегда;
+    // не изобретать, переиспользовать анимации»): средний и минимальный сгиб
+    // локтя за цикл, чтобы выбрать клипы с живыми руками из купленных.
+    Model m;
+    REQUIRE(load(m, false));
+    const int32_t ua = m.obj.skeleton.find("DEF-upper_arm.L");
+    const int32_t fa = m.obj.skeleton.find("DEF-forearm.L");
+    const int32_t ha = m.obj.skeleton.find("DEF-hand.L");
+    REQUIRE(ua >= 0);
+    REQUIRE(fa >= 0);
+    REQUIRE(ha >= 0);
+    std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
+    std::vector<glm::mat4> local(m.obj.skeleton.size()), model(m.obj.skeleton.size());
+    for (const skel::AnimClip& clip : m.obj.clips) {
+        float sum = 0.0f, lo = 1e9f, hi = 0.0f;
+        const int N = 24;
+        for (int k = 0; k < N; ++k) {
+            anim::sample_clip_pose(m.obj.skeleton, clip, clip.duration_s * float(k) / float(N), sample);
+            for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+                local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation)
+                           * glm::mat4_cast(glm::normalize(sample[j].rotation))
+                           * glm::scale(glm::mat4{1.0f}, sample[j].scale);
+            }
+            skel::skeleton_model_matrices(m.obj.skeleton, local, model);
+            const glm::vec3 A{model[static_cast<std::size_t>(ua)][3]};
+            const glm::vec3 B{model[static_cast<std::size_t>(fa)][3]};
+            const glm::vec3 C{model[static_cast<std::size_t>(ha)][3]};
+            const float c = glm::clamp(glm::dot(glm::normalize(A - B), glm::normalize(C - B)), -1.0f, 1.0f);
+            const float flex = glm::degrees(glm::pi<float>() - std::acos(c));
+            sum += flex; lo = std::min(lo, flex); hi = std::max(hi, flex);
+        }
+        MESSAGE(clip.name << ": локоть средний " << sum / N << "°, мин " << lo << ", макс " << hi);
+    }
+    CHECK(true);
+}
+

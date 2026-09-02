@@ -1630,9 +1630,14 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     // 80-90, and the clip playing may already be anywhere between.
     // Subtracting what the clip holds is what keeps the correction a
     // correction.
+    // ЛОКТИ — КАК В КЛИПЕ (владелец 02.09-2: «локти должны всегда сгибаться;
+    // не изобретать, переиспользовать анимации»): стоя и на ходьбе рука
+    // держит сгиб клипа (Walk_Loop 36°, Idle 31°), а не покой экрана
+    // создания (10°) — прежняя тяга к покою и давала «прямые руки на
+    // ходьбе». К беговому сгибу STANCE_ELBOW_RUN рука ведётся только весом
+    // бега.
     const float want_elbow =
-        glm::mix(lib.stance.rest_elbow_rad,
-                 static_cast<float>(config::STANCE_ELBOW_RUN), run);
+        glm::mix(cur.elbow_mean_rad, static_cast<float>(config::STANCE_ELBOW_RUN), run);
     // ...AND WHEN THE SWORD IS OUT THE GUARD DECIDES THE ELBOW. A blade is
     // held with a bent arm and the guard clip says how bent; the layer's job
     // there is the shoulder, not the fold.

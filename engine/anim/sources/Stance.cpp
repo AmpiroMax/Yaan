@@ -21,6 +21,7 @@ AI Agents Notice (must follow):
 #include "engine/core/config/sources/Constants.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <vector>
 #include <glm/gtc/matrix_transform.hpp>
@@ -280,6 +281,39 @@ void apply_stance(const skel::Skeleton& skeleton, const StanceLayer& layer,
                    ? origin_of(model[static_cast<std::size_t>(j)])
                    : glm::vec3{0.0f};
     };
+    // СТОПА ОСТАЁТСЯ ПОД ТЕЛОМ: после поворота таза или колена бедро
+    // доворачивается так, чтобы лодыжка вернулась на прежнюю горизонталь.
+    // Слой осанки не двигает опору: иначе каждый тик хода стопа уезжала на
+    // доли миллиметра, и прибор сноса краснел на беге (1,43 → 2,08 мм).
+    const auto keep_ankle = [&](std::size_t k, const glm::vec3& ankle0) {
+        if (layer.thigh[k] < 0 || layer.foot[k] < 0) {
+            return;
+        }
+        refresh();
+        const glm::vec3 hip = pos(layer.thigh[k]);
+        const glm::vec3 ankle1 = pos(layer.foot[k]);
+        const glm::vec3 from = ankle1 - hip;
+        const glm::vec3 to = glm::vec3{ankle0.x, ankle1.y, ankle0.z} - hip;
+        if (glm::length(from) < 1.0e-4f || glm::length(to) < 1.0e-4f) {
+            return;
+        }
+        const glm::vec3 a = glm::normalize(from);
+        const glm::vec3 b = glm::normalize(to);
+        const float c = glm::clamp(glm::dot(a, b), -1.0f, 1.0f);
+        const glm::vec3 axis = glm::cross(a, b);
+        if (glm::length(axis) > 1.0e-6f && c < 1.0f - 1.0e-6f) {
+            const glm::quat swing = glm::angleAxis(std::acos(c), glm::normalize(axis));
+            turn_joint(skeleton, model, layer.thigh[k], swing, sample);
+            refresh();
+            // Нога качнулась целиком — и стопа с ней: на беге носок (точка
+            // опоры) уезжал на 25 см × угол качка ≈ 0,7 мм за тик. Стопа
+            // держит свою ориентацию.
+            if (layer.foot[k] >= 0) {
+                turn_joint(skeleton, model, layer.foot[k], glm::inverse(swing), sample);
+                refresh();
+            }
+        }
+    };
 
     // 1. THE TRUNK. The lean the reference has at this gear, minus the lean
     //    the clip brought, applied at the chest — so a run still leans and an
@@ -297,12 +331,70 @@ void apply_stance(const skel::Skeleton& skeleton, const StanceLayer& layer,
         // second pass closes it to under a tenth of a degree. Iterating is the
         // honest answer because the relation is a real geometric one and not a
         // fudge factor somebody would have to keep true.
-        for (int pass = 0; pass < 2; ++pass) {
+        // НАКЛОН ТАЗА — ТАЗОМ, НОГИ ОСТАЮТСЯ (владелец 02.09-2: «спина не
+        // ровная, жопа выпячивается, таз вперёд, лордоз»). Купленный покой стоит
+        // с тазом, наклонённым вперёд на 10° (отрезок таз→торс), и поворот
+        // одного торс-сустава до нужной линии таз→голова гнул позвоночник
+        // посередине: поясница +10°, грудной −10° — та самая буква S. Теперь
+        // поясничный отрезок приводится к наклону корпуса поворотом ТАЗА, а
+        // бёдра поворачиваются обратно, чтобы ноги стояли, где стояли; торс
+        // ниже добирает остаток по линии таз→голова.
+        {
             refresh();
-            const glm::vec3 trunk = pos(layer.head) - pos(layer.pelvis);
-            const float have = std::atan2(-trunk.z, trunk.y);
-            turn_joint(skeleton, model, layer.torso, forward_pitch((want - have) * w),
-                       sample);
+            const glm::vec3 lumbar = pos(layer.torso) - pos(layer.pelvis);
+            if (glm::length(glm::vec2{lumbar.y, lumbar.z}) > 1.0e-4f) {
+                const float have = std::atan2(-lumbar.z, lumbar.y);
+                const std::array<glm::vec3, 2> ankle0{pos(layer.foot[0]), pos(layer.foot[1])};
+                const glm::quat q = forward_pitch((want - have) * w);
+                turn_joint(skeleton, model, layer.pelvis, q, sample);
+                refresh();
+                for (int i = 0; i < 2; ++i) {
+                    const auto k = static_cast<std::size_t>(i);
+                    if (layer.thigh[k] >= 0) {
+                        turn_joint(skeleton, model, layer.thigh[k], glm::inverse(q), sample);
+                    }
+                }
+                // Поворот таза вокруг его сустава сдвигает головки бёдер, и с
+                // ними лодыжки — вернуть стопы на место.
+                keep_ankle(0, ankle0[0]);
+                keep_ankle(1, ankle0[1]);
+            }
+        }
+        // ГРУДНОЙ ОТРЕЗОК — ТОРСОМ: торс→шея к той же цели. Прежде торс гнулся,
+        // пока линия таз→голова не ляжет на цель, и весь наклон шеи клипа
+        // (16° вперёд у покоя) отыгрывался прогибом груди назад (−10°).
+        // Шею и голову ведёт свой проход ниже (взгляд по горизонту).
+        // Позвонок за позвонком снизу вверх: каждый сустав цепи торс…шея
+        // ставит СВОЙ отрезок на наклон корпуса — линия выходит прямой, а не
+        // «в среднем прямой» с прогибом груди назад и шеи вперёд.
+        const int32_t neck = layer.head >= 0
+                                 ? skeleton.joints[static_cast<std::size_t>(layer.head)].parent
+                                 : -1;
+        const int32_t top = neck >= 0 ? neck : layer.head;
+        std::array<int32_t, 8> chain{};
+        std::size_t n = 0;
+        for (int32_t j = neck >= 0 ? skeleton.joints[static_cast<std::size_t>(neck)].parent
+                                   : layer.torso;
+             j >= 0 && n < chain.size(); j = skeleton.joints[static_cast<std::size_t>(j)].parent) {
+            chain[n++] = j;
+            if (j == layer.torso) {
+                break;
+            }
+        }
+        if (n == 0 || chain[n - 1] != layer.torso) {
+            chain[0] = layer.torso;
+            n = 1;
+        }
+        for (std::size_t i = n; i-- > 0;) {
+            const int32_t j = chain[i];
+            const int32_t child = i > 0 ? chain[i - 1] : top;
+            refresh();
+            const glm::vec3 seg = pos(child) - pos(j);
+            if (glm::length(glm::vec2{seg.y, seg.z}) < 1.0e-4f) {
+                continue;
+            }
+            const float have = std::atan2(-seg.z, seg.y);
+            turn_joint(skeleton, model, j, forward_pitch((want - have) * w), sample);
         }
     }
 
@@ -356,7 +448,15 @@ void apply_stance(const skel::Skeleton& skeleton, const StanceLayer& layer,
             const Flexion f =
                 flexion_of(pos(layer.thigh[k]), pos(layer.shin[k]), pos(layer.foot[k]));
             const float d = (knee_target - f.angle_rad) * stand;
+            // СТОПА ОСТАЁТСЯ ПОД БЕДРОМ: выпрямление колена одним поворотом
+            // голени уносило лодыжку вперёд на 10 см, стопу потом сажал на
+            // место замок — и таз оказывался на 7 см ЗА лодыжками (та самая
+            // «жопа назад»). После колена бедро доворачивается так, чтобы
+            // лодыжка вернулась на прежнюю горизонталь.
+            const glm::vec3 ankle0 = pos(layer.foot[k]);
             turn_joint(skeleton, model, layer.shin[k], glm::angleAxis(d, f.axis), sample);
+            keep_ankle(k, ankle0);
+            refresh();
         }
         refresh();
         // КОЛЕЯ ОТСЧИТЫВАЕТСЯ ОТ СЕРЕДИНЫ ЛИНИИ БЁДЕР, А НЕ ОТ СУСТАВА ТАЗА, и
