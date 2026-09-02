@@ -47,31 +47,13 @@
 # (matrix_basis) проверяется в конце прогона сравнением с тем, что посчитал
 # сам Blender: расхождение печатается, и это контроль, а не обещание.
 #
-# И ОДНОГО ПОВОРОТА НЕ ХВАТАЕТ — ЭТО ЗАМЕРЕНО, А НЕ ПРЕДПОЛОЖЕНО. Опорная
-# стопа стоит на земле, пока повороты бедра, голени и стопы ТОЧНО гасят друг
-# друга, а гашение зависит от ДЛИН звеньев. Разница в 3.4 % между ногой
-# анатомического скелета и ногой, на которой клипы поставлены, роняла площадку
-# опоры вдвое и заставляла движок играть на ШАГЕ клип СПРИНТА. Поэтому длины
-# бедра и голени приводятся к исходным (`conform_leg_bones`, там же три опыта
-# и цена). Настоящее решение — запирать опорную стопу обратной кинематикой; оно
-# названо хвостом и не сделано молча.
-#
-# ПРАВКИ 02.09 (замена базовой модели, заказ владельца «норда — базовой»).
-#   1. РИГ САДИТСЯ ПО JOINT-HELPER'АМ (detailed_helpers=True). Без них MPFB
-#      подгонял скелет по НЕЙТРАЛЬНОМУ телу 1,67 м, а меш после макро-ручек —
-#      1,91 м: суставы ниже на 14 %, плечи уже на 32 %, кости кисти в 10 см от
-#      вершин кисти. Это и был корень «пальцев-игл» и «сбитых пропорций» в
-#      игре (кадры artifacts/reports/blender-agent/0*.png, 1*.png), а не
-#      децимация, не импортёр и не экспортёр.
-#   2. ПОКОЙ ПО ДОНОРУ (align_rest_to_donor): ретаргет копирует мировую
-#      ориентацию кости, и покой рига теперь совпадает с T-позой донора клипов
-#      до 0,000°, так что клип крутит кость ровно на столько, на сколько её
-#      крутил автор. Поза запекается в меш нашими же весами.
-#   3. ЛОДЫЖКА НА МЕСТЕ: подгонка длин ног делит СВОЙ отрезок бедро→лодыжка в
-#      отношении донора, а не тянет голень до чужой длины.
-#   4. Умолчания — одобренное тело без правочных целей и без децимации; донор
-#      клипов — UAL_Clips.glb (побайтный оригинал Quaternius UAL, CC0); выход —
-#      HumanBase.glb, чтобы CMake-спека, тесты и чарджен не меняли путей.
+# И ОДНОГО ПОВОРОТА НЕ ХВАТАЛО — ЭТО БЫЛО ЗАМЕРЕНО, И ЭТО БОЛЬШЕ НЕ ЧИНИТСЯ
+# ЗДЕСЬ. Опорная стопа стоит на земле, пока повороты бедра, голени и стопы
+# ТОЧНО гасят друг друга, а гашение зависит от ДЛИН звеньев; прежняя версия
+# подгоняла бедро и голень к длинам донора (три опыта, сошёлся третий) ценой
+# колена, гнущегося не там, где оно в мясе, и лодыжки в стопе. Снято 02.09:
+# схождение шага с перемещением — задача движка (перемещение ведёт опорная
+# стопа, docs/design/LOCOMOTION_GROUNDED.md), а скелет стоит там, где мясо.
 #
 # Dependencies:
 # - Uses: bpy (Blender 5.2 LTS; 4.2 тоже читается — имя пакета MPFB ищется),
@@ -514,82 +496,14 @@ def decimate(mesh, budget):
     return after
 
 
-def conform_leg_bones(rig, src_rig):
-    """Бедро и голень получают ДЛИНУ скелета, на котором клипы поставлены.
+# КОСТИ, ЧЕЙ ПОКОЙ ОСТАЁТСЯ СВОИМ (правка 02.09-2, «плечи сильно назад»): ключица
+# манекена Quaternius в покое смотрит на 30,5° НАЗАД (замер по UAL_Clips.glb), у
+# MPFB — на 3,5°. Выравнивание по донору поворачивало ключицу на 27° назад и
+# запекало это в мясо — плечи уезжали за спину. Ключицы держат свой покой, а
+# клип переносится на них ДЕЛЬТОЙ (поворот донора относительно его покоя,
+# приложенный к нашему покою), см. retarget().
+OWN_REST_BONES = frozenset({"DEF-shoulder.L", "DEF-shoulder.R"})
 
-    ОПОРНАЯ ФАЗА — ЭТО ГЕОМЕТРИЯ, А НЕ ПОВОРОТ, и это то место, где перенос
-    «скопируй мировой поворот» ломается. Носок стоит на земле, пока повороты
-    бедра, голени и стопы ТОЧНО гасят друг друга; гашение зависит от ДЛИН
-    звеньев, а длины у анатомического скелета свои. Замерено на Walk_Loop:
-    скорость носка в опоре совпадает с исходной до 0.1 % (0.0304 против
-    0.0303 м/кадр) — движение перенесено верно, — а ПЛОЩАДКА опоры держится
-    вдвое меньше, 10 кадров из 41 против 20, потому что нога складывается по
-    другим рычагам. Движок мерит это сам и отвечает по-своему:
-    «Walk_Loop slides 0.159 m/step, Sprint_Loop only 0.044 — the Walk role
-    takes the Sprint clip», то есть НА ШАГЕ ФИГУРА НАЧИНАЕТ БЕЖАТЬ.
-
-    ТРИ ОПЫТА, И ТОЛЬКО ТРЕТИЙ СОШЁЛСЯ (все на быстром круге, --only):
-      * пересадить стопе вектор чужой стопы целиком — 0.191 м/шаг, ХУЖЕ, и
-        подушечка уходит под землю: лодыжка прежнего ассета стоит на 0.060H,
-        а анатомическая на канонических 0.040H, и падение 8.8 см от неё
-        уводит носок на -1 см;
-      * выправить только ДЛИНУ рычага стопы, оставив своё направление —
-        0.165 м/шаг, без изменений: дело не в стопе;
-      * выправить длины БЕДРА И ГОЛЕНИ — Walk_Loop возвращается на свою роль
-        и меряет 1.460 м за цикл, ровно столько же, сколько на прежнем теле;
-        рысь 2.92 (было 2.74), спринт впервые играет собственный Sprint_Loop,
-        а носок остаётся на земле (0.0151 против 0.0217 у прежнего).
-    Разница длин — 3.4 % (бедро 0.395 против 0.400, голень 0.407 против
-    0.430), и этих трёх процентов хватало, чтобы опора не сходилась.
-
-    ЧТО ЭТО СТОИТ. Колено уезжает от своего места в меше примерно на
-    полтора сантиметра, и это цена, которую платит СКИННИНГ, а не силуэт:
-    линейный блендинг тянет мясо за костью, а кость внутри ноги не видно.
-    Альтернатива — запирать опорную стопу в переносе решением обратной
-    кинематики; это отдельная работа, и она названа хвостом, а не сделана
-    молча.
-    """
-    # ДОЛЯ ДОНОРА, ДЛИНА СВОЯ (правка 02.09). Прежде бедро и голень брали длины
-    # донора целиком, и лодыжка уезжала вниз на 3,6 см — в стопу (судья: −50 %
-    # к канону, в движке стопа гнулась не там). Теперь бедро и голень делят
-    # СВОЙ отрезок «бедро→лодыжка» в отношении длин донора: колено встаёт как у
-    # донора, лодыжка остаётся на своём месте в мясе, а скольжение стопы по
-    # шагу добирает IK стопы движка (FootIk.h), а не сдвиг сустава.
-    activate(rig)
-    bpy.ops.object.mode_set(mode="EDIT")
-    was = []
-    src_thigh = (src_rig.data.bones["DEF-thigh.L"].tail_local
-                 - src_rig.data.bones["DEF-thigh.L"].head_local).length
-    src_shin = (src_rig.data.bones["DEF-shin.L"].tail_local
-                - src_rig.data.bones["DEF-shin.L"].head_local).length
-    ratio = src_thigh / (src_thigh + src_shin)
-    for side in ("L", "R"):
-        thigh = rig.data.edit_bones["DEF-thigh.%s" % side]
-        shin = rig.data.edit_bones["DEF-shin.%s" % side]
-        foot = rig.data.edit_bones["DEF-foot.%s" % side]
-        hip = thigh.head.copy()
-        ankle = shin.tail.copy()
-        was.extend([thigh.length, shin.length])
-        knee = hip + (ankle - hip) * ratio
-        thigh.tail = knee
-        shin.head = knee
-        shin.tail = ankle
-        foot.head = ankle
-    bpy.ops.object.mode_set(mode="OBJECT")
-    log("leg bones conformed to the clip source's thigh:shin ratio %.3f (ankle kept): "
-        "thigh %.3f->%.3f, shin %.3f->%.3f"
-        % (ratio, was[0], rig.data.bones["DEF-thigh.L"].length,
-           was[1], rig.data.bones["DEF-shin.L"].length))
-
-
-def figure_height(arm):
-    """Высота скелета по костям: от самой низкой головы до самой высокой."""
-    lo = min(b.head_local.z for b in arm.data.bones)
-    hi = max(max(b.head_local.z, b.tail_local.z) for b in arm.data.bones)
-    return hi - lo
-
-
-# ------------------------------------------------------- 4. перенос клипов --
 
 def align_rest_to_donor(mesh, rig, src_rig):
     """ПОКОЙ НАШЕГО РИГА ПРИВОДИТСЯ К ПОКОЮ ДОНОРА КЛИПОВ (правка 02.09).
@@ -623,7 +537,8 @@ def align_rest_to_donor(mesh, rig, src_rig):
     to_src = src_rig.matrix_world
     to_rig = rig.matrix_world.inverted()
     want = {n: ((to_rig @ to_src @ src_rig.data.bones[n].matrix_local)
-                if n in src_rig.data.bones else rest[n]) for n in names}
+                if (n in src_rig.data.bones and n not in OWN_REST_BONES) else rest[n])
+            for n in names}
     pose = {}
     for n in order:
         rot = rot_of(want[n])
@@ -657,7 +572,7 @@ def align_rest_to_donor(mesh, rig, src_rig):
     bpy.context.view_layer.update()
     left = 0.0
     for n in names:
-        if n in src_rig.data.bones:
+        if n in src_rig.data.bones and n not in OWN_REST_BONES:
             a = rot_of(to_rig @ to_src @ src_rig.data.bones[n].matrix_local).to_quaternion()
             b = rot_of(rig.data.bones[n].matrix_local).to_quaternion()
             ang = math.degrees(a.rotation_difference(b).angle)
@@ -692,6 +607,10 @@ def retarget(rig, src_rig, moving, only=None):
     to_rig = rig.matrix_world.inverted()
     src_rest = {n: (to_rig @ to_src @ src_rig.data.bones[n].head_local)
                 for n in names if n in src_rig.data.bones}
+    # покой донора и наш покой (повороты) — для костей, что переносятся ДЕЛЬТОЙ
+    src_rest_rot = {n: rot_of(to_rig @ to_src @ src_rig.data.bones[n].matrix_local)
+                    for n in names if n in src_rig.data.bones}
+    own_rest_rot = {n: rot_of(rest[n]) for n in names}
 
     if rig.animation_data is None:
         rig.animation_data_create()
@@ -737,6 +656,10 @@ def retarget(rig, src_rig, moving, only=None):
             pose = {}
             for n in order:
                 rot = src_world[n].to_3x3().normalized()
+                if n in OWN_REST_BONES and n in src_rest_rot:
+                    # дельта донора (кадр × покой⁻¹) на НАШ покой: ключица
+                    # двигается, как у автора, но из своего положения
+                    rot = rot @ src_rest_rot[n].inverted() @ own_rest_rot[n]
                 p = parent[n]
                 if p is None or n in moving:
                     head = rest_head[n] + (src_world[n].to_translation() - src_rest[n])
@@ -829,7 +752,6 @@ def main():
             raise SystemExit("clip source lacks bones: " + ", ".join(missing))
         # ТАЗ И КОРЕНЬ — ЕДИНСТВЕННЫЕ, КТО ЕЗДИТ. Замерено по файлу: у всех
         # прочих суставов канал translation постоянен, то есть равен привязке.
-        conform_leg_bones(rig, src_rig)
         align_rest_to_donor(mesh, rig, src_rig)
         only = [x for x in opt["only"].split(",") if x]
         made = retarget(rig, src_rig, moving={"DEF-hips"}, only=only)
@@ -931,4 +853,5 @@ def fix_clip_names(path, wanted, suffix):
         % (suffix, len(doc.get("animations", []))))
 
 
-main()
+if __name__ == "__main__":
+    main()
