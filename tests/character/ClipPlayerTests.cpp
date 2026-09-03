@@ -59,6 +59,12 @@ TEST_CASE("clip_library_resolves_roles") {
     // silently resolves nine draws a body that stops moving in one state.
     CHECK(m.lib.resolved == anim::CLIP_ROLE_COUNT);
     CHECK(clip_name_of(m, anim::ClipRole::Idle) == "Idle_Loop");
+    // ХОДЬБА И ТРУСЦА — MIXAMO с 04.09 (LOCOMOTION_GROUNDED.md §11.1): часы
+    // клипа от пути требуют клип, чья стопа в опоре идёт со скоростью заказа
+    // в полосе темпа; UAL Walk_Loop — 1,0 м/с при заказе 1,8, Jog_Fwd_Loop —
+    // 2,76 при 3,0 (терпимо), MX_Standard_Run — 3,16 (ближе всех).
+    // …роли по умолчанию — прежние UAL до слова владельца (тикет ролей);
+    // предложение: MX_Walking / MX_Standard_Run.
     CHECK(clip_name_of(m, anim::ClipRole::Walk) == "Walk_Loop");
     CHECK(clip_name_of(m, anim::ClipRole::Jog) == "Jog_Fwd_Loop");
     // THE SPRINT ROLE PLAYS Sprint_Loop — its own clip, by name. Until 02.09
@@ -588,7 +594,11 @@ TEST_CASE("the_feet_stay_on_the_ground") {
     // kept on the entry precisely so this line can exist.
     const anim::ClipEntry& jog_entry = m.lib[anim::ClipRole::Jog];
     CAPTURE(jog_entry.mix_solo_lift_m);
-    CHECK(jog_entry.mix_solo_lift_m > 0.10f);
+    // с 04.09 трусца — MX_Standard_Run в полосе темпа, смеси нет и отвергать
+    // нечего; контрольная рука жива только у смешанной передачи
+    if (jog_entry.mixed()) {
+        CHECK(jog_entry.mix_solo_lift_m > 0.10f);
+    }
 }
 
 TEST_CASE("both_feet_stand_on_the_object_they_are_on") {
@@ -958,7 +968,9 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
     // стоят между клипом и картинкой, и число, снятое до них, — это число о
     // теле, которого никто не видит.
     Model m;
-    REQUIRE(load(m));
+    // КЛИПЫ UAL ПО ИМЕНИ: этот прибор характеризует Walk_Loop/Jog_Fwd_Loop, а не
+    // роль по умолчанию (с 04.09 — Mixamo, LOCOMOTION_GROUNDED.md §11.1).
+    REQUIRE(load(m, false, "Walk=Walk_Loop,Jog=Jog_Fwd_Loop"));
     const anim::FootIkSetup setup =
         anim::build_foot_ik(m.obj.skeleton, m.binding, m.lib.contacts);
     REQUIRE(setup.valid());
@@ -1373,7 +1385,9 @@ TEST_CASE("in_the_air_the_pose_is_the_clip") {
     // называет двух подозреваемых — подгонку шага и решатель стоп — и оба
     // проверяются здесь ЧИСЛОМ, а не прочтением кода.
     Model m;
-    REQUIRE(load(m, false)); // стрид-скейл есть только у прежнего шва
+    // КЛИПЫ UAL ПО ИМЕНИ: этот прибор характеризует Walk_Loop/Jog_Fwd_Loop, а не
+    // роль по умолчанию (с 04.09 — Mixamo, LOCOMOTION_GROUNDED.md §11.1).
+    REQUIRE(load(m, false, "Walk=Walk_Loop,Jog=Jog_Fwd_Loop")); // стрид-скейл есть только у прежнего шва
     REQUIRE(m.lib.has(anim::ClipRole::JumpStart));
     REQUIRE(m.lib.has(anim::ClipRole::JumpLoop));
 

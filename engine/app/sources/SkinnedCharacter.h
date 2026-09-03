@@ -455,6 +455,13 @@ private:
     /// закрывать (мировая точка касания до замка минус якорь), раз в 10 тиков.
     bool slide_trace_ = false;
     uint32_t slide_trace_ticks_ = 0;
+    /// §11.1: часы клипа от пути (DFN_CLIP_CLOCK=path; по умолчанию пока время —
+    /// приёмка трусцы/бега ждёт клипов под скорость) — корень ведёт модель
+    /// скорости сим'а (speed_model_), клип идёт за фактическим ходом корня.
+    bool clip_clock_path_ = false;
+    float speed_model_mps_ = 0.0f;
+    float leg_warp_rad_ = 0.0f;      ///< поворот ног к вводу (warp_legs), сглаженный
+    float leg_warp_prev_rad_ = 0.0f; ///< прошлый тик — кадр интерполирует
     anim::LocoTelemetry telemetry_;
     bool telemetry_on_ = false;
     std::FILE* telemetry_csv_ = nullptr;

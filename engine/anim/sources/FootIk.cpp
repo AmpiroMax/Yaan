@@ -509,6 +509,24 @@ void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& con
     }
 }
 
+void warp_legs(const skel::Skeleton& skeleton, const FootIkSetup& setup, float warp_rad,
+               std::span<JointLocal> sample) {
+    if (!setup.valid() || sample.size() < skeleton.size() || std::abs(warp_rad) < 1.0e-5f) {
+        return;
+    }
+    std::vector<glm::mat4> local;
+    std::vector<glm::mat4> model;
+    model_matrices(skeleton, sample, local, model);
+    const glm::quat turn = glm::angleAxis(warp_rad, glm::vec3{0.0f, 1.0f, 0.0f});
+    for (std::size_t side = 0; side < 2; ++side) {
+        const int32_t hip = setup.hip[side];
+        const int32_t hp = skeleton.joints[static_cast<std::size_t>(hip)].parent;
+        const glm::quat parent_rot = hp >= 0 ? model_rotation(model[static_cast<std::size_t>(hp)])
+                                             : glm::quat{1.0f, 0.0f, 0.0f, 0.0f};
+        turn_in_model(parent_rot, turn, sample[static_cast<std::size_t>(hip)]);
+    }
+}
+
 void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
                      const std::array<glm::vec3, 2>& point_target_model,
                      const std::array<bool, 2>& target_is_toe,

@@ -172,6 +172,8 @@ enum class MoveDir : uint8_t { Forward = 0, StrafeL, StrafeR, Backward };
 /// covers 2.44. Twelve geometric points step by 12^(1/11) = 1.253 each, so
 /// every cell is the same 25 % of stride wherever it sits.
 inline constexpr uint32_t STRIDE_CURVE_POINTS = 12;
+/// Точек кривой пути опорной стопы по циклу (LOCOMOTION_GROUNDED.md §11.1).
+inline constexpr uint32_t PATH_CURVE_POINTS = 64;
 inline constexpr float STRIDE_SCALE_MIN = 0.25f;
 inline constexpr float STRIDE_SCALE_MAX = 3.0f;
 
@@ -276,6 +278,19 @@ struct ClipEntry {
     /// поэтому это и есть скорость передачи; заказ передачи добирается ТЕМПОМ
     /// в полосе LOCOMOTION_TEMPO_BAND (advance_playback), а не масштабом ног.
     float natural_mps = 0.0f;
+    /// КРИВАЯ ПУТИ ОПОРНОЙ СТОПЫ ПО ЦИКЛУ (§11.1, distance matching): сколько
+    /// метров стопа, стоящая на земле, унесла тело от начала цикла до фазы
+    /// i/(N−1). Монотонна; плоская там, где ни одна стопа не опирается (мах,
+    /// полёт). Часы клипа на ходу берутся из неё: фаза = s⁻¹(s(фаза) +
+    /// |Δкорня|), и стопа стоит на месте по построению — без замка.
+    std::array<float, PATH_CURVE_POINTS> path_curve{};
+    bool path_valid = false;
+    /// СКОРОСТЬ СТОПЫ ПОД ТЕЛОМ В ОПОРЕ, м/с — путь цикла на время опорных
+    /// ячеек кривой. Это и есть скорость, которую клип изображает: стопа на
+    /// земле неподвижна, значит тело идёт ровно так. natural_mps (корень от
+    /// стоп с коастом полёта) её завышает: Sprint_Loop 6,49 против 4,9.
+    /// Темп клипа (rate) на ходу — заказ/stance_mps.
+    float stance_mps = 0.0f;
 
     /// THE SECOND CLIP OF A BLENDED GEAR, and the weight it carries.
     ///
@@ -361,6 +376,11 @@ struct ClipLibrary {
     /// клиренс: обе руки сравнения обязаны выходить из одного бинарника.
     MirrorMap mirror;
     float mirror_dose = 0.5f;
+    /// ЧАСЫ КЛИПА ОТ ПУТИ (§11.1): фаза хода из кривой пути и фактического
+    /// смещения корня (BodyDrive::travelled_m), а не из dt·rate. По умолчанию
+    /// ложь — часы по времени; дверь DFN_CLIP_CLOCK=path включает (приёмка
+    /// 04.09: ходьба/стрейфы/назад ≤ 2 мм, трусца 2,8, бег ждёт клипа под 6 м/с).
+    bool clip_clock_path = false;
     /// ПЕРЕМЕЩЕНИЕ ВЕДЁТ ОПОРНАЯ СТОПА (docs/design/LOCOMOTION_GROUNDED.md):
     /// часы локомоции живут здесь (ClipPlayback::phase), масштаб размаха ног
     /// равен 1, темп — в полосе LOCOMOTION_TEMPO_BAND, корневое смещение за тик
@@ -396,6 +416,19 @@ struct ClipLibrary {
 /// box on a raw body lets a hand into a thigh.
 /// Клип роли с учётом варианта покоя (см. ClipLibrary::idle_variants).
 [[nodiscard]] const ClipEntry& entry_for(const ClipLibrary& lib, ClipRole role, int32_t variant);
+
+/// Путь опорной стопы от начала цикла до фазы (м), по кривой записи.
+[[nodiscard]] float path_travel_at(const ClipEntry& entry, float phase);
+/// Фаза, на которой путь стал s (м) — обратная кривая; s сверх цикла
+/// заворачивается. Плоский участок кривой обратной не имеет — тогда фаза
+/// плоского участка, ближайшая спереди.
+[[nodiscard]] float path_phase_at(const ClipEntry& entry, float s);
+/// Наклон кривой на фазе (м на единицу фазы); ноль — стопа не опирается.
+[[nodiscard]] float path_slope_at(const ClipEntry& entry, float phase);
+/// Фаза после хода ds (м) от фазы phase — ВПЕРЁД по кривой, внутри текущего
+/// участка опоры: дошли до плоского участка (мах/полёт) — встали на его
+/// начало, остаток хода свободен. Никогда не назад.
+[[nodiscard]] float path_phase_after(const ClipEntry& entry, float phase, float ds);
 
 [[nodiscard]] ClipLibrary build_clip_library(
     const Rig& rig, const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,

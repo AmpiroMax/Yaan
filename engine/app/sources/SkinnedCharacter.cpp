@@ -219,6 +219,8 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         slide_trace_ = st != nullptr && st[0] == '1';
         const char* sm = door_value("DFN_ROOT_SMOOTH");
         root_smooth_ = !(sm != nullptr && sm[0] == '0');
+        const char* cc = door_value("DFN_CLIP_CLOCK");
+        clip_clock_path_ = cc != nullptr && std::string_view{cc} == "path";
         lock_params_ = anim::FootLockParams::from_config();
     }
     const char* roles = door_value("DFN_CLIP_ROLES");
@@ -226,6 +228,7 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
                                         feet_drive_,
                                         roles != nullptr ? std::string_view{roles}
                                                          : std::string_view{});
+    library_.clip_clock_path = clip_clock_path_;
     if (const char* is = door_value("DFN_IDLE_SYMMETRY"); is != nullptr && is[0] == '0') {
         library_.idle_symmetry = 0.0f;
     }
@@ -821,11 +824,44 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         return;
     }
     const anim::Rig& rig = rig_;
-    anim::advance_playback(library_, drive, dt, play_);
+    // ФАКТИЧЕСКИЙ ХОД КОРНЯ ЗА ПРОШЛЫЙ ТИК (§11.1): подтверждённый корень
+    // прошлого тика минус позапрошлого; по нему идут часы клипа на ходу.
+    anim::BodyDrive drive_p = drive;
+    if (ticked_) {
+        const glm::vec3 d = root_curr_.ground - root_prev_.ground;
+        drive_p.travelled_m = glm::length(glm::vec2{d.x, d.z});
+    }
+    const anim::BodyDrive& drive_ref = drive_p;
+    anim::advance_playback(library_, drive_ref, dt, play_);
     tick_sample_.resize(skeleton_.size());
     tick_sampled_ = playing_clips()
                     && anim::playback_sample(skeleton_, binding_, clips_, library_, play_,
                                              1.0f, tick_sample_);
+    // НОГИ К ВВОДУ (warp_legs): угол между осью роли и направлением хода,
+    // сглаженный за LEG_WARP_SMOOTH_S, в пределах LEG_WARP_MAX_DEG.
+    leg_warp_prev_rad_ = leg_warp_rad_;
+    {
+        float want_warp = 0.0f;
+        if (library_.clip_clock_path && anim::locomotion_role(play_.role)
+            && drive.want_speed_mps > 1.0e-3f) {
+            const glm::vec3 axis = anim::role_move_dir(play_.role);
+            const glm::vec3 in{drive.move_dir_model.x, 0.0f, drive.move_dir_model.z};
+            if (glm::length(in) > 1.0e-4f) {
+                const glm::vec3 a = glm::normalize(glm::vec3{axis.x, 0.0f, axis.z});
+                const glm::vec3 b = glm::normalize(in);
+                const float cross_y = a.z * b.x - a.x * b.z;
+                const float dot = glm::clamp(glm::dot(a, b), -1.0f, 1.0f);
+                const float limit = glm::radians(static_cast<float>(config::LEG_WARP_MAX_DEG));
+                want_warp = glm::clamp(std::atan2(cross_y, dot), -limit, limit);
+            }
+        }
+        const float tau = static_cast<float>(config::LEG_WARP_SMOOTH_S);
+        const float k = (tau > 0.0f && dt > 0.0f) ? 1.0f - std::exp(-dt / tau) : 1.0f;
+        leg_warp_rad_ += (want_warp - leg_warp_rad_) * k;
+    }
+    if (tick_sampled_ && foot_setup_.valid()) {
+        anim::warp_legs(skeleton_, foot_setup_, leg_warp_rad_, tick_sample_);
+    }
     probe_ground(drive, standing_ground, dt);
     // КОНТАКТЫ ЭТОГО ТИКА. Без луча в мир (смотровая, тесты) вес опоры
     // читается по плоскому грунту — та же поза и тот же вес, что у стенда;
@@ -847,6 +883,29 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         glm::vec3 raw =
             anim::root_motion_step(contact_prev_, contact_curr_, dt, root_state_,
                                    anim::travel_axis(anim::role_move_dir(play_.role)));
+        // ЧАСЫ ОТ ПУТИ: КОРЕНЬ ВЕДЁТ СИМ (§11.1, синк с лидом 04.09). Заявка —
+        // модель скорости: к заказанной не быстрее ROOT_ACCEL_MAX_MPS2, по
+        // направлению ввода; клип догоняет корень своей кривой пути. Стопы
+        // клипа корень не ведут — они за ним стоят.
+        const anim::ClipEntry& cur_entry = anim::entry_for(library_, play_.role, play_.variant);
+        if (library_.clip_clock_path && cur_entry.path_valid && anim::locomotion_role(play_.role)) {
+            // ЗАКАЗ СВЕРХ ПОЛОСЫ ТЕМПА КЛИП НЕ НЕСЁТ: тело идёт не быстрее, чем
+            // стопа клипа в опоре × (1 + LOCOMOTION_TEMPO_BAND) — иначе стопа
+            // едет. Разница — в прибор (speed_err) и в паспорт роли; лечится
+            // клипом под скорость, не разгоном клипа до карикатуры (синк 04.09).
+            const float carry = cur_entry.stance_mps
+                                * (1.0f + static_cast<float>(config::LOCOMOTION_TEMPO_BAND));
+            const float want = std::min(std::max(0.0f, drive.want_speed_mps), carry);
+            const float step = static_cast<float>(config::ROOT_ACCEL_MAX_MPS2) * dt;
+            speed_model_mps_ += std::clamp(want - speed_model_mps_, -step, step);
+            glm::vec3 dir = drive.move_dir_model;
+            dir.y = 0.0f;
+            const float len = glm::length(dir);
+            raw = len > 1.0e-4f ? dir / len * (speed_model_mps_ * dt) : glm::vec3{0.0f};
+            root_state_ = anim::RootMotionState{};
+        } else {
+            speed_model_mps_ = 0.0f;
+        }
         // ВНЕ ЛОКОМОЦИИ — НОЛЬ: покой, присед на месте, посадка не везут тело.
         // Кроссфейд в покой дошагивает (fade > 0), после него — стоп.
         // ОТПУСТИЛИ ВВОД — ЗАЯВКА НОЛЬ СРАЗУ, А НЕ ПОСЛЕ КРОССФЕЙДА (владелец 04.09:
@@ -861,10 +920,12 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
             raw = glm::vec3{0.0f};
             root_state_ = anim::RootMotionState{};
             smoothed_delta_ = glm::vec3{0.0f};
+            speed_model_mps_ = 0.0f;
         }
         // СГЛАЖИВАНИЕ КАПСУЛЫ (ROOT_MOTION_SMOOTH_S): толчки таза внутри шага
         // не передаются капсуле; разницу закрывает замок стопы.
-        if (root_smooth_ && dt > 0.0f) {
+        const bool path_mode = library_.clip_clock_path && cur_entry.path_valid;
+        if (root_smooth_ && !path_mode && dt > 0.0f) {
             const float tau = static_cast<float>(config::ROOT_MOTION_SMOOTH_S);
             const float k = tau > 0.0f ? 1.0f - std::exp(-dt / tau) : 1.0f;
             smoothed_delta_ += (raw - smoothed_delta_) * k;
@@ -911,10 +972,10 @@ void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
         feed_telemetry(drive, dt, world);
         return;
     }
-    anim::update_foot_locks(locks_, world,
-                            loco_.valid ? contact_curr_.support
-                                        : std::array<float, 2>{0.0f, 0.0f},
-                            contact_curr_.toe_point, root_curr_.yaw, dt, lock_params_);
+    const std::array<float, 2> lock_weight =
+        loco_.valid ? contact_curr_.support : std::array<float, 2>{0.0f, 0.0f};
+    anim::update_foot_locks(locks_, world, lock_weight, contact_curr_.toe_point, root_curr_.yaw,
+                            dt, lock_params_);
     if (slide_trace_ && (++slide_trace_ticks_ % 10u) == 0u) {
         float worst = 0.0f;
         for (std::size_t side = 0; side < 2; ++side) {
@@ -1034,6 +1095,10 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
         // not either tick's), while the ROOT shift comes from the tick, where
         // it was filtered. Applying an unfiltered shift per frame would put
         // the stair's whole rise into one frame at the nosing.
+        if (foot_setup_.valid()) {
+            anim::warp_legs(skeleton_, foot_setup_,
+                            glm::mix(leg_warp_prev_rad_, leg_warp_rad_, a), sample_);
+        }
         anim::FootIkPlan frame_plan{};
         bool frame_planned = false;
         if (foot_probe_.valid) {

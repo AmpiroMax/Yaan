@@ -113,10 +113,20 @@ struct RoleNames {
 constexpr RoleNames ROLE_NAMES[] = {
     {ClipRole::Idle, "Idle",
      {"Idle_Loop", "Idle", "Idle_Stand", "Stand_Idle"}},
+    // ХОДЬБА И ТРУСЦА — MIXAMO (04.09, §11.1): часы от пути требуют клип,
+    // чья стопа в опоре идёт со скоростью заказа в полосе темпа. UAL Walk —
+    // 1,0 м/с при заказе 1,8 (в полосу не входит: снос 25 см/шаг), MX_Walking
+    // — 1,72. Трусца 3,0: MX_Jog_Forward — 2,02 (мимо), UAL Jog_Fwd_Loop 2,76,
+    // MX_Running 3,01, MX_Standard_Run 3,16 — ближе всех к авторскому темпу.
+    // Спринт остаётся UAL Sprint_Loop (стопа 4,79 при заказе 6,0 — 1,25×, край
+    // полосы; Mixamo-спринта в паке нет — MX_Standard_Run всего 3,1).
+    // Роль по умолчанию — за словом владельца; DFN_CLIP_ROLES примеряет.
+    // РОЛИ ПО УМОЛЧАНИЮ — ПРЕЖНИЕ UAL до слова владельца (тикет ролей, синк с
+    // лидом 04.09); предложение: Walk=MX_Walking, Jog=MX_Standard_Run (см. выше).
     {ClipRole::Walk, "Walk",
-     {"Walk_Loop", "Walk_Fwd_Loop", "Walk", "Walking"}},
+     {"Walk_Loop", "Walk_Fwd_Loop", "Walk", "MX_Walking"}},
     {ClipRole::Jog, "Jog",
-     {"Jog_Fwd_Loop", "Jog_Loop", "Jog", "Run_Loop"}},
+     {"Jog_Fwd_Loop", "Jog_Loop", "Jog", "MX_Standard_Run"}},
     {ClipRole::Sprint, "Sprint",
      {"Sprint_Loop", "Sprint", "Run_Fwd_Loop", "Running"}},
     {ClipRole::JumpStart, "JumpStart",
@@ -933,6 +943,125 @@ namespace {
 }
 } // namespace
 
+/// КРИВАЯ ПУТИ ОПОРНОЙ СТОПЫ (§11.1): тот же прогон, что у measure_played_speed,
+/// но вместо сглаженного корня — сырой ход стоп с опорой (взвешенный
+/// support'ом, по оси хода роли), накопленный против фазы клипа за один
+/// полный цикл после прогрева. Плоские участки — мах/полёт.
+static void measure_path_curve(const ClipLibrary& lib, const skel::Skeleton& skeleton,
+                               const SkinnedRigBinding& binding,
+                               std::span<const skel::AnimClip> clips, ClipRole role,
+                               ClipEntry& entry) {
+    entry.path_valid = false;
+    entry.path_curve.fill(0.0f);
+    const FootIkSetup setup = build_foot_ik(skeleton, binding, lib.contacts);
+    if (!setup.valid() || entry.duration_s <= 0.0f) {
+        return;
+    }
+    ClipLibrary timed = lib;
+    timed.clip_clock_path = false; // мерим по часам времени: кривой ещё нет
+    BodyDrive drive;
+    drive.grounded = true;
+    drive.want_speed_mps = std::max(0.1f, entry.natural_mps);
+    drive.speed_mps = drive.want_speed_mps;
+    drive.gait = (role == ClipRole::Walk || role == ClipRole::Backward
+                  || role == ClipRole::StrafeL || role == ClipRole::StrafeR)
+                     ? Gait::Walk
+                 : (role == ClipRole::Jog || role == ClipRole::StrafeRunL
+                    || role == ClipRole::StrafeRunR)
+                     ? Gait::Jog
+                     : Gait::Run;
+    drive.move_dir_model = role_move_dir(role);
+    if (role == ClipRole::CrouchWalk) {
+        drive.crouch_blend = 1.0f;
+    }
+    const glm::vec3 axis = travel_axis(role_move_dir(role));
+    const float dt = 1.0f / static_cast<float>(config::SIM_TICK_RATE);
+    const uint32_t per_cycle = std::max<uint32_t>(4u, uint32_t(entry.duration_s / dt));
+    const uint32_t warm = std::max<uint32_t>(uint32_t(1.0f / dt), per_cycle);
+    const uint32_t total = warm + 3u * per_cycle + 2u;
+    FootIkProbe flat;
+    flat.valid = true;
+    std::vector<JointLocal> sample(skeleton.size());
+    ClipPlayback play;
+    ContactState prev;
+    std::vector<std::pair<float, float>> samples; // (фаза, путь)
+    float s = 0.0f;
+    float last_step = 0.0f;
+    bool started = false;
+    float last_phase = -1.0f;
+    for (uint32_t k = 0; k < total; ++k) {
+        advance_playback(timed, drive, dt, play);
+        if (!playback_sample(skeleton, binding, clips, timed, play, 1.0f, sample)) {
+            return;
+        }
+        const FootIkPlan plan = plan_foot_ik(skeleton, setup, flat, sample);
+        const ContactState curr = contact_state(skeleton, setup, plan, sample);
+        if (prev.valid && curr.valid) {
+            float num = 0.0f;
+            float den = 0.0f;
+            bool rollover = false;
+            for (std::size_t side = 0; side < 2; ++side) {
+                const float w = std::min(prev.support[side], curr.support[side]);
+                if (w <= 0.0f) {
+                    continue;
+                }
+                if (prev.toe_point[side] != curr.toe_point[side]) {
+                    rollover = true; // перекат пятка→носок: точка сменилась, не ход
+                    continue;
+                }
+                num += w * glm::dot(curr.point[side] - prev.point[side], axis);
+                den += w;
+            }
+            // ось хода (travel_axis) — куда стопа уходит под телом: вдоль неё
+            // ход положителен; назад по ней (дрожь) — не ход. На тике переката
+            // стопа шла, как шла: держим прошлый шаг, иначе в кривой дыра на
+            // тик и на каждом шаге стопа отстаёт на 1…3 см (замер 04.09).
+            float step = den > 0.0f ? std::max(0.0f, num / den) : 0.0f;
+            if (den <= 0.0f && rollover) {
+                step = last_step;
+            }
+            last_step = step;
+            if (k >= warm) {
+                const bool wrapped = last_phase >= 0.0f && play.phase < last_phase;
+                if (!started && wrapped) {
+                    started = true;
+                    s = 0.0f;
+                    samples.clear();
+                } else if (started && wrapped) {
+                    samples.emplace_back(1.0f, s + step);
+                    break;
+                }
+                if (started) {
+                    s += step;
+                    samples.emplace_back(play.phase, s);
+                }
+            }
+        }
+        last_phase = play.phase;
+        prev = curr;
+    }
+    if (samples.size() < 4 || samples.back().second < 0.05f) {
+        return;
+    }
+    // на сетку: кусочно-линейно по фазе, монотонно, от нуля
+    std::size_t j = 0;
+    for (uint32_t i = 0; i < PATH_CURVE_POINTS; ++i) {
+        const float ph = float(i) / float(PATH_CURVE_POINTS - 1);
+        while (j + 1 < samples.size() && samples[j + 1].first <= ph) {
+            ++j;
+        }
+        float v = samples[j].second;
+        if (j + 1 < samples.size() && samples[j + 1].first > samples[j].first) {
+            const float f = std::clamp((ph - samples[j].first)
+                                           / (samples[j + 1].first - samples[j].first),
+                                       0.0f, 1.0f);
+            v = glm::mix(samples[j].second, samples[j + 1].second, f);
+        }
+        entry.path_curve[i] = i == 0 ? 0.0f : std::max(entry.path_curve[i - 1], v);
+    }
+    entry.path_valid = entry.path_curve[PATH_CURVE_POINTS - 1] > 0.05f;
+}
+
 ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                                const SkinnedRigBinding& binding,
                                std::span<const skel::AnimClip> clips,
@@ -1404,6 +1533,38 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
             }
         }
     }
+    // КРИВЫЕ ПУТИ — ПОСЛЕ ВСЕГО (§11.1): зеркало полцикла (mirror_dose) и
+    // симметрия ставятся ниже передач, а кривая обязана мерить ТУ позу, что
+    // играет; мерянная до зеркала, она расходилась со стопой на левой опоре
+    // на 3 мм/тик (урок «первый замер верный, второй нет» — снова).
+    for (const RoleNames& row : ROLE_NAMES) {
+        ClipEntry& entry = lib.role[role_index(row.role)];
+        if (!entry.present() || !locomotion_role(row.role)) {
+            continue;
+        }
+        measure_path_curve(lib, skeleton, binding, clips, row.role, entry);
+        uint32_t flat = 0;
+        for (uint32_t i = 0; i + 1 < PATH_CURVE_POINTS; ++i) {
+            if (entry.path_curve[i + 1] <= entry.path_curve[i] + 1.0e-6f) {
+                ++flat;
+            }
+        }
+        entry.stance_mps = 0.0f;
+        if (entry.path_valid && entry.duration_s > 0.0f && flat + 1 < PATH_CURVE_POINTS) {
+            const float rising = float(PATH_CURVE_POINTS - 1 - flat) / float(PATH_CURVE_POINTS - 1);
+            entry.stance_mps = entry.path_curve[PATH_CURVE_POINTS - 1]
+                               / (entry.duration_s * rising);
+        }
+        std::fprintf(stderr,
+                     "[clips] path curve %.*s: %s, cycle %.3f m over %.3f s, stance %.2f m/s "
+                     "(natural by feet %.2f), flat %u/%u cells\n",
+                     static_cast<int>(row.name.size()), row.name.data(),
+                     entry.path_valid ? "ok" : "NONE",
+                     static_cast<double>(entry.path_curve[PATH_CURVE_POINTS - 1]),
+                     static_cast<double>(entry.duration_s),
+                     static_cast<double>(entry.stance_mps),
+                     static_cast<double>(entry.natural_mps), flat, PATH_CURVE_POINTS - 1);
+    }
     return lib;
 }
 
@@ -1476,6 +1637,82 @@ namespace {
 /// Where in a locomotion clip sim's stride phase puts us. The whole footfall
 /// seam is this one line: the clip is shifted so its own plant coincides with
 /// the phase sim fires its event at.
+} // namespace
+
+float path_travel_at(const ClipEntry& entry, float phase) {
+    if (!entry.path_valid) {
+        return 0.0f;
+    }
+    const float p = wrap01(phase) * float(PATH_CURVE_POINTS - 1);
+    const auto i = static_cast<std::size_t>(
+        std::min<float>(std::floor(p), float(PATH_CURVE_POINTS - 2)));
+    const float f = p - float(i);
+    return glm::mix(entry.path_curve[i], entry.path_curve[i + 1], f);
+}
+
+float path_slope_at(const ClipEntry& entry, float phase) {
+    if (!entry.path_valid) {
+        return 0.0f;
+    }
+    const float p = wrap01(phase) * float(PATH_CURVE_POINTS - 1);
+    const auto i = static_cast<std::size_t>(
+        std::min<float>(std::floor(p), float(PATH_CURVE_POINTS - 2)));
+    return (entry.path_curve[i + 1] - entry.path_curve[i]) * float(PATH_CURVE_POINTS - 1);
+}
+
+float path_phase_at(const ClipEntry& entry, float s) {
+    if (!entry.path_valid) {
+        return 0.0f;
+    }
+    const float total = entry.path_curve[PATH_CURVE_POINTS - 1];
+    if (total <= 1.0e-6f) {
+        return 0.0f;
+    }
+    s -= total * std::floor(s / total);
+    for (std::size_t i = 0; i + 1 < PATH_CURVE_POINTS; ++i) {
+        const float a = entry.path_curve[i];
+        const float b = entry.path_curve[i + 1];
+        if (s >= a && s <= b) {
+            const float f = b > a ? (s - a) / (b - a) : 0.0f;
+            return (float(i) + f) / float(PATH_CURVE_POINTS - 1);
+        }
+    }
+    return 0.0f;
+}
+
+float path_phase_after(const ClipEntry& entry, float phase, float ds) {
+    if (!entry.path_valid || ds <= 0.0f) {
+        return wrap01(phase);
+    }
+    constexpr std::size_t N = PATH_CURVE_POINTS;
+    const float p = wrap01(phase) * float(N - 1);
+    std::size_t i = static_cast<std::size_t>(std::min<float>(std::floor(p), float(N - 2)));
+    float s = path_travel_at(entry, phase) + ds;
+    for (std::size_t guard = 0; guard < N; ++guard) {
+        const float a = entry.path_curve[i];
+        const float b = entry.path_curve[i + 1];
+        if (b > a + 1.0e-6f) {
+            if (s <= b) {
+                const float f = (s - a) / (b - a);
+                return wrap01((float(i) + std::clamp(f, 0.0f, 1.0f)) / float(N - 1));
+            }
+        } else if (guard > 0) {
+            // плоский участок впереди: стопа сошла с земли — стоим на его начале
+            return wrap01(float(i) / float(N - 1));
+        }
+        if (i + 2 >= N) {
+            // конец цикла: заворот, путь считается от нуля
+            s -= entry.path_curve[N - 1];
+            i = 0;
+        } else {
+            ++i;
+        }
+    }
+    return wrap01(phase);
+}
+
+namespace {
+
 [[nodiscard]] float locomotion_time(const ClipEntry& entry, float stride_phase) {
     if (entry.duration_s <= 0.0f) {
         return 0.0f;
@@ -1636,12 +1873,41 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                       : 1.0f;
     if (locomotion(play.role) && lib.feet_drive) {
         const float want = std::max(0.0f, drive.want_speed_mps);
-        play.rate = (cur.natural_mps > 1.0e-3f && want > 0.0f)
-                        ? std::clamp(want / cur.natural_mps, 1.0f - TEMPO_BAND,
-                                     1.0f + TEMPO_BAND)
+        // ТЕМП — К СКОРОСТИ СТОПЫ В ОПОРЕ (stance_mps), когда часы от пути:
+        // это скорость, которую клип изображает; natural_mps (корень с
+        // коастом полёта) завышена на беге в 1,3 раза.
+        // …но только когда тик ДЕЙСТВИТЕЛЬНО идёт от пути (есть ход корня):
+        // прибор anim-уровня (без тела) едет по часам времени от стоп — ему
+        // прежняя опора natural_mps, иначе его скорость уезжает на 20 %.
+        const bool path_tick = lib.clip_clock_path && cur.path_valid && drive.travelled_m >= 0.0f;
+        const float ref = (path_tick && cur.stance_mps > 1.0e-3f) ? cur.stance_mps
+                                                                   : cur.natural_mps;
+        play.rate = (ref > 1.0e-3f && want > 0.0f)
+                        ? std::clamp(want / ref, 1.0f - TEMPO_BAND, 1.0f + TEMPO_BAND)
                         : 1.0f;
         if (cur.duration_s > 0.0f && dt > 0.0f) {
-            play.phase = wrap01(play.phase + dt * play.rate / cur.duration_s);
+            const float by_time = dt * play.rate / cur.duration_s;
+            // ЧАСЫ ОТ ПУТИ (§11.1): на опоре фаза идёт столько, сколько корень
+            // прошёл за тик, — стопа стоит по построению; в махе/полёте (кривая
+            // плоская) — по времени. Сверх полосы темпа клип не разгоняется:
+            // остаток — честный снос, паспорт — в прибор (LocoTelemetry).
+            const bool by_path = lib.clip_clock_path && cur.path_valid
+                                 && drive.travelled_m >= 0.0f;
+            if (by_path && path_slope_at(cur, play.phase) > 1.0e-3f) {
+                const float target = path_phase_after(cur, play.phase, drive.travelled_m);
+                float dphase = target - play.phase;
+                dphase -= std::floor(dphase); // вперёд по циклу
+                // предел на тик — от СРЕДНЕГО темпа (rate уже в полосе) с запасом
+                // LOCO_PATH_PEAK: внутри опоры стопа клипа то быстрее, то
+                // медленнее среднего (Sprint_Loop: 0,028…0,097 м/тик при среднем
+                // 0,08), и фаза обязана это повторять, иначе на медленных
+                // участках стопа едет (замер 04.09: 65→214 мм за три тика).
+                const float cap = dt * play.rate * (1.0f + TEMPO_BAND)
+                                  * static_cast<float>(config::LOCO_PATH_PEAK) / cur.duration_s;
+                play.phase = wrap01(play.phase + std::min(dphase, cap));
+            } else {
+                play.phase = wrap01(play.phase + by_time);
+            }
         }
     }
     const float phase = lib.feet_drive ? play.phase : drive.stride_phase;

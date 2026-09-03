@@ -327,10 +327,16 @@ struct TerrainRun {
     float climbed_m = 0.0f;
 };
 
+int terrain_runs = 0; // номер прогона по рельефу для CSV прибора (общий для всех грунтов)
+
 template <typename Ground>
 TerrainRun run_terrain(Harness& h, Ground ground, anim::Gait gait, float speed, uint32_t ticks) {
     TerrainRun out;
     h.body.set_ground_probe([&](const glm::vec3& w) { return ground(w.x, w.z); });
+    if (const char* csv = app::door_value("DFN_LOCO_CSV"); csv != nullptr && *csv != '\0') {
+        h.body.set_telemetry(true, std::string{csv} + ".terrain" + std::to_string(++terrain_runs)
+                                       + ".csv");
+    }
     anim::BodyDrive drive;
     drive.grounded = true;
     drive.gait = gait;
@@ -714,24 +720,45 @@ TEST_CASE("telemetry_on_the_player_path") {
         const float n = anim::entry_for(lib, role, -1).natural_mps;
         return n > 0.1f ? n : fallback;
     };
-    for (const auto& [gait, speed, name] :
-         {std::tuple{anim::Gait::Walk, walk, "walk"}, std::tuple{anim::Gait::Jog, jog, "jog"},
-          std::tuple{anim::Gait::Run, run, "run"},
-          std::tuple{anim::Gait::Walk, natural(anim::ClipRole::Walk, walk), "walk_natural"},
-          std::tuple{anim::Gait::Jog, natural(anim::ClipRole::Jog, jog), "jog_natural"},
-          std::tuple{anim::Gait::Run, natural(anim::ClipRole::Sprint, run), "run_natural"}}) {
+    const glm::vec3 fwd{0.0f, 0.0f, -1.0f};
+    const glm::vec3 right{1.0f, 0.0f, 0.0f};
+    const glm::vec3 back{0.0f, 0.0f, 1.0f};
+    for (const auto& [gait, speed, name, dir] :
+         {std::tuple{anim::Gait::Walk, walk, "walk", fwd}, std::tuple{anim::Gait::Jog, jog, "jog", fwd},
+          std::tuple{anim::Gait::Run, run, "run", fwd},
+          std::tuple{anim::Gait::Walk, natural(anim::ClipRole::Walk, walk), "walk_natural", fwd},
+          std::tuple{anim::Gait::Jog, natural(anim::ClipRole::Jog, jog), "jog_natural", fwd},
+          std::tuple{anim::Gait::Run, natural(anim::ClipRole::Sprint, run), "run_natural", fwd},
+          std::tuple{anim::Gait::Walk, walk, "strafe_r", right},
+          std::tuple{anim::Gait::Walk, walk, "backward", back}}) {
         const char* csv = app::door_value("DFN_LOCO_CSV");
         h.body.set_feet_drive(false); // прошлая передача оставила скорость и якоря
         h.body.set_feet_drive(true);
         h.body.set_telemetry(true, csv != nullptr ? std::string{csv} + "." + name + ".csv"
                                                   : std::string{});
-        const Run r = run_gear(h, gait, speed, false, 420);
+        const Run r = run_gear(h, gait, speed, false, 420, dir);
         const anim::LocoTelemetry& tm = h.body.telemetry();
-        MESSAGE(name << " ordered " << speed << " got " << r.speed_mps << " m/s\n"
-                     << tm.report());
+        MESSAGE(name << " ordered " << speed << " got " << r.speed_mps << " m/s; frame spread "
+                     << 1000.0f * r.worst_spread_m << " mm over " << r.plants
+                     << " plants, to-anchor by alpha " << 1000.0f * r.alpha_worst[0] << "/"
+                     << 1000.0f * r.alpha_worst[1] << "/" << 1000.0f * r.alpha_worst[2] << "/"
+                     << 1000.0f * r.alpha_worst[3] << " mm\n" << tm.report());
         CHECK(tm.ticks() == 420);
         CHECK(tm.footfalls()[0] + tm.footfalls()[1] > 4);
         CHECK(tm.row(anim::LocoProbe::PhaseJump).hits == 0);
+    }
+    // стрейф на СВЕЖЕМ теле — как в приборе восьми направлений
+    {
+        Harness h2;
+        REQUIRE(h2.ok);
+        const char* csv = app::door_value("DFN_LOCO_CSV");
+        h2.body.set_telemetry(true, csv != nullptr ? std::string{csv} + ".strafe_fresh.csv"
+                                                   : std::string{});
+        const Run r = run_gear(h2, anim::Gait::Walk, walk, false, 300, right, 60);
+        MESSAGE("strafe_r fresh: spread " << 1000.0f * r.worst_spread_m << " mm, plants "
+                                          << r.plants << ", to-anchor by alpha "
+                                          << 1000.0f * r.alpha_worst[0] << "/" << 1000.0f * r.alpha_worst[3]
+                                          << " mm\n" << h2.body.telemetry().report());
     }
     // короткое нажатие: 6 тиков ввода, потом отпустили — путь без ввода
     {
