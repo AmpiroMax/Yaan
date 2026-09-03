@@ -14,7 +14,16 @@ Key items:
   overhangs) — the terrain path for the 3D world.
 - TerrainDesc: heightmap collision from plain float samples (engine/world data).
 - CharacterDesc / RayHit: plain-data descriptors, no backend types.
-- PhysicsBodyHandle / CharacterHandle: opaque POD handles (0 = invalid).
+- PhysicsBodyHandle / CharacterHandle / RagdollHandle: opaque POD handles
+  (0 = invalid).
+- FootBodyDesc / FootMode / FootContact: PHYSICAL FEET (LOCOMOTION_GROUNDED
+  §12) — a kinematic box in the swing, a dynamic body held by friction when
+  planted; the contact query answers "holds / slips" by Coulomb.
+- CharacterContact + character_add_impulse / character_velocity /
+  character_contacts: the capsule takes impulses (dv = J / m) and reports who
+  it touched and who moved whom (HIT_REACTIONS_PHYSICS §3).
+- RagdollDesc / RagdollPartDesc: a chain of dynamic parts with swing-twist
+  joints, posed from the skeleton, driven back to a pose by motors.
 
 Dependencies:
 - Uses: C++ stdlib, glm (Rule 2), engine/core (PhysicsSubstance — the DAG
@@ -45,6 +54,18 @@ Notes:
   valid-but-inert; move_character applies the horizontal displacement fully and
   ignores the vertical component; character_grounded() always returns true;
   raycast() always misses. Deterministic, so gameplay tests run on null.
+  Feet on null stand on the same flat plane the capsule glides on: always
+  touching, normal +Y, holding, slip zero; a planted foot stays where the
+  swing left it. Impulses give the contracted dv; contacts are never reported;
+  a ragdoll keeps the pose it was given.
+- HOW THIS CONTRACT GROWS (Rule 26 allows growth, not reshaping): a new
+  question is a NEW virtual with a body that answers "not here" (an invalid
+  handle, an empty span, a zero) and a new descriptor field carries a default
+  that reproduces yesterday's behaviour — exactly as TextureParams.mip_chain
+  and SkinnedVertex grew the render contract. Every signature that existed
+  before the feet, the impulses and the ragdoll still exists unchanged, and a
+  backend (or a test double) that overrides none of the new calls still
+  compiles and still answers honestly.
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
@@ -216,6 +237,13 @@ struct CharacterDesc {
     // mass already produces "the bottle skitters, the barrel does not", with
     // no table of weight classes to keep in sync with the substance table.
     float push_force_n = 100.0f;
+    // MASS OF THE WALKING BODY, kilograms: the m in dv = J / m of
+    // character_add_impulse, and the weight the capsule sets against a body
+    // that shoves it. 0 means "the registry's number" (CHARACTER_MASS_KG): an
+    // existing caller that never heard of mass gets the same body everyone
+    // else gets, never a weightless one. Immunity to a shove is THIS number
+    // and nothing else — a heavy thing is hard to move because it is heavy.
+    float mass_kg = 0.0f;
 };
 
 struct RayHit {
@@ -224,6 +252,136 @@ struct RayHit {
     glm::vec3 position{0.0f}; // world-space hit point
     glm::vec3 normal{0.0f};   // unit surface normal at the hit
     uint64_t user_data = 0;   // EntityId bits of the hit body/character, 0 = none
+};
+
+// --- Physical feet (docs/design/LOCOMOTION_GROUNDED.md §11–§12) ---------------
+//
+// A FOOT IS A BODY, NOT A LOCK. The foot lock closed the gap between the clip
+// and the ground by pulling the foot back to an anchor; the owner's order
+// (04.09) replaces it with a foot that is a physical object on physical
+// ground, held by friction: on a gentle slope it stands, on a steep one it
+// slides — by the friction law, not by an animation of sliding.
+//
+// Two modes. SWING: the foot is KINEMATIC; the animation owns it and moves it
+// with set_foot_kinematic_pose(); it still touches the world (a swinging foot
+// kicks a cup, and foot_contact() reports the landing). PLANT: the foot is
+// DYNAMIC with its translation free and its rotation locked; gravity presses
+// it into the ground, the pair's friction (sole substance x ground substance,
+// sqrt(f1*f2) — the rule stated once in PhysicsSubstance.h) holds it or lets
+// it creep, and the solver — not a special case — decides which.
+//
+// The foot collides with the WORLD (terrain, statics, loose props) and with
+// nothing that belongs to its own body: not the capsule, not the hitboxes.
+// `collides_with` names the world; `layer` is the foot's own bit so a query
+// can ask for feet or skip them.
+struct FootBodyDesc {
+    // Box half extents, metres: x sideways, y half the sole's thickness,
+    // z fore-and-aft — the foot hitbox's own numbers (anim::HitboxSlot).
+    glm::vec3 half_extents{0.0f};
+    glm::vec3 position{0.0f}; // body ORIGIN = box centre, world space
+    glm::quat rotation{1.0f, 0.0f, 0.0f, 0.0f};
+    // THE LOAD THE PLANTED FOOT CARRIES, kilograms (FOOT_BODY_MASS_KG). Not
+    // the mass of a foot: the friction law cancels mass out of "holds or
+    // slides", but a prop resting on the foot and a prop the foot lands on
+    // both feel the body's weight through it.
+    float mass_kg = 0.0f;
+    // WHAT THE SOLE IS MADE OF — a name into the substance table, never a
+    // coefficient (the same rule as DynamicBodyDesc, for the same reason).
+    core::SubstanceId substance = core::SUBSTANCE_DEFAULT;
+    CollisionMask layer = 0;                    // the foot's own bit
+    CollisionMask collides_with = COLLIDE_ALL;  // the world it may touch
+    uint64_t user_data = 0;                     // EntityId bits of the owner
+};
+
+enum class FootMode : uint8_t {
+    Swing = 0, // kinematic, animation-driven
+    Plant = 1, // dynamic, held by friction
+};
+
+// What the foot is standing on, and whether it stays there. Valid after
+// step(); computed from the deepest contact of the foot's shape against the
+// bodies it may touch (plus FOOT_BODY_SKIN_M of air, so a foot resting
+// exactly on the surface still counts as touching).
+struct FootContact {
+    bool touching = false;
+    glm::vec3 point{0.0f};        // contact point on the ground, world space
+    glm::vec3 normal{0.0f};       // ground's outward unit normal at the contact
+    float depth = 0.0f;           // penetration (+) or gap (−), metres
+    core::SubstanceId ground = core::SUBSTANCE_DEFAULT; // what it stands on
+    uint64_t ground_user_data = 0;                     // whose body that is
+    // COULOMB. slope_tan = tan of the ground's angle from horizontal at the
+    // contact; friction_pair = sqrt(mu_sole * mu_ground); holds iff
+    // slope_tan <= friction_pair. This is the CRITERION, stated so a caller
+    // can predict the solver — the solver's own answer is slip_speed_mps.
+    float slope_tan = 0.0f;
+    float friction_pair = 0.0f;
+    bool holds = false;
+    // Velocity of the foot relative to the ground, tangent to it: zero when
+    // the foot stands, the creep when it slides. Measured, not predicted.
+    glm::vec3 slip_velocity{0.0f};
+    float slip_speed_mps = 0.0f;
+};
+
+// --- Character impulses and contacts (docs/design/HIT_REACTIONS_PHYSICS.md §3)
+//
+// One contact the capsule had during the last step(): who it touched, where,
+// and which way the push went. Whether the body moves the character or the
+// character moves the body is decided by MASS against CHARACTER_PUSH_MASS_KG:
+// lighter than that, the body is shoved and reports pushed_body; heavier (or
+// static), it shoves the capsule and reports pushed_character. A plank
+// swinging into the player moves him; the player walking into a bowl moves
+// the bowl; nothing is on a list.
+struct CharacterContact {
+    uint64_t user_data = 0;          // EntityId bits of the body touched
+    glm::vec3 point{0.0f};           // world space
+    glm::vec3 normal{0.0f};          // unit, pointing INTO the character
+    glm::vec3 relative_velocity{0.0f}; // body velocity − character velocity
+    float mass_kg = 0.0f;            // the body's mass; +inf for a static body
+    bool pushed_character = false;   // the body's velocity moved the capsule
+    bool pushed_body = false;        // the capsule was allowed to move the body
+};
+
+// --- Ragdoll -------------------------------------------------------------------
+//
+// A ragdoll is the hitbox set made dynamic: one body per part on the same
+// bones, a swing-twist joint to the parent with limits from the descriptor,
+// parent and child never colliding with each other. It is posed from the
+// skeleton (set_ragdoll_pose), read back into it (ragdoll_pose), struck
+// (ragdoll_add_impulse) and, while the body is alive, driven back towards a
+// pose by joint motors (ragdoll_drive_to_pose) — strength 1 holds the pose
+// against gravity, 0 is a dead body.
+struct RagdollHandle {
+    uint32_t id = 0;
+    [[nodiscard]] bool valid() const { return id != 0; }
+};
+
+struct RagdollPartDesc {
+    int32_t parent = -1;              // index into RagdollDesc::parts, −1 = root
+    // Shape in the PART's own frame: a box of half_extents, or a sphere of
+    // radius when radius > 0 (the skull). Same two shapes as the hitboxes.
+    glm::vec3 half_extents{0.0f};
+    float radius = 0.0f;
+    BodyPose pose;                    // world pose at creation (the hitbox's)
+    float mass_kg = 0.0f;             // > 0
+    core::SubstanceId substance = core::SUBSTANCE_DEFAULT;
+    uint64_t user_data = 0;           // EntityId bits + BodyPart, caller's tag
+    // Joint to the parent, in WORLD space at creation: the anchor (the rig
+    // joint), the twist axis (along the child segment) and a plane axis
+    // perpendicular to it; a cone of swing_limit_rad around the twist axis,
+    // twist between twist_min_rad and twist_max_rad. Ignored on the root.
+    glm::vec3 joint_position{0.0f};
+    glm::vec3 twist_axis{0.0f, 1.0f, 0.0f};
+    glm::vec3 plane_axis{1.0f, 0.0f, 0.0f};
+    float swing_limit_rad = 0.0f;
+    float twist_min_rad = 0.0f;
+    float twist_max_rad = 0.0f;
+};
+
+struct RagdollDesc {
+    std::span<const RagdollPartDesc> parts; // parents before children
+    CollisionMask layer = 0;                // the ragdoll's own bit
+    CollisionMask collides_with = COLLIDE_ALL;
+    uint64_t user_data = 0;
 };
 
 class IPhysics {
@@ -366,6 +524,118 @@ public:
                                              const glm::vec3& direction, float radius,
                                              float max_distance,
                                              CollisionMask mask = COLLIDE_ALL) const = 0;
+
+    // Physical feet ---------------------------------------------------------------
+    // Invalid handle on a zero layer / zero collides_with, non-positive half
+    // extents or mass. The handle is a body: body_pose(), body_velocity() and
+    // destroy_body() work on it. Born in Swing mode at `position`.
+    [[nodiscard]] virtual PhysicsBodyHandle create_foot_body(const FootBodyDesc& desc) {
+        (void)desc;
+        return {};
+    }
+
+    // Where the animation wants the foot at the END of the next step(). The
+    // body moves there kinematically during that step — through the props in
+    // its way, which it shoves (a foot in the swing is not stopped by a cup).
+    // Ignored while the foot is planted: physics owns a planted foot, and a
+    // caller that wants it back must set Swing first. Without a new pose the
+    // foot stays where its last one put it.
+    virtual void set_foot_kinematic_pose(PhysicsBodyHandle foot, const BodyPose& pose) {
+        (void)foot;
+        (void)pose;
+    }
+
+    // Swing → Plant: the foot becomes dynamic AT REST where it is (the swing's
+    // residual velocity is dropped: the animation said "down", and a foot that
+    // lands is not thrown). Plant → Swing: kinematic again, holding its pose.
+    virtual void set_foot_mode(PhysicsBodyHandle foot, FootMode mode) {
+        (void)foot;
+        (void)mode;
+    }
+    [[nodiscard]] virtual FootMode foot_mode(PhysicsBodyHandle foot) const {
+        (void)foot;
+        return FootMode::Swing;
+    }
+
+    // Post-step contact of the foot with the world it may touch; see
+    // FootContact. Not touching → every other field is zero/default.
+    [[nodiscard]] virtual FootContact foot_contact(PhysicsBodyHandle foot) const {
+        (void)foot;
+        return {};
+    }
+
+    // Character impulses and contacts -----------------------------------------
+    // Adds dv = impulse / mass to the capsule's velocity for the coming
+    // step()s. The velocity persists and decays with CHARACTER_PUSH_DECAY_S
+    // (a standing body catches itself; a flying one does not — the decay runs
+    // only while grounded). Velocity is also clipped by the world as always:
+    // a shove into a wall moves nobody.
+    virtual void character_add_impulse(CharacterHandle character, const glm::vec3& impulse_ns) {
+        (void)character;
+        (void)impulse_ns;
+    }
+    // The capsule's velocity over the last step(), m/s: displacement asked
+    // for plus the push it carries, after collide-and-slide.
+    [[nodiscard]] virtual glm::vec3 character_velocity(CharacterHandle character) const {
+        (void)character;
+        return glm::vec3{0.0f};
+    }
+    [[nodiscard]] virtual float character_mass(CharacterHandle character) const {
+        (void)character;
+        return 0.0f;
+    }
+    // Contacts of the last step(), in the order the solver found them. The
+    // span is valid until the next step() or destroy_character().
+    [[nodiscard]] virtual std::span<const CharacterContact> character_contacts(
+        CharacterHandle character) const {
+        (void)character;
+        return {};
+    }
+
+    // Ragdoll -----------------------------------------------------------------
+    // Invalid handle on a zero layer, an empty part list, a part with a parent
+    // at or after itself, or a part without volume or mass.
+    [[nodiscard]] virtual RagdollHandle create_ragdoll(const RagdollDesc& desc) {
+        (void)desc;
+        return {};
+    }
+    virtual void destroy_ragdoll(RagdollHandle ragdoll) { (void)ragdoll; }
+
+    // Places every part (world poses, one per part, in descriptor order) and
+    // zeroes their velocities: the skeleton's pose becomes the ragdoll's.
+    virtual void set_ragdoll_pose(RagdollHandle ragdoll, std::span<const BodyPose> parts) {
+        (void)ragdoll;
+        (void)parts;
+    }
+    // Reads every part's post-step pose back (one per part, descriptor order).
+    // Writes nothing past the span's end and nothing for an invalid handle.
+    virtual void ragdoll_pose(RagdollHandle ragdoll, std::span<BodyPose> out) const {
+        (void)ragdoll;
+        (void)out;
+    }
+    // Strikes one part with an impulse (N·s) at a world point, waking it.
+    virtual void ragdoll_add_impulse(RagdollHandle ragdoll, uint32_t part,
+                                     const glm::vec3& impulse_ns, const glm::vec3& at_world) {
+        (void)ragdoll;
+        (void)part;
+        (void)impulse_ns;
+        (void)at_world;
+    }
+    // Joint motors pull the ragdoll towards `target` (world poses per part —
+    // only the RELATIVE orientation parent→child is used). strength in [0, 1]:
+    // 0 switches the motors off (a dead body), 1 is RAGDOLL_MOTOR_TORQUE_NM
+    // per joint. Persists until the next call.
+    virtual void ragdoll_drive_to_pose(RagdollHandle ragdoll, std::span<const BodyPose> target,
+                                       float strength) {
+        (void)ragdoll;
+        (void)target;
+        (void)strength;
+    }
+    // All parts asleep: the body has come to rest.
+    [[nodiscard]] virtual bool ragdoll_asleep(RagdollHandle ragdoll) const {
+        (void)ragdoll;
+        return true;
+    }
 };
 
 } // namespace dfn::platform

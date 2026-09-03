@@ -14,7 +14,17 @@ only behind `interfaces/IPhysics.h`.
   `create_static_box` / `destroy_body`, character create/move/teleport/queries,
   `raycast`.
 - `TerrainDesc`, `StaticBoxDesc`, `CharacterDesc`, `RayHit` — plain-data descriptors.
-- `PhysicsBodyHandle`, `CharacterHandle` — opaque POD handles (0 = invalid).
+- `FootBodyDesc` / `FootMode` / `FootContact` — physical feet: `create_foot_body`,
+  `set_foot_kinematic_pose` (swing), `set_foot_mode` (Plant = dynamic, held by
+  friction), `foot_contact` (holds / slips by Coulomb, what it stands on).
+- `CharacterContact`, `character_add_impulse` / `character_velocity` /
+  `character_contacts` — the capsule takes dv = J / m and reports who pushed whom.
+- `RagdollDesc` / `RagdollPartDesc` / `RagdollHandle` — parts with swing-twist
+  joints, posed, struck, driven by motors.
+- `PhysicsBodyHandle`, `CharacterHandle`, `RagdollHandle` — opaque POD handles (0 = invalid).
+- Growth rule: new calls have default bodies, new fields have defaults that
+  reproduce the old behaviour (see the header note) — a backend or test double
+  that overrides nothing new still compiles.
 - `CollisionMask` — opaque bits; semantics defined by `engine/physics` (stage 2).
 
 ## Usage example
@@ -43,4 +53,7 @@ bool grounded = physics.character_grounded(character);
   129x129 chunks — revisit at a sync); characters are CharacterVirtual with a
   raycastable inner body; the opaque CollisionMask is stored per body and
   filtered by AND — the backend never interprets bits (engine/physics owns
-  semantics).
+  semantics). Feet are kinematic/dynamic boxes on their own Jolt layer
+  (world + props only, never the capsule); their masks also gate solver pairs
+  (`MaskContactListener`); ragdolls are dynamic parts + `SwingTwistConstraint`
+  with position motors. Numbers and the contract note: engine/physics/docs/README.md.

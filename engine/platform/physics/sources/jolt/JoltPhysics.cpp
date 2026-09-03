@@ -6,14 +6,22 @@ Responsibility:
 - Jolt backend of IPhysics: fixed-step world, static terrain (triangle mesh
   from heightmap samples) and boxes, kinematic capsule characters via
   CharacterVirtual (collide-and-slide, stair stepping, slope limit), masked
-  raycasts. The ONLY translation unit that includes Jolt (Rule 1).
+  raycasts, PHYSICAL FEET (kinematic in the swing, dynamic with friction when
+  planted), character impulses and contacts, ragdolls (parts + swing-twist
+  joints + motors). The ONLY translation unit that includes Jolt (Rule 1).
 
 Key items:
 - JoltPhysics (file-local): the IPhysics implementation.
 - Object layers: STATIC / CHARACTER / CHARACTER_GHOST (ghost = the character's
-  raycastable inner body; collides with nothing) / DYNAMIC (loose props).
+  raycastable inner body; collides with nothing) / DYNAMIC (loose props) /
+  FOOT (feet: world only, never the capsule) / RAGDOLL (parts).
 - MaskBodyFilter: filters queries/contacts by the engine's opaque CollisionMask
   stored per body — the backend never interprets mask bits (IPhysics.h note).
+- MaskContactListener: the same AND, applied to SOLVER pairs for the bodies
+  that carry a collides_with (feet, ragdoll parts) — a foot never touches a
+  hitbox even though both sit on Jolt layers that may collide.
+- CharacterPushListener: CharacterVirtual contacts → CharacterContact records
+  and the mass rule of who pushes whom (CHARACTER_PUSH_MASS_KG).
 
 Dependencies:
 - Uses: interfaces/IPhysics.h, Jolt (v5.2.0), generated constants (GRAVITY).
@@ -53,10 +61,15 @@ AI Agents Notice (must follow):
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
+#include <Jolt/Physics/Body/BodyLockMulti.h>
 #include <Jolt/Physics/Character/CharacterVirtual.h>
 #include <Jolt/Physics/Collision/BroadPhase/BroadPhaseLayer.h>
 #include <Jolt/Physics/Collision/CastResult.h>
+#include <Jolt/Physics/Collision/CollideShape.h>
 #include <Jolt/Physics/Collision/CollisionCollectorImpl.h>
+#include <Jolt/Physics/Collision/CollisionGroup.h>
+#include <Jolt/Physics/Collision/ContactListener.h>
+#include <Jolt/Physics/Collision/GroupFilterTable.h>
 #include <Jolt/Physics/Collision/ObjectLayer.h>
 #include <Jolt/Physics/Collision/RayCast.h>
 #include <Jolt/Physics/Collision/ShapeCast.h>
@@ -66,16 +79,20 @@ AI Agents Notice (must follow):
 #include <Jolt/Physics/Collision/Shape/MeshShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
 #include <Jolt/Physics/Collision/Shape/RotatedTranslatedShape.h>
+#include <Jolt/Physics/Constraints/SwingTwistConstraint.h>
 #include <Jolt/Physics/PhysicsSettings.h>
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/RegisterTypes.h>
 
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstdint>
 #include <glm/geometric.hpp>
+#include <limits>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace dfn::platform {
 namespace {
@@ -99,7 +116,9 @@ constexpr JPH::ObjectLayer STATIC = 0;
 constexpr JPH::ObjectLayer CHARACTER = 1;
 constexpr JPH::ObjectLayer CHARACTER_GHOST = 2; // raycast-only inner bodies
 constexpr JPH::ObjectLayer DYNAMIC = 3;         // loose props (jugs, stools)
-constexpr JPH::uint COUNT = 4;
+constexpr JPH::ObjectLayer FOOT = 4;            // physical feet (world only)
+constexpr JPH::ObjectLayer RAGDOLL = 5;         // ragdoll parts
+constexpr JPH::uint COUNT = 6;
 } // namespace object_layers
 
 namespace broad_phase_layers {
@@ -133,8 +152,10 @@ public:
         if (layer == object_layers::CHARACTER) {
             return bp == broad_phase_layers::STATIC || bp == broad_phase_layers::MOVING;
         }
-        // A loose prop falls on the world and lands on other props.
-        if (layer == object_layers::DYNAMIC) {
+        // A loose prop falls on the world and lands on other props; a foot
+        // and a ragdoll part stand on the world and on the props.
+        if (layer == object_layers::DYNAMIC || layer == object_layers::FOOT
+            || layer == object_layers::RAGDOLL) {
             return true;
         }
         return false; // static vs anything: static never queries
@@ -153,7 +174,20 @@ public:
             // in the world rather than a ghost that walks through the crockery.
             || pair_is(object_layers::DYNAMIC, object_layers::STATIC)
             || (a == object_layers::DYNAMIC && b == object_layers::DYNAMIC)
-            || pair_is(object_layers::CHARACTER, object_layers::DYNAMIC);
+            || pair_is(object_layers::CHARACTER, object_layers::DYNAMIC)
+            // A FOOT TOUCHES THE WORLD AND THE PROPS AND NOTHING OF ITS OWN
+            // BODY: not the capsule (the capsule answers "where can I walk",
+            // and a foot inside it would be a wall the walker carries) and
+            // not the other foot. Hitboxes sit on STATIC and are kept off by
+            // the engine mask (MaskContactListener), not by this table.
+            || pair_is(object_layers::FOOT, object_layers::STATIC)
+            || pair_is(object_layers::FOOT, object_layers::DYNAMIC)
+            // A ragdoll lies on the world, on props, on other ragdolls, and
+            // the walker shoves it aside like any loose body.
+            || pair_is(object_layers::RAGDOLL, object_layers::STATIC)
+            || pair_is(object_layers::RAGDOLL, object_layers::DYNAMIC)
+            || (a == object_layers::RAGDOLL && b == object_layers::RAGDOLL)
+            || pair_is(object_layers::RAGDOLL, object_layers::CHARACTER);
     }
 };
 
@@ -174,6 +208,96 @@ public:
 private:
     const std::unordered_map<JPH::uint32, CollisionMask>& masks_;
     CollisionMask query_mask_;
+};
+
+// SOLVER PAIRS FILTERED BY THE ENGINE'S MASKS. Jolt's layer table above says
+// which KINDS of body may meet; the engine's masks say which INSTANCES may.
+// Only bodies that carry a `collides_with` (feet, ragdoll parts) are checked
+// — a foot's mask keeps it off the hitboxes, which are Jolt-static and would
+// otherwise stop it. Read-only during Update (called from worker threads);
+// both maps are written only between steps.
+class MaskContactListener final : public JPH::ContactListener {
+public:
+    MaskContactListener(const std::unordered_map<JPH::uint32, CollisionMask>& masks,
+                        const std::unordered_map<JPH::uint32, CollisionMask>& collides_with)
+        : masks_(masks), collides_with_(collides_with) {}
+
+    JPH::ValidateResult OnContactValidate(const JPH::Body& body1, const JPH::Body& body2,
+                                          JPH::RVec3Arg base_offset,
+                                          const JPH::CollideShapeResult& result) override {
+        (void)base_offset;
+        (void)result;
+        return allowed(body1.GetID(), body2.GetID()) && allowed(body2.GetID(), body1.GetID())
+                   ? JPH::ValidateResult::AcceptAllContactsForThisBodyPair
+                   : JPH::ValidateResult::RejectAllContactsForThisBodyPair;
+    }
+
+private:
+    [[nodiscard]] bool allowed(const JPH::BodyID& self, const JPH::BodyID& other) const {
+        const auto cw = collides_with_.find(self.GetIndexAndSequenceNumber());
+        if (cw == collides_with_.end()) {
+            return true; // a body without a collides_with meets whatever the layers allow
+        }
+        const auto m = masks_.find(other.GetIndexAndSequenceNumber());
+        const CollisionMask other_mask = m != masks_.end() ? m->second : COLLIDE_ALL;
+        return (other_mask & cw->second) != 0;
+    }
+
+    const std::unordered_map<JPH::uint32, CollisionMask>& masks_;
+    const std::unordered_map<JPH::uint32, CollisionMask>& collides_with_;
+};
+
+// THE CAPSULE'S CONTACTS, AND WHO PUSHES WHOM. CharacterVirtual asks this for
+// every body it touches during ExtendedUpdate (on the calling thread, one
+// character at a time): the answer is the mass rule — lighter than
+// CHARACTER_PUSH_MASS_KG the body is shoved and cannot shove back; heavier or
+// static it shoves the capsule and the capsule cannot shove it. Each contact
+// is also written down for character_contacts().
+class CharacterPushListener final : public JPH::CharacterContactListener {
+public:
+    std::vector<CharacterContact>* sink = nullptr;    // set before each update
+    const JPH::BodyLockInterface* locks = nullptr;
+
+    void OnContactAdded(const JPH::CharacterVirtual* character, const JPH::BodyID& body_id,
+                        const JPH::SubShapeID& sub_shape, JPH::RVec3Arg position,
+                        JPH::Vec3Arg normal, JPH::CharacterContactSettings& settings) override {
+        (void)sub_shape;
+        CharacterContact contact;
+        contact.mass_kg = std::numeric_limits<float>::infinity();
+        contact.point = to_glm(JPH::Vec3(position));
+        // Jolt hands the normal pointing from the character INTO the body
+        // (measured: a crate on the −X side reports −X). The contract wants
+        // the direction the character is pushed — the same axis, flipped.
+        contact.normal = -to_glm(normal);
+        JPH::Vec3 body_velocity = JPH::Vec3::sZero();
+        if (locks != nullptr) {
+            JPH::BodyLockRead lock(*locks, body_id);
+            if (lock.Succeeded()) {
+                const JPH::Body& body = lock.GetBody();
+                contact.user_data = body.GetUserData();
+                if (body.IsDynamic()) {
+                    const float inverse_mass =
+                        body.GetMotionProperties()->GetInverseMassUnchecked();
+                    if (inverse_mass > 0.0f) {
+                        contact.mass_kg = 1.0f / inverse_mass;
+                    }
+                }
+                if (!body.IsStatic()) {
+                    body_velocity = body.GetPointVelocity(position);
+                }
+            }
+        }
+        contact.relative_velocity = to_glm(body_velocity - character->GetLinearVelocity());
+        const bool heavy =
+            contact.mass_kg >= static_cast<float>(dfn::config::CHARACTER_PUSH_MASS_KG);
+        settings.mCanPushCharacter = heavy;
+        settings.mCanReceiveImpulses = !heavy;
+        contact.pushed_character = heavy;
+        contact.pushed_body = !heavy;
+        if (sink != nullptr) {
+            sink->push_back(contact);
+        }
+    }
 };
 
 // --- Backend -----------------------------------------------------------------
@@ -207,6 +331,10 @@ public:
         system_ = std::make_unique<JPH::PhysicsSystem>();
         system_->Init(MAX_BODIES, BODY_MUTEXES, MAX_BODY_PAIRS, MAX_CONTACTS,
                       bp_layer_map_, object_vs_bp_filter_, pair_filter_);
+        // The registry's gravity, for the dynamic bodies (feet, props,
+        // ragdolls) — the same number the characters are handed each step.
+        system_->SetGravity({0.0f, -static_cast<float>(dfn::config::GRAVITY), 0.0f});
+        system_->SetContactListener(&mask_contact_listener_);
         return true;
     }
 
@@ -215,8 +343,16 @@ public:
             character.virtual_character = nullptr;
         }
         characters_.clear();
+        // Constraints are released before the system that owns their bodies.
+        for (auto& [id, ragdoll] : ragdolls_) {
+            release_ragdoll(ragdoll);
+        }
+        ragdolls_.clear();
+        feet_.clear();
         bodies_.clear();
         body_masks_.clear();
+        body_collides_with_.clear();
+        body_substances_.clear();
         system_.reset();
         job_system_.reset();
         temp_allocator_.reset();
@@ -232,6 +368,19 @@ public:
             broad_phase_dirty_ = false;
         }
 
+        // Feet in the swing are driven to the animation's pose over this step
+        // (a velocity, so a cup in the way is shoved rather than skipped).
+        // Without a new pose the last one stands, which is a velocity of zero.
+        for (auto& [id, foot] : feet_) {
+            if (foot.mode == FootMode::Swing) {
+                system_->GetBodyInterface().MoveKinematic(
+                    foot.body, JPH::RVec3(to_jph(foot.target.position)),
+                    JPH::Quat{foot.target.rotation.x, foot.target.rotation.y,
+                              foot.target.rotation.z, foot.target.rotation.w},
+                    dt);
+            }
+        }
+
         // Characters first: collide-and-slide against the current static world.
         const JPH::Vec3 gravity{0.0f, -static_cast<float>(dfn::config::GRAVITY), 0.0f};
         for (auto& [id, character] : characters_) {
@@ -240,14 +389,30 @@ public:
             update_settings.mStickToFloorStepDown = {0.0f, -character.step_height, 0.0f};
 
             const glm::vec3 pending = character.pending;
-            character.virtual_character->SetLinearVelocity(to_jph(character.pending / dt));
+            // THE SHOVE RIDES ON TOP OF THE WALK: the displacement the
+            // controller asked for, plus the velocity an impulse left behind.
+            character.virtual_character->SetLinearVelocity(
+                to_jph(character.pending / dt + character.push_velocity));
+            character.contacts.clear();
+            push_listener_.sink = &character.contacts;
+            push_listener_.locks = &system_->GetBodyLockInterface();
             const MaskBodyFilter body_filter{body_masks_, character.collides_with};
             character.virtual_character->ExtendedUpdate(
                 dt, gravity, update_settings,
                 system_->GetDefaultBroadPhaseLayerFilter(object_layers::CHARACTER),
                 system_->GetDefaultLayerFilter(object_layers::CHARACTER), body_filter,
                 {}, *temp_allocator_);
+            push_listener_.sink = nullptr;
             character.pending = glm::vec3{0.0f};
+            character.velocity = to_glm(character.virtual_character->GetLinearVelocity());
+            // A standing body catches itself: the shove decays with
+            // CHARACTER_PUSH_DECAY_S while there is ground to push against.
+            // In the air nothing stops it but the landing.
+            if (character.virtual_character->GetGroundState() ==
+                JPH::CharacterBase::EGroundState::OnGround) {
+                character.push_velocity *= std::exp(
+                    -dt / static_cast<float>(dfn::config::CHARACTER_PUSH_DECAY_S));
+            }
             // ОТЛАДОЧНАЯ ДВЕРЬ DFN_CHAR_TRACE=1: раз в полсекунды — вход и
             // исход контроллера. Заведена на охоте за ботом Вайтрана, который
             // намертво вставал на ступени, где голая капсула с теми же
@@ -503,6 +668,7 @@ public:
         const PhysicsBodyHandle handle{next_id_++};
         bodies_.emplace(handle.id, body_id);
         body_masks_[body_id.GetIndexAndSequenceNumber()] = desc.layer;
+        body_substances_[body_id.GetIndexAndSequenceNumber()] = desc.substance;
         return handle;
     }
 
@@ -573,7 +739,11 @@ public:
             return;
         }
         auto& body_interface = system_->GetBodyInterface();
-        body_masks_.erase(it->second.GetIndexAndSequenceNumber());
+        const JPH::uint32 key = it->second.GetIndexAndSequenceNumber();
+        body_masks_.erase(key);
+        body_collides_with_.erase(key);
+        body_substances_.erase(key);
+        feet_.erase(body.id); // a foot is a body; its record goes with it
         body_interface.RemoveBody(it->second);
         body_interface.DestroyBody(it->second);
         bodies_.erase(it);
@@ -600,11 +770,18 @@ public:
         // dynamic bodies it touches with a force capped at mMaxStrength; that
         // cap IS the engine's "how heavy a thing does the player's body move".
         settings.mMaxStrength = desc.push_force_n;
+        // THE WALKING BODY'S WEIGHT: the m of dv = J / m, and what the capsule
+        // sets against a body that shoves it. 0 = the registry's number.
+        settings.mMass = desc.mass_kg > 0.0f
+                             ? desc.mass_kg
+                             : static_cast<float>(dfn::config::CHARACTER_MASS_KG);
 
         Character character;
         character.virtual_character = new JPH::CharacterVirtual(
             &settings, JPH::RVec3(to_jph(desc.position)), JPH::Quat::sIdentity(),
             desc.user_data, system_.get());
+        character.virtual_character->SetListener(&push_listener_);
+        character.mass = settings.mMass;
         character.step_height = desc.step_height;
         character.collides_with = desc.collides_with;
         character.radius = desc.radius;
@@ -754,6 +931,412 @@ public:
         return result;
     }
 
+
+    // Character impulses and contacts -----------------------------------------
+    void character_add_impulse(CharacterHandle character, const glm::vec3& impulse_ns) override {
+        if (auto it = characters_.find(character.id); it != characters_.end()) {
+            it->second.push_velocity += impulse_ns / it->second.mass;
+        }
+    }
+
+    glm::vec3 character_velocity(CharacterHandle character) const override {
+        const auto it = characters_.find(character.id);
+        return it != characters_.end() ? it->second.velocity : glm::vec3{0.0f};
+    }
+
+    float character_mass(CharacterHandle character) const override {
+        const auto it = characters_.find(character.id);
+        return it != characters_.end() ? it->second.mass : 0.0f;
+    }
+
+    std::span<const CharacterContact> character_contacts(CharacterHandle character) const override {
+        const auto it = characters_.find(character.id);
+        if (it == characters_.end()) {
+            return {};
+        }
+        return {it->second.contacts.data(), it->second.contacts.size()};
+    }
+
+    // Physical feet ---------------------------------------------------------------
+    PhysicsBodyHandle create_foot_body(const FootBodyDesc& desc) override {
+        const JPH::Vec3 half = to_jph(desc.half_extents);
+        if (!system_ || desc.layer == 0 || desc.collides_with == 0 || desc.mass_kg <= 0.0f
+            || half.GetX() <= 0.0f || half.GetY() <= 0.0f || half.GetZ() <= 0.0f) {
+            return {};
+        }
+        // A sole is thin: the convex radius must fit inside the smallest half
+        // extent, and a rounded sole would stand a hair above the drawn one.
+        const float convex_radius = std::min(JPH::cDefaultConvexRadius, 0.5f * half.ReduceMin());
+        JPH::ShapeRefC shape = new JPH::BoxShape(half, convex_radius);
+        JPH::BodyCreationSettings settings(
+            shape, JPH::RVec3(to_jph(desc.position)),
+            JPH::Quat{desc.rotation.x, desc.rotation.y, desc.rotation.z, desc.rotation.w},
+            JPH::EMotionType::Kinematic, object_layers::FOOT);
+        settings.mUserData = desc.user_data;
+        settings.mAllowDynamicOrKinematic = true; // Swing <-> Plant
+        // TRANSLATION ONLY. The foot's orientation is the animation's, in
+        // both modes: a planted foot on a slope keeps the angle it landed at
+        // and slides as a block; it does not tumble like a crate.
+        settings.mAllowedDOFs = JPH::EAllowedDOFs::TranslationX | JPH::EAllowedDOFs::TranslationY
+                                | JPH::EAllowedDOFs::TranslationZ;
+        settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+        settings.mMassPropertiesOverride.mMass = desc.mass_kg;
+        const core::PhysicsSubstance& sole = core::substance(desc.substance);
+        settings.mFriction = sole.friction;
+        settings.mRestitution = sole.restitution;
+        // NO AIR DRAG ON A FOOT: the ground's friction is its only brake, and
+        // the slide law g*(sin - mu*cos) is measured against exactly that.
+        settings.mLinearDamping = 0.0f;
+        settings.mAngularDamping = 0.0f;
+        settings.mAllowSleeping = true;
+        const JPH::BodyID body_id = system_->GetBodyInterface().CreateAndAddBody(
+            settings, JPH::EActivation::Activate);
+        if (body_id.IsInvalid()) {
+            return {};
+        }
+        const PhysicsBodyHandle handle{next_id_++};
+        bodies_.emplace(handle.id, body_id);
+        const JPH::uint32 key = body_id.GetIndexAndSequenceNumber();
+        body_masks_[key] = desc.layer;
+        body_collides_with_[key] = desc.collides_with;
+        body_substances_[key] = desc.substance;
+        Foot foot;
+        foot.body = body_id;
+        foot.shape = shape;
+        foot.mode = FootMode::Swing;
+        foot.target = BodyPose{desc.position, desc.rotation};
+        foot.collides_with = desc.collides_with;
+        foot.substance = desc.substance;
+        feet_.emplace(handle.id, std::move(foot));
+        return handle;
+    }
+
+    void set_foot_kinematic_pose(PhysicsBodyHandle foot, const BodyPose& pose) override {
+        auto it = feet_.find(foot.id);
+        if (it == feet_.end() || it->second.mode != FootMode::Swing) {
+            return; // physics owns a planted foot
+        }
+        it->second.target = pose;
+    }
+
+    void set_foot_mode(PhysicsBodyHandle foot, FootMode mode) override {
+        auto it = feet_.find(foot.id);
+        if (it == feet_.end() || !system_ || it->second.mode == mode) {
+            return;
+        }
+        auto& bi = system_->GetBodyInterface();
+        if (mode == FootMode::Plant) {
+            // Dynamic, AT REST: the swing's residual velocity is dropped. The
+            // animation said "down"; a foot that lands is not thrown.
+            bi.SetMotionType(it->second.body, JPH::EMotionType::Dynamic,
+                             JPH::EActivation::Activate);
+            bi.SetLinearAndAngularVelocity(it->second.body, JPH::Vec3::sZero(),
+                                           JPH::Vec3::sZero());
+        } else {
+            bi.SetMotionType(it->second.body, JPH::EMotionType::Kinematic,
+                             JPH::EActivation::Activate);
+            bi.SetLinearAndAngularVelocity(it->second.body, JPH::Vec3::sZero(),
+                                           JPH::Vec3::sZero());
+            JPH::RVec3 position;
+            JPH::Quat rotation;
+            bi.GetPositionAndRotation(it->second.body, position, rotation);
+            it->second.target.position = to_glm(JPH::Vec3(position));
+            it->second.target.rotation = glm::quat{rotation.GetW(), rotation.GetX(),
+                                                   rotation.GetY(), rotation.GetZ()};
+        }
+        it->second.mode = mode;
+    }
+
+    FootMode foot_mode(PhysicsBodyHandle foot) const override {
+        const auto it = feet_.find(foot.id);
+        return it != feet_.end() ? it->second.mode : FootMode::Swing;
+    }
+
+    FootContact foot_contact(PhysicsBodyHandle foot) const override {
+        FootContact contact;
+        const auto it = feet_.find(foot.id);
+        if (it == feet_.end() || !system_) {
+            return contact;
+        }
+        const Foot& record = it->second;
+        auto& bi = system_->GetBodyInterface();
+        JPH::RVec3 position;
+        JPH::Quat rotation;
+        bi.GetPositionAndRotation(record.body, position, rotation);
+
+        // The foot's own shape, where the foot is, against everything it may
+        // touch — plus FOOT_BODY_SKIN_M of air so a foot resting on the
+        // surface (the solver keeps it at penetration zero ± residual) counts.
+        JPH::CollideShapeSettings settings;
+        settings.mMaxSeparationDistance = static_cast<float>(dfn::config::FOOT_BODY_SKIN_M);
+        // A foot pushed through a one-sided terrain triangle still stands on
+        // it rather than on nothing (the same choice sphere_cast made).
+        settings.mBackFaceMode = JPH::EBackFaceMode::CollideWithBackFaces;
+        JPH::AllHitCollisionCollector<JPH::CollideShapeCollector> collector;
+        const FootQueryFilter body_filter{body_masks_, record.collides_with, record.body};
+        system_->GetNarrowPhaseQuery().CollideShape(
+            record.shape.GetPtr(), JPH::Vec3::sReplicate(1.0f),
+            JPH::RMat44::sRotationTranslation(rotation, position), settings, JPH::RVec3::sZero(),
+            collector, system_->GetDefaultBroadPhaseLayerFilter(object_layers::FOOT),
+            system_->GetDefaultLayerFilter(object_layers::FOOT), body_filter);
+        if (!collector.HadHit()) {
+            return contact;
+        }
+        // The deepest contact is the ground; a brush against a crate's side
+        // while standing on the floor does not become "standing on the crate".
+        const JPH::CollideShapeResult* deepest = &collector.mHits[0];
+        for (const JPH::CollideShapeResult& hit : collector.mHits) {
+            if (hit.mPenetrationDepth > deepest->mPenetrationDepth) {
+                deepest = &hit;
+            }
+        }
+        contact.touching = true;
+        contact.depth = deepest->mPenetrationDepth;
+        contact.point = to_glm(JPH::Vec3(deepest->mContactPointOn2));
+        const JPH::Vec3 axis = deepest->mPenetrationAxis;
+        const JPH::Vec3 normal = axis.LengthSq() > 0.0f ? -axis.Normalized() : JPH::Vec3::sAxisY();
+        contact.normal = to_glm(normal);
+        const JPH::uint32 ground_key = deepest->mBodyID2.GetIndexAndSequenceNumber();
+        if (const auto s = body_substances_.find(ground_key); s != body_substances_.end()) {
+            contact.ground = s->second;
+        }
+        contact.ground_user_data = bi.GetUserData(deepest->mBodyID2);
+
+        // COULOMB: the slope from the normal, the pair from the table, the
+        // verdict from the comparison. tan(theta) <= sqrt(mu_sole * mu_ground).
+        const float ny = std::clamp(normal.GetY(), -1.0f, 1.0f);
+        const float horizontal = std::sqrt(std::max(0.0f, 1.0f - ny * ny));
+        contact.slope_tan = ny > 1e-5f ? horizontal / ny : std::numeric_limits<float>::infinity();
+        const float sole_friction = core::substance(record.substance).friction;
+        const float ground_friction = core::substance(contact.ground).friction;
+        contact.friction_pair = std::sqrt(std::max(0.0f, sole_friction * ground_friction));
+        contact.holds = contact.slope_tan <= contact.friction_pair;
+
+        // The solver's own answer: how fast the foot moves along the ground.
+        const JPH::Vec3 foot_velocity = bi.GetLinearVelocity(record.body);
+        const JPH::Vec3 ground_velocity =
+            bi.GetMotionType(deepest->mBodyID2) == JPH::EMotionType::Static
+                ? JPH::Vec3::sZero()
+                : bi.GetPointVelocity(deepest->mBodyID2, deepest->mContactPointOn2);
+        const JPH::Vec3 relative = foot_velocity - ground_velocity;
+        const JPH::Vec3 tangent = relative - normal * relative.Dot(normal);
+        contact.slip_velocity = to_glm(tangent);
+        contact.slip_speed_mps = tangent.Length();
+        return contact;
+    }
+
+    // Ragdoll -----------------------------------------------------------------
+    RagdollHandle create_ragdoll(const RagdollDesc& desc) override {
+        if (!system_ || desc.layer == 0 || desc.collides_with == 0 || desc.parts.empty()) {
+            return {};
+        }
+        for (size_t i = 0; i < desc.parts.size(); ++i) {
+            const RagdollPartDesc& part = desc.parts[i];
+            const bool has_volume = part.radius > 0.0f
+                                    || (part.half_extents.x > 0.0f && part.half_extents.y > 0.0f
+                                        && part.half_extents.z > 0.0f);
+            if (part.mass_kg <= 0.0f || !has_volume || part.parent >= static_cast<int32_t>(i)) {
+                return {}; // parents before children; every part has volume and mass
+            }
+        }
+        Ragdoll ragdoll;
+        ragdoll.collides_with = desc.collides_with;
+        // PARENT AND CHILD NEVER COLLIDE: a thigh overlaps its own hip at the
+        // joint by construction, and a contact there would fight the joint.
+        ragdoll.group = new JPH::GroupFilterTable(static_cast<JPH::uint>(desc.parts.size()));
+        for (size_t i = 0; i < desc.parts.size(); ++i) {
+            if (desc.parts[i].parent >= 0) {
+                ragdoll.group->DisableCollision(static_cast<JPH::CollisionGroup::SubGroupID>(i),
+                                                static_cast<JPH::CollisionGroup::SubGroupID>(
+                                                    desc.parts[i].parent));
+            }
+        }
+        const JPH::CollisionGroup::GroupID group_id = next_ragdoll_group_++;
+        auto& bi = system_->GetBodyInterface();
+        for (size_t i = 0; i < desc.parts.size(); ++i) {
+            const RagdollPartDesc& part = desc.parts[i];
+            JPH::ShapeRefC shape;
+            if (part.radius > 0.0f) {
+                shape = new JPH::SphereShape(part.radius);
+            } else {
+                const JPH::Vec3 half = to_jph(part.half_extents);
+                shape = new JPH::BoxShape(half, std::min(JPH::cDefaultConvexRadius,
+                                                         0.5f * half.ReduceMin()));
+            }
+            JPH::BodyCreationSettings settings(
+                shape, JPH::RVec3(to_jph(part.pose.position)),
+                JPH::Quat{part.pose.rotation.x, part.pose.rotation.y, part.pose.rotation.z,
+                          part.pose.rotation.w},
+                JPH::EMotionType::Dynamic, object_layers::RAGDOLL);
+            settings.mUserData = part.user_data;
+            settings.mOverrideMassProperties = JPH::EOverrideMassProperties::CalculateInertia;
+            settings.mMassPropertiesOverride.mMass = part.mass_kg;
+            const core::PhysicsSubstance& what = core::substance(part.substance);
+            settings.mFriction = what.friction;
+            settings.mRestitution = what.restitution;
+            settings.mCollisionGroup = JPH::CollisionGroup(
+                ragdoll.group, group_id, static_cast<JPH::CollisionGroup::SubGroupID>(i));
+            settings.mAllowSleeping = true;
+            const JPH::BodyID body_id = bi.CreateAndAddBody(settings, JPH::EActivation::Activate);
+            if (body_id.IsInvalid()) {
+                release_ragdoll(ragdoll);
+                return {};
+            }
+            ragdoll.bodies.push_back(body_id);
+            ragdoll.parent.push_back(part.parent);
+            const JPH::uint32 key = body_id.GetIndexAndSequenceNumber();
+            body_masks_[key] = desc.layer;
+            body_collides_with_[key] = desc.collides_with;
+            body_substances_[key] = part.substance;
+        }
+        // Joints: a swing-twist cone at the rig joint, twist along the child.
+        for (size_t i = 0; i < desc.parts.size(); ++i) {
+            const RagdollPartDesc& part = desc.parts[i];
+            JPH::Ref<JPH::SwingTwistConstraint> joint;
+            if (part.parent >= 0) {
+                JPH::SwingTwistConstraintSettings st;
+                st.mSpace = JPH::EConstraintSpace::WorldSpace;
+                st.mPosition1 = st.mPosition2 = JPH::RVec3(to_jph(part.joint_position));
+                const JPH::Vec3 twist = to_jph(part.twist_axis).NormalizedOr(JPH::Vec3::sAxisY());
+                JPH::Vec3 plane = to_jph(part.plane_axis);
+                plane -= twist * plane.Dot(twist);
+                plane = plane.NormalizedOr(twist.GetNormalizedPerpendicular());
+                st.mTwistAxis1 = st.mTwistAxis2 = twist;
+                st.mPlaneAxis1 = st.mPlaneAxis2 = plane;
+                st.mNormalHalfConeAngle = part.swing_limit_rad;
+                st.mPlaneHalfConeAngle = part.swing_limit_rad;
+                st.mTwistMinAngle = part.twist_min_rad;
+                st.mTwistMaxAngle = part.twist_max_rad;
+                const JPH::MotorSettings motor(static_cast<float>(dfn::config::RAGDOLL_MOTOR_HZ),
+                                               static_cast<float>(dfn::config::RAGDOLL_MOTOR_DAMPING));
+                st.mSwingMotorSettings = motor;
+                st.mTwistMotorSettings = motor;
+                const JPH::BodyID ids[2] = {ragdoll.bodies[static_cast<size_t>(part.parent)],
+                                            ragdoll.bodies[i]};
+                JPH::BodyLockMultiWrite lock(system_->GetBodyLockInterface(), ids, 2);
+                JPH::Body* parent_body = lock.GetBody(0);
+                JPH::Body* child_body = lock.GetBody(1);
+                if (parent_body == nullptr || child_body == nullptr) {
+                    release_ragdoll(ragdoll);
+                    return {};
+                }
+                joint = static_cast<JPH::SwingTwistConstraint*>(st.Create(*parent_body, *child_body));
+                system_->AddConstraint(joint);
+            }
+            ragdoll.joints.push_back(joint);
+        }
+        const RagdollHandle handle{next_id_++};
+        ragdolls_.emplace(handle.id, std::move(ragdoll));
+        return handle;
+    }
+
+    void destroy_ragdoll(RagdollHandle handle) override {
+        auto it = ragdolls_.find(handle.id);
+        if (it == ragdolls_.end()) {
+            return;
+        }
+        release_ragdoll(it->second);
+        ragdolls_.erase(it);
+    }
+
+    void set_ragdoll_pose(RagdollHandle handle, std::span<const BodyPose> parts) override {
+        auto it = ragdolls_.find(handle.id);
+        if (it == ragdolls_.end() || !system_) {
+            return;
+        }
+        auto& bi = system_->GetBodyInterface();
+        const size_t count = std::min(parts.size(), it->second.bodies.size());
+        for (size_t i = 0; i < count; ++i) {
+            bi.SetPositionAndRotation(
+                it->second.bodies[i], JPH::RVec3(to_jph(parts[i].position)),
+                JPH::Quat{parts[i].rotation.x, parts[i].rotation.y, parts[i].rotation.z,
+                          parts[i].rotation.w},
+                JPH::EActivation::Activate);
+            bi.SetLinearAndAngularVelocity(it->second.bodies[i], JPH::Vec3::sZero(),
+                                           JPH::Vec3::sZero());
+        }
+        // Yesterday's joint impulses belong to yesterday's pose.
+        for (auto& joint : it->second.joints) {
+            if (joint != nullptr) {
+                joint->ResetWarmStart();
+            }
+        }
+    }
+
+    void ragdoll_pose(RagdollHandle handle, std::span<BodyPose> out) const override {
+        const auto it = ragdolls_.find(handle.id);
+        if (it == ragdolls_.end() || !system_) {
+            return;
+        }
+        auto& bi = system_->GetBodyInterface();
+        const size_t count = std::min(out.size(), it->second.bodies.size());
+        for (size_t i = 0; i < count; ++i) {
+            JPH::RVec3 position;
+            JPH::Quat rotation;
+            bi.GetPositionAndRotation(it->second.bodies[i], position, rotation);
+            out[i].position = to_glm(JPH::Vec3(position));
+            out[i].rotation = glm::quat{rotation.GetW(), rotation.GetX(), rotation.GetY(),
+                                        rotation.GetZ()};
+        }
+    }
+
+    void ragdoll_add_impulse(RagdollHandle handle, uint32_t part, const glm::vec3& impulse_ns,
+                             const glm::vec3& at_world) override {
+        const auto it = ragdolls_.find(handle.id);
+        if (it == ragdolls_.end() || !system_ || part >= it->second.bodies.size()) {
+            return;
+        }
+        system_->GetBodyInterface().AddImpulse(it->second.bodies[part], to_jph(impulse_ns),
+                                               JPH::RVec3(to_jph(at_world)));
+    }
+
+    void ragdoll_drive_to_pose(RagdollHandle handle, std::span<const BodyPose> target,
+                               float strength) override {
+        auto it = ragdolls_.find(handle.id);
+        if (it == ragdolls_.end() || !system_) {
+            return;
+        }
+        Ragdoll& ragdoll = it->second;
+        const float torque = std::clamp(strength, 0.0f, 1.0f)
+                             * static_cast<float>(dfn::config::RAGDOLL_MOTOR_TORQUE_NM);
+        for (size_t i = 0; i < ragdoll.joints.size(); ++i) {
+            JPH::SwingTwistConstraint* joint = ragdoll.joints[i].GetPtr();
+            if (joint == nullptr) {
+                continue;
+            }
+            const auto parent = static_cast<size_t>(ragdoll.parent[i]);
+            if (torque <= 0.0f || i >= target.size() || parent >= target.size()) {
+                joint->SetSwingMotorState(JPH::EMotorState::Off);
+                joint->SetTwistMotorState(JPH::EMotorState::Off);
+                continue;
+            }
+            // Only the RELATIVE orientation parent->child is a joint target:
+            // R_child = R_parent * q, so q = conj(R_parent) * R_child.
+            const glm::quat q = glm::conjugate(target[parent].rotation) * target[i].rotation;
+            joint->SetTargetOrientationBS(JPH::Quat{q.x, q.y, q.z, q.w});
+            joint->GetSwingMotorSettings().SetTorqueLimit(torque);
+            joint->GetTwistMotorSettings().SetTorqueLimit(torque);
+            joint->SetSwingMotorState(JPH::EMotorState::Position);
+            joint->SetTwistMotorState(JPH::EMotorState::Position);
+        }
+        for (const JPH::BodyID& id : ragdoll.bodies) {
+            system_->GetBodyInterface().ActivateBody(id);
+        }
+    }
+
+    bool ragdoll_asleep(RagdollHandle handle) const override {
+        const auto it = ragdolls_.find(handle.id);
+        if (it == ragdolls_.end() || !system_) {
+            return true;
+        }
+        for (const JPH::BodyID& id : it->second.bodies) {
+            if (system_->GetBodyInterface().IsActive(id)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
 private:
     struct Character {
         JPH::Ref<JPH::CharacterVirtual> virtual_character;
@@ -762,7 +1345,71 @@ private:
         CollisionMask collides_with = COLLIDE_ALL;
         float radius = 0.0f; // kept so a resize can rebuild the capsule
         float height = 0.0f;
+        float mass = 0.0f;
+        glm::vec3 push_velocity{0.0f};        // what impulses left behind, m/s
+        glm::vec3 velocity{0.0f};             // post-step, after collide-and-slide
+        std::vector<CharacterContact> contacts; // last step's
     };
+
+    struct Foot {
+        JPH::BodyID body;
+        JPH::ShapeRefC shape;                 // reused by the contact query
+        FootMode mode = FootMode::Swing;
+        BodyPose target;                      // where the swing is headed
+        CollisionMask collides_with = COLLIDE_ALL;
+        core::SubstanceId substance = core::SUBSTANCE_DEFAULT;
+    };
+
+    struct Ragdoll {
+        std::vector<JPH::BodyID> bodies;
+        std::vector<int32_t> parent;
+        std::vector<JPH::Ref<JPH::SwingTwistConstraint>> joints; // null on the root
+        JPH::Ref<JPH::GroupFilterTable> group;
+        CollisionMask collides_with = COLLIDE_ALL;
+    };
+
+    // The foot's contact query must skip the foot itself and honour its mask.
+    class FootQueryFilter final : public JPH::BodyFilter {
+    public:
+        FootQueryFilter(const std::unordered_map<JPH::uint32, CollisionMask>& masks,
+                        CollisionMask collides_with, JPH::BodyID self)
+            : masks_(masks), collides_with_(collides_with), self_(self) {}
+        bool ShouldCollide(const JPH::BodyID& body_id) const override {
+            if (body_id == self_) {
+                return false;
+            }
+            const auto it = masks_.find(body_id.GetIndexAndSequenceNumber());
+            const CollisionMask mask = it != masks_.end() ? it->second : COLLIDE_ALL;
+            return (mask & collides_with_) != 0;
+        }
+
+    private:
+        const std::unordered_map<JPH::uint32, CollisionMask>& masks_;
+        CollisionMask collides_with_;
+        JPH::BodyID self_;
+    };
+
+    void release_ragdoll(Ragdoll& ragdoll) {
+        if (!system_) {
+            return;
+        }
+        for (auto& joint : ragdoll.joints) {
+            if (joint != nullptr) {
+                system_->RemoveConstraint(joint);
+            }
+        }
+        ragdoll.joints.clear();
+        auto& bi = system_->GetBodyInterface();
+        for (const JPH::BodyID& id : ragdoll.bodies) {
+            const JPH::uint32 key = id.GetIndexAndSequenceNumber();
+            body_masks_.erase(key);
+            body_collides_with_.erase(key);
+            body_substances_.erase(key);
+            bi.RemoveBody(id);
+            bi.DestroyBody(id);
+        }
+        ragdoll.bodies.clear();
+    }
 
     // Builds the bottom-anchored capsule shape used by both create_character
     // and set_character_height. Null when the dimensions cannot form a capsule.
@@ -805,6 +1452,7 @@ private:
         const PhysicsBodyHandle handle{next_id_++};
         bodies_.emplace(handle.id, body_id);
         body_masks_[body_id.GetIndexAndSequenceNumber()] = mask;
+        body_substances_[body_id.GetIndexAndSequenceNumber()] = substance;
         broad_phase_dirty_ = true;
         return handle;
     }
@@ -820,8 +1468,17 @@ private:
     uint32_t next_id_ = 1; // 0 is the invalid handle
     std::unordered_map<uint32_t, JPH::BodyID> bodies_;
     std::unordered_map<uint32_t, Character> characters_;
+    std::unordered_map<uint32_t, Foot> feet_;       // by the same id as bodies_
+    std::unordered_map<uint32_t, Ragdoll> ragdolls_;
+    JPH::CollisionGroup::GroupID next_ragdoll_group_ = 1;
     // BodyID (index+sequence) -> engine mask, for query/contact filtering.
     std::unordered_map<JPH::uint32, CollisionMask> body_masks_;
+    // BodyID -> what that body may touch (feet, ragdoll parts only).
+    std::unordered_map<JPH::uint32, CollisionMask> body_collides_with_;
+    // BodyID -> substance, so a foot can name what it stands on.
+    std::unordered_map<JPH::uint32, core::SubstanceId> body_substances_;
+    MaskContactListener mask_contact_listener_{body_masks_, body_collides_with_};
+    CharacterPushListener push_listener_;
     bool broad_phase_dirty_ = false;
 };
 

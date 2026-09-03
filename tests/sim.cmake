@@ -131,3 +131,16 @@ add_dfn_test(sim_loose_props sim/LoosePropTests.cpp
     dfn_physics dfn_platform_physics dfn_gameplay dfn_core)
 target_sources(sim_loose_props PRIVATE
     ${CMAKE_SOURCE_DIR}/engine/app/sources/GrabDrive.cpp)
+
+# ФИЗИЧЕСКИЕ СТОПЫ (заказ владельца 04.09, LOCOMOTION_GROUNDED §12): стопа —
+# тело Jolt с трением; держит на малом склоне, ползёт на большом по закону
+# Кулона. Каждая приёмка — с рукой, которую обязана отвергнуть (правило 30);
+# цена двух стоп — разностью против руки без стоп (правило 47), мерой.
+add_dfn_test(sim_foot_physics sim/FootPhysicsTests.cpp
+    dfn_physics dfn_platform_physics dfn_core)
+
+# ТОЛЧКИ КАПСУЛЫ И РЕГДОЛЛ (HIT_REACTIONS_PHYSICS §3): импульс даёт dv = J/m,
+# лёгкое тело капсулу не толкает, тяжёлое толкает; регдолл из позы падает и
+# засыпает, моторы держат позу против малого толчка.
+add_dfn_test(sim_character_impulse sim/CharacterImpulseTests.cpp
+    dfn_physics dfn_platform_physics dfn_core)
