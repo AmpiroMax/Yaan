@@ -52,6 +52,12 @@ endif()
 add_dfn_test(character_clips_slide character/ClipSlideTests.cpp
              dfn_anim dfn_render dfn_core)
 set_tests_properties(character_clips_slide PROPERTIES LABELS "known-defect")
+
+# ПРИБОРЫ ЛОКОМОЦИИ НА СИНТЕТИКЕ (владелец 04.09: «нужны инструменты внутри
+# игры, что числами расскажут о проблемах»): каждый детектор LocoTelemetry
+# получает тик с заложенным дефектом и обязан его засчитать сверх порога реестра.
+add_dfn_test(character_loco_telemetry character/LocoTelemetryTests.cpp
+             dfn_anim dfn_core)
 if(TARGET dfn_characters)
     add_dependencies(character_clips_slide dfn_characters)
 endif()

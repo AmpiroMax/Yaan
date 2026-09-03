@@ -105,7 +105,8 @@ constexpr int READOUT_FIXED_LINES = 10;
     // The fixed rows, plus the words row, plus the water row when there is
     // water. The water row is the whole reason this is a function: it makes
     // the readout's height a property of the MOMENT, not of the build.
-    return READOUT_FIXED_LINES + 1 + (snap.water_depth > 0.0f ? 1 : 0);
+    return READOUT_FIXED_LINES + 1 + (snap.water_depth > 0.0f ? 1 : 0)
+           + static_cast<int>(snap.loco_lines.size());
 }
 
 // Trims ASCII spaces and tabs from both ends.
@@ -303,6 +304,9 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap,
     if (snap.water_depth > 0.0f) {
         widest = std::max(widest, render::text_width_px(water.text));
     }
+    for (const std::string& l : snap.loco_lines) {
+        widest = std::max(widest, render::text_width_px(l));
+    }
     draw_text_plate(canvas, read_x, read_y, widest,
                     readout_line_count(snap) * line_h - 1);
 
@@ -315,6 +319,21 @@ void draw_debug_overlay(render::PixelCanvas& canvas, const DebugSnapshot& snap,
     y += line_h;
     if (snap.water_depth > 0.0f) {
         render::draw_text(canvas, read_x, y, water.text, warn, true);
+        y += line_h;
+    }
+    // ПРИБОРЫ ЛОКОМОЦИИ (DFN_LOCO_HUD): счётчики срабатываний в скобках;
+    // строка с ненулевым счётчиком — тёплым цветом, чтобы красное было видно.
+    for (const std::string& l : snap.loco_lines) {
+        bool red = false;
+        for (std::size_t i = l.find('('); i != std::string::npos; i = l.find('(', i + 1)) {
+            const std::size_t e = l.find(')', i);
+            if (e != std::string::npos && l.substr(i + 1, e - i - 1).find_first_not_of('0')
+                                             != std::string::npos) {
+                red = true;
+                break;
+            }
+        }
+        render::draw_text(canvas, read_x, y, l, red ? warn : ink, true);
         y += line_h;
     }
 

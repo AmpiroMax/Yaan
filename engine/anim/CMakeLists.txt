@@ -29,6 +29,7 @@ add_library(dfn_anim STATIC
     sources/ClipPlayer.cpp
     sources/FootIk.cpp
     sources/RootMotion.cpp
+    sources/LocoTelemetry.cpp
     sources/Hitbox.cpp
     sources/BodyGaps.cpp
     sources/RestFit.cpp

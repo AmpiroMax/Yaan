@@ -855,6 +855,11 @@ bool App::init(const AppConfig& config) {
         dbg != nullptr && *dbg == '1') {
         debug_overlay_ = true;
     }
+    // ПРИБОРЫ ЛОКОМОЦИИ ЖИВУТ В ВЫВОДЕ ОТЛАДКИ: дверь включает и его, иначе
+    // строки детекторов некуда положить.
+    if (const char* lh = door_value("DFN_LOCO_HUD"); lh != nullptr && *lh == '1') {
+        debug_overlay_ = true;
+    }
     // WIREFRAME DOOR (В28), the key-4 toggle's Rule 27 twin. The bgfx backend
     // already honours DFN_WIREFRAME=1 itself (render's acceptance recipe); this
     // mirrors the flag app-side so the editor overlay's [каркас] tag agrees with
@@ -1648,6 +1653,9 @@ DebugSnapshot App::collect_snapshot(float alpha) {
         s.water_depth = ps->water_depth;
     }
 
+    if (skinned_character_.telemetry_on()) {
+        s.loco_lines = skinned_character_.telemetry().summary_lines();
+    }
     s.internal_w = config_.internal_width;
     s.internal_h = config_.internal_height;
     s.fov_y_rad = camera_.fov_y();

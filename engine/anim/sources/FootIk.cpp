@@ -512,7 +512,8 @@ void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& con
 void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
                      const std::array<glm::vec3, 2>& point_target_model,
                      const std::array<bool, 2>& target_is_toe,
-                     const std::array<float, 2>& strength, std::span<JointLocal> sample) {
+                     const std::array<float, 2>& strength, std::span<JointLocal> sample,
+                     FootLockRelease* release) {
     if (!setup.valid() || sample.size() < skeleton.size()) {
         return;
     }
@@ -522,7 +523,31 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
     for (std::size_t side = 0; side < 2; ++side) {
         float k = std::clamp(strength[side], 0.0f, 1.0f);
         if (k <= 1.0e-4f) {
+            if (release != nullptr) {
+                release->has[side] = false;
+            }
             continue;
+        }
+        // ЦЕЛЬ ЗАМКА: якорь, пока сила полная; при отпускании — стопа клипа плюс
+        // замороженная ПОПРАВКА (см. FootLockRelease в заголовке): та, что
+        // замок реально прикладывал на последнем кадре полной силы (с учётом
+        // сдачи по вытяжению), и сходит она гладкой ступенью — без скачка
+        // скорости ни в начале, ни в конце отпускания.
+        glm::vec3 target_xz{point_target_model[side].x, 0.0f, point_target_model[side].z};
+        bool frozen = false;
+        glm::vec3 P0_xz{0.0f};
+        if (release != nullptr) {
+            const glm::vec3 C0 = origin_of(model[static_cast<std::size_t>(setup.ankle[side])]);
+            const glm::vec3 P0 = (target_is_toe[side] && setup.toe[side] >= 0)
+                                     ? origin_of(model[static_cast<std::size_t>(setup.toe[side])])
+                                     : C0;
+            P0_xz = glm::vec3{P0.x, 0.0f, P0.z};
+            if (strength[side] < 1.0f && release->has[side]) {
+                target_xz = P0_xz + release->offset[side];
+                frozen = true;
+                const float s = k;
+                k = s * s * (3.0f - 2.0f * s);
+            }
         }
         // ЗАМОК СДАЁТСЯ, А НЕ РВЁТ НОГУ (владелец 03.09: «при беге ноги тянутся,
         // потом отрываются»): когда тело убегает от якоря быстрее, чем стопа
@@ -540,15 +565,20 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
                                     ? origin_of(model[static_cast<std::size_t>(setup.toe[side])])
                                     : C;
             const float leg = glm::length(B - A) + glm::length(C - B);
-            const glm::vec3 want{point_target_model[side].x, P.y, point_target_model[side].z};
+            const glm::vec3 want{target_xz.x, P.y, target_xz.z};
             const float d0 = glm::length(want + (C - P) - A);
             // Полная сила, пока якорь в пределах длины ноги (прямая нога в
             // конце опоры — 0,98…1,0 длины, это норма ходьбы, не отрыв);
             // сходит на нет между 1,0 и 1,06 длины — когда якорь уже за
             // вытяжением и держать его можно только струной.
-            if (leg > 1.0e-4f) {
+            if (leg > 1.0e-4f && !frozen) {
                 const float u = std::clamp((1.06f * leg - d0) / (0.06f * leg), 0.0f, 1.0f);
                 k *= u * u * (3.0f - 2.0f * u);
+            }
+            if (release != nullptr && strength[side] >= 1.0f) {
+                // поправка, которую замок прикладывает СЕЙЧАС, — её и отпускать
+                release->offset[side] = k * (target_xz - P0_xz);
+                release->has[side] = k > 1.0e-4f;
             }
             if (k <= 1.0e-4f) {
                 continue;
@@ -574,8 +604,7 @@ void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
             // стопу под землю на 5 см, и вертикально пришпиленная стопа
             // упирается в вытяжение ноги — 30 мм сноса по горизонтали вместо
             // 1.2). Стопа едет жёстко: лодыжка = якорь + её смещение от точки.
-            const glm::vec3 want_point{point_target_model[side].x, P.y,
-                                       point_target_model[side].z};
+            const glm::vec3 want_point{target_xz.x, P.y, target_xz.z};
             glm::vec3 T = want_point + (C - P);
             T = glm::mix(C, T, k);
             // Досягаемость: дальше 99,5 % вытяжения ноги цель режется к бедру,

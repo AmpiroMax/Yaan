@@ -66,6 +66,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/FootIk.h"
 #include "engine/anim/sources/HeldBlade.h"
+#include "engine/anim/sources/LocoTelemetry.h"
 #include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/anim/sources/RootMotion.h"
@@ -77,6 +78,7 @@ AI Agents Notice (must follow):
 
 #include "engine/platform/render/interfaces/IRenderer.h"
 
+#include <cstdio>
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -247,6 +249,12 @@ public:
     /// ЗАЗОР СТОП ПОСЛЕДНЕГО КАДРА (знаковый, по FootIk::foot_gap) — после
     /// подъёма на грунт и замка; прибор ступеней/склона читает его с кадра.
     [[nodiscard]] const anim::FootGap& foot_gap_last() const { return last_gap_; }
+    /// ПРИБОРЫ ЛОКОМОЦИИ (LocoTelemetry.h): включаются дверями DFN_LOCO_HUD /
+    /// DFN_LOCO_CSV или отсюда (приборы на стендах). Кормятся в commit_root().
+    void set_telemetry(bool on, const std::string& csv_path = {});
+    [[nodiscard]] bool telemetry_on() const { return telemetry_on_; }
+    [[nodiscard]] const anim::LocoTelemetry& telemetry() const { return telemetry_; }
+    ~SkinnedCharacter();
     /// Двери: DFN_ROOT_FROM_FEET=0 — прежний шов (сим двигает, стрид-скейл),
     /// DFN_FOOT_LOCK=0 — без замка. Тесты ставят их напрямую (правило 47:
     /// обе руки из одного бинарника).
@@ -437,6 +445,7 @@ private:
     /// Память корневого движения: оценка скорости тела и инерция полёта.
     anim::RootMotionState root_state_{};
     anim::FootLockParams lock_params_{};
+    anim::FootLockRelease lock_release_{}; ///< сдвиг отпускания замка (FootIk.h)
     bool feet_drive_ = true;
     bool foot_lock_ = true;
     /// ROOT_MOTION_SMOOTH_S в силе (DFN_ROOT_SMOOTH=0 снимает).
@@ -446,6 +455,12 @@ private:
     /// закрывать (мировая точка касания до замка минус якорь), раз в 10 тиков.
     bool slide_trace_ = false;
     uint32_t slide_trace_ticks_ = 0;
+    anim::LocoTelemetry telemetry_;
+    bool telemetry_on_ = false;
+    std::FILE* telemetry_csv_ = nullptr;
+    float telemetry_report_s_ = 0.0f;
+    void feed_telemetry(const anim::BodyDrive& drive, float dt,
+                        const std::array<glm::vec3, 2>& contact_world);
     /// ДВЕРЬ DFN_FOOT_TRACE: печатать по стопам грунт, ЗНАКОВЫЙ зазор, вес
     /// опоры и сдвиг корня. Заведена под пункт 3 заказа 31.08 («стоя на
     /// объекте одна стопа парит»): кадр не отвечает на «парит на сантиметр»,

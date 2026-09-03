@@ -280,10 +280,26 @@ void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& con
 /// SkinnedCharacter::probe_ground), лодыжка едет вместе с ней, колено
 /// решается двузвенником, бедро доворачивается. Цель дальше вытяжения ноги
 /// режется по досягаемости, а не растягивает ногу.
+/// ОТПУСКАНИЕ ЗАМКА — ЗАМОРОЖЕННЫЙ СДВИГ, А НЕ ЯКОРЬ (владелец 04.09: «в момент,
+/// когда ступня отрывается, ляжка выпрямляется и дёргается назад, потом резко
+/// вперёд»). Прибор LocoTelemetry на стенде: в кадре после замка бедро и колено
+/// отрывающейся ноги ускорялись до 550…1150 рад/с² при 20…130 в самом клипе —
+/// сила замка сходила за FOOT_LOCK_RELEASE_S, а цель оставалась якорем в мире,
+/// от которого стопа клипа уже улетала: поправка = (падающая сила) × (растущий
+/// уход) — горб, то есть рывок назад и вперёд. Теперь на последнем кадре полной
+/// силы запоминается сдвиг «якорь − стопа клипа» в системе тела, и при
+/// отпускании применяется ОН, умноженный на силу: стопа сходит с якоря на
+/// траекторию клипа по прямой.
+struct FootLockRelease {
+    std::array<glm::vec3, 2> offset{}; ///< сдвиг в системе тела на последнем кадре полной силы
+    std::array<bool, 2> has{};
+};
+
 void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
                      const std::array<glm::vec3, 2>& point_target_model,
                      const std::array<bool, 2>& target_is_toe,
-                     const std::array<float, 2>& strength, std::span<JointLocal> sample);
+                     const std::array<float, 2>& strength, std::span<JointLocal> sample,
+                     FootLockRelease* release = nullptr);
 
 /// HOW PLANTED A FOOT HAS TO BE before the instrument above judges it, and the
 /// number is DERIVED FROM THE SOLVE rather than picked.

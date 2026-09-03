@@ -17,6 +17,8 @@ AI Agents Notice (must follow):
 
 #include "engine/app/sources/SkinnedCharacter.h"
 
+#include "engine/core/config/sources/Constants.h"
+
 #include "engine/app/sources/AppDoors.h"
 #include "engine/app/sources/CharacterTextures.h"
 #include "engine/anim/sources/RestFit.h"
@@ -228,6 +230,13 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         library_.idle_symmetry = 0.0f;
     }
     foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
+    {
+        const char* lh = door_value("DFN_LOCO_HUD");
+        const char* lc = door_value("DFN_LOCO_CSV");
+        if ((lh != nullptr && lh[0] == '1') || (lc != nullptr && lc[0] != '\0')) {
+            set_telemetry(true, lc != nullptr ? std::string{lc} : std::string{});
+        }
+    }
     {
         // ЧЕРЕЗ door_value, А НЕ getenv (AppDoors.h): дверь, прочитанная мимо
         // таблицы, — рычаг, о котором знает только написавший.
@@ -840,10 +849,18 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
                                    anim::travel_axis(anim::role_move_dir(play_.role)));
         // ВНЕ ЛОКОМОЦИИ — НОЛЬ: покой, присед на месте, посадка не везут тело.
         // Кроссфейд в покой дошагивает (fade > 0), после него — стоп.
+        // ОТПУСТИЛИ ВВОД — ЗАЯВКА НОЛЬ СРАЗУ, А НЕ ПОСЛЕ КРОССФЕЙДА (владелец 04.09:
+        // «нажимаю вперёд и сразу отпускаю — микрошаг, чуть сдвинулся, проскользил
+        // вперёд, змейкой»). Прибор LocoTelemetry на стенде: за один такой тап тело
+        // уезжало 29 см вперёд и 12 см вбок, из них 13 см — «полёт» смеси клипов
+        // (обе стопы без опоры → коаст на прежней скорости), остальное — хвост
+        // сглаживания. Стоя роль уже покой: смесь дошагивает на месте, опорную
+        // стопу держит замок.
         const bool moving_role = anim::locomotion_role(play_.role);
-        if (!moving_role && play_.fade <= 0.0f) {
+        if (!moving_role) {
             raw = glm::vec3{0.0f};
             root_state_ = anim::RootMotionState{};
+            smoothed_delta_ = glm::vec3{0.0f};
         }
         // СГЛАЖИВАНИЕ КАПСУЛЫ (ROOT_MOTION_SMOOTH_S): толчки таза внутри шага
         // не передаются капсуле; разницу закрывает замок стопы.
@@ -882,16 +899,17 @@ void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
         return;
     }
     root_curr_ = anim::body_root_for(drive, standing_ground);
-    if (!contact_curr_.valid || !foot_lock_) {
-        locks_ = anim::FootLockState{};
-        return;
-    }
     const glm::mat4 to_world =
         glm::translate(glm::mat4{1.0f}, root_curr_.ground)
         * glm::rotate(glm::mat4{1.0f}, -root_curr_.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
     std::array<glm::vec3, 2> world{};
     for (std::size_t side = 0; side < 2; ++side) {
         world[side] = glm::vec3{to_world * glm::vec4{contact_curr_.point[side], 1.0f}};
+    }
+    if (!contact_curr_.valid || !foot_lock_) {
+        locks_ = anim::FootLockState{};
+        feed_telemetry(drive, dt, world);
+        return;
     }
     anim::update_foot_locks(locks_, world,
                             loco_.valid ? contact_curr_.support
@@ -909,6 +927,66 @@ void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
                      static_cast<double>(1000.0f * worst), locks_.locked[0] ? 1 : 0,
                      locks_.locked[1] ? 1 : 0);
     }
+    feed_telemetry(drive, dt, world);
+}
+
+void SkinnedCharacter::set_telemetry(bool on, const std::string& csv_path) {
+    if (telemetry_csv_ != nullptr) {
+        std::fclose(telemetry_csv_);
+        telemetry_csv_ = nullptr;
+    }
+    telemetry_on_ = on && foot_setup_.valid();
+    telemetry_report_s_ = 0.0f;
+    if (!telemetry_on_) {
+        return;
+    }
+    telemetry_.reset(skeleton_, foot_setup_);
+    if (!csv_path.empty()) {
+        telemetry_csv_ = std::fopen(csv_path.c_str(), "w");
+        if (telemetry_csv_ != nullptr) {
+            std::fprintf(telemetry_csv_, "%s\n", anim::LocoTelemetry::csv_header().c_str());
+        } else {
+            std::fprintf(stderr, "[loco] cannot open csv %s\n", csv_path.c_str());
+        }
+    }
+}
+
+void SkinnedCharacter::feed_telemetry(const anim::BodyDrive& drive, float dt,
+                                      const std::array<glm::vec3, 2>& contact_world) {
+    if (!telemetry_on_ || !tick_sampled_) {
+        return;
+    }
+    anim::LocoTick t;
+    t.dt = dt;
+    t.pose = tick_sample_;
+    t.contacts = &contact_curr_;
+    t.locks = &locks_;
+    t.release = &lock_release_;
+    t.contact_world = contact_world;
+    t.gap = last_gap_;
+    t.play = &play_;
+    t.loco = &loco_;
+    t.drive = &drive;
+    t.root = root_curr_;
+    t.root_prev = root_prev_;
+    telemetry_.push(t);
+    if (telemetry_csv_ != nullptr) {
+        std::fprintf(telemetry_csv_, "%s\n", telemetry_.csv_row().c_str());
+    }
+    telemetry_report_s_ += dt;
+    if (telemetry_report_s_ >= static_cast<float>(config::LOCO_REPORT_S)) {
+        telemetry_report_s_ = 0.0f;
+        std::fputs(telemetry_.report().c_str(), stderr);
+    }
+}
+
+SkinnedCharacter::~SkinnedCharacter() {
+    if (telemetry_on_ && telemetry_.ticks() > 0) {
+        std::fputs(telemetry_.report().c_str(), stderr);
+    }
+    if (telemetry_csv_ != nullptr) {
+        std::fclose(telemetry_csv_);
+    }
 }
 
 void SkinnedCharacter::set_feet_drive(bool on) {
@@ -917,6 +995,7 @@ void SkinnedCharacter::set_feet_drive(bool on) {
     if (!on) {
         loco_ = anim::LocomotionOut{};
         locks_ = anim::FootLockState{};
+        lock_release_ = anim::FootLockRelease{};
         root_state_ = anim::RootMotionState{};
         smoothed_delta_ = glm::vec3{0.0f};
     }
@@ -1002,10 +1081,13 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
                 strength[side] = locks_.strength[side];
             }
             anim::apply_foot_lock(skeleton_, foot_setup_, target, locks_.anchor_toe, strength,
-                                  sample_);
+                                  sample_, &lock_release_);
         }
         if (frame_planned) {
             last_gap_ = anim::foot_gap(skeleton_, foot_setup_, foot_probe_, frame_plan, sample_);
+        }
+        if (telemetry_on_) {
+            telemetry_.push_frame(sample_, root, a, locks_);
         }
         if (pose_weight_ > 0.0f) {
             pose_sample_.resize(skeleton_.size());

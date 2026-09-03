@@ -42,6 +42,7 @@ AI Agents Notice (must follow):
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 #include <string_view>
 
 #include <glm/vec3.hpp>
@@ -104,6 +105,8 @@ struct DebugSnapshot {
     float frame_ms_worst = 0.0f; // worst frame in the window, see FrameClock
     uint32_t chunks_resident = 0;
     uint32_t lod_nodes = 0;
+    /// Строки приборов локомоции (DFN_LOCO_HUD); пусто — прибор выключен.
+    std::vector<std::string> loco_lines;
 };
 
 // Rolling frame time over a fixed window.

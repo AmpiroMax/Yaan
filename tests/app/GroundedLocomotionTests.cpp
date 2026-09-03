@@ -34,6 +34,7 @@ AI Agents Notice (must follow):
   этот прибор — числа.
 */
 
+#include "engine/app/sources/AppDoors.h"
 #include "engine/app/sources/CharGenBody.h"
 #include "engine/app/sources/CharacterFactory.h"
 #include "engine/app/sources/SkinnedCharacter.h"
@@ -48,7 +49,9 @@ AI Agents Notice (must follow):
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <filesystem>
+#include <tuple>
 #include <vector>
 
 #include <glm/gtc/constants.hpp>
@@ -687,3 +690,75 @@ TEST_CASE("eight_directions_keep_the_foot_planted_and_pick_the_direction_role") 
     }
 }
 
+
+// ПРИБОРЫ ЛОКОМОЦИИ НА ПУТИ ИГРОКА (владелец 04.09): тот же путь, что
+// выше, но с включённой телеметрией — таблица детекторов печатается в журнал
+// теста, и это первый честный замер рывков, змейки и сноса без ввода.
+// Жёсткие проверки здесь только там, где прибор обязан сойтись с прибором №1:
+// снос замкнутой стопы до замка не больше, чем то, что закрывает замок.
+TEST_CASE("telemetry_on_the_player_path") {
+    if (!body_present()) {
+        MESSAGE("no HumanBase.dfo -- skipped");
+        return;
+    }
+    Harness h;
+    REQUIRE(h.ok);
+    const float walk = static_cast<float>(config::WALK_SPEED);
+    const float jog = static_cast<float>(config::JOG_SPEED);
+    const float run = static_cast<float>(config::RUN_SPEED);
+    // Две скорости на передачу: скорость сим'а (передача как в игре — смесь или
+    // темп) и СОБСТВЕННАЯ скорость клипа роли (чистый клип, natural_mps) —
+    // вторая показывает, что делает сам клип без смеси и темпа.
+    const anim::ClipLibrary& lib = h.body.clip_library();
+    const auto natural = [&](anim::ClipRole role, float fallback) {
+        const float n = anim::entry_for(lib, role, -1).natural_mps;
+        return n > 0.1f ? n : fallback;
+    };
+    for (const auto& [gait, speed, name] :
+         {std::tuple{anim::Gait::Walk, walk, "walk"}, std::tuple{anim::Gait::Jog, jog, "jog"},
+          std::tuple{anim::Gait::Run, run, "run"},
+          std::tuple{anim::Gait::Walk, natural(anim::ClipRole::Walk, walk), "walk_natural"},
+          std::tuple{anim::Gait::Jog, natural(anim::ClipRole::Jog, jog), "jog_natural"},
+          std::tuple{anim::Gait::Run, natural(anim::ClipRole::Sprint, run), "run_natural"}}) {
+        const char* csv = app::door_value("DFN_LOCO_CSV");
+        h.body.set_feet_drive(false); // прошлая передача оставила скорость и якоря
+        h.body.set_feet_drive(true);
+        h.body.set_telemetry(true, csv != nullptr ? std::string{csv} + "." + name + ".csv"
+                                                  : std::string{});
+        const Run r = run_gear(h, gait, speed, false, 420);
+        const anim::LocoTelemetry& tm = h.body.telemetry();
+        MESSAGE(name << " ordered " << speed << " got " << r.speed_mps << " m/s\n"
+                     << tm.report());
+        CHECK(tm.ticks() == 420);
+        CHECK(tm.footfalls()[0] + tm.footfalls()[1] > 4);
+        CHECK(tm.row(anim::LocoProbe::PhaseJump).hits == 0);
+    }
+    // короткое нажатие: 6 тиков ввода, потом отпустили — путь без ввода
+    {
+        const char* csv = app::door_value("DFN_LOCO_CSV");
+        h.body.set_feet_drive(false);
+        h.body.set_feet_drive(true);
+        h.body.set_telemetry(true, csv != nullptr ? std::string{csv} + ".tap.csv" : std::string{});
+        anim::BodyDrive drive;
+        drive.grounded = true;
+        drive.gait = anim::Gait::Walk;
+        drive.facing_yaw = 0.0f;
+        drive.move_dir_model = {0.0f, 0.0f, -1.0f};
+        glm::vec3 root{0.0f};
+        for (uint32_t t = 0; t < 240; ++t) {
+            const bool held = (t % 60) < 6;
+            drive.speed_mps = held ? walk : 0.0f;
+            drive.want_speed_mps = drive.speed_mps;
+            drive.step_length_m = step_length(walk);
+            h.body.advance(drive, root, DT);
+            const anim::LocomotionOut& lo = h.body.locomotion();
+            if (lo.valid) {
+                root += lo.root_delta_model;
+            }
+            h.body.commit_root(drive, root, DT);
+        }
+        const anim::LocoTelemetry& tm = h.body.telemetry();
+        MESSAGE("tap x4: travelled " << root.z << " m\n" << tm.report());
+        CHECK(tm.ticks() == 240);
+    }
+}
