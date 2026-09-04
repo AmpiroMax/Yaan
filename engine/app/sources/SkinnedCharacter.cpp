@@ -853,8 +853,13 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     turn_accum_prev_rad_ = turn_accum_rad_;
     if (tick_sampled_ && pelvis_joint_ >= 0) {
         const float raw = anim::pelvis_yaw(skeleton_, tick_sample_, pelvis_joint_);
-        const bool turning = play_.role == anim::ClipRole::TurnL
-                             || play_.role == anim::ClipRole::TurnR;
+        // ВЫНИМАЕТСЯ У ВСЕХ КЛИПОВ ПЕРЕХОДА, а не только у поворота: замер
+        // 04.09 по ассету — Run_To_Stop поворачивает таз на +59°,
+        // Idle_To_Sprint на −41°, Start_Walking на −12°. Оставить это в позе
+        // значит развернуть тело внутри клипа и щёлкнуть обратно на выходе;
+        // отдать телу — значит «затормозил и встал вполоборота», как и
+        // нарисовано, а на ходу сим всё равно доворачивает корпус к вводу.
+        const bool turning = anim::transit_role(play_.role);
         float delta = 0.0f;
         if (turning && has_pelvis_raw_) {
             delta = shortest_turn(pelvis_yaw_raw_, raw);
@@ -882,8 +887,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         has_pelvis_raw_ = true;
         if (turning) {
             turn_accum_rad_ += delta;
-        } else if (play_.previous == anim::ClipRole::TurnL
-                   || play_.previous == anim::ClipRole::TurnR) {
+        } else if (anim::transit_role(play_.previous)) {
             // КРОССФЕЙД: угол заморожен, а ОСЛАБЛЯЕТСЯ он в turn_counter_rad()
             // вместе с весом уходящей позы (play_.fade) — иначе тело качнётся
             // на ширину поворота за десятую долю секунды.

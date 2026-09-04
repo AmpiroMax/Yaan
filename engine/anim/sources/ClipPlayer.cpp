@@ -340,7 +340,7 @@ bool one_shot_role(ClipRole r) {
 
 /// Роль перехода — та, что ведёт ноги на месте (старт, остановка, поворот);
 /// прыжок сюда не входит: он не про переступ, а про полёт.
-[[nodiscard]] static bool transit_role(ClipRole r) {
+bool transit_role(ClipRole r) {
     return r == ClipRole::StartWalk || r == ClipRole::StartRun
            || r == ClipRole::StopWalk || r == ClipRole::StopRun
            || r == ClipRole::TurnL || r == ClipRole::TurnR;

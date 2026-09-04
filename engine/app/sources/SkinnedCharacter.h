@@ -479,14 +479,10 @@ private:
     /// Контрвращение позы: полный накопленный угол, пока клип поворота ведёт,
     /// и та же величина, ослабленная кроссфейдом, пока он уходит.
     [[nodiscard]] float turn_counter_rad() const {
-        const bool turning = play_.role == anim::ClipRole::TurnL
-                             || play_.role == anim::ClipRole::TurnR;
-        if (turning) {
+        if (anim::transit_role(play_.role)) {
             return turn_accum_rad_;
         }
-        const bool leaving = play_.previous == anim::ClipRole::TurnL
-                             || play_.previous == anim::ClipRole::TurnR;
-        return leaving ? turn_accum_rad_ * play_.fade : 0.0f;
+        return anim::transit_role(play_.previous) ? turn_accum_rad_ * play_.fade : 0.0f;
     }
     bool has_pelvis_raw_ = false;
     int32_t pelvis_joint_ = -1;
