@@ -259,6 +259,13 @@ public:
     /// DFN_FOOT_LOCK=0 — без замка. Тесты ставят их напрямую (правило 47:
     /// обе руки из одного бинарника).
     void set_feet_drive(bool on);
+    /// §13: одноразовые клипы перехода (старт, остановка, поворот). Прибор,
+    /// характеризующий цикл, выключает их — иначе мерил бы разгон.
+    void set_transitions(bool on) {
+        transitions_ = on;
+        library_.transitions = on;
+    }
+    [[nodiscard]] bool transitions() const { return transitions_; }
     void set_foot_lock(bool on) { foot_lock_ = on; }
     [[nodiscard]] bool feet_drive() const { return feet_drive_; }
     [[nodiscard]] bool foot_lock() const { return foot_lock_; }
@@ -459,7 +466,30 @@ private:
     /// приёмка трусцы/бега ждёт клипов под скорость) — корень ведёт модель
     /// скорости сим'а (speed_model_), клип идёт за фактическим ходом корня.
     bool clip_clock_path_ = false;
+    bool transitions_ = true; ///< §13: старт/остановка/поворот (DFN_CLIP_TRANSITIONS=0 — без)
     float speed_model_mps_ = 0.0f;
+    /// ПОВОРОТ, ВЫНУТЫЙ ИЗ КЛИПА (§13): накопленный за клип угол таза. Его
+    /// прибавляет к рыску тела сим (LocomotionOut::root_yaw_delta) и на него
+    /// же контрвращается поза — в мире картинка та же, но следующий клип
+    /// начинается с нуля, а не с развёрнутого таза.
+    float turn_accum_rad_ = 0.0f;
+    float turn_accum_prev_rad_ = 0.0f;
+    float pelvis_yaw_raw_ = 0.0f;
+    float turn_yaw_delta_ = 0.0f; ///< вынутый угол за этот тик, рад
+    /// Контрвращение позы: полный накопленный угол, пока клип поворота ведёт,
+    /// и та же величина, ослабленная кроссфейдом, пока он уходит.
+    [[nodiscard]] float turn_counter_rad() const {
+        const bool turning = play_.role == anim::ClipRole::TurnL
+                             || play_.role == anim::ClipRole::TurnR;
+        if (turning) {
+            return turn_accum_rad_;
+        }
+        const bool leaving = play_.previous == anim::ClipRole::TurnL
+                             || play_.previous == anim::ClipRole::TurnR;
+        return leaving ? turn_accum_rad_ * play_.fade : 0.0f;
+    }
+    bool has_pelvis_raw_ = false;
+    int32_t pelvis_joint_ = -1;
     float leg_warp_rad_ = 0.0f;      ///< поворот ног к вводу (warp_legs), сглаженный
     float leg_warp_prev_rad_ = 0.0f; ///< прошлый тик — кадр интерполирует
     anim::LocoTelemetry telemetry_;

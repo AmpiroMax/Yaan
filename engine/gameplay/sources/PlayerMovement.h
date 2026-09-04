@@ -110,6 +110,15 @@ inline constexpr float PLAYER_PUSH_FORCE_N = 8.0f;
 struct PlayerState {
     platform::CharacterHandle character{};
     float yaw = 0.0f;               // radians; 0 = -Z, positive = clockwise from above
+    /// КУДА ПОВЁРНУТ КОРПУС, рад, та же система (LOCOMOTION_GROUNDED.md §13).
+    /// ОТДЕЛЬНО ОТ `yaw`, потому что это разные вещи: `yaw` — прицел и кадр
+    /// ввода (мышь крутит его свободно, W идёт туда, куда смотришь), а корпус
+    /// поворачивается НОГАМИ: на ходу доворачивается к направлению хода со
+    /// скоростью BODY_TURN_RATE, стоя — только клипом поворота с переступом
+    /// (заказ владельца 04.09: «когда я камеру кручу, чтобы были анимации
+    /// поворотов, перестановки стоп»; до этого стоящее тело крутилось за
+    /// мышью мгновенно, и замкнутые стопы скручивались крестиком).
+    float body_yaw = 0.0f;
     float pitch = 0.0f;             // radians; positive = up, clamped by CAMERA_PITCH_LIMIT
     float vertical_velocity = 0.0f; // m/s (gravity integration)
     glm::vec2 pending_look{0.0f};   // pixels accumulated since the last fixed tick

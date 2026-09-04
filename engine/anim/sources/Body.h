@@ -85,7 +85,12 @@ struct BodyDrive {
     // the idle<->moving fade only, which is a question about whether the feet
     // are moving at all and has no gears in it.
     Gait gait = Gait::Walk;
-    float facing_yaw = 0.0f;        // radians, sim's yaw convention
+    float facing_yaw = 0.0f;        // radians, sim's yaw convention — КОРПУС
+    /// КУДА СМОТРИТ ИГРОК (камера), рад, та же система. Корпус за камерой не
+    /// ходит: стоя он остаётся на месте, пока разница не перевалит
+    /// TURN_FIRE_DEG, и тогда его поворачивает КЛИП поворота с переступом
+    /// (LOCOMOTION_GROUNDED.md §13). Равен facing_yaw — поворот не нужен.
+    float view_yaw = 0.0f;
     /// НАПРАВЛЕНИЕ ЖЕЛАЕМОГО ХОДА В СИСТЕМЕ ТЕЛА (LOCOMOTION_GROUNDED.md §9):
     /// единичный вектор, лицом в −Z; (0,0,−1) — вперёд, (+1,0,0) — вправо,
     /// (0,0,+1) — назад. Единственный источник направления и для выбора

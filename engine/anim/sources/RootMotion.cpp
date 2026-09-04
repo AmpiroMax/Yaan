@@ -30,6 +30,7 @@ AI Agents Notice (must follow):
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace dfn::anim {
 
@@ -59,6 +60,49 @@ constexpr float STEP_MEMORY_S = 0.25f;
 /// Окно смены опоры, тиков сима: столько тело едет по инерции опоры, пока
 /// новая стопа не взяла вес; дольше — стоп (клавиши отпущены).
 constexpr uint32_t HANDOFF_TICKS = 5;
+
+float pelvis_yaw(const skel::Skeleton& skeleton, std::span<const JointLocal> sample,
+                 int32_t pelvis) {
+    if (pelvis < 0 || sample.size() < skeleton.size()) {
+        return 0.0f;
+    }
+    // Модельная ориентация таза — произведение локальных по цепочке родителей.
+    glm::quat rot{1.0f, 0.0f, 0.0f, 0.0f};
+    std::vector<int32_t> chain;
+    for (int32_t j = pelvis; j >= 0; j = skeleton.joints[static_cast<std::size_t>(j)].parent) {
+        chain.push_back(j);
+    }
+    for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+        rot = rot * glm::normalize(sample[static_cast<std::size_t>(*it)].rotation);
+    }
+    // ЗАКРУТКА ВОКРУГ ВЕРТИКАЛИ, А НЕ УГОЛ «ВПЕРЁД» ТАЗА. Ось таза в покое у
+    // ретаргета лежит не по −Z (у MPFB-скелета она смотрит вверх), и проекция
+    // его «вперёд» на горизонталь вырождается — замер 04.09 дал 9,5° там, где
+    // клип поворачивает на 90°. Разложение swing-twist берёт ровно ту часть
+    // поворота, что вокруг Y, при любой позе таза.
+    rot = glm::normalize(rot);
+    const float theta = 2.0f * std::atan2(rot.y, rot.w); // поворот вокруг +Y в glm
+    // рыск сим'а растёт по часовой, glm — против: знак обратный
+    return -theta;
+}
+
+void counter_rotate_root(const skel::Skeleton& skeleton, std::span<const int32_t> roots, float yaw,
+                         std::span<JointLocal> sample) {
+    if (sample.size() < skeleton.size() || std::abs(yaw) < 1.0e-6f) {
+        return;
+    }
+    // Рыск сим'а растёт по часовой, а glm::rotate(+θ, Y) поворачивает против —
+    // поэтому «вычесть yaw из позы» это повернуть её на +yaw в glm.
+    const glm::quat turn = glm::angleAxis(yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+    for (const int32_t r : roots) {
+        if (r < 0 || static_cast<std::size_t>(r) >= sample.size()) {
+            continue;
+        }
+        JointLocal& jl = sample[static_cast<std::size_t>(r)];
+        jl.rotation = turn * glm::normalize(jl.rotation);
+        jl.translation = turn * jl.translation;
+    }
+}
 
 glm::vec3 root_motion_step(const ContactState& prev, ContactState& curr, float dt,
                            RootMotionState& state, const glm::vec3& travel) {

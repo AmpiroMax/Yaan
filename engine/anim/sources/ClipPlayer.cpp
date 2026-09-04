@@ -156,6 +156,23 @@ constexpr RoleNames ROLE_NAMES[] = {
      {"MX_Left_Strafe", "KK_Running_Strafe_Left", "Run_Strafe_Left_Loop", "Jog_Left_Loop"}},
     {ClipRole::StrafeRunR, "StrafeRunR",
      {"MX_Right_Strafe", "KK_Running_Strafe_Right", "Run_Strafe_Right_Loop", "Jog_Right_Loop"}},
+    // ПЕРЕХОДЫ (04.09). Клипы Mixamo, скачанные владельцем: Start_Walking —
+    // шаг с места в ходьбу; Idle_To_Sprint — рывок с места; Run_To_Stop —
+    // торможение в стойку; Left/Right_Turn_90 — поворот на месте с переступом.
+    // Остановки шага в паках нет — роль остаётся нерешённой, и это видно в
+    // паспорте библиотеки (тикет владельцу: скачать Walk To Stop).
+    {ClipRole::StartWalk, "StartWalk",
+     {"MX_Start_Walking", "Walk_Start", "Start_Walking", ""}},
+    {ClipRole::StartRun, "StartRun",
+     {"MX_Idle_To_Sprint", "Run_Start", "Idle_To_Sprint", ""}},
+    {ClipRole::StopWalk, "StopWalk",
+     {"MX_Walk_To_Stop", "Walk_Stop", "Walk_To_Stop", ""}},
+    {ClipRole::StopRun, "StopRun",
+     {"MX_Run_To_Stop", "MX_Run_to_stop", "Run_Stop", "Run_To_Stop"}},
+    {ClipRole::TurnL, "TurnL",
+     {"MX_Left_Turn_90", "MX_Left_turn_90", "Turn_Left_90", "Left_Turn_90"}},
+    {ClipRole::TurnR, "TurnR",
+     {"MX_Right_Turn_90", "MX_Right_turn_90", "Turn_Right_90", "Right_Turn_90"}},
 };
 static_assert(std::size(ROLE_NAMES) == CLIP_ROLE_COUNT,
               "every role needs a row in the name table");
@@ -187,6 +204,17 @@ static_assert(std::size(ROLE_NAMES) == CLIP_ROLE_COUNT,
 }
 
 [[nodiscard]] float wrap01(float v) { return v - std::floor(v); }
+
+/// Разница рысков, сведённая в (−π, π]: «камера правее корпуса на 10°», а не
+/// «на 350° левее».
+[[nodiscard]] float wrap_pi(float a) {
+    const float two_pi = 2.0f * glm::pi<float>();
+    a = std::fmod(a + glm::pi<float>(), two_pi);
+    if (a < 0.0f) {
+        a += two_pi;
+    }
+    return a - glm::pi<float>();
+}
 
 /// The forward-in-time difference between two clip times, so an interpolation
 /// across the loop point runs FORWARD instead of sweeping the whole clip
@@ -296,7 +324,26 @@ bool locomotion_role(ClipRole r) {
     return r == ClipRole::Walk || r == ClipRole::Jog || r == ClipRole::Sprint
            || r == ClipRole::CrouchWalk || r == ClipRole::Backward
            || r == ClipRole::StrafeL || r == ClipRole::StrafeR
-           || r == ClipRole::StrafeRunL || r == ClipRole::StrafeRunR;
+           || r == ClipRole::StrafeRunL || r == ClipRole::StrafeRunR
+           // ПЕРЕХОДЫ ТОЖЕ ВЕЗУТ ТЕЛО: старт разгоняет своими ногами,
+           // остановка тормозит своими, поворот своими поворачивает —
+           // заявка корня от стопы выдаётся и на них.
+           || one_shot_role(r);
+}
+
+bool one_shot_role(ClipRole r) {
+    return r == ClipRole::JumpStart || r == ClipRole::JumpLand
+           || r == ClipRole::StartWalk || r == ClipRole::StartRun
+           || r == ClipRole::StopWalk || r == ClipRole::StopRun
+           || r == ClipRole::TurnL || r == ClipRole::TurnR;
+}
+
+/// Роль перехода — та, что ведёт ноги на месте (старт, остановка, поворот);
+/// прыжок сюда не входит: он не про переступ, а про полёт.
+[[nodiscard]] static bool transit_role(ClipRole r) {
+    return r == ClipRole::StartWalk || r == ClipRole::StartRun
+           || r == ClipRole::StopWalk || r == ClipRole::StopRun
+           || r == ClipRole::TurnL || r == ClipRole::TurnR;
 }
 
 namespace {
@@ -891,9 +938,15 @@ namespace {
 /// playback_sample со всеми слоями, контакты и интегратор корня на тике сима;
 /// три цикла, в зачёт — после первой секунды (кроссфейд из покоя и разгон
 /// памяти скорости).
-[[nodiscard]] float measure_played_speed(const ClipLibrary& lib, const skel::Skeleton& skeleton,
+[[nodiscard]] float measure_played_speed(const ClipLibrary& lib_in, const skel::Skeleton& skeleton,
                                          const SkinnedRigBinding& binding,
                                          std::span<const skel::AnimClip> clips, ClipRole role) {
+    // ЗАМЕР ХАРАКТЕРИЗУЕТ КЛИП, А НЕ МАШИНУ ПЕРЕХОДОВ: с включёнными
+    // переходами (§13) прогон «стою → иду» первые полсекунды играет клип
+    // СТАРТА, и «скорость роли Walk» вышла бы 0,58 м/с вместо 1,0 — мерился
+    // бы разгон. Ровно это и случилось при первой сборке 04.09.
+    ClipLibrary lib = lib_in;
+    lib.transitions = false;
     const FootIkSetup setup = build_foot_ik(skeleton, binding, lib.contacts);
     if (!setup.valid()) {
         return 0.0f;
@@ -959,6 +1012,7 @@ static void measure_path_curve(const ClipLibrary& lib, const skel::Skeleton& ske
     }
     ClipLibrary timed = lib;
     timed.clip_clock_path = false; // мерим по часам времени: кривой ещё нет
+    timed.transitions = false;     // …и без клипа старта: кривая — про цикл
     BodyDrive drive;
     drive.grounded = true;
     drive.want_speed_mps = std::max(0.1f, entry.natural_mps);
@@ -1631,7 +1685,7 @@ namespace {
            || r == ClipRole::StrafeRunL || r == ClipRole::StrafeRunR;
 }
 [[nodiscard]] bool one_shot(ClipRole r) {
-    return r == ClipRole::JumpStart || r == ClipRole::JumpLand;
+    return one_shot_role(r);
 }
 
 /// Where in a locomotion clip sim's stride phase puts us. The whole footfall
@@ -1748,6 +1802,16 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     // takes, so the knees straighten while the walk clip is fading out and not
     // a frame after it.
     play.prev_phase = play.phase;
+    play.prev_transit_dose = play.transit_dose;
+    {
+        // ДОЗА ПЕРЕХОДА: 1, пока играет одноразовый клип перехода, и обратно к
+        // нулю за то же время, что кроссфейд ролей.
+        const float want = transit_role(play.role) ? 1.0f : 0.0f;
+        const float move = CLIP_CROSSFADE_S > 0.0f ? dt / CLIP_CROSSFADE_S : 1.0f;
+        play.transit_dose = play.transit_dose < want
+                                ? std::min(want, play.transit_dose + move)
+                                : std::max(want, play.transit_dose - move);
+    }
     play.stance_run = std::clamp(drive.run_weight, 0.0f, 1.0f);
     {
         const float want = drive.speed_mps > MOVING_SPEED_MPS ? 0.0f : 1.0f;
@@ -1776,6 +1840,72 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     }
 
     ClipRole want = role_for_drive(lib, drive, play.move_dir);
+    // ПЕРЕХОДЫ: СТАРТ, ОСТАНОВКА, ПОВОРОТ НА МЕСТЕ (заказ владельца 04.09;
+    // LOCOMOTION_GROUNDED.md §13). Их выбирает СОБЫТИЕ, а не состояние:
+    // «ввод появился», «ввод пропал», «камера ушла от корпуса». Пока
+    // одноразовый клип играет, роль держится им — иначе состояние (стою /
+    // иду) переключило бы её на первом же кадре, и от клипа осталась бы
+    // одна десятая секунды кроссфейда.
+    play.turn_gap_s = std::max(0.0f, play.turn_gap_s - dt);
+    if (lib.transitions) {
+        const bool moving = drive_speed(lib, drive) > MOVING_SPEED_MPS;
+        const bool input = drive.want_speed_mps > MOVING_SPEED_MPS;
+        const bool ground = drive.grounded && drive.posture_blend < 0.5f
+                            && drive.crouch_blend < 0.5f;
+        const ClipEntry& cur = entry_for(lib, play.role, play.variant);
+        const bool over = !transit_role(play.role) || cur.duration_s <= 0.0f
+                          || play.time_s >= cur.duration_s - 1.0e-4f;
+        if (play.transit != Transit::None) {
+            // РАЗРЫВ ПЕРЕХОДА ВВОДОМ: клип старта отменяется отпусканием,
+            // остановка и поворот — нажатием. Ждать конца клипа значило бы
+            // «нажал — поехал через полсекунды», а это тот самый лаг, за
+            // который владелец ругал микрошаг.
+            const bool broken =
+                (play.transit == Transit::Start && !input)
+                || (play.transit != Transit::Start && input) || !ground;
+            if (over || broken) {
+                if (play.transit == Transit::Turn) {
+                    play.turn_gap_s = static_cast<float>(config::TURN_MIN_GAP_S);
+                }
+                play.transit = Transit::None;
+            } else {
+                want = play.role;
+            }
+        }
+        if (play.transit == Transit::None && ground) {
+            // «ТОЛЬКО ЧТО ИГРАЛ ПЕРЕХОД» — ЭТО НЕ «СТОЯЛ»: без этого условия
+            // клип старта, доиграв, тут же запускал сам себя (роль ещё
+            // StartWalk, цикл ещё не начался — машина видела «стою и жму»),
+            // и тело топталось стартом на месте: 0,5 м/с вместо 1,8 (замер
+            // прибора пути 04.09).
+            const bool was_transit = transit_role(play.role);
+            const bool was_move = locomotion(play.role);
+            const ClipRole start = drive.gait == Gait::Walk ? ClipRole::StartWalk
+                                                            : ClipRole::StartRun;
+            const ClipRole stop = drive.gait == Gait::Walk ? ClipRole::StopWalk
+                                                           : ClipRole::StopRun;
+            if (input && !was_move && !was_transit && locomotion(want) && lib.has(start)
+                && play.move_dir == MoveDir::Forward) {
+                // СТАРТ — только вперёд: клипов старта вбок и назад нет, и
+                // подменять их стартом вперёд значит выносить не ту ногу.
+                want = start;
+                play.transit = Transit::Start;
+            } else if (!input && was_move && !was_transit && lib.has(stop)) {
+                want = stop;
+                play.transit = Transit::Stop;
+            } else if (!input && !moving && !was_transit && play.turn_gap_s <= 0.0f
+                       && lib.has(ClipRole::TurnL) && lib.has(ClipRole::TurnR)) {
+                // ПОВОРОТ НА МЕСТЕ: камера ушла от корпуса дальше, чем шея
+                // и грудь могут отыграть, — корпус доворачивается ПЕРЕСТУПОМ
+                // (§9.4). Стоя и только стоя: на ходу корпус доворачивает сим.
+                const float d = wrap_pi(drive.view_yaw - drive.facing_yaw);
+                if (std::abs(d) > glm::radians(static_cast<float>(config::TURN_FIRE_DEG))) {
+                    want = d > 0.0f ? ClipRole::TurnR : ClipRole::TurnL;
+                    play.transit = Transit::Turn;
+                }
+            }
+        }
+    }
     // THE JUMP TRIPLE is the one sequence a state cannot answer on its own:
     // "airborne" is true for the take-off, the arc and the fall alike, and the
     // difference between them is HOW LONG WE HAVE BEEN airborne.
@@ -2112,7 +2242,8 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     // И ВЕС ВСЕГО СЛОЯ — «НАСКОЛЬКО МЫ НА ЗЕМЛЕ». В воздухе поза обязана быть
     // чистым клипом: слой целится в стойку СТОЯЩЕГО человека, а у летящего
     // ни стойки, ни опоры нет.
-    stance.weight = 1.0f - glm::mix(play.prev_airborne, play.airborne, a);
+    stance.weight = (1.0f - glm::mix(play.prev_airborne, play.airborne, a))
+                    * (1.0f - glm::mix(play.prev_transit_dose, play.transit_dose, a));
     // THE GAINS, from what THIS clip swings against what the reference does.
     // Clamped at 1 below: the layer is here to add the swing the retarget ate,
     // never to take swing away from a clip that already has enough.

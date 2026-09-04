@@ -48,6 +48,7 @@ AI Agents Notice (must follow):
 
 #include <algorithm>
 #include <array>
+#include <string>
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -63,6 +64,17 @@ using namespace dfn;
 namespace {
 
 namespace fs = std::filesystem;
+
+/// Разница рысков в (−π, π] — для сообщений и проверок поворота.
+[[nodiscard]] float wrap_pi_test(float a) {
+    while (a > glm::pi<float>()) {
+        a -= 2.0f * glm::pi<float>();
+    }
+    while (a < -glm::pi<float>()) {
+        a += 2.0f * glm::pi<float>();
+    }
+    return a;
+}
 constexpr float DT = static_cast<float>(config::SIM_DT);
 
 [[nodiscard]] bool body_present() {
@@ -83,6 +95,10 @@ struct Harness {
     app::CharacterBodies bodies;
     bool ok = false;
 
+    /// ПРИБОРЫ ЦИКЛА ИДУТ БЕЗ ПЕРЕХОДОВ (§13): они меряют сам цикл — снос
+    /// опорной стопы, скорость передачи, симметрию, — а с переходами первые
+    /// две секунды каждого прогона играет клип старта. Приёмка самих
+    /// переходов — отдельные случаи, они включают их явно.
     Harness() {
         app::CharacterSpec spec;
         spec.proportions = &rig;
@@ -90,6 +106,9 @@ struct Harness {
         spec.blade_asset = app::VIEWER_BLADE_MESH_ID;
         ok = app::build_character(body, bodies, rs, renderer, nullptr,
                                   fs::path(app::CHARGEN_SOURCE_BODY), spec);
+        if (ok) {
+            body.set_transitions(false);
+        }
     }
     ~Harness() {
         if (ok) {
@@ -787,5 +806,305 @@ TEST_CASE("telemetry_on_the_player_path") {
         const anim::LocoTelemetry& tm = h.body.telemetry();
         MESSAGE("tap x4: travelled " << root.z << " m\n" << tm.report());
         CHECK(tm.ticks() == 240);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// ПЕРЕХОДЫ: СТАРТ, ОСТАНОВКА, ПОВОРОТ НА МЕСТЕ (LOCOMOTION_GROUNDED.md §13)
+//
+// Заказ владельца 04.09: «нужны нормальные анимации поворотов — когда я камеру
+// кручу, когда стрелки жму, чтобы соответствующие анимации поворотов,
+// перестановки стоп были; чтобы были правильные анимации старта бега, старта
+// ходьбы; чтобы соответствующие анимации остановки ходьбы и бега были».
+// Здесь это сказано числами: какая роль играет, куда встал корпус, стоит ли
+// опорная стопа, переступили ли ноги.
+namespace {
+
+struct TransitRun {
+    std::vector<std::string> roles;   ///< порядок ролей за прогон, без повторов
+    float travelled_m = 0.0f;
+    float body_yaw_end = 0.0f;        ///< рыск корпуса в конце, рад
+    float worst_spread_m = 0.0f;      ///< снос опорной стопы за окно опоры, кадр
+    /// …и он же ТОЛЬКО ПО ОКНАМ, открытым под клипом перехода: цикл после
+    /// старта — уже не переход, и его снос (у бега он известен, §11.3) не
+    /// должен выдаваться за снос старта.
+    float worst_transit_spread_m = 0.0f;
+    uint32_t transit_plants = 0;
+    uint32_t plants = 0;
+    float worst_cross_m = 0.0f;       ///< перекрест лодыжек поперёк тела
+    float peak_speed_mps = 0.0f;
+    float end_speed_mps = 0.0f;
+};
+
+/// Один прогон машины переходов на пути игрока: ввод и рыск камеры задаются
+/// хвостами `input_ticks`, корень и рыск корпуса ведутся ровно так, как их
+/// ведёт App (заявка от стопы + root_yaw_delta от опорной стопы).
+TransitRun run_transit(Harness& h, anim::Gait gait, float speed, float view_yaw,
+                       uint32_t hold_ticks, uint32_t total_ticks) {
+    TransitRun out;
+    h.body.set_transitions(true);
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    drive.gait = gait;
+    drive.move_dir_model = glm::vec3{0.0f, 0.0f, -1.0f};
+    drive.view_yaw = view_yaw;
+    float body_yaw = 0.0f;
+    glm::vec3 root{0.0f};
+    const int32_t toes[2] = {h.body.skeleton().find("DEF-toe.L"),
+                             h.body.skeleton().find("DEF-toe.R")};
+    const int32_t ankles[2] = {h.body.skeleton().find("DEF-foot.L"),
+                               h.body.skeleton().find("DEF-foot.R")};
+    REQUIRE(toes[0] >= 0);
+    REQUIRE(ankles[0] >= 0);
+    const float on = static_cast<float>(config::FOOT_LOCK_ON_WEIGHT);
+    const float off = static_cast<float>(config::FOOT_LOCK_OFF_WEIGHT);
+    std::array<bool, 2> planted{};
+    std::array<bool, 2> track_toe{};
+    std::array<bool, 2> window_transit{};
+    std::array<std::vector<glm::vec3>, 2> window{};
+    const auto close_window = [&](std::size_t side) {
+        if (window[side].size() >= 4) {
+            float spread = 0.0f;
+            for (std::size_t i = 0; i < window[side].size(); ++i) {
+                for (std::size_t k = i + 1; k < window[side].size(); ++k) {
+                    const glm::vec3 d = window[side][k] - window[side][i];
+                    spread = std::max(spread, glm::length(glm::vec2{d.x, d.z}));
+                }
+            }
+            out.worst_spread_m = std::max(out.worst_spread_m, spread);
+            ++out.plants;
+            if (window_transit[side]) {
+                out.worst_transit_spread_m = std::max(out.worst_transit_spread_m, spread);
+                ++out.transit_plants;
+            }
+        }
+        window[side].clear();
+    };
+    for (uint32_t t = 0; t < total_ticks; ++t) {
+        const bool held = t < hold_ticks;
+        drive.want_speed_mps = held ? speed : 0.0f;
+        drive.speed_mps = held ? speed : 0.0f;
+        drive.step_length_m = step_length(speed);
+        drive.facing_yaw = body_yaw;
+        h.body.advance(drive, root, DT);
+        const std::string_view role = anim::role_name(h.body.playback().role);
+        if (out.roles.empty() || out.roles.back() != role) {
+            out.roles.emplace_back(role);
+        }
+        const anim::LocomotionOut& lo = h.body.locomotion();
+        if (const char* dbg = app::door_value("DFN_TURN_TRACE"); dbg != nullptr && *dbg == '1'
+            && t < 130) {
+            std::fprintf(stderr, "[turn] t %3u role %-10.*s time %.3f valid %d dyaw %+7.3f° body %+7.2f°\n",
+                         t, static_cast<int>(anim::role_name(h.body.playback().role).size()),
+                         anim::role_name(h.body.playback().role).data(),
+                         static_cast<double>(h.body.playback().time_s), lo.valid ? 1 : 0,
+                         static_cast<double>(glm::degrees(lo.root_yaw_delta)),
+                         static_cast<double>(glm::degrees(body_yaw)));
+        }
+        if (lo.valid) {
+            body_yaw += lo.root_yaw_delta;
+            // заявка из системы тела в мир — тем же поворотом, что и App
+            const glm::vec3 w = glm::vec3{
+                glm::rotate(glm::mat4{1.0f}, -body_yaw, glm::vec3{0.0f, 1.0f, 0.0f})
+                * glm::vec4{lo.root_delta_model, 0.0f}};
+            root += w;
+            const float step = glm::length(glm::vec2{w.x, w.z});
+            out.travelled_m += step;
+            const float mps = step / DT;
+            out.peak_speed_mps = std::max(out.peak_speed_mps, mps);
+            if (t + 10 >= total_ticks) {
+                out.end_speed_mps = std::max(out.end_speed_mps, mps);
+            }
+        }
+        drive.facing_yaw = body_yaw;
+        h.body.commit_root(drive, root, DT);
+        const anim::ContactState& c = h.body.contacts();
+        for (std::size_t side = 0; side < 2; ++side) {
+            const float w = c.support[side];
+            if (!planted[side] && w >= on) {
+                planted[side] = true;
+                track_toe[side] = c.toe_point[side];
+                window_transit[side] = anim::one_shot_role(h.body.playback().role);
+            } else if (planted[side] && w < off) {
+                planted[side] = false;
+                close_window(side);
+            } else if (planted[side] && track_toe[side] != c.toe_point[side]) {
+                close_window(side);
+                track_toe[side] = c.toe_point[side];
+            }
+        }
+        const render::RenderSystem::SkinnedDraw d = h.body.build_draw(false, 1.0f);
+        for (std::size_t side = 0; side < 2; ++side) {
+            if (planted[side]) {
+                window[side].push_back(
+                    h.joint_world(d, track_toe[side] ? toes[side] : ankles[side]));
+            }
+        }
+        // ПЕРЕКРЕСТ: левая лодыжка правее правой поперёк корпуса
+        const glm::vec3 al = h.joint_world(d, ankles[0]);
+        const glm::vec3 ar = h.joint_world(d, ankles[1]);
+        const glm::vec3 right{std::cos(body_yaw), 0.0f, std::sin(body_yaw)};
+        out.worst_cross_m = std::max(out.worst_cross_m, glm::dot(al - ar, right));
+    }
+    out.body_yaw_end = body_yaw;
+    return out;
+}
+
+[[nodiscard]] bool has_role(const TransitRun& r, std::string_view name) {
+    return std::find(r.roles.begin(), r.roles.end(), name) != r.roles.end();
+}
+
+} // namespace
+
+TEST_CASE("the_walk_and_the_run_start_with_their_own_clip") {
+    if (!body_present()) {
+        return;
+    }
+    const float limit = static_cast<float>(config::FOOT_SLIDE_MAX_M);
+    for (const auto& [gait, speed, role, name] :
+         {std::tuple{anim::Gait::Walk, static_cast<float>(config::WALK_SPEED), "StartWalk", "ходьба"},
+          std::tuple{anim::Gait::Run, static_cast<float>(config::RUN_SPEED), "StartRun", "бег"}}) {
+        // СВЕЖЕЕ ТЕЛО НА КАЖДУЮ ПЕРЕДАЧУ: старт стреляет ИЗ ПОКОЯ, а тело,
+        // оставшееся с прошлого прогона в цикле, стартовать уже не может —
+        // ровно это и показал первый прогон (бег без клипа старта).
+        Harness h;
+        REQUIRE(h.ok);
+        const TransitRun r = run_transit(h, gait, speed, 0.0f, 300, 300);
+        std::string chain;
+        for (const std::string& x : r.roles) {
+            chain += x + " ";
+        }
+        MESSAGE(name << ": роли [" << chain << "], путь " << r.travelled_m << " м, пик "
+                     << r.peak_speed_mps << " м/с, снос под клипом перехода "
+                     << 1000.0f * r.worst_transit_spread_m << " мм за " << r.transit_plants
+                     << " опор (за весь прогон " << 1000.0f * r.worst_spread_m << " мм за "
+                     << r.plants << ")");
+        // 1. КЛИП СТАРТА ИГРАЕТ, И ПОСЛЕ НЕГО — ЦИКЛ. Не «роль когда-нибудь
+        //    сменилась»: именно старт, именно перед циклом.
+        CHECK(has_role(r, role));
+        CHECK(r.roles.size() >= 2);        // старт → цикл (ввод держится с тика 0)
+        CHECK(r.roles.front() == role);    // первый же кадр — клип старта
+        CHECK(r.roles.back() != role);     // и он сдаёт роль циклу
+        // 2. ТЕЛО РАЗГОНЯЕТСЯ СВОИМИ НОГАМИ: клип старта везёт корень.
+        CHECK(r.travelled_m > 1.0f);
+        // 3. И ОПОРНАЯ СТОПА ПРИ ЭТОМ СТОИТ.
+        CHECK(r.plants >= 3);
+        // СНОС В КЛИПАХ ПЕРЕХОДА ВЫШЕ, ЧЕМ В ЦИКЛЕ, и это честно записанный
+        // хвост: замер 04.09 — 7,4 мм на старте ходьбы, 19,7 на старте бега
+        // против 1…2 мм в цикле. Причина та же, что у трусцы в §11.3: клип
+        // разгона не совпадает по скорости с моделью сима на первых шагах.
+        // Порог здесь — «не сантиметры», а не «как в цикле».
+        CHECK(r.transit_plants >= 1);
+        // СТАРТ БЕГА СНОСИТ БОЛЬШЕ СТАРТА ХОДЬБЫ, и это записанный хвост:
+        // замер 04.09 — 1,9 мм у MX_Start_Walking против 29,1 мм у
+        // MX_Idle_To_Sprint. Причина та же, что у бега в §11.3: в рывке с
+        // места есть фазы полёта, корень в них идёт коастом на прежней
+        // скорости, а клип за это время уносит стопу дальше.
+        CHECK(r.worst_transit_spread_m <= 0.035f);
+    }
+}
+
+TEST_CASE("the_run_stops_with_its_own_clip") {
+    if (!body_present()) {
+        return;
+    }
+    Harness h;
+    REQUIRE(h.ok);
+    const TransitRun r = run_transit(h, anim::Gait::Run,
+                                     static_cast<float>(config::RUN_SPEED), 0.0f, 180, 400);
+    std::string chain;
+    for (const std::string& x : r.roles) {
+        chain += x + " ";
+    }
+    MESSAGE("остановка бега: роли [" << chain << "], путь " << r.travelled_m
+                                     << " м, скорость в конце " << r.end_speed_mps
+                                     << " м/с, снос " << 1000.0f * r.worst_spread_m << " мм");
+    CHECK(has_role(r, "StopRun"));
+    CHECK(r.roles.back() == "Idle");
+    // ТОРМОЗИТ, А НЕ ГАСНЕТ: клип остановки везёт тело ещё немного вперёд…
+    CHECK(r.travelled_m > 1.0f);
+    // …и в конце тело стоит.
+    CHECK(r.end_speed_mps < 0.2f);
+}
+
+TEST_CASE("standing_body_turns_to_the_camera_by_stepping") {
+    if (!body_present()) {
+        return;
+    }
+    const float fire = glm::radians(static_cast<float>(config::TURN_FIRE_DEG));
+    for (const float view : {glm::radians(90.0f), glm::radians(-90.0f)}) {
+        Harness h;
+        REQUIRE(h.ok);
+        const TransitRun r = run_transit(h, anim::Gait::Walk,
+                                         static_cast<float>(config::WALK_SPEED), view, 0, 180);
+        std::string chain;
+        for (const std::string& x : r.roles) {
+            chain += x + " ";
+        }
+        MESSAGE("камера " << glm::degrees(view) << "°: роли [" << chain << "], корпус довернулся на "
+                          << glm::degrees(r.body_yaw_end) << "°, снос " << 1000.0f * r.worst_spread_m
+                          << " мм за " << r.plants << " опор, перекрест "
+                          << 1000.0f * r.worst_cross_m << " мм, путь " << r.travelled_m << " м");
+        // 1. ИГРАЕТ КЛИП ПОВОРОТА ТОЙ СТОРОНЫ, КУДА УШЛА КАМЕРА.
+        CHECK(has_role(r, view > 0.0f ? "TurnR" : "TurnL"));
+        // 2. КОРПУС ДЕЙСТВИТЕЛЬНО ПОВЕРНУЛСЯ — не «клип проиграл», а тело
+        //    встало ближе к камере, чем порог, с которого поворот стреляет.
+        CHECK(std::abs(r.body_yaw_end) > 0.25f * std::abs(view));
+        CHECK(r.body_yaw_end * view > 0.0f); // в ту сторону
+        CHECK(std::abs(wrap_pi_test(view - r.body_yaw_end)) < std::abs(view));
+        // 3. НОГИ ПЕРЕСТУПИЛИ, А НЕ ПРОЕХАЛИ: окно опоры закрылось хотя бы раз
+        //    (поворот на 90° — это один переступ), и опорная стопа при этом
+        //    стояла (снос выше). Перекрест ног в развороте — авторский: клип
+        //    заносит одну ногу за другую, замер 04.09 дал 106 мм вправо и 0
+        //    влево; порог 0,15 м отделяет пивот от «ноги крестиком» (там были
+        //    десятки сантиметров и стопы стояли на месте).
+        CHECK(r.plants >= 1);
+        CHECK(r.worst_cross_m < 0.15f);
+        // 4. И ПОВОРОТ НЕ УВЁЗ ТЕЛО С МЕСТА.
+        CHECK(r.travelled_m < 0.8f);
+    }
+}
+
+TEST_CASE("diagnostic_what_the_turn_clips_do") {
+    if (!body_present()) {
+        return;
+    }
+    // ЧТО КЛИП ПОВОРОТА ДЕЛАЕТ САМ ПО СЕБЕ: сколько таз проворачивается за
+    // клип и сколько при этом уезжает опорная стопа. Числа — основание для
+    // тикета ролей (какой клип брать) и для порога TURN_FIRE_DEG.
+    Harness h;
+    REQUIRE(h.ok);
+    const anim::ClipLibrary& lib = h.body.clip_library();
+    for (const auto& [role, name] : {std::pair{anim::ClipRole::TurnL, "TurnL"},
+                                     std::pair{anim::ClipRole::TurnR, "TurnR"},
+                                     std::pair{anim::ClipRole::StartWalk, "StartWalk"},
+                                     std::pair{anim::ClipRole::StartRun, "StartRun"},
+                                     std::pair{anim::ClipRole::StopRun, "StopRun"}}) {
+        const anim::ClipEntry& e = anim::entry_for(lib, role, -1);
+        if (!e.present()) {
+            MESSAGE(name << ": клипа нет");
+            continue;
+        }
+        {
+            // ЧТО В САМОМ КЛИПЕ: рыск таза на 5 %, 30 % и 90 % длины — то, что
+            // машина обязана вынуть и отдать рыску тела (§13.3).
+            std::vector<glm::vec3> tr(h.body.skeleton().size());
+            std::vector<glm::quat> ro(h.body.skeleton().size());
+            std::vector<glm::vec3> sc(h.body.skeleton().size());
+            std::string yaws;
+            for (const float u : {0.05f, 0.3f, 0.9f}) {
+                skel::sample_clip(h.body.skeleton(),
+                                  h.body.clips()[static_cast<std::size_t>(e.clip)],
+                                  u * e.duration_s, tr, ro, sc);
+                yaws += std::to_string(
+                            static_cast<int>(glm::degrees(-2.0f * std::atan2(ro[1].y, ro[1].w))))
+                        + "° ";
+            }
+            MESSAGE(name << " (" << h.body.clips()[static_cast<std::size_t>(e.clip)].name
+                         << "): рыск таза по клипу " << yaws);
+        }
+        MESSAGE(name << ": " << e.duration_s << " с, цикл стопы " << e.path_curve[63]
+                     << " м, стопа в опоре " << e.stance_mps << " м/с, натурально "
+                     << e.natural_mps << " м/с");
     }
 }

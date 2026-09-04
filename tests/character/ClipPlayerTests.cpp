@@ -57,7 +57,17 @@ TEST_CASE("clip_library_resolves_roles") {
 
     // EVERY ROLE, because this asset has a clip for all ten and a library that
     // silently resolves nine draws a body that stops moving in one state.
-    CHECK(m.lib.resolved == anim::CLIP_ROLE_COUNT);
+    // ВСЕ РОЛИ, КРОМЕ ОДНОЙ НАЗВАННОЙ. StopWalk (остановка шага) нерешена:
+    // в паках Mixamo, что скачал владелец, клипа «Walk To Stop» нет — есть
+    // только «Run To Stop». Дыра названа здесь, а не спрятана в «>=»: как
+    // только клип появится, эта строка обязана упасть и стать равенством.
+    CHECK(m.lib.resolved == anim::CLIP_ROLE_COUNT - 1);
+    CHECK_FALSE(m.lib.has(anim::ClipRole::StopWalk));
+    CHECK(m.lib.has(anim::ClipRole::StartWalk));
+    CHECK(m.lib.has(anim::ClipRole::StartRun));
+    CHECK(m.lib.has(anim::ClipRole::StopRun));
+    CHECK(m.lib.has(anim::ClipRole::TurnL));
+    CHECK(m.lib.has(anim::ClipRole::TurnR));
     CHECK(clip_name_of(m, anim::ClipRole::Idle) == "Idle_Loop");
     // ХОДЬБА И ТРУСЦА — MIXAMO с 04.09 (LOCOMOTION_GROUNDED.md §11.1): часы
     // клипа от пути требуют клип, чья стопа в опоре идёт со скоростью заказа

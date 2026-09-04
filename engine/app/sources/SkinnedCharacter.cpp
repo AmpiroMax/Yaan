@@ -221,6 +221,8 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         root_smooth_ = !(sm != nullptr && sm[0] == '0');
         const char* cc = door_value("DFN_CLIP_CLOCK");
         clip_clock_path_ = cc != nullptr && std::string_view{cc} == "path";
+        const char* tr = door_value("DFN_CLIP_TRANSITIONS");
+        transitions_ = !(tr != nullptr && tr[0] == '0');
         lock_params_ = anim::FootLockParams::from_config();
     }
     const char* roles = door_value("DFN_CLIP_ROLES");
@@ -229,10 +231,16 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
                                         roles != nullptr ? std::string_view{roles}
                                                          : std::string_view{});
     library_.clip_clock_path = clip_clock_path_;
+    library_.transitions = transitions_;
     if (const char* is = door_value("DFN_IDLE_SYMMETRY"); is != nullptr && is[0] == '0') {
         library_.idle_symmetry = 0.0f;
     }
     foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
+    pelvis_joint_ = skeleton_.find("DEF-hips");
+    if (pelvis_joint_ < 0 && foot_setup_.valid()) {
+        // у чужого скелета таз — родитель бедра, как бы он ни назывался
+        pelvis_joint_ = skeleton_.joints[static_cast<std::size_t>(foot_setup_.hip[0])].parent;
+    }
     {
         const char* lh = door_value("DFN_LOCO_HUD");
         const char* lc = door_value("DFN_LOCO_CSV");
@@ -837,6 +845,58 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     tick_sampled_ = playing_clips()
                     && anim::playback_sample(skeleton_, binding_, clips_, library_, play_,
                                              1.0f, tick_sample_);
+    // ПОВОРОТ, ВЫНУТЫЙ ИЗ КЛИПА (§13). Клип поворота на месте крутит ТАЗ, а
+    // не корень: если оставить как есть, тело провернётся в позе и на выходе
+    // из клипа щёлкнет назад. Поэтому угол таза за тик прибавляется к рыску
+    // тела (loco_.root_yaw_delta ниже), а поза контрвращается на накопленный
+    // угол — в мире картинка та же, но её несёт рыск сущности.
+    turn_accum_prev_rad_ = turn_accum_rad_;
+    if (tick_sampled_ && pelvis_joint_ >= 0) {
+        const float raw = anim::pelvis_yaw(skeleton_, tick_sample_, pelvis_joint_);
+        const bool turning = play_.role == anim::ClipRole::TurnL
+                             || play_.role == anim::ClipRole::TurnR;
+        float delta = 0.0f;
+        if (turning && has_pelvis_raw_) {
+            delta = shortest_turn(pelvis_yaw_raw_, raw);
+        }
+        if (static const bool trace = [] {
+                const char* v = door_value("DFN_TURN_TRACE");
+                return v != nullptr && v[0] == '1';
+            }(); trace && turning) {
+            const anim::ClipEntry& ent = anim::entry_for(library_, play_.role, play_.variant);
+            std::fprintf(stderr,
+                         "[turn] %-6.*s clip \"%s\" t %.2f/%.2f s: таз %+7.2f°, за тик %+6.3f°, "
+                         "накоплено %+7.2f°, контрвращение %+7.2f°\n",
+                         static_cast<int>(anim::role_name(play_.role).size()),
+                         anim::role_name(play_.role).data(),
+                         ent.clip >= 0 ? clips_[static_cast<std::size_t>(ent.clip)].name.c_str()
+                                       : "-",
+                         static_cast<double>(play_.time_s),
+                         static_cast<double>(ent.duration_s),
+                         static_cast<double>(raw * 57.29578f),
+                         static_cast<double>(delta * 57.29578f),
+                         static_cast<double>((turn_accum_rad_ + delta) * 57.29578f),
+                         static_cast<double>(turn_counter_rad() * 57.29578f));
+        }
+        pelvis_yaw_raw_ = raw;
+        has_pelvis_raw_ = true;
+        if (turning) {
+            turn_accum_rad_ += delta;
+        } else if (play_.previous == anim::ClipRole::TurnL
+                   || play_.previous == anim::ClipRole::TurnR) {
+            // КРОССФЕЙД: угол заморожен, а ОСЛАБЛЯЕТСЯ он в turn_counter_rad()
+            // вместе с весом уходящей позы (play_.fade) — иначе тело качнётся
+            // на ширину поворота за десятую долю секунды.
+        } else {
+            turn_accum_rad_ = 0.0f;
+        }
+        turn_yaw_delta_ = delta;
+    } else {
+        turn_yaw_delta_ = 0.0f;
+    }
+    if (tick_sampled_ && turn_counter_rad() != 0.0f) {
+        anim::counter_rotate_root(skeleton_, foot_setup_.roots, turn_counter_rad(), tick_sample_);
+    }
     // НОГИ К ВВОДУ (warp_legs): угол между осью роли и направлением хода,
     // сглаженный за LEG_WARP_SMOOTH_S, в пределах LEG_WARP_MAX_DEG.
     leg_warp_prev_rad_ = leg_warp_rad_;
@@ -937,6 +997,10 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
             loco_.root_delta_model = raw;
         }
         loco_.phase = play_.phase;
+        // ПОВОРОТ ОТ ОПОРНОЙ СТОПЫ (§9.4/§13): его несут клипы поворота на
+        // месте; на ходу корпус доворачивает сим, и клип цикла своим рыском
+        // тело крутить не должен — иначе поворот считался бы дважды.
+        loco_.root_yaw_delta = turn_yaw_delta_;
         loco_.footfall =
             anim::detect_footfalls(contact_prev_, contact_curr_, lock_params_.on_weight);
         loco_.valid = true;

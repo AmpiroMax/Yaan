@@ -97,6 +97,10 @@ struct Model {
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
                                      m.obj.skin.vertices, false);
+    // БЕЗ ОДНОРАЗОВЫХ КЛИПОВ ПЕРЕХОДА (§13): этот стенд судит СЛОЙ СТОЙКИ на
+    // циклах, а на клипе перехода слой снимается дозой — «ходьба» тогда
+    // мерилась бы по клипу старта, где осанка авторская.
+    m.lib.transitions = false;
     m.bare = m.lib;
     m.bare.relax = anim::ArmRelax{};
     m.bare.stance = anim::StanceLayer{};

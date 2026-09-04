@@ -4653,6 +4653,14 @@ int App::run() {
                         skinned_character_.advance(*cdrive, feet,
                                                    static_cast<float>(timestep_.step_dt()));
                         const anim::LocomotionOut& lo = skinned_character_.locomotion();
+                        // ПОВОРОТ КОРПУСА ОТ ОПОРНОЙ СТОПЫ (§13): клип поворота
+                        // на месте крутит таз над стоящей стопой, и ровно на
+                        // столько поворачивается корпус. Прицел (ps->yaw) не
+                        // трогается — мышь всегда сама по себе.
+                        if (auto* pst = world_.get<gameplay::PlayerState>(player_);
+                            pst != nullptr && lo.valid && lo.root_yaw_delta != 0.0f) {
+                            pst->body_yaw += lo.root_yaw_delta;
+                        }
                         if (lo.valid) {
                             const float yaw = anim::body_root_for(*cdrive, feet).yaw;
                             const glm::vec3 w = glm::vec3{
@@ -4680,11 +4688,28 @@ int App::run() {
                 // stride clock drives the leg clips, so the visual foot-plant
                 // and the footstep sound land on the same tick by construction.
                 if (auto* drive = world_.get<anim::BodyDrive>(player_)) {
-                    if (const auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                    if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
                         drive->stride_phase = ps->stride_phase;
                         drive->step_length_m = gameplay::step_length(ps->stride_speed);
                         drive->speed_mps = ps->stride_speed;
-                        drive->facing_yaw = ps->yaw;
+                        // КОРПУС ДОВОРАЧИВАЕТСЯ К ХОДУ, А НЕ К КАМЕРЕ (§13).
+                        // От третьего лица его уже довернул сим (ThirdPersonRig,
+                        // там рыск игрока И ЕСТЬ рыск корпуса); от первого —
+                        // здесь, на фиксированном тике: идём — доворот к
+                        // направлению хода со скоростью BODY_TURN_RATE, стоим —
+                        // корпус стоит, его повернёт КЛИП поворота (root_yaw_delta).
+                        if (third_person_) {
+                            ps->body_yaw = ps->yaw;
+                        } else if (glm::length(ps->want_dir) > 1.0e-4f) {
+                            const float want_yaw =
+                                std::atan2(ps->want_dir.x, -ps->want_dir.y);
+                            ps->body_yaw = app::turn_body_toward(
+                                ps->body_yaw, want_yaw,
+                                static_cast<float>(timestep_.step_dt()),
+                                static_cast<float>(config::BODY_TURN_RATE));
+                        }
+                        drive->facing_yaw = ps->body_yaw;
+                        drive->view_yaw = ps->yaw;
                         drive->grounded = !ps->airborne;
                         drive->vertical_velocity = ps->vertical_velocity;
                         drive->crouch_blend = ps->crouch_blend;
@@ -4694,7 +4719,7 @@ int App::run() {
                         if (glm::length(ps->want_dir) > 1.0e-4f) {
                             const glm::vec3 world{ps->want_dir.x, 0.0f, ps->want_dir.y};
                             const glm::mat4 to_model = glm::rotate(
-                                glm::mat4{1.0f}, ps->yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+                                glm::mat4{1.0f}, ps->body_yaw, glm::vec3{0.0f, 1.0f, 0.0f});
                             const glm::vec3 m = glm::vec3{to_model * glm::vec4{world, 0.0f}};
                             const float len = glm::length(glm::vec2{m.x, m.z});
                             if (len > 1.0e-4f) {

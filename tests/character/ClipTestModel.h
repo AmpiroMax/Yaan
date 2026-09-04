@@ -83,7 +83,11 @@ struct Model {
 /// role_overrides — «Walk=Walk_Loop,…»: прибор, характеризующий КОНКРЕТНЫЙ клип
 /// (зеркало, спина, контрольная рука подгонки шага), называет его по имени и
 /// не зависит от ролей по умолчанию (с 04.09 ходьба/трусца — Mixamo).
-[[nodiscard]] bool load(Model& m, bool feet_drive = false, std::string_view role_overrides = {}) {
+/// `transitions` — одноразовые клипы перехода (§13). Прибор, характеризующий
+/// САМ ЦИКЛ (размах, снос, темп, крест стоп), выключает их: иначе первые
+/// полсекунды каждого прогона — клип старта, и мерился бы он.
+[[nodiscard]] bool load(Model& m, bool feet_drive = false, std::string_view role_overrides = {},
+                        bool transitions = false) {
     if (!std::filesystem::exists(MODEL)) {
         return false;
     }
@@ -98,6 +102,7 @@ struct Model {
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
                                      m.obj.skin.vertices, feet_drive, role_overrides);
+    m.lib.transitions = transitions;
     return true;
 }
 
