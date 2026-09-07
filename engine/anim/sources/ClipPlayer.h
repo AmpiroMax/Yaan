@@ -429,6 +429,10 @@ struct ClipLibrary {
     float mirror_dose = 0.5f;
     /// СЛОЙ ВЗГЛЯДА (LookLayer.h): шея и грудь за камерой до LOOK_MAX_DEG.
     LookLayer look;
+    /// ИНЕРЦИАЛИЗАЦИЯ СТЫКОВ (Inertializer.h, §13.7): смена роли — жёсткий срез
+    /// (fade = 0, `ClipPlayback::switched`), разницу поз гасит владелец позы;
+    /// false — линейный кроссфейд CLIP_CROSSFADE_S, как до 07.09.
+    bool inertial = false;
     /// ЧАСЫ КЛИПА ОТ ПУТИ (§11.1): фаза хода из кривой пути и фактического
     /// смещения корня (BodyDrive::travelled_m), а не из dt·rate. По умолчанию
     /// ложь — часы по времени; дверь DFN_CLIP_CLOCK=path включает (приёмка
@@ -563,6 +567,9 @@ struct ClipPlayback {
     float turn_gap_s = 0.0f;
     float fade = 0.0f;
     float fade_s = 0.0f; ///< длительность текущего кроссфейда (переход → цикл длиннее)
+    /// НА ЭТОМ ТИКЕ СМЕНИЛАСЬ РОЛЬ (или вариант покоя) — событие одного тика;
+    /// при `ClipLibrary::inertial` владелец позы снимает по нему разницу.
+    bool switched = false;
     /// РЫСК ВЗГЛЯДА ОТНОСИТЕЛЬНО КОРПУСА, сглаженный (LOOK_SMOOTH_S), рад;
     /// prev — для кадра между тиками.
     float look_yaw = 0.0f;

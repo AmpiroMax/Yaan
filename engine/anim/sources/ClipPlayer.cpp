@@ -1916,6 +1916,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     // takes, so the knees straighten while the walk clip is fading out and not
     // a frame after it.
     play.prev_phase = play.phase;
+    play.switched = false;
     play.prev_look_yaw = play.look_yaw;
     {
         // ВЗГЛЯД ЗА КАМЕРОЙ: цель — разница «взгляд − корпус» в пределах
@@ -2115,7 +2116,9 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         play.previous_variant = play.variant;
         play.previous_time_s = play.time_s;
         play.previous_stride = play.stride;
-        play.fade = 1.0f;
+        // ИНЕРЦИАЛИЗАЦИЯ (§13.7): срез без кроссфейда, разницу гасит владелец.
+        play.fade = lib.inertial ? 0.0f : 1.0f;
+        play.switched = true;
         // КРОССФЕЙД ИЗ ПЕРЕХОДА В ЦИКЛ ДЛИННЕЕ ОБЫЧНОГО (TRANSIT_CROSSFADE_S):
         // позы разные даже при подобранной фазе, и за 0,1 с колено дёргало
         // 2 700 рад/с² (замер 07.09); рывок обратно пропорционален времени.

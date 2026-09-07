@@ -65,6 +65,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/Body.h"
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/FootIk.h"
+#include "engine/anim/sources/Inertializer.h"
 #include "engine/anim/sources/HeldBlade.h"
 #include "engine/anim/sources/LocoTelemetry.h"
 #include "engine/anim/sources/Hitbox.h"
@@ -440,6 +441,15 @@ private:
     float ik_strength_ = 0.0f;
     /// One frame's scratch for the tick-time probe pose.
     std::vector<anim::JointLocal> tick_sample_;
+    /// ИНЕРЦИАЛИЗАЦИЯ СТЫКОВ (§13.7): две прошлые показанные позы (до
+    /// контрвращения и варпа ног) и гаситель разницы; dt тика — для кадра.
+    anim::Inertializer inertial_;
+    /// Поза клипа этого тика БЕЗ остатка стыка — корень и контакты читают её.
+    std::vector<anim::JointLocal> pure_sample_;
+    std::vector<anim::JointLocal> shown_prev_;
+    std::vector<anim::JointLocal> shown_prev2_;
+    float inertial_dt_ = 0.0f;
+    bool inertial_on_ = true; ///< DFN_CLIP_INERTIAL=0 — линейный кроссфейд, как до 07.09
     /// Поза этого тика снята (playback_sample при alpha = 1) — probe_ground и
     /// контакты читают её, не снимая второй раз.
     bool tick_sampled_ = false;
@@ -472,19 +482,22 @@ private:
     /// прибавляет к рыску тела сим (LocomotionOut::root_yaw_delta) и на него
     /// же контрвращается поза — в мире картинка та же, но следующий клип
     /// начинается с нуля, а не с развёрнутого таза.
-    float turn_accum_rad_ = 0.0f;
-    float turn_accum_prev_rad_ = 0.0f;
+    float turn_accum_rad_ = 0.0f;  ///< угол ТЕКУЩЕГО клипа перехода, с нуля на его первом тике
+    float turn_frozen_rad_ = 0.0f; ///< угол ушедшего клипа (и остаток позапрошлого), гаснет весом уходящей позы
     float turn_counter_prev_rad_ = 0.0f; ///< контрвращение прошлого тика — кадр интерполирует
+    float turn_counter_end_rad_ = 0.0f;  ///< контрвращение на конец advance — станет prev
     float pelvis_yaw_raw_ = 0.0f;
     float turn_yaw_delta_ = 0.0f; ///< вынутый угол за этот тик, рад
     anim::ClipRole last_role_ = anim::ClipRole::Idle; ///< роль прошлого тика (первый тик клипа)
-    /// Контрвращение позы: полный накопленный угол, пока клип поворота ведёт,
-    /// и та же величина, ослабленная кроссфейдом, пока он уходит.
+    /// Вес уходящей позы, 1 → 0: кроссфейд или остаток инерциализации.
+    [[nodiscard]] float turn_frozen_w() const {
+        return library_.inertial ? inertial_.weight() : play_.fade;
+    }
+    /// Контрвращение позы: угол текущего клипа перехода, пока он ведёт, плюс
+    /// замороженный угол ушедшего, ослабленный весом уходящей позы.
     [[nodiscard]] float turn_counter_rad() const {
-        if (anim::transit_role(play_.role)) {
-            return turn_accum_rad_;
-        }
-        return anim::transit_role(play_.previous) ? turn_accum_rad_ * play_.fade : 0.0f;
+        const float now = anim::transit_role(play_.role) ? turn_accum_rad_ : 0.0f;
+        return now + turn_frozen_rad_ * turn_frozen_w();
     }
     bool has_pelvis_raw_ = false;
     int32_t pelvis_joint_ = -1;

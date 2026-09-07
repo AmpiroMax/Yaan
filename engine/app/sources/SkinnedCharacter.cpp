@@ -223,6 +223,8 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         clip_clock_path_ = cc != nullptr && std::string_view{cc} == "path";
         const char* tr = door_value("DFN_CLIP_TRANSITIONS");
         transitions_ = !(tr != nullptr && tr[0] == '0');
+        const char* in = door_value("DFN_CLIP_INERTIAL");
+        inertial_on_ = !(in != nullptr && in[0] == '0');
         lock_params_ = anim::FootLockParams::from_config();
     }
     const char* roles = door_value("DFN_CLIP_ROLES");
@@ -232,6 +234,7 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
                                                          : std::string_view{});
     library_.clip_clock_path = clip_clock_path_;
     library_.transitions = transitions_;
+    library_.inertial = inertial_on_;
     if (const char* is = door_value("DFN_IDLE_SYMMETRY"); is != nullptr && is[0] == '0') {
         library_.idle_symmetry = 0.0f;
     }
@@ -845,15 +848,57 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     tick_sampled_ = playing_clips()
                     && anim::playback_sample(skeleton_, binding_, clips_, library_, play_,
                                              1.0f, tick_sample_);
+    // ИНЕРЦИАЛИЗАЦИЯ СТЫКА (§13.7): роль сменилась срезом — разница «прошлая
+    // показанная поза − новая» со скоростью прошлой снимается и гасится за
+    // INERTIAL_BLEND_S; кадр читает остаток по своему времени.
+    inertial_dt_ = dt;
+    // РЫСК ТАЗА — С ЧИСТОЙ ПОЗЫ КЛИПА, до наложения остатка стыка: угол
+    // поворота принадлежит клипу; остаток стыка — картинке, он гаснет сам, и
+    // приписать его повороту значит довернуть тело на разницу поз покоя и
+    // клипа (замер 07.09: после остановки бега тело стреляло вторым
+    // поворотом).
+    const float pelvis_raw_pure = (tick_sampled_ && pelvis_joint_ >= 0)
+                                      ? anim::pelvis_yaw(skeleton_, tick_sample_, pelvis_joint_)
+                                      : 0.0f;
+    // ЧИСТАЯ ПОЗА КЛИПА — для корня и контактов: остаток стыка — картинка, а
+    // не ход. Замер 07.09: с остатком в позе гаснущая разница тащила опорную
+    // стопу вперёд, корень терял 0,5 м на стыке старт → спринт, и разгон
+    // начинался заново с 1,3 м/с.
+    pure_sample_ = tick_sample_;
+    if (tick_sampled_ && library_.inertial) {
+        const std::size_t n = tick_sample_.size();
+        if (play_.switched && shown_prev_.size() == n && shown_prev2_.size() == n) {
+            inertial_.capture(shown_prev2_, shown_prev_, tick_sample_, dt,
+                              static_cast<float>(config::INERTIAL_BLEND_S));
+        }
+        inertial_.advance(dt);
+        inertial_.apply(inertial_.time(), tick_sample_);
+        shown_prev2_.swap(shown_prev_);
+        shown_prev_ = tick_sample_;
+    } else {
+        shown_prev_.clear();
+        shown_prev2_.clear();
+    }
     // ПОВОРОТ, ВЫНУТЫЙ ИЗ КЛИПА (§13). Клип поворота на месте крутит ТАЗ, а
     // не корень: если оставить как есть, тело провернётся в позе и на выходе
     // из клипа щёлкнет назад. Поэтому угол таза за тик прибавляется к рыску
     // тела (loco_.root_yaw_delta ниже), а поза контрвращается на накопленный
     // угол — в мире картинка та же, но её несёт рыск сущности.
-    turn_accum_prev_rad_ = turn_accum_rad_;
-    turn_counter_prev_rad_ = turn_counter_rad();
+    // Контрвращение прошлого тика снято В КОНЦЕ прошлого advance (§13.3):
+    // роль уже сменилась, и turn_counter_rad() здесь описывал бы новую.
+    turn_counter_prev_rad_ = turn_counter_end_rad_;
+    if (play_.switched) {
+        // НОВЫЙ КЛИП — СЧЁТ С НУЛЯ. Угол ушедшего клипа перехода замораживается
+        // (плюс что осталось от позапрошлого) и гаснет весом уходящей позы.
+        // До 07.09 накопитель не сбрасывался: поворот после остановки бега
+        // начинал счёт с +51° клипа остановки, контрвращение рисовало −31°
+        // вместо −90°, а тело стреляло вторым поворотом.
+        turn_frozen_rad_ = turn_frozen_rad_ * turn_frozen_w()
+                           + (anim::transit_role(play_.previous) ? turn_accum_rad_ : 0.0f);
+        turn_accum_rad_ = 0.0f;
+    }
     if (tick_sampled_ && pelvis_joint_ >= 0) {
-        const float raw = anim::pelvis_yaw(skeleton_, tick_sample_, pelvis_joint_);
+        const float raw = pelvis_raw_pure;
         // ВЫНИМАЕТСЯ У ВСЕХ КЛИПОВ ПЕРЕХОДА, а не только у поворота: замер
         // 04.09 по ассету — Run_To_Stop поворачивает таз на +59°,
         // Idle_To_Sprint на −41°, Start_Walking на −12°. Оставить это в позе
@@ -862,7 +907,9 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         // нарисовано, а на ходу сим всё равно доворачивает корпус к вводу.
         const bool turning = anim::transit_role(play_.role);
         float delta = 0.0f;
-        if (turning && has_pelvis_raw_) {
+        // На тике смены клипа разница «таз прошлого клипа − таз нового» — это
+        // разница ПОЗ, а не поворот: первый кадр нового клипа — точка отсчёта.
+        if (turning && has_pelvis_raw_ && !play_.switched) {
             delta = shortest_turn(pelvis_yaw_raw_, raw);
         }
         if (static const bool trace = [] {
@@ -888,12 +935,6 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         has_pelvis_raw_ = true;
         if (turning) {
             turn_accum_rad_ += delta;
-        } else if (anim::transit_role(play_.previous)) {
-            // КРОССФЕЙД: угол заморожен, а ОСЛАБЛЯЕТСЯ он в turn_counter_rad()
-            // вместе с весом уходящей позы (play_.fade) — иначе тело качнётся
-            // на ширину поворота за десятую долю секунды.
-        } else {
-            turn_accum_rad_ = 0.0f;
         }
         turn_yaw_delta_ = delta;
     } else {
@@ -901,6 +942,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     }
     if (tick_sampled_ && turn_counter_rad() != 0.0f) {
         anim::counter_rotate_root(skeleton_, foot_setup_.roots, turn_counter_rad(), tick_sample_);
+        anim::counter_rotate_root(skeleton_, foot_setup_.roots, turn_counter_rad(), pure_sample_);
     }
     // НОГИ К ВВОДУ (warp_legs): угол между осью роли и направлением хода,
     // сглаженный за LEG_WARP_SMOOTH_S, в пределах LEG_WARP_MAX_DEG.
@@ -926,6 +968,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     }
     if (tick_sampled_ && foot_setup_.valid()) {
         anim::warp_legs(skeleton_, foot_setup_, leg_warp_rad_, tick_sample_);
+        anim::warp_legs(skeleton_, foot_setup_, leg_warp_rad_, pure_sample_);
     }
     probe_ground(drive, standing_ground, dt);
     // КОНТАКТЫ ЭТОГО ТИКА. Без луча в мир (смотровая, тесты) вес опоры
@@ -934,13 +977,12 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     contact_prev_ = contact_curr_;
     contact_curr_ = anim::ContactState{};
     if (tick_sampled_ && foot_setup_.valid()) {
-        anim::FootIkPlan plan = plan_;
-        if (!foot_probe_.valid) {
-            anim::FootIkProbe flat;
-            flat.valid = true;
-            plan = anim::plan_foot_ik(skeleton_, foot_setup_, flat, tick_sample_);
-        }
-        contact_curr_ = anim::contact_state(skeleton_, foot_setup_, plan, tick_sample_);
+        // Контакты — по ЧИСТОЙ позе клипа (pure_sample_), см. стык выше.
+        anim::FootIkProbe flat;
+        flat.valid = true;
+        const anim::FootIkPlan plan = anim::plan_foot_ik(
+            skeleton_, foot_setup_, foot_probe_.valid ? foot_probe_ : flat, pure_sample_);
+        contact_curr_ = anim::contact_state(skeleton_, foot_setup_, plan, pure_sample_);
     }
     loco_ = anim::LocomotionOut{};
     if (feet_drive_ && library_.feet_drive && contact_prev_.valid && contact_curr_.valid
@@ -1043,6 +1085,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     // update_bodies, здесь он только запоминается до кадра.
     pose_weight_ = std::clamp(drive.pose_weight, 0.0f, 1.0f);
     last_role_ = play_.role;
+    turn_counter_end_rad_ = turn_counter_rad();
     ticked_ = true;
 }
 
@@ -1187,6 +1230,9 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
         // not either tick's), while the ROOT shift comes from the tick, where
         // it was filtered. Applying an unfiltered shift per frame would put
         // the stair's whole rise into one frame at the nosing.
+        if (library_.inertial) {
+            inertial_.apply(inertial_.time() - (1.0f - a) * inertial_dt_, sample_);
+        }
         if (foot_setup_.valid()) {
             // КОНТРВРАЩЕНИЕ И В КАДРЕ, не только на тике (§13.3): без него
             // нарисованное тело поворачивалось дважды — позой и рыском, — а

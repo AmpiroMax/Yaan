@@ -59,6 +59,10 @@ set_tests_properties(character_clips_slide PROPERTIES LABELS "known-defect")
 add_dfn_test(character_loco_telemetry character/LocoTelemetryTests.cpp
              dfn_anim dfn_core)
 
+# ИНЕРЦИАЛИЗАЦИЯ СТЫКОВ (07.09): кривая Болло и непрерывность скорости на суставе.
+add_dfn_test(character_inertializer character/InertializerTests.cpp
+             dfn_anim dfn_core)
+
 # СЛОЙ ВЗГЛЯДА (07.09): голова и грудь за камерой до LOOK_MAX_DEG, ноги не
 # тронуты, без взгляда — тождество.
 add_dfn_test(character_look_layer character/LookLayerTests.cpp

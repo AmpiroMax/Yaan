@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 151> TABLE{{
+constexpr std::array<Door, 152> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -299,6 +299,9 @@ constexpr std::array<Door, 151> TABLE{{
      DoorRead::Once},
     {"DFN_TURN_TRACE",
      "1 — печатать по тикам приёмку поворота на месте (роль, время клипа, вынутый угол за тик, рыск корпуса): чем именно поворачивается тело и где угол теряется.",
+     DoorRead::Once},
+    {"DFN_CLIP_INERTIAL",
+     "0 — СМЕНА КЛИПА ЛИНЕЙНЫМ КРОССФЕЙДОМ, как до 07.09 (LOCOMOTION_GROUNDED.md §13.7): контрольная рука инерциализации стыков, у которой новый клип играет сразу, а разница поз гасится квинтикой за INERTIAL_BLEND_S. Прибор: рывок колена на стыке старт → цикл.",
      DoorRead::Once},
     {"DFN_CLIP_TRANSITIONS",
      "0 — БЕЗ ОДНОРАЗОВЫХ КЛИПОВ ПЕРЕХОДА (LOCOMOTION_GROUNDED.md §13): без старта ходьбы/бега, без остановки, без поворота на месте — тело переключается между циклами состоянием, как до 04.09. Контрольная рука приёмки переходов и режим приборов, которые характеризуют сам цикл.",
