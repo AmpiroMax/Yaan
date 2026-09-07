@@ -2330,8 +2330,10 @@ void App::spawn_stand_bot() {
         ps->yaw = yaw;
         ps->body_yaw = yaw;
     }
-    npc->patrol = {base - right * 4.0f, base - right * 4.0f + forward * 2.5f,
-                   base + forward * 2.5f, base};
+    // Квадрат — на площадке между камерой и игроком (за игроком начинается
+    // скат: стопа над обрывом давала зазор 349 мм, замер 07.09).
+    npc->patrol = {base - right * 4.0f, base - right * 4.0f - forward * 1.2f,
+                   base - forward * 1.2f, base};
 
     npc->body.set_ground_probe([this](const glm::vec3& p) {
         if (physics_ == nullptr) {
