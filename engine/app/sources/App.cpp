@@ -4718,6 +4718,15 @@ int App::run() {
                         // стреляет по разнице «взгляд − корпус» в обоих видах.
                         drive->view_yaw = third_person_ ? cam_yaw_ : ps->yaw;
                         drive->view_valid = true;
+                        if (stand_cam_ != 0) {
+                            // КАМЕРА СТЕНДА — орбита вокруг фигуры, её рыск смотрит
+                            // НА тело, а не туда, куда тело: слой взгляда тянул
+                            // голову на 60° в сторону в каждом приёмочном кадре
+                            // (07.09). Кадры походки — нейтральная голова; камера
+                            // «лицо» (6) — взгляд в объектив, то есть навстречу.
+                            drive->view_yaw = cam_yaw_ + glm::pi<float>();
+                            drive->view_valid = stand_cam_ == 6;
+                        }
                         drive->grounded = !ps->airborne;
                         drive->vertical_velocity = ps->vertical_velocity;
                         drive->crouch_blend = ps->crouch_blend;

@@ -1,0 +1,21 @@
+{
+  "schema": "dfn.skin-layers",
+  "version": 1,
+  "comment": "СПЕКА СЛОЁВ КОЖИ (docs/design/CHARACTER_SKIN_HAIR_FACE.md, волна 5, офлайн-композит tools/skin_layers.py). Грязь — доля по областям тела (маски из весов костей glb), шрамы — отрезки в UV листа кожи HumanBase (лицо — правый остров, лежит на боку: глаза стопкой у u≈0,84, рот у u≈0,92, v≈0,52). Поры — процедурная микронормаль.",
+  "base": "middleage_caucasian_male",
+  "dirt": {
+    "tint": [0.42, 0.33, 0.24],
+    "grain": 0.55,
+    "creases": 0.6,
+    "regions": {"hand": 0.55, "forearm": 0.35, "upperarm": 0.12, "torso": 0.08,
+                "head": 0.22, "thigh": 0.15, "shin": 0.35, "foot": 0.6}
+  },
+  "pores": {"amplitude": 0.35, "cell_px": 6, "octaves": 3},
+  "detail_from_albedo": {"amplitude": 0.5, "radius_px": 3},
+  "scars": [
+    {"uv": [0.905, 0.585], "len": 0.045, "angle_deg": 20, "width": 0.0035, "depth": 1.0, "comment": "щека, косой"},
+    {"uv": [0.835, 0.435], "len": 0.02,  "angle_deg": 100, "width": 0.0025, "depth": 0.8, "comment": "бровь"},
+    {"uv": [0.39, 0.53],  "len": 0.06,  "angle_deg": -35, "width": 0.004, "depth": 1.0, "comment": "живот слева"},
+    {"uv": [0.20, 0.17],  "len": 0.05,  "angle_deg": 75, "width": 0.004, "depth": 0.9, "comment": "плечо"}
+  ]
+}

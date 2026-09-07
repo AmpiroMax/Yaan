@@ -63,7 +63,7 @@ struct StandCamera {
     const char* label = "";
 };
 
-inline constexpr uint32_t STAND_CAMERA_COUNT = 5;
+inline constexpr uint32_t STAND_CAMERA_COUNT = 6;
 
 /// `n` is 1..STAND_CAMERA_COUNT (DFN_STAND_CAM). Out of range returns the
 /// profile pose, which is the one a gait is read from.

@@ -75,6 +75,13 @@ namespace dfn::app {
                                          const render::RegistryObject& object,
                                          const std::filesystem::path& dfo_path);
 
+/// Лист нормалей тела (роль normal секции TEX) как номер ассета render, или 0
+/// — без рельефа, как у наборов кожи MPFB без нормалей. Тот же кэш по sha.
+[[nodiscard]] uint32_t body_normal_asset(render::RenderSystem& render_system,
+                                         platform::IRenderer& renderer,
+                                         const render::RegistryObject& object,
+                                         const std::filesystem::path& dfo_path);
+
 /// Сколько листов поднято на GPU за процесс (прибор: «экран и мир делят
 /// один лист» — число не растёт со вторым телом).
 [[nodiscard]] std::size_t body_textures_loaded();

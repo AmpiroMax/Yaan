@@ -346,6 +346,8 @@ private:
     uint32_t blade_asset_ = anim::HELD_BLADE_MESH_ID;
     /// Лист кожи (секция TEX → CharacterTextures); 0 — без листа.
     uint32_t texture_asset_ = 0;
+    /// Лист нормалей кожи (роль normal; tools/skin_layers.py); 0 — без рельефа.
+    uint32_t normal_asset_ = 0;
     bool rest_only_ = false;
     /// The fitted rig (see load()). The app's own rig is the box body's;
     /// this one has the rest stance the skin asked for.

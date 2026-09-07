@@ -152,6 +152,17 @@ uint32_t body_albedo_asset(render::RenderSystem& render_system,
     return sheet_asset(render_system, renderer, *ref, object.name, dfo_path);
 }
 
+uint32_t body_normal_asset(render::RenderSystem& render_system,
+                           platform::IRenderer& renderer,
+                           const render::RegistryObject& object,
+                           const std::filesystem::path& dfo_path) {
+    const render::TextureRef* ref = object.texture("normal");
+    if (ref == nullptr) {
+        return 0; // кожа без рельефа — обычный случай (наборы MPFB нормалей не несут)
+    }
+    return sheet_asset(render_system, renderer, *ref, object.name, dfo_path);
+}
+
 std::size_t body_textures_loaded() {
     std::size_t n = 0;
     for (const auto& [sha, asset] : cache()) {

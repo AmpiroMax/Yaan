@@ -103,6 +103,11 @@ DEFAULTS = {
     # textures/<stem>/albedo.png рядом с выходом, glb ссылается на него
     # ОТНОСИТЕЛЬНЫМ путём (не встраивает). Пусто — материал без текстуры.
     "skin": "",
+    # СЛОИ КОЖИ (tools/skin_layers.py, CHARACTER_SKIN_HAIR_FACE.md волна 5):
+    # готовое альбедо с грязью/шрамами вместо копии набора MPFB и лист
+    # нормалей (поры, рельеф, рубцы) ролью normal. Пусто — как раньше.
+    "skin-albedo": "",
+    "skin-normal": "",
     # ЧАСТИ ТЕЛА ОТДЕЛЬНЫМИ МЕШАМИ НА ТОМ ЖЕ СКЕЛЕТЕ (заказ 02.09-2: глаза,
     # брови, ресницы, зубы, язык, волосы): "тип=имя,..." из
     # data/<тип>/<имя>/<имя>.mhclo MPFB. Сажаются на тело ДО снятия хелперов
@@ -1389,7 +1394,7 @@ def main():
     # читатель .glb принимает за отсутствие материала.
     skin_uri = None
     if opt["skin"]:
-        skin_uri, _ = apply_skin(mesh, opt["skin"], out)
+        skin_uri, _ = apply_skin(mesh, opt["skin"], out, opt["skin-albedo"], opt["skin-normal"])
     if not mesh.data.materials:
         mat = bpy.data.materials.new("M_Skin")
         mat.diffuse_color = (0.76, 0.60, 0.50, 1.0)
@@ -1444,7 +1449,10 @@ def main():
         tmp_gltf = os.path.join(tmp, "body.gltf")
         bpy.ops.export_scene.gltf(filepath=tmp_gltf, export_format="GLTF_SEPARATE",
                                   export_keep_originals=True, **common)
-        pack_glb_with_external_images(tmp_gltf, out, {"albedo.png": skin_uri})
+        uris = {"albedo.png": skin_uri}
+        if opt["skin-normal"]:
+            uris["normal.png"] = skin_uri.rsplit("/", 1)[0] + "/normal.png"
+        pack_glb_with_external_images(tmp_gltf, out, uris)
     body_parts = [p for p in parts if p[0] != "clothes"]
     clothes = [p for p in parts if p[0] == "clothes"]
     if body_parts:
@@ -1471,9 +1479,11 @@ def parse_mhmat(path):
     return out
 
 
-def apply_skin(mesh, skin_name, out_path):
+def apply_skin(mesh, skin_name, out_path, albedo_override="", normal_path=""):
     """Кожа MPFB как материал с альбедо; PNG — внешним файлом рядом с выходом.
 
+    `albedo_override` — готовый композит слоёв (tools/skin_layers.py) вместо
+    копии набора; `normal_path` — лист нормалей той же выпечки ролью normal.
     Возвращает (относительный путь альбедо от glb, sha256 файла)."""
     import hashlib
     import shutil
@@ -1501,15 +1511,27 @@ def apply_skin(mesh, skin_name, out_path):
     tex_dir = os.path.join(os.path.dirname(out_path), rel_dir)
     os.makedirs(tex_dir, exist_ok=True)
     albedo = os.path.join(tex_dir, "albedo.png")
-    shutil.copyfile(src, albedo)
+    shutil.copyfile(albedo_override if albedo_override else src, albedo)
     sha = hashlib.sha256(open(albedo, "rb").read()).hexdigest()
+    sums = ["%s  albedo.png" % sha]
+    normal = None
+    if normal_path:
+        normal = os.path.join(tex_dir, "normal.png")
+        shutil.copyfile(normal_path, normal)
+        sums.append("%s  normal.png" % hashlib.sha256(open(normal, "rb").read()).hexdigest())
     with open(os.path.join(tex_dir, "SHA256SUMS"), "w", encoding="utf-8") as f:
-        f.write("%s  albedo.png\n" % sha)
+        f.write("".join(line + "\n" for line in sums))
     with open(os.path.join(tex_dir, "LICENSE.txt"), "w", encoding="utf-8") as f:
         f.write("albedo.png — кожа MPFB «%s» (%s), системные ассеты MPFB / MakeHuman,\n"
                 "CC0 1.0 (см. assets/objects/characters/MPFB_LICENSE.txt). Источник:\n"
-                "%s\nПереименовано в albedo.png без изменения пикселей; sha256 в SHA256SUMS.\n"
-                % (skin_name, os.path.basename(src), mhmat))
+                "%s\n%s; sha256 в SHA256SUMS.\n"
+                % (skin_name, os.path.basename(src), mhmat,
+                   "Композит слоёв (грязь, шрамы) поверх этого альбедо — tools/skin_layers.py "
+                   "по спеке assets/characters/skins/*.skin" if albedo_override
+                   else "Переименовано в albedo.png без изменения пикселей"))
+        if normal:
+            f.write("normal.png — лист нормалей кожи, процедурный (поры, рельеф по альбедо, "
+                    "рубцы), tools/skin_layers.py; производная того же CC0-альбедо.\n")
     # материал: Principled BSDF + альбедо (sRGB), больше ничего — остальное
     # (нормали, шероховатость) решает рендер-волна лида
     img = bpy.data.images.load(albedo)
@@ -1522,6 +1544,14 @@ def apply_skin(mesh, skin_name, out_path):
     texn = nodes.new("ShaderNodeTexImage")
     texn.image = img
     links.new(texn.outputs["Color"], bsdf.inputs["Base Color"])
+    if normal:
+        nimg = bpy.data.images.load(normal)
+        nimg.colorspace_settings.name = "Non-Color"
+        ntex = nodes.new("ShaderNodeTexImage")
+        ntex.image = nimg
+        nm = nodes.new("ShaderNodeNormalMap")
+        links.new(ntex.outputs["Color"], nm.inputs["Color"])
+        links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
     bsdf.inputs["Roughness"].default_value = 0.55
     mesh.data.materials.clear()
     mesh.data.materials.append(mat)

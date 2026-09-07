@@ -41,16 +41,20 @@ namespace {
 /// unit test — but "the FRONT camera sees a FACE while the figure walks
 /// TOWARD it", which is a claim about the two of them at once.
 constexpr StandCamera CAMERAS[STAND_CAMERA_COUNT] = {
+    // ВСЕ ТРИ ОБЩИХ ПЛАНА ПЕРЕСНЯТЫ 07.09: якорь стрелы — над головой, и с
+    //    подъёмом +0,75…0,9 камера смотрела поверх фигуры: она сидела в нижней
+    //    четверти FullHD-кадра. Теперь подъём −0,9 (камера у пояса), тангаж 0,
+    //    стрела 2,4…2,6 м — фигура во весь кадр.
     // 1. FRONT. Reads proportions and where the arms hang; the pose a
     //    character sheet is drawn from.
-    {180.0f, -6.0f, 3.4f, 0.75f, "front"},
+    {180.0f, 0.0f, 2.4f, -0.9f, "front"},
     // 2. PROFILE. THE GAIT CAMERA: stride length, knee flexion and the trunk's
     //    lean are all fore-and-aft quantities and are invisible head-on.
-    {270.0f, -4.0f, 3.6f, 0.80f, "profile"},
+    {270.0f, 0.0f, 2.6f, -0.9f, "profile"},
     // 3. THREE-QUARTER. The compromise the eye is used to: silhouette plus
     //    depth. It is what the wave's before/after pair is shot on, because a
     //    procedural gait and a bought clip differ in BOTH.
-    {225.0f, -8.0f, 3.4f, 0.80f, "three-quarter"},
+    {225.0f, 0.0f, 2.4f, -0.9f, "three-quarter"},
     // 4. CLOSE. Head and shoulders: the camera that shows the skinning seam at
     //    the neck and what the clothing palette actually looks like.
     //    ПЕРЕСНЯТА 07.09: прежние {+6°, 2,4 м, подъём 0,9} смотрели поверх
@@ -66,6 +70,11 @@ constexpr StandCamera CAMERAS[STAND_CAMERA_COUNT] = {
     //    кисть: она висит примерно в 0.9 м, глаз в 1.7, стрела 1.3 — то есть
     //    луч обязан опуститься на 0.8 м за 1.3, а это и есть 33 градуса.
     {250.0f, -33.0f, 1.3f, 0.05f, "hand"},
+    // 6. ЛИЦО (07.09, приёмка кожи: нормали, шрамы, грязь — CHARACTER_SKIN_HAIR_FACE.md
+    //    волна 5). Фронт, 0,45 м, чуть ниже глаз: лицо во весь кадр. Шестая
+    //    камера по той же причине, что и пятая — четвёртая остаётся «голова и
+    //    плечи» для сравнений.
+    {180.0f, 0.0f, 0.45f, -0.15f, "face"},
 };
 
 /// One phase of the queue: when it starts, what the hands are doing.

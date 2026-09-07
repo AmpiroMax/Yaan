@@ -198,6 +198,7 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
     // экран и смотровую). Ноль — палитра вершин, и каждая причина нуля уже
     // сказана вслух там, где она найдена.
     texture_asset_ = body_albedo_asset(render_system, renderer, *obj, path);
+    normal_asset_ = body_normal_asset(render_system, renderer, *obj, path);
     bind_vertices_ = obj->skin.vertices;
     skin_indices_ = obj->skin.indices;
     draw_indices_ = obj->skin.indices; // ничего не закрыто, пока нет частей
@@ -1204,6 +1205,7 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
         return draw;
     }
     draw.texture_asset = texture_asset_;
+    draw.normal_asset = normal_asset_;
     const anim::Rig& rig = rig_;
     const float a = std::clamp(alpha, 0.0f, 1.0f);
     const anim::BodyRoot root{glm::mix(root_prev_.ground, root_curr_.ground, a),

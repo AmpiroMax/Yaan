@@ -1079,7 +1079,7 @@ private:
     // фигуры снимаются ТОЛЬКО на assets/maps/stands/character.map, и снимаются
     // одинаково: заданная камера и заданная очередь клипов. 0 — обе двери
     // закрыты, всё как было.
-    uint32_t stand_cam_ = 0;         // DFN_STAND_CAM=1..4, 0 — не задана
+    uint32_t stand_cam_ = 0;         // DFN_STAND_CAM=1..6, 0 — не задана
     bool stand_seq_ = false;         // DFN_STAND_SEQ=1 — играть очередь
     float stand_seq_t_ = 0.0f;       // секунды очереди, ведутся фиксированным тиком
 
