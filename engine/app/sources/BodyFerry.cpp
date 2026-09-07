@@ -18,6 +18,8 @@ AI Agents Notice (must follow):
 */
 #include "engine/app/sources/BodyFerry.h"
 
+#include <cmath>
+
 #include <glm/gtc/constants.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -56,7 +58,10 @@ void ferry_body_drive(anim::BodyDrive& drive, gameplay::PlayerState& ps,
     if (physics != nullptr && ps.character.valid()) {
         glm::vec3 push{0.0f};
         for (const platform::CharacterContact& c : physics->character_contacts(ps.character)) {
-            if (!c.pushed_character) {
+            // Упор в СТАТИКУ (масса ∞) — не толчок: стена не двигает, она
+            // не пускает. Замер 07.09: бот, идущий в лавку, получал Stagger
+            // каждый тик с «толчком» в свою же скорость хода.
+            if (!c.pushed_character || !std::isfinite(c.mass_kg)) {
                 continue;
             }
             const float along = glm::dot(c.relative_velocity, c.normal);

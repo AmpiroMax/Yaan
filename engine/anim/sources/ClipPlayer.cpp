@@ -2002,6 +2002,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     // иду) переключило бы её на первом же кадре, и от клипа осталась бы
     // одна десятая секунды кроссфейда.
     play.turn_gap_s = std::max(0.0f, play.turn_gap_s - dt);
+    play.stagger_gap_s = std::max(0.0f, play.stagger_gap_s - dt);
     if (lib.transitions) {
         const bool moving = drive_speed(lib, drive) > MOVING_SPEED_MPS;
         const bool input = drive.want_speed_mps > MOVING_SPEED_MPS;
@@ -2057,12 +2058,13 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
             const ClipRole stop = drive.gait == Gait::Walk ? ClipRole::StopWalk
                                                            : ClipRole::StopRun;
             const float push = glm::length(glm::vec2{drive.push_mps_model.x, drive.push_mps_model.z});
-            if (!was_transit && lib.has(ClipRole::Stagger)
+            if (!was_transit && lib.has(ClipRole::Stagger) && play.stagger_gap_s <= 0.0f
                 && push >= static_cast<float>(config::STAGGER_PUSH_MPS)) {
                 // УДАР/ТОЛЧОК (ярус 0 → 1): мир двинул капсулу сильнее порога —
                 // тело отыгрывает удар одноразовым клипом, ввод не спрашивается.
                 want = ClipRole::Stagger;
                 play.transit = Transit::Stagger;
+                play.stagger_gap_s = static_cast<float>(config::STAGGER_MIN_GAP_S);
             } else if (input && !was_move && !was_transit && locomotion(want) && lib.has(start)
                        && play.move_dir == MoveDir::Forward && play.role == ClipRole::Idle) {
                 // СТАРТ — ТОЛЬКО ИЗ ПОКОЯ: после приземления на бегу (роль

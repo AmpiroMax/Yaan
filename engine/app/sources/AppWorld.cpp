@@ -1752,14 +1752,29 @@ bool App::enter_world(uint32_t stand) {
     if (const char* bot = door_value("DFN_STAND_BOT"); bot != nullptr && bot[0] == '1'
         && skinned_character_.ready() && physics_ != nullptr) {
         const auto* ptr = world_.get<components::Transform>(player_);
-        const glm::vec3 base = (ptr != nullptr ? ptr->position : glm::vec3{0.0f})
-                               + glm::vec3{2.0f, 0.0f, 0.0f};
+        const auto* pst = world_.get<gameplay::PlayerState>(player_);
+        const float yaw = pst != nullptr ? pst->yaw : 0.0f;
+        // ПЕРЕД ИГРОКОМ ПО ЕГО КУРСУ (в кадре камер стенда), на землю лучом:
+        // спавн на высоте игрока в 2 м в сторону — над скатом стенда, бот
+        // падал (JumpStart, 12,9 м/с в остановке — замер 07.09).
+        const glm::vec3 forward{std::sin(yaw), 0.0f, -std::cos(yaw)};
+        const glm::vec3 right{std::cos(yaw), 0.0f, std::sin(yaw)};
+        glm::vec3 base = (ptr != nullptr ? ptr->position : glm::vec3{0.0f}) + forward * 2.5f
+                         + right * 1.5f;
+        {
+            const platform::RayHit hit = physics_->raycast(
+                base + glm::vec3{0.0f, 3.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}, 10.0f,
+                physics::LAYER_STATIC);
+            if (hit.hit) {
+                base.y = hit.position.y;
+            }
+        }
         const char* csv = door_value("DFN_LOCO_CSV");
         if (NpcBody* npc = npc_bodies_.spawn(
                 world_, *physics_, render_system_, *renderer_, body_rig_, body_path, base,
                 /*telemetry=*/true, csv != nullptr ? std::string{csv} + ".bot" : std::string{})) {
-            npc->patrol = {base + glm::vec3{0.0f, 0.0f, -4.0f}, base + glm::vec3{4.0f, 0.0f, -4.0f},
-                           base + glm::vec3{4.0f, 0.0f, 0.0f}, base};
+            npc->patrol = {base + forward * 4.0f, base + forward * 4.0f + right * 3.0f,
+                           base + right * 3.0f, base};
             npc->body.set_ground_probe([this](const glm::vec3& p) {
                 if (physics_ == nullptr) {
                     return std::numeric_limits<float>::quiet_NaN();
