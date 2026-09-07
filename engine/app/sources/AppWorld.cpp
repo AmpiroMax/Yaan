@@ -2306,7 +2306,9 @@ void App::spawn_stand_bot() {
     const float yaw = stand_cam_ != 0 ? cam_yaw_ : pst->yaw;
     const glm::vec3 forward{std::sin(yaw), 0.0f, -std::cos(yaw)};
     const glm::vec3 right{std::cos(yaw), 0.0f, std::sin(yaw)};
-    glm::vec3 base = ptr->position + right * 2.0f - forward * 0.4f;
+    // Со стороны, где нет лавки (она в метре от спавна по +right): бот
+    // проходил сквозь неё — стопы на кромке, скольжение 2 м/с.
+    glm::vec3 base = ptr->position - right * 2.0f - forward * 0.4f;
     std::fprintf(stderr, "[npc] болванчик: игрок (%.1f %.1f %.1f), рыск камеры %.2f\n",
                  static_cast<double>(ptr->position.x), static_cast<double>(ptr->position.y),
                  static_cast<double>(ptr->position.z), static_cast<double>(yaw));
@@ -2332,7 +2334,7 @@ void App::spawn_stand_bot() {
     }
     // Квадрат — на площадке между камерой и игроком (за игроком начинается
     // скат: стопа над обрывом давала зазор 349 мм, замер 07.09).
-    npc->patrol = {base - right * 4.0f, base - right * 4.0f - forward * 1.2f,
+    npc->patrol = {base - right * 3.0f, base - right * 3.0f - forward * 1.2f,
                    base - forward * 1.2f, base};
 
     npc->body.set_ground_probe([this](const glm::vec3& p) {
