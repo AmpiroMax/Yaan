@@ -75,6 +75,9 @@ from mathutils import Matrix, Vector  # type: ignore
 
 # ---------------------------------------------------------------- аргументы --
 
+# ход таза за клип, с которого снятие хода идёт покадрово (см. retarget_mapped)
+MIXAMO_TRAVEL_LOCK_M = 0.3
+
 DEFAULTS = {
     # ТЕЛО, ОДОБРЕННОЕ ВЛАДЕЛЬЦЕМ 02.09 («он прям супер выглядит как надо»):
     # чистые макро-ручки MPFB, правочные цели в нуле — те цели были ответом на
@@ -1170,9 +1173,21 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None, clip_nam
         src_rig.animation_data.action = action
         f0 = int(math.floor(action.frame_range[0]))
         f1 = int(math.ceil(action.frame_range[1]))
-        # ХОД ТАЗА ПО ГОРИЗОНТАЛИ — ДОЛОЙ (клипы Mixamo без In Place): линейный
-        # снос от первого кадра к последнему вычитается по x, y (Z — вверх),
-        # качание таза остаётся, перемещение даёт опорная стопа (RootMotion).
+        # ХОД ТАЗА ПО ГОРИЗОНТАЛИ — ДОЛОЙ ПОКАДРОВО (клипы Mixamo без In Place):
+        # x, y таза (Z — вверх) держатся на значении первого кадра, ровно как
+        # делает сам Mixamo «In Place»; перемещение даёт опорная стопа
+        # (RootMotion). До 07.09 вычитался ЛИНЕЙНЫЙ снос от первого кадра к
+        # последнему — у клипов, что останавливаются на середине (Stop Walking:
+        # 1,21 м за 6 с, из них полсекунды хода и пять стояния), это делало
+        # стоящие стопы едущими назад на 0,2 м/с, и тело после остановки
+        # пятилось. Замерено прибором the_walk_stops_with_its_own_clip.
+        # …НО КЛИПАМ «НА МЕСТЕ» (повороты, действия стоя) — ЛИНЕЙНО: у них
+        # ход таза за клип — сантиметры, а внутри клипа таз обходит стоящую
+        # стопу дугой; запереть его покадрово значит отдать дугу стопам, и
+        # обе стопы шаркают (Right Turn 90: снос 320 мм при покадровом,
+        # 15 мм при линейном — прибор standing_body_turns…, 07.09). Порог —
+        # MIXAMO_TRAVEL_LOCK_M: меньше — линейно, больше — покадрово.
+        hips_lock = None
         drift = None
         if strip_travel and "DEF-hips" in bone_map:
             hips = src_rig.pose.bones[bone_map["DEF-hips"]]
@@ -1180,8 +1195,13 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None, clip_nam
             p0 = (to_rig @ to_src @ hips.matrix).to_translation()
             bpy.context.scene.frame_set(f1)
             p1 = (to_rig @ to_src @ hips.matrix).to_translation()
-            drift = Vector((p1.x - p0.x, p1.y - p0.y, 0.0))
-            log("  %s: travel %.2f m over %d frames stripped" % (clip, drift.length, f1 - f0))
+            travel = (p1 - p0).xy.length
+            if travel >= MIXAMO_TRAVEL_LOCK_M:
+                hips_lock = (p0.x, p0.y)
+                log("  %s: travel %.2f m over %d frames stripped per frame" % (clip, travel, f1 - f0))
+            else:
+                drift = Vector((p1.x - p0.x, p1.y - p0.y, 0.0))
+                log("  %s: travel %.2f m over %d frames stripped linearly (in place)" % (clip, travel, f1 - f0))
         out = bpy.data.actions.new("retargeted2@" + clip)
         made.append((out, prefix + clip))
         rig.animation_data.action = out
@@ -1203,7 +1223,9 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None, clip_nam
                     head = rest_head[n].copy()
                 elif n == "DEF-hips" and n in src_world:
                     trans = src_world[n].to_translation()
-                    if drift is not None and f1 > f0:
+                    if hips_lock is not None:
+                        trans = Vector((hips_lock[0], hips_lock[1], trans.z))
+                    elif drift is not None and f1 > f0:
                         trans = trans - drift * (float(frame - f0) / float(f1 - f0))
                     head = rest_head[n] + (trans - src_rest_head[n]) * hips_scale
                 else:
