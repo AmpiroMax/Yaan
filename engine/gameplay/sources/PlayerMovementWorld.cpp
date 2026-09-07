@@ -98,6 +98,9 @@ void player_pre_step(ecs::World& world, platform::IPhysics& physics,
                     components::CameraPose, components::PreviousCameraPose>()) {
         StepContext ctx = step;
         ctx.walker = id;
+        if (const auto* own = world.get<WalkerLocomotion>(id)) {
+            ctx.locomotion = own->request; // своя заявка тела (НПС, NpcBodies)
+        }
         // Depth is measured from the FEET (Transform.position is the capsule
         // bottom) against the surface engine/world reports. No callback bound
         // means a world without water — dry, not broken.

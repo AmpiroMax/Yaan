@@ -45,6 +45,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/BodyHitboxes.h"
 #include "engine/app/sources/CharacterFactory.h"
 #include "engine/app/sources/CharacterFeet.h"
+#include "engine/app/sources/NpcBodies.h"
 #include "engine/app/sources/SkinnedCharacter.h"
 #include "engine/app/sources/FurnitureSeats.h"
 #include "engine/app/sources/EditorCamera.h"
@@ -1676,6 +1677,8 @@ private:
     SkinnedCharacter skinned_character_{};
     /// Физические стопы игрока (§12): тела в мире физики, за замками тела.
     CharacterFeet character_feet_{};
+    /// Тела НПС (NpcBodies.h): болванчик-ходок на стенде, дальше — люди мира.
+    NpcBodies npc_bodies_{};
     /// ДРО КАДРА: тело, клинок, части (волосы, глаза, одежда). Член, а не
     /// локальная — список одолжен render на время render(), и его хранилище
     /// не должно переехать, пока на него смотрят.

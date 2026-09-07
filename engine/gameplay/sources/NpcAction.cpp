@@ -117,7 +117,7 @@ void execute_npc_actions(ecs::World& world, platform::IPhysics& physics,
                          events::EventBus& events, uint64_t sim_tick) {
     (void)physics;
     (void)sim_tick;
-    const float turn_rate = static_cast<float>(config::BODY_TURN_RATE);
+    const float turn_rate = static_cast<float>(config::NPC_TURN_RATE);
     for (auto [id, queue, state, transform] :
          world.view<NpcActionQueue, PlayerState, components::Transform>()) {
         // Вводу НПС каждый тик — с чистого листа: без действия он стоит.
@@ -130,6 +130,10 @@ void execute_npc_actions(ecs::World& world, platform::IPhysics& physics,
                                         NpcActionFailure::Interrupted});
             queue.interrupted_sequence = 0;
         }
+        // КОРПУС НПС — ЕГО РЫСК: взгляда у НПС нет (клипы поворота на месте
+        // не стреляют — контракт третьего лица), корпус доворачивается вместе
+        // с прицелом исполнителя.
+        state.body_yaw = state.yaw;
         if (queue.pending.empty()) {
             continue;
         }

@@ -70,6 +70,7 @@ AI Agents Notice (must follow):
 #include "engine/gameplay/sources/InventoryScreen.h"
 #include "engine/gameplay/sources/Item.h"
 #include "engine/gameplay/sources/PlayerActions.h"
+#include "engine/app/sources/BodyFerry.h"
 #include "engine/gameplay/sources/NpcAction.h"
 #include "engine/gameplay/sources/PlayerMovement.h" // sim's confirmed stage-2 API
 #include "engine/gameplay/sources/PropCollision.h"
@@ -4657,6 +4658,9 @@ int App::run() {
                 // капсулы; сим проводит её через физику, факт возвращается
                 // в commit_root() ниже.
                 step_ctx_.locomotion = {};
+                // ИСПОЛНИТЕЛЬ ОЧЕРЕДЕЙ НПС — до тел: он пишет НПС ввод (рыск,
+                // ось, передача), тела читают его паромом этим же тиком.
+                gameplay::execute_npc_actions(world_, *physics_, bus_, npc_sim_tick_++);
                 if (skinned_character_.ready()) {
                     if (const auto* cdrive = world_.get<anim::BodyDrive>(player_)) {
                         const auto* ctr = world_.get<components::Transform>(player_);
@@ -4691,7 +4695,8 @@ int App::run() {
                 }
                 // ИСПОЛНИТЕЛЬ ОЧЕРЕДЕЙ НПС — до шага ходоков: он пишет НПС ввод
                 // (рыск, ось, передача), и дальше сим ведёт их как игрока.
-                gameplay::execute_npc_actions(world_, *physics_, bus_, npc_sim_tick_++);
+                npc_bodies_.before_step(world_, physics_.get(),
+                                        static_cast<float>(timestep_.step_dt()));
                 gameplay::player_pre_step(world_, *physics_,
                     [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); },
                     step_ctx_);
@@ -4707,95 +4712,12 @@ int App::run() {
                 // and the footstep sound land on the same tick by construction.
                 if (auto* drive = world_.get<anim::BodyDrive>(player_)) {
                     if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
-                        drive->stride_phase = ps->stride_phase;
-                        drive->step_length_m = gameplay::step_length(ps->stride_speed);
-                        drive->speed_mps = ps->stride_speed;
-                        // КОРПУС ДОВОРАЧИВАЕТСЯ К ХОДУ, А НЕ К КАМЕРЕ (§13).
-                        // От третьего лица его уже довернул сим (ThirdPersonRig,
-                        // там рыск игрока И ЕСТЬ рыск корпуса); от первого —
-                        // здесь, на фиксированном тике: идём — доворот к
-                        // направлению хода со скоростью BODY_TURN_RATE, стоим —
-                        // корпус стоит, его повернёт КЛИП поворота (root_yaw_delta).
-                        // (доворот к ходу — в PlayerMovement; здесь только вид
-                        // от третьего лица, где ps->yaw и есть корпус)
-                        if (third_person_) {
-                            ps->body_yaw = ps->yaw;
-                        }
-                        drive->facing_yaw = ps->body_yaw;
-                        // ВЗГЛЯД: от первого лица — прицел, от третьего — камера
-                        // обвода (там ps->yaw и есть корпус). Поворот на месте
-                        // стреляет по разнице «взгляд − корпус» в обоих видах.
-                        drive->view_yaw = third_person_ ? cam_yaw_ : ps->yaw;
-                        drive->view_valid = true;
-                        if (stand_cam_ != 0) {
-                            // КАМЕРА СТЕНДА — орбита вокруг фигуры, её рыск смотрит
-                            // НА тело, а не туда, куда тело: слой взгляда тянул
-                            // голову на 60° в сторону в каждом приёмочном кадре
-                            // (07.09). Кадры походки — нейтральная голова; камера
-                            // «лицо» (6) — взгляд в объектив, то есть навстречу.
-                            drive->view_yaw = cam_yaw_ + glm::pi<float>();
-                            drive->view_valid = stand_cam_ == 6;
-                        }
-                        // ТОЛЧОК (ярус 0): контакты капсулы, где мир двинул её
-                        // (pushed_character — тело тяжелее CHARACTER_PUSH_MASS_KG),
-                        // в скорость толчка в системе тела: корпус наклоняется,
-                        // сильный — клип удара (STAGGER_PUSH_MPS).
-                        drive->push_mps_model = glm::vec3{0.0f};
-                        if (physics_ != nullptr && ps->character.valid()) {
-                            glm::vec3 push{0.0f};
-                            for (const platform::CharacterContact& c :
-                                 physics_->character_contacts(ps->character)) {
-                                if (!c.pushed_character) {
-                                    continue;
-                                }
-                                const float along = glm::dot(c.relative_velocity, c.normal);
-                                if (along > 0.0f) {
-                                    push += c.normal * along;
-                                }
-                            }
-                            push.y = 0.0f;
-                            drive->push_mps_model = glm::vec3{
-                                glm::rotate(glm::mat4{1.0f}, ps->body_yaw,
-                                            glm::vec3{0.0f, 1.0f, 0.0f})
-                                * glm::vec4{push, 0.0f}};
-                        }
-                        drive->grounded = !ps->airborne;
-                        drive->vertical_velocity = ps->vertical_velocity;
-                        drive->crouch_blend = ps->crouch_blend;
-                        drive->want_speed_mps = ps->want_speed_mps;
-                        // НАПРАВЛЕНИЕ ХОДА В СИСТЕМЕ ТЕЛА (§9): ввод в мире →
-                        // поворот на +рыск (мир = R(−рыск)·тело, см. commit_root).
-                        if (glm::length(ps->want_dir) > 1.0e-4f) {
-                            const glm::vec3 world{ps->want_dir.x, 0.0f, ps->want_dir.y};
-                            const glm::mat4 to_model = glm::rotate(
-                                glm::mat4{1.0f}, ps->body_yaw, glm::vec3{0.0f, 1.0f, 0.0f});
-                            const glm::vec3 m = glm::vec3{to_model * glm::vec4{world, 0.0f}};
-                            const float len = glm::length(glm::vec2{m.x, m.z});
-                            if (len > 1.0e-4f) {
-                                drive->move_dir_model = glm::vec3{m.x / len, 0.0f, m.z / len};
-                            }
-                        }
-                        // THE GAIT ITSELF, not the speed it was derived from.
-                        // While this line was missing, character re-derived the
-                        // gear by comparing speed against WALK_SPEED and
-                        // RUN_SPEED, and the three-speed ruling turned that into
-                        // a defect: JOG 3.0 rendered as a walk clip leaning
-                        // (3.0-1.8)/(6.0-1.8) = 0.286 toward run -- a gait
-                        // nobody chose (Rule 37).
-                        //
-                        // AN EXPLICIT SWITCH, NEVER A CAST. anim sits below
-                        // gameplay in the DAG, so anim::Gait cannot BE
-                        // gameplay::Gait and the two declarations exist by
-                        // construction (Rule 35 with no remedy available -- the
-                        // rule's usual fix, move it to NUMBERS, does not apply
-                        // to a type). A static_cast would keep compiling if
-                        // either enum gained or reordered a member; the switch
-                        // goes red HERE, at the one place that can see both.
-                        switch (ps->gait) {
-                        case gameplay::Gait::Walk: drive->gait = anim::Gait::Walk; break;
-                        case gameplay::Gait::Jog:  drive->gait = anim::Gait::Jog;  break;
-                        case gameplay::Gait::Run:  drive->gait = anim::Gait::Run;  break;
-                        }
+                        // ПАРОМ — одна функция для игрока и НПС (BodyFerry.h).
+                        BodyView view;
+                        view.third_person = third_person_;
+                        view.cam_yaw = cam_yaw_;
+                        view.stand_cam = stand_cam_;
+                        ferry_body_drive(*drive, *ps, physics_.get(), view);
                         // THE RETURN FERRY: the lean travels back the other way.
                         // The rig leans a body that has no eye and the camera
                         // holds an eye that has no body, so the offset between
@@ -4871,6 +4793,8 @@ int App::run() {
                         }
                     }
                 }
+                npc_bodies_.after_step(world_, physics_.get(),
+                                       static_cast<float>(timestep_.step_dt()));
                 // ЭКСПОНАТ СМОТРОВОЙ — ТЕМ ЖЕ ТИКОМ, приводом покоя: стоит на
                 // постаменте так, как игрок стоит в мире.
                 if (viewer_character_.ready()) {
@@ -5802,6 +5726,8 @@ int App::run() {
                 skinned_draws.push_back(skinned_character_.blade_draw(skinned_draws[0]));
             }
             skinned_character_.part_draws(skinned_draws[0], skinned_draws);
+            // ТЕЛА НПС — в тот же список скиннованных дро, после игрока.
+            npc_bodies_.draws(world_, physics_.get(), alpha, skinned_draws);
             render_system_.set_skinned_bodies(skinned_draws);
             // ХИТБОКСЫ ЧАСТЕЙ ТЕЛА ЕДУТ ЗА НАРИСОВАННОЙ ПОЗОЙ, и именно
             // здесь, а не в тике: тело рисуется по ИНТЕРПОЛИРОВАННОЙ позе, и
@@ -5898,6 +5824,7 @@ void App::shutdown() {
     }
     if (physics_) {
         character_feet_.shutdown();
+        npc_bodies_.shutdown(physics_.get());
         physics_->shutdown();
     }
     if (window_) {

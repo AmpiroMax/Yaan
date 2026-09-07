@@ -1746,6 +1746,32 @@ bool App::enter_world(uint32_t stand) {
     }
 
     // Landing dip rides sim's measured impact, not a guess (their event).
+    // БОЛВАНЧИК-ХОДОК (DFN_STAND_BOT=1, приёмка тел НПС на стенде, 17a): тело
+    // НПС в двух метрах от игрока ходит квадрат 4 м тем же телом, что игрок,
+    // с телеметрией (отчёт при выходе; DFN_LOCO_CSV — путь + ".bot").
+    if (const char* bot = door_value("DFN_STAND_BOT"); bot != nullptr && bot[0] == '1'
+        && skinned_character_.ready() && physics_ != nullptr) {
+        const auto* ptr = world_.get<components::Transform>(player_);
+        const glm::vec3 base = (ptr != nullptr ? ptr->position : glm::vec3{0.0f})
+                               + glm::vec3{2.0f, 0.0f, 0.0f};
+        const char* csv = door_value("DFN_LOCO_CSV");
+        if (NpcBody* npc = npc_bodies_.spawn(
+                world_, *physics_, render_system_, *renderer_, body_rig_, body_path, base,
+                /*telemetry=*/true, csv != nullptr ? std::string{csv} + ".bot" : std::string{})) {
+            npc->patrol = {base + glm::vec3{0.0f, 0.0f, -4.0f}, base + glm::vec3{4.0f, 0.0f, -4.0f},
+                           base + glm::vec3{4.0f, 0.0f, 0.0f}, base};
+            npc->body.set_ground_probe([this](const glm::vec3& p) {
+                if (physics_ == nullptr) {
+                    return std::numeric_limits<float>::quiet_NaN();
+                }
+                const platform::RayHit hit = physics_->raycast(
+                    p + glm::vec3{0.0f, 0.5f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}, 2.0f,
+                    physics::LAYER_STATIC | physics::LAYER_INTERACTABLE | physics::LAYER_LOOSE);
+                return hit.hit ? hit.position.y : std::numeric_limits<float>::quiet_NaN();
+            });
+        }
+    }
+
     landed_sub_ = bus_.subscribe<gameplay::Landed>([this](const gameplay::Landed& e) {
         anim::note_landed(world_, e.walker, e.impact_speed);
     });

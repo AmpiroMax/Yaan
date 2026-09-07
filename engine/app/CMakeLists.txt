@@ -67,6 +67,8 @@ if(DFN_APP_READY)
         sources/PropPhysics.cpp
     sources/SkinnedCharacter.cpp
     sources/CharacterFeet.cpp
+    sources/BodyFerry.cpp
+    sources/NpcBodies.cpp
     sources/CharacterTextures.cpp
     sources/CharacterParts.cpp
     sources/ThirdPersonRig.cpp

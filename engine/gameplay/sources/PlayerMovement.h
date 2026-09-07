@@ -289,6 +289,13 @@ struct StepContext {
     LocomotionRequest locomotion;
 };
 
+/// ЗАЯВКА ЛОКОМОЦИИ НА КОНКРЕТНОГО ХОДОКА (07.09, тела НПС): компонент; если
+/// он есть у сущности, player_pre_step берёт заявку из него, а не из общего
+/// StepContext (тот — заявка игрока). Пишет владелец тела (App/NpcBodies).
+struct WalkerLocomotion {
+    StepContext::LocomotionRequest request;
+};
+
 // --- Ref-based core (unit-testable without a World) --------------------------
 
 // Once per render frame, after input.update(): accumulates mouse delta into

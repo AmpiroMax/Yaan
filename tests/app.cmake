@@ -363,6 +363,26 @@ if(TARGET dfn_render AND TARGET dfn_core)
         add_dependencies(app_grounded_locomotion dfn_characters)
     endif()
 
+    # ТЕЛА НПС (07.09): болванчик-ходок — тело НПС по CharacterFactory идёт в точку
+    # той же заявкой локомоции, что игрок; снос по телеметрии, приход в радиус.
+    add_dfn_test(app_npc_bodies app/NpcBodiesTests.cpp
+                 dfn_render dfn_platform_render dfn_anim dfn_gameplay dfn_physics dfn_platform_physics dfn_core)
+    target_sources(app_npc_bodies PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFeet.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyFerry.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/NpcBodies.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
+    if(TARGET dfn_characters)
+        add_dependencies(app_npc_bodies dfn_characters)
+    endif()
+
     # ФИЗИЧЕСКИЕ СТОПЫ (§12, 07.09): тело на склоне в Jolt — гранит 5° держит,
     # стекло 30° ползёт по Кулону и корень съезжает; контрольная рука без стоп.
     add_dfn_test(app_physical_feet app/PhysicalFeetTests.cpp
