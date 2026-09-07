@@ -843,11 +843,16 @@ TransitRun run_transit(Harness& h, anim::Gait gait, float speed, float view_yaw,
                        uint32_t hold_ticks, uint32_t total_ticks) {
     TransitRun out;
     h.body.set_transitions(true);
+    if (const char* csv = app::door_value("DFN_LOCO_CSV"); csv != nullptr && *csv != '\0') {
+        h.body.set_telemetry(true, std::string{csv} + ".transit" + std::to_string(++terrain_runs)
+                                       + ".csv");
+    }
     anim::BodyDrive drive;
     drive.grounded = true;
     drive.gait = gait;
     drive.move_dir_model = glm::vec3{0.0f, 0.0f, -1.0f};
     drive.view_yaw = view_yaw;
+    drive.view_valid = true; // у игрока взгляд есть — камера
     float body_yaw = 0.0f;
     glm::vec3 root{0.0f};
     const int32_t toes[2] = {h.body.skeleton().find("DEF-toe.L"),
@@ -1027,6 +1032,29 @@ TEST_CASE("the_run_stops_with_its_own_clip") {
     CHECK(r.end_speed_mps < 0.2f);
 }
 
+TEST_CASE("the_walk_stops_with_its_own_clip") {
+    if (!body_present()) {
+        return;
+    }
+    Harness h;
+    REQUIRE(h.ok);
+    // Stop Walking шаркает стопами 4,2 с из своих 6,0 (паспорт one-shot) —
+    // окно после отпускания даётся с запасом.
+    const TransitRun r = run_transit(h, anim::Gait::Walk,
+                                     static_cast<float>(config::WALK_SPEED), 0.0f, 240, 600);
+    std::string chain;
+    for (const std::string& x : r.roles) {
+        chain += x + " ";
+    }
+    MESSAGE("остановка ходьбы: роли [" << chain << "], путь " << r.travelled_m
+                                       << " м, скорость в конце " << r.end_speed_mps
+                                       << " м/с, снос " << 1000.0f * r.worst_spread_m << " мм");
+    CHECK(has_role(r, "StopWalk"));
+    CHECK(r.roles.back() == "Idle");
+    CHECK(r.travelled_m > 1.0f);
+    CHECK(r.end_speed_mps < 0.2f);
+}
+
 TEST_CASE("standing_body_turns_to_the_camera_by_stepping") {
     if (!body_present()) {
         return;
@@ -1107,4 +1135,67 @@ TEST_CASE("diagnostic_what_the_turn_clips_do") {
                      << " м, стопа в опоре " << e.stance_mps << " м/с, натурально "
                      << e.natural_mps << " м/с");
     }
+}
+
+TEST_CASE("spinning_the_view_does_not_fly_the_body_across_the_map") {
+    // Владелец 07.09: «стою от первого лица, быстро кручусь то в одну, то в
+    // другую сторону — персонажа мотыляет, он перелетает с точки на точку».
+    // Здесь взгляд мечется на ±120° каждые полсекунды шесть секунд подряд;
+    // тело обязано переступать, а не ехать: путь за прогон — сантиметры.
+    if (!body_present()) {
+        return;
+    }
+    Harness h;
+    REQUIRE(h.ok);
+    h.body.set_transitions(true);
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    drive.gait = anim::Gait::Walk;
+    drive.move_dir_model = glm::vec3{0.0f, 0.0f, -1.0f};
+    drive.view_valid = true;
+    float body_yaw = 0.0f;
+    glm::vec3 root{0.0f};
+    float travelled = 0.0f;
+    float worst_tick_m = 0.0f;
+    std::string worst_note;
+    uint32_t turns = 0;
+    std::string last;
+    for (uint32_t t = 0; t < 360; ++t) {
+        const float view = ((t / 30) % 2 == 0) ? glm::radians(120.0f) : glm::radians(-120.0f);
+        drive.view_yaw = view;
+        drive.facing_yaw = body_yaw;
+        h.body.advance(drive, root, DT);
+        const std::string_view role = anim::role_name(h.body.playback().role);
+        if (role != last && (role == "TurnL" || role == "TurnR")) {
+            ++turns;
+        }
+        last = std::string{role};
+        const anim::LocomotionOut& lo = h.body.locomotion();
+        if (lo.valid) {
+            REQUIRE(std::isfinite(lo.root_yaw_delta));
+            body_yaw += lo.root_yaw_delta;
+            const glm::vec3 w = glm::vec3{
+                glm::rotate(glm::mat4{1.0f}, -body_yaw, glm::vec3{0.0f, 1.0f, 0.0f})
+                * glm::vec4{lo.root_delta_model, 0.0f}};
+            root += w;
+            const float step = glm::length(glm::vec2{w.x, w.z});
+            travelled += step;
+            if (step > worst_tick_m) {
+                worst_tick_m = step;
+                worst_note = "тик " + std::to_string(t) + " роль " + std::string{role} + " время "
+                             + std::to_string(h.body.playback().time_s) + " fade "
+                             + std::to_string(h.body.playback().fade);
+            }
+        }
+        drive.facing_yaw = body_yaw;
+        h.body.commit_root(drive, root, DT);
+    }
+    MESSAGE("худший тик: " << worst_note);
+    MESSAGE("метание взгляда 6 с: поворотов " << turns << ", путь " << travelled
+                                             << " м, худший тик " << 1000.0f * worst_tick_m
+                                             << " мм, корпус в конце " << glm::degrees(body_yaw) << "°");
+    CHECK(turns >= 4);
+    CHECK(travelled < 1.0f);
+    CHECK(worst_tick_m < 0.02f);
+    CHECK(std::abs(body_yaw) < glm::radians(200.0f));
 }

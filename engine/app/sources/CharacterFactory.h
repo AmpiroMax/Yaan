@@ -79,6 +79,11 @@ inline constexpr uint32_t VIEWER_PARTS_MESH_ID_FIRST = 150;
 /// выбор причёски — пока дозой DFN_PARTS по имени части.
 inline constexpr const char* DEFAULT_CHARACTER_PARTS =
     "assets/objects/characters/HumanBase.parts.dfo";
+/// НАБОР ОДЕЖДЫ ПО УМОЛЧАНИЮ (владелец 07.09: «одежду нормальную, в рубахе и
+/// джинсах в фэнтези никто не ходит»): файл <тело>.clothes.<набор>.dfo рядом с
+/// телом; пусто — <тело>.clothes.dfo (современный костюм MPFB). Дверь
+/// DFN_CLOTHES_SET перекрывает.
+inline constexpr const char* DEFAULT_CHARACTER_CLOTHES_SET = "viking";
 inline constexpr const char* DEFAULT_CHARACTER_CLOTHES =
     "assets/objects/characters/HumanBase.clothes.dfo";
 

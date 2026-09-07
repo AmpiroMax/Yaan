@@ -476,6 +476,7 @@ private:
     float turn_accum_prev_rad_ = 0.0f;
     float pelvis_yaw_raw_ = 0.0f;
     float turn_yaw_delta_ = 0.0f; ///< вынутый угол за этот тик, рад
+    anim::ClipRole last_role_ = anim::ClipRole::Idle; ///< роль прошлого тика (первый тик клипа)
     /// Контрвращение позы: полный накопленный угол, пока клип поворота ведёт,
     /// и та же величина, ослабленная кроссфейдом, пока он уходит.
     [[nodiscard]] float turn_counter_rad() const {

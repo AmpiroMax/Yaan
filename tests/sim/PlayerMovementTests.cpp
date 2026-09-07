@@ -241,8 +241,15 @@ TEST_CASE("yaw conventions: positive mouse x turns clockwise, forward follows") 
     Rig rig;
     // Turn to yaw = +pi/2 (east, +X) via accumulated look.
     const float half_pi = std::acos(0.0f);
-    rig.state.pending_look = {half_pi / static_cast<float>(config::MOUSE_SENSITIVITY),
-                              0.0f};
+    // ПРИЦЕЛ НЕ БЫСТРЕЕ CAMERA_TURN_RATE_MAX (§13.2): четверть оборота
+    // набирается за несколько тиков, а не за один — мышь скармливается, пока
+    // рыск не дошёл.
+    for (int i = 0; i < 120 && rig.state.yaw < half_pi - 1.0e-4f; ++i) {
+        rig.state.pending_look = {(half_pi - rig.state.yaw)
+                                      / static_cast<float>(config::MOUSE_SENSITIVITY),
+                                  0.0f};
+        rig.tick();
+    }
     rig.state.move_axes = {0.0f, 1.0f};
     rig.tick();
     CHECK(rig.state.yaw == doctest::Approx(half_pi));
@@ -660,3 +667,30 @@ TEST_CASE("input: jump latches across frames, crouch is sampled") {
 }
 
 } // namespace
+
+TEST_CASE("the aim turns no faster than the body can and waits for it beyond the lead") {
+    // Владелец 07.09: «быстро кручусь туда-сюда — персонажа мотыляет; скорость
+    // поворота камеры должна быть ограничена тем, как быстро он сам может
+    // повернуться, и это надо уметь настраивать». Две ручки реестра.
+    Rig rig;
+    const float rate_step = static_cast<float>(config::CAMERA_TURN_RATE_MAX) * DT;
+    rig.state.pending_look = {100000.0f, 0.0f}; // рывок мыши на тысячи пикселей
+    rig.tick();
+    CHECK(rig.state.yaw == doctest::Approx(rate_step));
+    // …и сколько ни крути, дальше TURN_LEAD_MAX_DEG от корпуса прицел не уйдёт,
+    // пока корпус (здесь он стоит: body_yaw = 0) не переступит.
+    for (int i = 0; i < 600; ++i) {
+        rig.state.pending_look = {100000.0f, 0.0f};
+        rig.tick();
+    }
+    const float lead_max = glm::radians(static_cast<float>(config::TURN_LEAD_MAX_DEG));
+    CHECK(rig.state.yaw == doctest::Approx(lead_max).epsilon(0.01));
+    CHECK(rig.state.body_yaw == doctest::Approx(0.0f));
+    // корпус довернулся — прицел снова свободен на ту же величину
+    rig.state.body_yaw = lead_max;
+    for (int i = 0; i < 600; ++i) {
+        rig.state.pending_look = {100000.0f, 0.0f};
+        rig.tick();
+    }
+    CHECK(rig.state.yaw == doctest::Approx(2.0f * lead_max).epsilon(0.01));
+}

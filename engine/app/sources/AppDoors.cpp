@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 150> TABLE{{
+constexpr std::array<Door, 151> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -248,6 +248,9 @@ constexpr std::array<Door, 150> TABLE{{
      DoorRead::Once},
     {"DFN_PARTS",
      "какие части набора HumanBase.parts.dfo надеть на тело: пусто — все (волосы, глаза, брови, ресницы, зубы, язык), «none» — ни одной (рука «до» приёмки частей), иначе имена через запятую (hair,eyes). Выбор причёски — пока данными и этой дозой; переключатель экрана — следующая волна.",
+     DoorRead::Once},
+    {"DFN_CLOTHES_SET",
+     "имя набора одежды: файл <тело>.clothes.<набор>.dfo рядом с телом (viking — по умолчанию с 07.09; none — безымянный современный костюм). Набор, которого нет, — молча прежний файл.",
      DoorRead::Once},
     {"DFN_CLOTHES",
      "какие вещи набора HumanBase.clothes.dfo надеть: пусто — все (male_casualsuit01, shoes01), «none» — голый, иначе имена через запятую. Вещь закрывает вершины тела списком из файла — треугольники кожи под костюмом не рисуются.",

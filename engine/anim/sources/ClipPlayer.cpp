@@ -166,13 +166,13 @@ constexpr RoleNames ROLE_NAMES[] = {
     {ClipRole::StartRun, "StartRun",
      {"MX_Idle_To_Sprint", "Run_Start", "Idle_To_Sprint", ""}},
     {ClipRole::StopWalk, "StopWalk",
-     {"MX_Walk_To_Stop", "Walk_Stop", "Walk_To_Stop", ""}},
+     {"MX_Stop_Walking", "MX_Walk_To_Stop", "Walk_Stop", "Walk_To_Stop"}},
     {ClipRole::StopRun, "StopRun",
      {"MX_Run_To_Stop", "MX_Run_to_stop", "Run_Stop", "Run_To_Stop"}},
     {ClipRole::TurnL, "TurnL",
      {"MX_Left_Turn_90", "MX_Left_turn_90", "Turn_Left_90", "Left_Turn_90"}},
     {ClipRole::TurnR, "TurnR",
-     {"MX_Right_Turn_90", "MX_Right_turn_90", "Turn_Right_90", "Right_Turn_90"}},
+     {"~MX_Left_Turn_90", "MX_Right_Turn_90", "Turn_Right_90", "Right_Turn_90"}},
 };
 static_assert(std::size(ROLE_NAMES) == CLIP_ROLE_COUNT,
               "every role needs a row in the name table");
@@ -996,6 +996,19 @@ namespace {
 }
 } // namespace
 
+/// Матрицы модели по локальным TRS позы — для замеров сборки библиотеки.
+static void model_matrices_for(const skel::Skeleton& skeleton, std::span<const JointLocal> sample,
+                               std::vector<glm::mat4>& local, std::vector<glm::mat4>& model) {
+    local.resize(skeleton.size());
+    model.resize(skeleton.size());
+    for (std::size_t j = 0; j < skeleton.size() && j < sample.size(); ++j) {
+        local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation)
+                   * glm::mat4_cast(glm::normalize(sample[j].rotation))
+                   * glm::scale(glm::mat4{1.0f}, sample[j].scale);
+    }
+    skel::skeleton_model_matrices(skeleton, local, model);
+}
+
 /// КРИВАЯ ПУТИ ОПОРНОЙ СТОПЫ (§11.1): тот же прогон, что у measure_played_speed,
 /// но вместо сглаженного корня — сырой ход стоп с опорой (взвешенный
 /// support'ом, по оси хода роли), накопленный против фазы клипа за один
@@ -1151,17 +1164,21 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                 }
             }
         }
-        for (const std::string_view want : row.clips) {
+        for (const std::string_view want_raw : row.clips) {
             if (entry.present()) {
                 break;
             }
-            if (want.empty()) {
+            if (want_raw.empty()) {
                 continue;
             }
+            // «~имя» — зеркало клипа (ClipEntry::mirrored)
+            const bool mirror = want_raw.front() == '~';
+            const std::string_view want = mirror ? want_raw.substr(1) : want_raw;
             for (std::size_t c = 0; c < clips.size(); ++c) {
                 if (same_name(clips[c].name, want)) {
                     entry.clip = static_cast<int32_t>(c);
                     entry.duration_s = clips[c].duration_s;
+                    entry.mirrored = mirror;
                     break;
                 }
             }
@@ -1587,6 +1604,52 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
             }
         }
     }
+    // КОНЕЦ ДВИЖЕНИЯ ОДНОРАЗОВЫХ КЛИПОВ (§13.1): последний момент, когда таз или
+    // стопа ещё идут быстрее ONE_SHOT_STILL_MPS, плюс запас в кроссфейд.
+    {
+        const FootIkSetup setup = build_foot_ik(skeleton, binding, lib.contacts);
+        for (const RoleNames& row : ROLE_NAMES) {
+            ClipEntry& entry = lib.role[role_index(row.role)];
+            if (!entry.present() || !one_shot_role(row.role) || !setup.valid()
+                || entry.duration_s <= 0.0f) {
+                continue;
+            }
+            // СМОТРИМ НА СТОПЫ, НЕ НА ТАЗ: в хвосте покоя таз дышит и качается
+            // (0,03…0,08 м/с), а стопы стоят — по тазу Stop Walking «двигался»
+            // все 6,0 с из 6,0.
+            const int32_t watch[] = {setup.ankle[0], setup.ankle[1],
+                                     setup.toe[0] >= 0 ? setup.toe[0] : setup.ankle[0],
+                                     setup.toe[1] >= 0 ? setup.toe[1] : setup.ankle[1]};
+            const float step_s = 1.0f / 30.0f;
+            std::vector<JointLocal> a(skeleton.size());
+            std::vector<JointLocal> b(skeleton.size());
+            std::vector<glm::mat4> la;
+            std::vector<glm::mat4> ma;
+            std::vector<glm::mat4> lb;
+            std::vector<glm::mat4> mb;
+            float last_moving_s = 0.0f;
+            for (float t = step_s; t <= entry.duration_s; t += step_s) {
+                sample_clip_pose(skeleton, clips[static_cast<std::size_t>(entry.clip)], t - step_s, a);
+                sample_clip_pose(skeleton, clips[static_cast<std::size_t>(entry.clip)], t, b);
+                model_matrices_for(skeleton, a, la, ma);
+                model_matrices_for(skeleton, b, lb, mb);
+                float fastest = 0.0f;
+                for (const int32_t j : watch) {
+                    const glm::vec3 pa{ma[static_cast<std::size_t>(j)][3]};
+                    const glm::vec3 pb{mb[static_cast<std::size_t>(j)][3]};
+                    fastest = std::max(fastest, glm::length(pb - pa) / step_s);
+                }
+                if (fastest > static_cast<float>(config::ONE_SHOT_STILL_MPS)) {
+                    last_moving_s = t;
+                }
+            }
+            entry.active_s = std::min(entry.duration_s, last_moving_s + CLIP_CROSSFADE_S);
+            std::fprintf(stderr, "[clips] one-shot %.*s: движение до %.2f с из %.2f\n",
+                         static_cast<int>(row.name.size()), row.name.data(),
+                         static_cast<double>(entry.active_s),
+                         static_cast<double>(entry.duration_s));
+        }
+    }
     // КРИВЫЕ ПУТИ — ПОСЛЕ ВСЕГО (§11.1): зеркало полцикла (mirror_dose) и
     // симметрия ставятся ниже передач, а кривая обязана мерить ТУ позу, что
     // играет; мерянная до зеркала, она расходилась со стопой на левой опоре
@@ -1853,8 +1916,10 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         const bool ground = drive.grounded && drive.posture_blend < 0.5f
                             && drive.crouch_blend < 0.5f;
         const ClipEntry& cur = entry_for(lib, play.role, play.variant);
+        const float end_s = cur.active_s > 0.0f ? std::min(cur.active_s, cur.duration_s)
+                                                : cur.duration_s;
         const bool over = !transit_role(play.role) || cur.duration_s <= 0.0f
-                          || play.time_s >= cur.duration_s - 1.0e-4f;
+                          || play.time_s >= end_s - 1.0e-4f;
         if (play.transit != Transit::None) {
             // РАЗРЫВ ПЕРЕХОДА ВВОДОМ: клип старта отменяется отпусканием,
             // остановка и поворот — нажатием. Ждать конца клипа значило бы
@@ -1894,7 +1959,8 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                 want = stop;
                 play.transit = Transit::Stop;
             } else if (!input && !moving && !was_transit && play.turn_gap_s <= 0.0f
-                       && lib.has(ClipRole::TurnL) && lib.has(ClipRole::TurnR)) {
+                       && drive.view_valid && lib.has(ClipRole::TurnL)
+                       && lib.has(ClipRole::TurnR)) {
                 // ПОВОРОТ НА МЕСТЕ: камера ушла от корпуса дальше, чем шея
                 // и грудь могут отыграть, — корпус доворачивается ПЕРЕСТУПОМ
                 // (§9.4). Стоя и только стоя: на ходу корпус доворачивает сим.
@@ -2102,13 +2168,17 @@ namespace {
 void role_frame(const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
                 std::span<const skel::AnimClip> clips, const ClipEntry& entry,
                 float prev_t, float t, float prev_mix_t, float mix_t, float alpha,
-                float stride, std::span<JointLocal> out) {
+                float stride, std::span<JointLocal> out, const MirrorMap* mirror = nullptr) {
     const float d = forward_delta(prev_t, t, entry.duration_s);
     float when = prev_t + alpha * d;
     if (entry.duration_s > 0.0f) {
         when = wrap01(when / entry.duration_s) * entry.duration_s;
     }
     sample_clip_pose(skeleton, clips[static_cast<std::size_t>(entry.clip)], when, out);
+    if (entry.mirrored && mirror != nullptr && mirror->valid()) {
+        std::vector<JointLocal> raw(out.begin(), out.begin() + skeleton.size());
+        mirror_pose(skeleton, *mirror, raw, out.first(skeleton.size()));
+    }
     if (entry.mixed()) {
         // THE PARTNER IS INTERPOLATED IN ITS OWN CLOCK. Deriving its instant
         // from `when` would need the phase, and the frame does not have one:
@@ -2150,7 +2220,7 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     }
     role_frame(skeleton, binding, clips, cur, play.prev_time_s, play.time_s,
                play.prev_mix_time_s, play.mix_time_s, a,
-               glm::mix(play.prev_stride, play.stride, a), out_sample);
+               glm::mix(play.prev_stride, play.stride, a), out_sample, &lib.mirror);
     // СИММЕТРИЗАЦИЯ — СРАЗУ ЗА СЭМПЛОМ РОЛИ И ДО КРОССФЕЙДА. Предмет слоя —
     // ЦИКЛ, а кроссфейд смешивает два разных цикла: симметризовать смесь
     // значило бы искать полуцикл у позы, у которой его нет. И до слоёв стойки
@@ -2176,7 +2246,7 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
                    dm > 0.0f ? std::fmod(play.prev_mix_time_s + 0.5f * dm, dm)
                              : play.prev_mix_time_s,
                    dm > 0.0f ? std::fmod(play.mix_time_s + 0.5f * dm, dm) : play.mix_time_s,
-                   a, glm::mix(play.prev_stride, play.stride, a), half);
+                   a, glm::mix(play.prev_stride, play.stride, a), half, &lib.mirror);
         mirror_blend(skeleton, lib.mirror, half, lib.mirror_dose, out_sample);
     }
     // СИММЕТРИЯ ПОКОЯ (заказ владельца 02.09: «стоя ноги ровно, без выноса
@@ -2211,7 +2281,8 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
         role_frame(skeleton, binding, clips, prev, play.prev_previous_time_s,
                    play.previous_time_s, play.prev_previous_mix_time_s,
                    play.previous_mix_time_s, a,
-                   glm::mix(play.prev_previous_stride, play.previous_stride, a), other);
+                   glm::mix(play.prev_previous_stride, play.previous_stride, a), other,
+                   &lib.mirror);
         symmetrise_idle(play.previous, other);
         blend_local(out_sample.first(n), other, fade, out_sample.first(n));
     }

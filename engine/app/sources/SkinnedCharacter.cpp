@@ -980,6 +980,20 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         // сглаживания. Стоя роль уже покой: смесь дошагивает на месте, опорную
         // стопу держит замок.
         const bool moving_role = anim::locomotion_role(play_.role);
+        // ПОВОРОТ НА МЕСТЕ — КОРНЮ НОЛЬ. Поза контрвращается на вынутый угол
+        // (§13.3), и стоящая в мире стопа в этой системе тела неподвижна ПО
+        // ПОСТРОЕНИЮ: p_world = root + R(−ψ)·R(+ψ)·p_raw = root + p_raw. Всё,
+        // что стопа при этом «идёт» в системе тела, — дуга самого контрвращения,
+        // и брать её за ход корня значило везти тело по 0,37 м за поворот
+        // (владелец 07.09: «перелетает с точки на точку»; прибор метания
+        // взгляда: 1,9 м за пять поворотов), а прибор сноса этого не видел —
+        // замок дотягивал нарисованную стопу к якорю. Остаток 9…14 мм — это
+        // собственный ход стопы в клипе (актёр пивотит на подушечке), его
+        // закрывает замок дозой.
+        if (play_.role == anim::ClipRole::TurnL || play_.role == anim::ClipRole::TurnR) {
+            raw = glm::vec3{0.0f};
+            root_state_ = anim::RootMotionState{};
+        }
         if (!moving_role) {
             raw = glm::vec3{0.0f};
             root_state_ = anim::RootMotionState{};
@@ -988,7 +1002,15 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         }
         // СГЛАЖИВАНИЕ КАПСУЛЫ (ROOT_MOTION_SMOOTH_S): толчки таза внутри шага
         // не передаются капсуле; разницу закрывает замок стопы.
-        const bool path_mode = library_.clip_clock_path && cur_entry.path_valid;
+        // Пивот поворота и заявка модели скорости идут без сглаживания: у
+        // сглаживателя, сброшенного на каждом тике, выходило 13 % пивота
+        // (замер 07.09: стопа ехала 397 мм), а модель скорости гладкая сама.
+        const bool turning_now = play_.role == anim::ClipRole::TurnL
+                                 || play_.role == anim::ClipRole::TurnR;
+        const bool path_mode = (library_.clip_clock_path && cur_entry.path_valid) || turning_now;
+        if (turning_now) {
+            smoothed_delta_ = raw;
+        }
         if (root_smooth_ && !path_mode && dt > 0.0f) {
             const float tau = static_cast<float>(config::ROOT_MOTION_SMOOTH_S);
             const float k = tau > 0.0f ? 1.0f - std::exp(-dt / tau) : 1.0f;
@@ -1019,6 +1041,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     // СКОЛЬКО РЕЕСТРА ПОВЕРХ КЛИПА. Ферма, а не второе решение: вес ведёт
     // update_bodies, здесь он только запоминается до кадра.
     pose_weight_ = std::clamp(drive.pose_weight, 0.0f, 1.0f);
+    last_role_ = play_.role;
     ticked_ = true;
 }
 

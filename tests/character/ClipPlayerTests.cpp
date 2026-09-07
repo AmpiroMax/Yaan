@@ -57,12 +57,9 @@ TEST_CASE("clip_library_resolves_roles") {
 
     // EVERY ROLE, because this asset has a clip for all ten and a library that
     // silently resolves nine draws a body that stops moving in one state.
-    // ВСЕ РОЛИ, КРОМЕ ОДНОЙ НАЗВАННОЙ. StopWalk (остановка шага) нерешена:
-    // в паках Mixamo, что скачал владелец, клипа «Walk To Stop» нет — есть
-    // только «Run To Stop». Дыра названа здесь, а не спрятана в «>=»: как
-    // только клип появится, эта строка обязана упасть и стать равенством.
-    CHECK(m.lib.resolved == anim::CLIP_ROLE_COUNT - 1);
-    CHECK_FALSE(m.lib.has(anim::ClipRole::StopWalk));
+    // ВСЕ РОЛИ: остановку шага владелец докачал 07.09 (Stop Walking).
+    CHECK(m.lib.resolved == anim::CLIP_ROLE_COUNT);
+    CHECK(m.lib.has(anim::ClipRole::StopWalk));
     CHECK(m.lib.has(anim::ClipRole::StartWalk));
     CHECK(m.lib.has(anim::ClipRole::StartRun));
     CHECK(m.lib.has(anim::ClipRole::StopRun));

@@ -1430,6 +1430,7 @@ void App::body_probe_drive() {
             }
         }
         ps->yaw = p.aim_yaw;
+        ps->body_yaw = ps->yaw; // корпус ставится вместе с прицелом (§13.2)
         ps->pitch = p.pitch;
         ps->pending_look = {0.0f, 0.0f};
         ps->move_axes = {1.0f, 0.0f};
@@ -1452,6 +1453,7 @@ void App::body_probe_drive() {
             const glm::vec2 aim = travelling ? leg : (it - me);
             if (glm::dot(aim, aim) > 1.0e-6f) {
                 ps->yaw = std::atan2(aim.x, -aim.y);
+                ps->body_yaw = ps->yaw; // корпус ставится вместе с прицелом (§13.2)
             }
             ps->move_axes = travelling ? glm::vec2{0.0f, 1.0f} : glm::vec2{0.0f, 0.0f};
         }
@@ -1482,6 +1484,7 @@ void App::body_probe_drive() {
         offset = std::max(-0.5f, -0.25f * (p.elapsed_s - p.warmup_s));
     }
     ps->yaw = p.aim_yaw + offset;
+    ps->body_yaw = ps->yaw; // корпус ставится вместе с прицелом (§13.2)
     ps->pitch = p.pitch;
 }
 
@@ -1920,6 +1923,7 @@ void App::apply_restore(const DebugSnapshot& snap) {
     restore_attempts_ = 0;
 
     ps->yaw = snap.yaw;
+    ps->body_yaw = ps->yaw; // корпус ставится вместе с прицелом (§13.2)
     ps->pitch = snap.pitch;
     ps->vertical_velocity = 0.0f; // a restored player is not mid-fall
     // THE KEY, NOT THE STATE. Setting `crouched` here would flag a capsule that
@@ -2942,6 +2946,7 @@ void App::become_player_from_editor() {
     }
     const float limit = static_cast<float>(config::CAMERA_PITCH_LIMIT);
     ps->yaw = yaw;
+    ps->body_yaw = ps->yaw; // корпус ставится вместе с прицелом (§13.2)
     ps->pitch = std::clamp(editor_cam_.pitch(), -limit, limit);
     ps->vertical_velocity = 0.0f; // a possessed player is not mid-fall
     mode_ = AppMode::Playing;
@@ -4660,6 +4665,10 @@ int App::run() {
                         if (auto* pst = world_.get<gameplay::PlayerState>(player_);
                             pst != nullptr && lo.valid && lo.root_yaw_delta != 0.0f) {
                             pst->body_yaw += lo.root_yaw_delta;
+                            if (third_person_) {
+                                // от третьего лица корпус — это и есть ps->yaw
+                                pst->yaw += lo.root_yaw_delta;
+                            }
                         }
                         if (lo.valid) {
                             const float yaw = anim::body_root_for(*cdrive, feet).yaw;
@@ -4698,18 +4707,17 @@ int App::run() {
                         // здесь, на фиксированном тике: идём — доворот к
                         // направлению хода со скоростью BODY_TURN_RATE, стоим —
                         // корпус стоит, его повернёт КЛИП поворота (root_yaw_delta).
+                        // (доворот к ходу — в PlayerMovement; здесь только вид
+                        // от третьего лица, где ps->yaw и есть корпус)
                         if (third_person_) {
                             ps->body_yaw = ps->yaw;
-                        } else if (glm::length(ps->want_dir) > 1.0e-4f) {
-                            const float want_yaw =
-                                std::atan2(ps->want_dir.x, -ps->want_dir.y);
-                            ps->body_yaw = app::turn_body_toward(
-                                ps->body_yaw, want_yaw,
-                                static_cast<float>(timestep_.step_dt()),
-                                static_cast<float>(config::BODY_TURN_RATE));
                         }
                         drive->facing_yaw = ps->body_yaw;
-                        drive->view_yaw = ps->yaw;
+                        // ВЗГЛЯД: от первого лица — прицел, от третьего — камера
+                        // обвода (там ps->yaw и есть корпус). Поворот на месте
+                        // стреляет по разнице «взгляд − корпус» в обоих видах.
+                        drive->view_yaw = third_person_ ? cam_yaw_ : ps->yaw;
+                        drive->view_valid = true;
                         drive->grounded = !ps->airborne;
                         drive->vertical_velocity = ps->vertical_velocity;
                         drive->crouch_blend = ps->crouch_blend;

@@ -329,7 +329,30 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
     prev_camera.fov_scale = camera.fov_scale;
 
     // 2. Look: mouse +x -> +yaw (turn right), mouse +y -> -pitch (look down).
-    state.yaw += state.pending_look.x * MOUSE_SENSITIVITY;
+    // ПРИЦЕЛ НЕ БЫСТРЕЕ, ЧЕМ ЧЕЛОВЕК УМЕЕТ ПОВЕРНУТЬСЯ (заказ владельца 07.09:
+    // «быстро кручусь туда-сюда — персонажа мотыляет, перелетает с точки на
+    // точку; скорость поворота камеры должна быть ограничена тем, как быстро
+    // он сам может повернуться, и это надо уметь настраивать»). Две ручки
+    // реестра: CAMERA_TURN_RATE_MAX — потолок угловой скорости прицела;
+    // TURN_LEAD_MAX_DEG — насколько прицел может уйти вперёд корпуса, дальше
+    // он ждёт, пока корпус переступит (LOCOMOTION_GROUNDED.md §13.2).
+    {
+        const float max_step = static_cast<float>(config::CAMERA_TURN_RATE_MAX) * DT;
+        float d = state.pending_look.x * MOUSE_SENSITIVITY;
+        d = std::clamp(d, -max_step, max_step);
+        // ПРИВЯЗЬ РЕЖЕТ ТОЛЬКО ПРИРАЩЕНИЕ ОТ МЫШИ, никогда не тянет прицел сама:
+        // рыск, поставленный прямо (спавн, телепорт, прибор), остаётся как
+        // поставлен — корпус догонит на ходу.
+        const float lead_max = glm::radians(static_cast<float>(config::TURN_LEAD_MAX_DEG));
+        float lead = state.yaw + d - state.body_yaw;
+        lead = std::atan2(std::sin(lead), std::cos(lead));
+        if (d > 0.0f && lead > lead_max) {
+            d = std::max(0.0f, d - (lead - lead_max));
+        } else if (d < 0.0f && lead < -lead_max) {
+            d = std::min(0.0f, d - (lead + lead_max));
+        }
+        state.yaw += d;
+    }
     state.pitch = std::clamp(state.pitch - state.pending_look.y * MOUSE_SENSITIVITY,
                              -PITCH_LIMIT, PITCH_LIMIT);
     state.pending_look = glm::vec2{0.0f};
@@ -477,6 +500,19 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
         const float want_len = glm::length(want3);
         state.want_dir = want_len > 1.0e-5f ? glm::vec2{want3.x, want3.z} / want_len
                                             : glm::vec2{0.0f, 0.0f};
+        // КОРПУС ДОВОРАЧИВАЕТСЯ К ХОДУ ЗДЕСЬ, В СИМЕ (§13.2): на ходу — к
+        // направлению хода со скоростью BODY_TURN_RATE, стоя — не двигается
+        // (стоя его поворачивает клип поворота, root_yaw_delta приходит через
+        // приложение). Раньше доворот жил в App и ходоки без приложения
+        // (плейтест, приборы движения) стояли с корпусом на нуле, а привязь
+        // прицела к корпусу (TURN_LEAD_MAX_DEG) не давала им развернуться.
+        if (want_len > 1.0e-5f) {
+            const float want_yaw = std::atan2(state.want_dir.x, -state.want_dir.y);
+            float d = want_yaw - state.body_yaw;
+            d = std::atan2(std::sin(d), std::cos(d));
+            const float step = static_cast<float>(config::BODY_TURN_RATE) * DT;
+            state.body_yaw += std::clamp(d, -step, step);
+        }
         if (step.locomotion.valid && physics.character_grounded(state.character)) {
             const glm::vec2 req = step.locomotion.delta_xz;
             if (axes_len > 1.0e-4f) {

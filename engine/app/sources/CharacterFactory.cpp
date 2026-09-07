@@ -67,6 +67,20 @@ std::filesystem::path parts_file(const std::filesystem::path& named,
     }
     std::error_code ec;
     if (!body_path.empty()) {
+        // НАБОР: <тело><суффикс>.<набор>.dfo раньше безымянного <тело><суффикс>.dfo
+        if (std::string_view{suffix} == ".clothes") {
+            const char* door = door_value("DFN_CLOTHES_SET");
+            const std::string set = door != nullptr && *door != '\0'
+                                        ? std::string{door}
+                                        : std::string{DEFAULT_CHARACTER_CLOTHES_SET};
+            if (!set.empty() && set != "none") {
+                std::filesystem::path named_set = body_path;
+                named_set.replace_extension(std::string(suffix) + "." + set + ".dfo");
+                if (std::filesystem::exists(named_set, ec)) {
+                    return named_set;
+                }
+            }
+        }
         std::filesystem::path beside = body_path;
         beside.replace_extension(std::string(suffix) + ".dfo");
         if (std::filesystem::exists(beside, ec)) {

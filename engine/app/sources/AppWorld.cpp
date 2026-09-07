@@ -1463,6 +1463,7 @@ bool App::enter_world(uint32_t stand) {
     if (scene_spawn_) {
         if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
             ps->yaw = scene_spawn_yaw_;
+            ps->body_yaw = ps->yaw; // корпус ставится вместе с прицелом (§13.2)
         }
     }
     // THE INSPECTION STAND OPENS ON ITS SUBJECT. The tree stands east of the
@@ -1480,6 +1481,7 @@ bool App::enter_world(uint32_t stand) {
         !scene_spawn_) {
         if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
             ps->yaw = glm::half_pi<float>(); // east, straight at the exhibits
+            ps->body_yaw = ps->yaw; // корпус ставится вместе с прицелом (§13.2)
         }
     }
 
