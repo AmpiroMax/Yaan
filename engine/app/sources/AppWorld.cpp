@@ -1746,45 +1746,12 @@ bool App::enter_world(uint32_t stand) {
     }
 
     // Landing dip rides sim's measured impact, not a guess (their event).
-    // БОЛВАНЧИК-ХОДОК (DFN_STAND_BOT=1, приёмка тел НПС на стенде, 17a): тело
-    // НПС в двух метрах от игрока ходит квадрат 4 м тем же телом, что игрок,
-    // с телеметрией (отчёт при выходе; DFN_LOCO_CSV — путь + ".bot").
+    // БОЛВАНЧИК-ХОДОК (DFN_STAND_BOT=1): спавн — на первом тике сим'а
+    // (spawn_stand_bot), когда курс и место игрока уже окончательные.
     if (const char* bot = door_value("DFN_STAND_BOT"); bot != nullptr && bot[0] == '1'
         && skinned_character_.ready() && physics_ != nullptr) {
-        const auto* ptr = world_.get<components::Transform>(player_);
-        const auto* pst = world_.get<gameplay::PlayerState>(player_);
-        const float yaw = pst != nullptr ? pst->yaw : 0.0f;
-        // ПЕРЕД ИГРОКОМ ПО ЕГО КУРСУ (в кадре камер стенда), на землю лучом:
-        // спавн на высоте игрока в 2 м в сторону — над скатом стенда, бот
-        // падал (JumpStart, 12,9 м/с в остановке — замер 07.09).
-        const glm::vec3 forward{std::sin(yaw), 0.0f, -std::cos(yaw)};
-        const glm::vec3 right{std::cos(yaw), 0.0f, std::sin(yaw)};
-        glm::vec3 base = (ptr != nullptr ? ptr->position : glm::vec3{0.0f}) + forward * 2.5f
-                         + right * 1.5f;
-        {
-            const platform::RayHit hit = physics_->raycast(
-                base + glm::vec3{0.0f, 3.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}, 10.0f,
-                physics::LAYER_STATIC);
-            if (hit.hit) {
-                base.y = hit.position.y;
-            }
-        }
-        const char* csv = door_value("DFN_LOCO_CSV");
-        if (NpcBody* npc = npc_bodies_.spawn(
-                world_, *physics_, render_system_, *renderer_, body_rig_, body_path, base,
-                /*telemetry=*/true, csv != nullptr ? std::string{csv} + ".bot" : std::string{})) {
-            npc->patrol = {base + forward * 4.0f, base + forward * 4.0f + right * 3.0f,
-                           base + right * 3.0f, base};
-            npc->body.set_ground_probe([this](const glm::vec3& p) {
-                if (physics_ == nullptr) {
-                    return std::numeric_limits<float>::quiet_NaN();
-                }
-                const platform::RayHit hit = physics_->raycast(
-                    p + glm::vec3{0.0f, 0.5f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}, 2.0f,
-                    physics::LAYER_STATIC | physics::LAYER_INTERACTABLE | physics::LAYER_LOOSE);
-                return hit.hit ? hit.position.y : std::numeric_limits<float>::quiet_NaN();
-            });
-        }
+        stand_bot_pending_ = 30; // полсекунды: телепорт игрока на площадку стенда уже прошёл
+        stand_bot_body_path_ = body_path;
     }
 
     landed_sub_ = bus_.subscribe<gameplay::Landed>([this](const gameplay::Landed& e) {
@@ -2318,6 +2285,63 @@ bool App::enter_world(uint32_t stand) {
     render_system_.set_hud_visible(false);
     (void)load_t0;
     return true;
+}
+
+
+void App::spawn_stand_bot() {
+    // БОЛВАНЧИК-ХОДОК (DFN_STAND_BOT=1, приёмка тел НПС на стенде, 17a): тело
+    // НПС позади-справа от игрока (по его курсу; впереди — скат стенда, там
+    // бот уходил под кромку площадки и падал) ходит квадрат 4×3 м тем же
+    // телом, что игрок, с телеметрией (отчёт при выходе; DFN_LOCO_CSV —
+    // путь + ".bot"). Спавн на первом тике — курс сцены уже применён.
+    stand_bot_pending_ = 0;
+    const auto* ptr = world_.get<components::Transform>(player_);
+    const auto* pst = world_.get<gameplay::PlayerState>(player_);
+    if (ptr == nullptr || pst == nullptr || physics_ == nullptr) {
+        return;
+    }
+    // В КАДРЕ КАМЕРЫ СТЕНДА: камера смотрит на игрока вдоль cam_yaw_; +right
+    // здесь — ЛЕВЫЙ край кадра (замер 07.09 двумя болванчиками). Старт слева,
+    // квадрат патруля идёт через кадр перед игроком и назад.
+    const float yaw = stand_cam_ != 0 ? cam_yaw_ : pst->yaw;
+    const glm::vec3 forward{std::sin(yaw), 0.0f, -std::cos(yaw)};
+    const glm::vec3 right{std::cos(yaw), 0.0f, std::sin(yaw)};
+    glm::vec3 base = ptr->position + right * 2.0f - forward * 0.4f;
+    std::fprintf(stderr, "[npc] болванчик: игрок (%.1f %.1f %.1f), рыск камеры %.2f\n",
+                 static_cast<double>(ptr->position.x), static_cast<double>(ptr->position.y),
+                 static_cast<double>(ptr->position.z), static_cast<double>(yaw));
+    {
+        // теми же слоями, что щуп земли стоп
+        const platform::RayHit hit = physics_->raycast(
+            base + glm::vec3{0.0f, 1.0f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}, 5.0f,
+            physics::LAYER_STATIC | physics::LAYER_INTERACTABLE | physics::LAYER_LOOSE);
+        if (hit.hit) {
+            base.y = hit.position.y;
+        }
+    }
+    const char* csv = door_value("DFN_LOCO_CSV");
+    NpcBody* npc = npc_bodies_.spawn(
+        world_, *physics_, render_system_, *renderer_, body_rig_, stand_bot_body_path_, base,
+        /*telemetry=*/true, csv != nullptr ? std::string{csv} + ".bot" : std::string{});
+    if (npc == nullptr) {
+        return;
+    }
+    if (auto* ps = world_.get<gameplay::PlayerState>(npc->id)) {
+        ps->yaw = yaw;
+        ps->body_yaw = yaw;
+    }
+    npc->patrol = {base - right * 4.0f, base - right * 4.0f + forward * 2.5f,
+                   base + forward * 2.5f, base};
+
+    npc->body.set_ground_probe([this](const glm::vec3& p) {
+        if (physics_ == nullptr) {
+            return std::numeric_limits<float>::quiet_NaN();
+        }
+        const platform::RayHit hit = physics_->raycast(
+            p + glm::vec3{0.0f, 0.5f, 0.0f}, glm::vec3{0.0f, -1.0f, 0.0f}, 2.0f,
+            physics::LAYER_STATIC | physics::LAYER_INTERACTABLE | physics::LAYER_LOOSE);
+        return hit.hit ? hit.position.y : std::numeric_limits<float>::quiet_NaN();
+    });
 }
 
 } // namespace dfn::app

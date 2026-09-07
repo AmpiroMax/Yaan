@@ -4660,6 +4660,9 @@ int App::run() {
                 step_ctx_.locomotion = {};
                 // ИСПОЛНИТЕЛЬ ОЧЕРЕДЕЙ НПС — до тел: он пишет НПС ввод (рыск,
                 // ось, передача), тела читают его паромом этим же тиком.
+                if (stand_bot_pending_ > 0 && --stand_bot_pending_ == 0) {
+                    spawn_stand_bot();
+                }
                 gameplay::execute_npc_actions(world_, *physics_, bus_, npc_sim_tick_++);
                 if (skinned_character_.ready()) {
                     if (const auto* cdrive = world_.get<anim::BodyDrive>(player_)) {

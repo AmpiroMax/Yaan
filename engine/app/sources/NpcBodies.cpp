@@ -163,6 +163,21 @@ void NpcBodies::draws(ecs::World& world, platform::IPhysics* physics, float alph
             out.push_back(npc->body.blade_draw(out[base]));
         }
         npc->body.part_draws(out[base], out);
+        static bool said_draw = false;
+        if (!said_draw) {
+            said_draw = true;
+            const auto& d = out[base];
+            const auto* tr = world.get<components::Transform>(npc->id);
+            std::fprintf(stderr,
+                         "[npc] первый кадр: дро с номера %zu (всего %zu), меш %u, лист %u, палитра %zu, "
+                         "перенос (%.1f %.1f %.1f), сущность (%.1f %.1f %.1f)\n",
+                         base, out.size(), d.mesh_asset, d.texture_asset, d.palette.size(),
+                         static_cast<double>(d.transform[3].x), static_cast<double>(d.transform[3].y),
+                         static_cast<double>(d.transform[3].z),
+                         tr ? static_cast<double>(tr->position.x) : 0.0,
+                         tr ? static_cast<double>(tr->position.y) : 0.0,
+                         tr ? static_cast<double>(tr->position.z) : 0.0);
+        }
         if (physics != nullptr) {
             if (!npc->bodies.hitboxes.live()) {
                 npc->bodies.hitboxes.create(*physics, npc->id, npc->body.hitboxes(),

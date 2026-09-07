@@ -1679,6 +1679,9 @@ private:
     CharacterFeet character_feet_{};
     /// Тела НПС (NpcBodies.h): болванчик-ходок на стенде, дальше — люди мира.
     NpcBodies npc_bodies_{};
+    int stand_bot_pending_ = 0; ///< DFN_STAND_BOT: тиков до спавна (стенд ещё ставит игрока)
+    std::filesystem::path stand_bot_body_path_; ///< тело для болванчика (как у игрока)
+    void spawn_stand_bot();
     /// ДРО КАДРА: тело, клинок, части (волосы, глаза, одежда). Член, а не
     /// локальная — список одолжен render на время render(), и его хранилище
     /// не должно переехать, пока на него смотрят.
