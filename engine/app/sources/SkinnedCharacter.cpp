@@ -1137,6 +1137,13 @@ void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
                                      : part == anim::BodyPart::FootR ? 1 : 2;
             if (side < 2 && hp.valid[i] != 0) {
                 foot_box_model_[side] = hp.frame[i];
+                // СТОПА ПОСЛЕ IK, А НЕ СЫРАЯ ПОЗА КЛИПА: подъём, который IK даёт
+                // лодыжке к её земле (plan_.need > 0), — и коробке. Иначе на
+                // склоне 5° плоская стопа клипа втыкается углом на 2,4 см и
+                // тело стопы считается вдавленным (07.09).
+                if (foot_probe_.valid && plan_.need[side] > 0.0f) {
+                    foot_box_model_[side][3].y += plan_.need[side];
+                }
                 foot_box_half_[side] = hp.half[i];
                 foot_box_valid_[side] = true;
             }

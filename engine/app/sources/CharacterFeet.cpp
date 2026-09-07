@@ -113,6 +113,13 @@ void CharacterFeet::tick(SkinnedCharacter& body, float dt) {
         // Скольжение — только у тела, которое ПРОШЛЫЙ шаг было динамическим:
         // у кинематического «скорость» — это перенос маха (до 16 м/с на стенде).
         r.slip_mps = planted_[side] ? c.slip_speed_mps : 0.0f;
+        // ВДАВЛЕННАЯ СТОПА — НЕ ОПОРА: коробка, лёгшая на кромку лавки с
+        // проникновением глубже FOOT_BODY_PLANT_DEPTH_MAX, выдавливается
+        // решателем вбок по 8 мм за тик при «держит, скольжение 0» (владелец
+        // 07.09 22:32: «поставил стопу на лавку — задёргало и отбросило»).
+        // Такую стопу не ставим динамической, а поставленную — не слушаем.
+        const bool embedded = c.touching
+                              && c.depth > static_cast<float>(config::FOOT_BODY_PLANT_DEPTH_MAX);
         r.ground = c.ground;
         r.friction_pair = c.friction_pair;
         r.slope_tan = c.slope_tan;
@@ -146,12 +153,19 @@ void CharacterFeet::tick(SkinnedCharacter& body, float dt) {
                                  static_cast<double>(c.normal.z), c.holds ? 1 : 0,
                                  static_cast<double>(c.slip_speed_mps));
                 }
-                if (glm::dot(d, d) > 1.0e-12f) {
+                if (embedded) {
+                    // тело выдавливают из препятствия — якорь стоит на месте,
+                    // смещение пересчитывается, скольжения нет
+                    anchor_offset_[side] = lk.anchor[side] - now.position;
+                    anchor_seen_[side] = lk.anchor[side];
+                } else if (glm::dot(d, d) > 1.0e-12f) {
                     body.set_lock_anchor(side, anchor);
                     body.add_root_slip(glm::vec3{d.x, 0.0f, d.z});
                     r.slip_delta = d;
+                    anchor_seen_[side] = anchor;
+                } else {
+                    anchor_seen_[side] = anchor;
                 }
-                anchor_seen_[side] = anchor;
             } else {
                 // ОТПУЩЕН: снова кинематическая, за клипом.
                 physics_->set_foot_mode(foot_[side], platform::FootMode::Swing);
@@ -159,7 +173,7 @@ void CharacterFeet::tick(SkinnedCharacter& body, float dt) {
             }
         }
         if (!planted_[side]) {
-            if (lk.locked[side]) {
+            if (lk.locked[side] && !embedded) {
                 // ПОСТАНОВКА: тело становится динамическим ТАМ, ГДЕ ОНО ЕСТЬ —
                 // куда его довёз прошлый тик маха (Plant не ждёт кинематической
                 // позы). Смещение якоря — от ФАКТИЧЕСКОЙ позы тела: считать от

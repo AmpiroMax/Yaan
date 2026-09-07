@@ -41,6 +41,7 @@ AI Agents Notice (must follow):
 
 #include <array>
 #include <cmath>
+#include <limits>
 #include <filesystem>
 #include <memory>
 
@@ -92,6 +93,16 @@ struct Stand {
         downhill = glm::vec3{-std::cos(theta), -std::sin(theta), 0.0f};
         feet.set_enabled(physical_feet);
         feet.bind(physics.get(), 11);
+        // ЩУП ЗЕМЛИ — ЛУЧ В ФИЗИКУ, как в игре: IK кладёт стопу по склону, и
+        // тело стопы ставится без проникновения (иначе плоская стопа клипа
+        // втыкается углом в склон на 2,4 см и считается вдавленной).
+        platform::IPhysics* phys = physics.get();
+        body.set_ground_probe([phys](const glm::vec3& at) {
+            const platform::RayHit hit = phys->raycast(at + glm::vec3{0.0f, 0.5f, 0.0f},
+                                                       glm::vec3{0.0f, -1.0f, 0.0f}, 2.0f,
+                                                       physics::LAYER_STATIC);
+            return hit.hit ? hit.position.y : std::numeric_limits<float>::quiet_NaN();
+        });
     }
     ~Stand() {
         feet.shutdown();
@@ -198,6 +209,33 @@ TEST_CASE("the_control_arm_stands_glued_on_glass") {
     MESSAGE("контроль (DFN_PHYSICAL_FEET=0), стекло 30°: путь корня " << 1000.0f * path << " мм");
     CHECK_FALSE(s.feet.report(0).has_body);
     CHECK(std::abs(path) < 0.001f);
+}
+
+TEST_CASE("one_foot_on_a_bench_does_not_throw_the_body") {
+    // Владелец 07.09 22:32: у лавки поставил одну стопу на неё и ничего не
+    // делал — тело задёргало, закрутило и отбросило. Лавка — статический
+    // ящик 0,45; левая стопа над ним, щуп земли — луч в физику.
+    for (int arm = 1; arm >= 0; --arm) {
+        Stand s(0.0f, "granite", arm == 1);
+        REQUIRE(s.ok);
+        platform::StaticBoxDesc bench;
+        bench.half_extents = {0.6f, 0.225f, 0.25f};
+        bench.center = {-0.65f, 0.225f, 0.0f}; // край ящика под левой стопой
+        bench.layer = physics::LAYER_STATIC;
+        bench.substance = core::find_substance("pine");
+        bench.user_data = 9;
+        REQUIRE(s.physics->create_static_box(bench).valid());
+        glm::vec3 root{0.0f};
+        s.stand(300, root);
+        const float moved = glm::length(glm::vec2{root.x, root.z});
+        const anim::LocoProbeRow& acc = s.body.telemetry().row(anim::LocoProbe::RootAccel);
+        MESSAGE((arm ? "стопы ВКЛ" : "стопы ВЫКЛ") << ": корень ушёл на " << 1000.0f * moved
+                << " мм за 5 с; худший ход якоря за тик " << 1000.0f * s.worst_step_m
+                << " мм (тик " << s.worst_tick << "), сумма " << s.total_slip_m << " м; роль "
+                << anim::role_name(s.body.playback().role));
+        CHECK(moved < 0.05f);
+        CHECK(s.worst_step_m < 0.02f);
+    }
 }
 
 TEST_CASE("walking_on_granite_keeps_the_gait") {

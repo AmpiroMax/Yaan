@@ -1748,8 +1748,8 @@ bool App::enter_world(uint32_t stand) {
     // Landing dip rides sim's measured impact, not a guess (their event).
     // БОЛВАНЧИК-ХОДОК (DFN_STAND_BOT=1): спавн — на первом тике сим'а
     // (spawn_stand_bot), когда курс и место игрока уже окончательные.
-    if (const char* bot = door_value("DFN_STAND_BOT"); bot != nullptr && bot[0] == '1'
-        && skinned_character_.ready() && physics_ != nullptr) {
+    if (const char* bot = door_value("DFN_STAND_BOT"); bot != nullptr && bot[0] != '\0'
+        && bot[0] != '0' && skinned_character_.ready() && physics_ != nullptr) {
         stand_bot_pending_ = 30; // полсекунды: телепорт игрока на площадку стенда уже прошёл
         stand_bot_body_path_ = body_path;
     }
