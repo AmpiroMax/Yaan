@@ -1073,6 +1073,15 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         loco_.root_yaw_delta = turn_yaw_delta_;
         loco_.footfall =
             anim::detect_footfalls(contact_prev_, contact_curr_, lock_params_.on_weight);
+        // СКОЛЬЖЕНИЕ ФИЗИЧЕСКОЙ СТОПЫ (§12, CharacterFeet): ход поставленной
+        // стопы за прошлый тик — в корень, в системе тела.
+        if (slip_count_ > 0) {
+            const glm::vec3 mean = slip_sum_world_ / static_cast<float>(slip_count_);
+            const float yaw = anim::body_root_for(drive, standing_ground).yaw;
+            loco_.root_delta_model += glm::vec3{
+                glm::rotate(glm::mat4{1.0f}, yaw, glm::vec3{0.0f, 1.0f, 0.0f})
+                * glm::vec4{mean, 0.0f}};
+        }
         loco_.valid = true;
     }
     // THE PROCEDURAL PAIR, kept whether or not the door is open: it costs one
@@ -1099,6 +1108,24 @@ void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
     const glm::mat4 to_world =
         glm::translate(glm::mat4{1.0f}, root_curr_.ground)
         * glm::rotate(glm::mat4{1.0f}, -root_curr_.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+    // КОРОБКИ СТОП ПО ПОЗЕ ТИКА (§12): физическим стопам нужен кадр
+    // хитбокса стопы в мире — кинематическая поза маха и место постановки.
+    slip_sum_world_ = glm::vec3{0.0f};
+    slip_count_ = 0;
+    foot_box_valid_ = {false, false};
+    if (tick_sampled_) {
+        const anim::HitboxPose hp = anim::hitbox_pose(hitboxes_, skeleton_, binding_, tick_sample_);
+        for (std::size_t i = 0; i < anim::HITBOX_COUNT; ++i) {
+            const anim::BodyPart part = hitboxes_.slot[i].part;
+            const std::size_t side = part == anim::BodyPart::FootL ? 0
+                                     : part == anim::BodyPart::FootR ? 1 : 2;
+            if (side < 2 && hp.valid[i] != 0) {
+                foot_box_model_[side] = hp.frame[i];
+                foot_box_half_[side] = hp.half[i];
+                foot_box_valid_[side] = true;
+            }
+        }
+    }
     std::array<glm::vec3, 2> world{};
     for (std::size_t side = 0; side < 2; ++side) {
         world[side] = glm::vec3{to_world * glm::vec4{contact_curr_.point[side], 1.0f}};
@@ -1148,6 +1175,18 @@ void SkinnedCharacter::set_telemetry(bool on, const std::string& csv_path) {
     }
 }
 
+bool SkinnedCharacter::foot_box_world(std::size_t side, glm::mat4& frame, glm::vec3& half) const {
+    if (side >= 2 || !foot_box_valid_[side]) {
+        return false;
+    }
+    const glm::mat4 to_world =
+        glm::translate(glm::mat4{1.0f}, root_curr_.ground)
+        * glm::rotate(glm::mat4{1.0f}, -root_curr_.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+    frame = to_world * foot_box_model_[side];
+    half = foot_box_half_[side];
+    return true;
+}
+
 void SkinnedCharacter::feed_telemetry(const anim::BodyDrive& drive, float dt,
                                       const std::array<glm::vec3, 2>& contact_world) {
     if (!telemetry_on_ || !tick_sampled_) {
@@ -1160,6 +1199,11 @@ void SkinnedCharacter::feed_telemetry(const anim::BodyDrive& drive, float dt,
     t.locks = &locks_;
     t.release = &lock_release_;
     t.contact_world = contact_world;
+    for (std::size_t side = 0; side < 2; ++side) {
+        t.phys_planted[side] = foot_phys_[side].planted;
+        t.phys_holds[side] = foot_phys_[side].holds;
+        t.phys_slip_mps[side] = foot_phys_[side].slip_mps;
+    }
     t.gap = last_gap_;
     t.play = &play_;
     t.loco = &loco_;

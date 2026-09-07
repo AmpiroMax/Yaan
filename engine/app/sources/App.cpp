@@ -514,6 +514,11 @@ bool App::init(const AppConfig& config) {
     if (!physics_ || !physics_->init()) {
         return false;
     }
+    // ФИЗИЧЕСКИЕ СТОПЫ ИГРОКА (§12): по умолчанию включены; DFN_PHYSICAL_FEET=0
+    // — контрольная рука, замок стопы как до 07.09.
+    if (const char* pf = door_value("DFN_PHYSICAL_FEET"); pf != nullptr && pf[0] == '0') {
+        character_feet_.set_enabled(false);
+    }
 
     // Audio: no device is a MODE, not an error (Rule 3) -- the game runs
     // silent-but-correct on the null backend.
@@ -4828,6 +4833,15 @@ int App::run() {
                             *cdrive,
                             ctr != nullptr ? ctr->position : glm::vec3{0.0f},
                             static_cast<float>(timestep_.step_dt()));
+                        // ФИЗИЧЕСКИЕ СТОПЫ — после commit_root (замки этого
+                        // тика) и после step() (тела стоп уже посчитаны).
+                        if (physics_ != nullptr && character_feet_.enabled()) {
+                            if (!character_feet_.bound()) {
+                                character_feet_.bind(physics_.get(), player_.packed());
+                            }
+                            character_feet_.tick(skinned_character_,
+                                                 static_cast<float>(timestep_.step_dt()));
+                        }
                     }
                 }
                 // ЭКСПОНАТ СМОТРОВОЙ — ТЕМ ЖЕ ТИКОМ, приводом покоя: стоит на
@@ -5856,6 +5870,7 @@ void App::shutdown() {
         audio_->shutdown();
     }
     if (physics_) {
+        character_feet_.shutdown();
         physics_->shutdown();
     }
     if (window_) {

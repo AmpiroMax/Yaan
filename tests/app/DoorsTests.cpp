@@ -67,6 +67,7 @@ const std::vector<std::string>& app_sources() {
         // SkinnedCharacter.cpp дописан 30.08 (волна импорта и скиннинга):
         // DFN_CHAR_TRACE читается там, и список обязан это видеть.
         "engine/app/sources/SkinnedCharacter.cpp",
+        "engine/app/sources/CharacterFeet.cpp",
         // CharacterTextures.cpp и CharGenBody.cpp дописаны 02.09 (волна
         // «текстура на скиннинге»): DFN_BODY_PALETTE читается в первом,
         // DFN_BODY_FILE — во втором, и список обязан это видеть.

@@ -72,6 +72,11 @@ struct LocoTick {
     const BodyDrive* drive = nullptr;
     BodyRoot root{};      ///< корень этого тика, подтверждённый
     BodyRoot root_prev{}; ///< корень прошлого тика
+    /// ФИЗИЧЕСКИЕ СТОПЫ (§12, CharacterFeet): стоит ли тело, держит ли трение,
+    /// измеренное скольжение — заметка прошлого тика.
+    std::array<bool, 2> phys_planted{};
+    std::array<bool, 2> phys_holds{};
+    std::array<float, 2> phys_slip_mps{};
 };
 
 enum class LocoProbe : uint8_t {
@@ -94,6 +99,7 @@ enum class LocoProbe : uint8_t {
     Twist,         ///< скрутка стопы (носок−лодыжка) к тазу (перпендикуляр линии бёдер), град
     KneeBend,      ///< минимальный сгиб колена под опорой, град
     SpeedError,    ///< ошибка скорости при удержанном вводе, доля
+    PhysSlip,      ///< скольжение поставленной ФИЗИЧЕСКОЙ стопы, м/с (§12) — показание
     COUNT
 };
 

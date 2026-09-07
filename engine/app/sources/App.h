@@ -44,6 +44,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/PropPhysics.h"
 #include "engine/app/sources/BodyHitboxes.h"
 #include "engine/app/sources/CharacterFactory.h"
+#include "engine/app/sources/CharacterFeet.h"
 #include "engine/app/sources/SkinnedCharacter.h"
 #include "engine/app/sources/FurnitureSeats.h"
 #include "engine/app/sources/EditorCamera.h"
@@ -1672,6 +1673,8 @@ private:
     /// прежние пятнадцать коробок, и это НЕ запасной путь, а вторая рука
     /// дозы DFN_BODY_BOXES (правило 47) — обе выходят из одного бинарника.
     SkinnedCharacter skinned_character_{};
+    /// Физические стопы игрока (§12): тела в мире физики, за замками тела.
+    CharacterFeet character_feet_{};
     /// ДРО КАДРА: тело, клинок, части (волосы, глаза, одежда). Член, а не
     /// локальная — список одолжен render на время render(), и его хранилище
     /// не должно переехать, пока на него смотрят.

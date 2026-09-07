@@ -245,6 +245,23 @@ public:
                      float dt);
     [[nodiscard]] const anim::ContactState& contacts() const { return contact_curr_; }
     [[nodiscard]] const anim::FootLockState& foot_locks() const { return locks_; }
+    /// ФИЗИЧЕСКИЕ СТОПЫ (CharacterFeet, §12): коробка стопы этого тика в МИРЕ
+    /// (кадр хитбокса FootL/FootR по позе тика × корень) и её полуразмеры.
+    [[nodiscard]] bool foot_box_world(std::size_t side, glm::mat4& frame, glm::vec3& half) const;
+    /// Якорь замка называет физика: тело стопы село/сползло — точка за ним.
+    void set_lock_anchor(std::size_t side, const glm::vec3& world) { locks_.anchor[side] = world; }
+    /// Ход поставленной стопы за тик (мир, XZ) — в корень следующего тика:
+    /// тело съезжает вместе со стопой. Несколько стоп — среднее.
+    void add_root_slip(const glm::vec3& world) {
+        slip_sum_world_ += world;
+        ++slip_count_;
+    }
+    struct FootPhysicsNote {
+        bool planted = false;
+        bool holds = false;
+        float slip_mps = 0.0f;
+    };
+    void note_foot_physics(std::size_t side, const FootPhysicsNote& n) { foot_phys_[side] = n; }
     /// Параметры замка — приборам: контрольная рука «без переступа».
     [[nodiscard]] anim::FootLockParams& lock_params() { return lock_params_; }
     /// ЗАЗОР СТОП ПОСЛЕДНЕГО КАДРА (знаковый, по FootIk::foot_gap) — после
@@ -458,6 +475,14 @@ private:
 
     // --- ПЕРЕМЕЩЕНИЕ ОТ СТОПЫ И ЗАМОК (RootMotion.h, FootIk.h) --------------
     anim::LocomotionOut loco_{};
+    /// Физические стопы (§12): коробки стоп по позе тика, скольжение к корню,
+    /// заметки для прибора.
+    std::array<glm::mat4, 2> foot_box_model_{glm::mat4{1.0f}, glm::mat4{1.0f}};
+    std::array<glm::vec3, 2> foot_box_half_{};
+    std::array<bool, 2> foot_box_valid_{};
+    glm::vec3 slip_sum_world_{0.0f};
+    uint32_t slip_count_ = 0;
+    std::array<FootPhysicsNote, 2> foot_phys_{};
     anim::ContactState contact_prev_{};
     anim::ContactState contact_curr_{};
     anim::FootLockState locks_{};

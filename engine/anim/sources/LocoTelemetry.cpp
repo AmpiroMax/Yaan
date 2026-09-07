@@ -129,6 +129,7 @@ void LocoTelemetry::reset(const skel::Skeleton& skeleton, const FootIkSetup& set
     set(P::Twist, "twist", "deg", config::FOOT_LOCK_TWIST_MAX_RAD * 180.0 / glm::pi<double>());
     set(P::KneeBend, "knee_bend", "deg", config::LOCO_KNEE_BEND_MIN_DEG, true);
     set(P::SpeedError, "speed_err", "frac", config::LOCO_SPEED_ERR_MAX);
+    set(P::PhysSlip, "phys_slip", "m/s", 0.0f);
     ready_ = true;
 }
 
@@ -431,6 +432,17 @@ void LocoTelemetry::push(const LocoTick& t) {
         has_speed_ema_ = false;
     }
 
+    // 16. скольжение поставленной физической стопы (§12) — показание
+    {
+        float slip = 0.0f;
+        for (std::size_t side = 0; side < 2; ++side) {
+            if (t.phys_planted[side]) {
+                slip = std::max(slip, t.phys_slip_mps[side]);
+            }
+        }
+        note(P::PhysSlip, slip);
+    }
+
     // ПРОГРЕВ: первые тики после сброса — прошлый корень и трекеры чужие
     // (стенд переставил тело, прибор только что включили); показания не судим.
     if (ticks_ <= WARM_TICKS) {
@@ -490,6 +502,16 @@ void LocoTelemetry::push(const LocoTick& t) {
             static_cast<double>(c.point[1].x), static_cast<double>(c.point[1].z),
             static_cast<double>(t.loco->root_delta_model.z));
         csv_row_ = buf;
+        while (!csv_row_.empty() && csv_row_.back() == '\n') {
+            csv_row_.pop_back();
+        }
+        char phys[96];
+        std::snprintf(phys, sizeof phys, ",%.4f,%.4f,%d,%d,%d,%d",
+                      static_cast<double>(t.phys_slip_mps[0]),
+                      static_cast<double>(t.phys_slip_mps[1]), t.phys_planted[0] ? 1 : 0,
+                      t.phys_planted[1] ? 1 : 0, t.phys_holds[0] ? 1 : 0,
+                      t.phys_holds[1] ? 1 : 0);
+        csv_row_ += phys;
     }
 }
 
@@ -597,7 +619,7 @@ std::string LocoTelemetry::csv_header() {
     return "t,dt,role,phase,want_mps,speed_mps,dx,dz,support_l,support_r,locked_l,locked_r,"
            "gap_l_mm,gap_r_mm,thigh_acc_l,thigh_acc_r,knee_acc_l,knee_acc_r,ankle_acc_l,"
            "ankle_acc_r,residual_mm,cross_mm,drift_mm,nostep,root_acc,twist_deg,knee_bend_deg,"
-           "pelvis_yaw_deg,toe_yaw_l_deg,toe_yaw_r_deg,f_thigh_l,f_thigh_r,f_knee_l,f_knee_r,strength_l,strength_r,mismatch_l_deg,mismatch_r_deg,lock_corr_l_mm,lock_corr_r_mm,pt_l_x,pt_l_z,pt_r_x,pt_r_z,loco_dz";
+           "pelvis_yaw_deg,toe_yaw_l_deg,toe_yaw_r_deg,f_thigh_l,f_thigh_r,f_knee_l,f_knee_r,strength_l,strength_r,mismatch_l_deg,mismatch_r_deg,lock_corr_l_mm,lock_corr_r_mm,pt_l_x,pt_l_z,pt_r_x,pt_r_z,loco_dz,phys_slip_l,phys_slip_r,phys_plant_l,phys_plant_r,phys_hold_l,phys_hold_r";
 }
 
 std::vector<std::string> LocoTelemetry::summary_lines() const {

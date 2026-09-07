@@ -66,6 +66,7 @@ if(DFN_APP_READY)
         sources/GrabDrive.cpp
         sources/PropPhysics.cpp
     sources/SkinnedCharacter.cpp
+    sources/CharacterFeet.cpp
     sources/CharacterTextures.cpp
     sources/CharacterParts.cpp
     sources/ThirdPersonRig.cpp
