@@ -66,14 +66,16 @@ inline constexpr uint32_t CHARGEN_BODY_MESH_ID = 130;
 inline constexpr uint32_t CHARGEN_BLADE_MESH_ID = 131;
 inline constexpr uint32_t VIEWER_BODY_MESH_ID = 132;
 inline constexpr uint32_t VIEWER_BLADE_MESH_ID = 133;
-/// ЧАСТИ НА ТЕЛЕ (волосы, глаза, брови, ресницы, зубы, язык, костюм, ботинки
-/// — CharacterParts): по ВОСЕМЬ номеров на хозяина в той же полосе 128..159:
-/// игрок 134..141, экран 142..149, смотровая 150..157. Восьмая часть сверх
-/// полосы отказывается вслух, а не забирает чужой номер.
-inline constexpr uint32_t CHARACTER_PARTS_MAX = 8;
+/// ЧАСТИ НА ТЕЛЕ (волосы, глаза, брови, ресницы, зубы, язык, одежда —
+/// CharacterParts): по ШЕСТНАДЦАТЬ номеров на хозяина в полосе 128..191
+/// (ProcMesh.h): игрок 134..149, экран 150..165, смотровая 166..181. Часть
+/// сверх полосы отказывается вслух, а не забирает чужой номер. Было восемь
+/// (07.09): шесть частей лица + сапоги + штаны = 8, и туника викинга — девятая
+/// — отказывалась молча для игрока: владелец видел голый торс.
+inline constexpr uint32_t CHARACTER_PARTS_MAX = 16;
 inline constexpr uint32_t PLAYER_PARTS_MESH_ID_FIRST = 134;
-inline constexpr uint32_t CHARGEN_PARTS_MESH_ID_FIRST = 142;
-inline constexpr uint32_t VIEWER_PARTS_MESH_ID_FIRST = 150;
+inline constexpr uint32_t CHARGEN_PARTS_MESH_ID_FIRST = 150;
+inline constexpr uint32_t VIEWER_PARTS_MESH_ID_FIRST = 166;
 /// НАБОРЫ ПО УМОЛЧАНИЮ, когда рядом с телом своих нет (выпечка экрана лежит
 /// в presets/, части — у исходного тела): parts.glb один (сессия 62), и
 /// выбор причёски — пока дозой DFN_PARTS по имени части.

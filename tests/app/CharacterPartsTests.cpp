@@ -286,7 +286,9 @@ TEST_CASE("фабрика: части и одежда крепятся сами,
     }
     Harness h(BODY, /*auto_parts=*/true);
     REQUIRE(h.ok);
-    CHECK(h.body.parts().parts().size() == 8);
+    // 6 частей лица + викингский набор по умолчанию (туника, штаны, сапоги).
+    // До 07.09 полоса была 8 номеров, и туника отказывалась молча.
+    CHECK(h.body.parts().parts().size() == 9);
     CHECK(h.body.drawn_triangles() < h.body.triangle_count());
 }
 

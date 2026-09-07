@@ -106,7 +106,8 @@ inline constexpr uint32_t SITE_MESH_ID_LAST = 12;
 ///            InteractableMesh.h). 50 = door, 51 = lever, 52 = torch; 53..63
 ///            spare. Same shape as the body segments: authored in gameplay,
 ///            uploaded through register_mesh by the app ferry.
-///   128..159 SKINNED CHARACTERS (character zone, 30.08): one id per imported
+///   128..191 SKINNED CHARACTERS (character zone, 30.08; до 07.09 128..159 —
+///            расширено под 16 частей на хозяина, CharacterFactory.h): one id per imported
 ///            character mesh, uploaded through RenderSystem::register_skinned_-
 ///            mesh by the app ferry. A separate range and not the body block's
 ///            spare 49: 34..49 is one mesh PER BONE and 49 is kept for a

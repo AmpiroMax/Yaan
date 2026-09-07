@@ -53,7 +53,10 @@ constexpr StandCamera CAMERAS[STAND_CAMERA_COUNT] = {
     {225.0f, -8.0f, 3.4f, 0.80f, "three-quarter"},
     // 4. CLOSE. Head and shoulders: the camera that shows the skinning seam at
     //    the neck and what the clothing palette actually looks like.
-    {205.0f, 6.0f, 2.4f, 0.90f, "close"},
+    //    ПЕРЕСНЯТА 07.09: прежние {+6°, 2,4 м, подъём 0,9} смотрели поверх
+    //    головы — фигура сидела в нижней трети кадра (кадр 44_skin_close.png
+    //    «крупно» был общим планом). Стрела 0,8 м на уровне глаз.
+    {205.0f, 0.0f, 0.8f, -0.2f, "close"},
     // 5. РУКА С ОРУЖИЕМ (заказ владельца 31.08, пункт 5: «меч торчит из кисти,
     //    не лежит в руке»). ПЯТАЯ КАМЕРА, А НЕ ПРАВКА ЧЕТВЁРТОЙ: четвёртая —
     //    голова и плечи, и все прежние кадры волн стойки и оружия сняты ею;
