@@ -2,10 +2,11 @@
 # File: engine/gameplay/CMakeLists.txt
 #
 # Responsibility:
-# - dfn_gameplay static library: player movement (ref core + World wrappers)
-#   and the dice RNG. The rest of the gameplay contract (NpcAction executor,
-#   stats, dialogue runtime) is headers-only in stage 2 by scope. Zone-owned
-#   by sim (Rule 25 / Q34).
+# - dfn_gameplay static library: player movement (ref core + World wrappers),
+#   the dice RNG and the NpcAction executor (MoveTo/Face/Wait over the same
+#   locomotion request as the player, 07.09). The rest of the gameplay
+#   contract (stats, dialogue runtime) is headers-only in stage 2 by scope.
+#   Zone-owned by sim (Rule 25 / Q34).
 #
 # Dependencies:
 # - Uses: dfn_headers, dfn_core (World implementation for the wrappers).
@@ -27,6 +28,7 @@ add_library(dfn_gameplay STATIC
     sources/InteractionSystem.cpp
     sources/Inventory.cpp
     sources/InventoryScreen.cpp
+    sources/NpcAction.cpp
     sources/PlayerActions.cpp
     sources/PlayerMovement.cpp
     sources/PlayerMovementWorld.cpp

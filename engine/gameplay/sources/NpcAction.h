@@ -144,12 +144,20 @@ struct NpcActionQueue {
     std::vector<QueuedNpcAction> pending;
     uint64_t next_sequence = 1;  // sequence for the next enqueue
     float active_elapsed = 0.0f; // sim seconds spent on the active action
+    /// Действие, снятое clear_queue() (0 — нет): исполнитель на следующем
+    /// тике публикует NpcActionFailed{Interrupted} и обнуляет. Поле
+    /// исполнителя, не точка мутации (07.09).
+    uint64_t interrupted_sequence = 0;
 };
 
 // --- The ONLY mutation entry points (Rule 15) --------------------------------
 
 // Appends the action, assigns and returns its sequence number.
 uint64_t enqueue(NpcActionQueue& queue, NpcAction action);
+/// НПС — тот же ходок, что игрок (spawn_player: капсула, PlayerState,
+/// Transform, камера-поза), плюс пустая очередь; ввод игрока его не трогает.
+ecs::EntityId spawn_npc(ecs::World& world, platform::IPhysics& physics,
+                        const glm::vec3& spawn_pos);
 
 // Drops all pending actions, interrupting the active one (it fails with
 // Interrupted). Used on schedule changes, combat alarms, chunk unload.

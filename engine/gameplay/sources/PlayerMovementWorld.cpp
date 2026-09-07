@@ -29,6 +29,7 @@ AI Agents Notice (must follow):
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/gameplay/sources/InventoryScreen.h"
+#include "engine/gameplay/sources/NpcAction.h"
 #include "engine/gameplay/sources/PropCollision.h"
 #include "engine/physics/sources/CollisionLayers.h"
 
@@ -81,7 +82,11 @@ ecs::EntityId spawn_player(ecs::World& world, platform::IPhysics& physics,
 
 void player_accumulate_input(ecs::World& world, const platform::IInput& input) {
     for (auto [id, state] : world.view<PlayerState>()) {
-        (void)id;
+        // НПС — тоже ходок (PlayerState), но его ввод пишет исполнитель
+        // очереди (NpcAction.cpp), а не клавиатура.
+        if (world.get<NpcActionQueue>(id) != nullptr) {
+            continue;
+        }
         accumulate_input(input, state);
     }
 }

@@ -19,6 +19,11 @@ add_dfn_test(sim_dice sim/DiceTests.cpp dfn_gameplay)
 add_dfn_test(sim_player_movement sim/PlayerMovementTests.cpp
     dfn_gameplay dfn_platform_physics)
 
+# ИСПОЛНИТЕЛЬ ДЕЙСТВИЙ НПС (NpcAction.cpp, 07.09): MoveTo/Face/Wait поверх той же
+# заявки локомоции, что у игрока; события Completed/Failed на шине.
+add_dfn_test(sim_npc_actions sim/NpcActionTests.cpp
+    dfn_gameplay dfn_platform_physics)
+
 add_dfn_test(sim_null_backends sim/NullBackendTests.cpp
     dfn_platform_physics dfn_platform_anim dfn_platform_audio dfn_platform_llm)
 

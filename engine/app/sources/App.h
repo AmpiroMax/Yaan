@@ -1334,6 +1334,7 @@ private:
 
     ecs::World world_;
     events::EventBus bus_;
+    uint64_t npc_sim_tick_ = 0; ///< счётчик тиков для журнала действий НПС
     time::FixedTimestep timestep_;
     world::ChunkManager chunks_;
     render::RenderSystem render_system_;

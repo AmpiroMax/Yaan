@@ -1,0 +1,214 @@
+/*
+Module: engine/gameplay
+File: engine/gameplay/sources/NpcAction.cpp
+
+Responsibility:
+- ИСПОЛНИТЕЛЬ ДЕЙСТВИЙ НПС (контракт NpcAction.h, Q70/Rule 15) поверх той же
+  заявки локомоции, что у игрока: НПС — ходок (PlayerState + капсула), и
+  исполнитель раз в тик пишет ему ВВОД — рыск к цели, ось «вперёд»,
+  передачу, — а дальше сим ведёт его теми же ролями, поворотами и стопами,
+  что игрока (player_pre_step/post_step по всем PlayerState). Никакой второй
+  дороги управления: только очередь и её исполнитель.
+- MoveTo: довернуться, идти, прийти в радиус (NPC_ARRIVE_RADIUS); нет
+  прогресса NPC_STUCK_S — PathBlocked. Face: рыск к точке/сущности до
+  NPC_FACE_DONE_DEG. Wait: сим-секунды. Say/GiveItem/Attack/SetSchedule —
+  не сейчас (закроют диалоги/боёвка/расписания): завершаются сразу, вслух.
+
+Key items:
+- spawn_npc(): ходок как игрок + пустая очередь; ввод игрока его не трогает
+  (player_accumulate_input пропускает сущности с очередью).
+- execute_npc_actions(): один проход по очередям; события на шину post().
+- NpcMoveProgress: скрэтч исполнителя (лучшая дистанция, таймер застревания)
+  — свой компонент, контрактную очередь не расширяет.
+
+Dependencies:
+- Uses: NpcAction.h, PlayerMovement.h (PlayerState, spawn как у игрока),
+  World, EventBus, Constants (NPC_*, BODY_TURN_RATE, SIM_DT).
+- Used by: App (раз в тик до player_pre_step), tests/sim/NpcActionTests.cpp.
+
+AI Agents Notice (must follow):
+- Follow docs/ARCHITECTURE.md strictly.
+- Набор действий НЕ расширять здесь (Rule 26 — групповой синк).
+- Рыск сим'а: 0 = −Z, по часовой сверху; цель → atan2(dx, −dz).
+*/
+#include "engine/gameplay/sources/NpcAction.h"
+
+#include "engine/core/config/sources/Constants.h"
+#include "engine/core/ecs/sources/World.h"
+#include "engine/core/events/sources/EventBus.h"
+#include "engine/gameplay/sources/PlayerMovement.h"
+#include "engine/physics/sources/CollisionLayers.h"
+
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+
+#include <glm/glm.hpp>
+
+namespace dfn::gameplay {
+
+namespace {
+
+constexpr float DT = static_cast<float>(config::SIM_DT);
+
+/// Скрэтч исполнителя на активное MoveTo — не часть контрактной очереди.
+struct NpcMoveProgress {
+    uint64_t sequence = 0;   // к какому действию относится
+    float best_m = 0.0f;     // лучшая дистанция до цели
+    float stall_s = 0.0f;    // сколько без улучшения на NPC_STUCK_PROGRESS_M
+};
+
+float wrap_pi(float a) {
+    return std::atan2(std::sin(a), std::cos(a));
+}
+
+/// Рыск сим'а к точке: 0 = −Z, положительный — по часовой сверху.
+float yaw_to(const glm::vec3& from, const glm::vec3& to) {
+    const float dx = to.x - from.x;
+    const float dz = to.z - from.z;
+    return std::atan2(dx, -dz);
+}
+
+float turn_toward(float yaw, float want, float rate) {
+    const float d = wrap_pi(want - yaw);
+    const float most = rate * DT;
+    return yaw + std::clamp(d, -most, most);
+}
+
+void finish(NpcActionQueue& queue, events::EventBus& events, ecs::EntityId npc,
+            NpcActionFailure reason) {
+    if (queue.pending.empty()) {
+        return;
+    }
+    const uint64_t seq = queue.pending.front().sequence;
+    queue.pending.erase(queue.pending.begin());
+    queue.active_elapsed = 0.0f;
+    if (reason == NpcActionFailure::None) {
+        events.post(NpcActionCompleted{npc, seq});
+    } else {
+        events.post(NpcActionFailed{npc, seq, reason});
+    }
+}
+
+} // namespace
+
+ecs::EntityId spawn_npc(ecs::World& world, platform::IPhysics& physics,
+                        const glm::vec3& spawn_pos) {
+    const ecs::EntityId id = spawn_player(world, physics, spawn_pos);
+    world.add(id, NpcActionQueue{});
+    return id;
+}
+
+uint64_t enqueue(NpcActionQueue& queue, NpcAction action) {
+    const uint64_t seq = queue.next_sequence++;
+    queue.pending.push_back(QueuedNpcAction{seq, std::move(action)});
+    return seq;
+}
+
+void clear_queue(NpcActionQueue& queue) {
+    if (!queue.pending.empty()) {
+        queue.interrupted_sequence = queue.pending.front().sequence;
+    }
+    queue.pending.clear();
+    queue.active_elapsed = 0.0f;
+}
+
+void execute_npc_actions(ecs::World& world, platform::IPhysics& physics,
+                         events::EventBus& events, uint64_t sim_tick) {
+    (void)physics;
+    (void)sim_tick;
+    const float turn_rate = static_cast<float>(config::BODY_TURN_RATE);
+    for (auto [id, queue, state, transform] :
+         world.view<NpcActionQueue, PlayerState, components::Transform>()) {
+        // Вводу НПС каждый тик — с чистого листа: без действия он стоит.
+        state.move_axes = glm::vec2{0.0f};
+        state.run = false;
+        state.jog = false;
+        if (queue.interrupted_sequence != 0) {
+            // clear_queue() снял активное действие — сообщить, как велит контракт
+            events.post(NpcActionFailed{id, queue.interrupted_sequence,
+                                        NpcActionFailure::Interrupted});
+            queue.interrupted_sequence = 0;
+        }
+        if (queue.pending.empty()) {
+            continue;
+        }
+        QueuedNpcAction& active = queue.pending.front();
+        queue.active_elapsed += DT;
+        if (auto* move = std::get_if<MoveTo>(&active.action)) {
+            const float radius = move->acceptance_radius > 0.0f
+                                     ? move->acceptance_radius
+                                     : static_cast<float>(config::NPC_ARRIVE_RADIUS);
+            const glm::vec2 d{move->target.x - transform.position.x,
+                              move->target.z - transform.position.z};
+            const float dist = glm::length(d);
+            if (dist <= radius) {
+                finish(queue, events, id, NpcActionFailure::None);
+                continue;
+            }
+            const float want_yaw = yaw_to(transform.position, move->target);
+            state.yaw = turn_toward(state.yaw, want_yaw, turn_rate);
+            // Идём, когда цель впереди: иначе сначала доворот на месте (клипы
+            // поворота у тела стреляют по той же разнице «взгляд − корпус»).
+            const float off = std::abs(wrap_pi(want_yaw - state.yaw));
+            if (off < glm::radians(static_cast<float>(config::NPC_MOVE_CONE_DEG))) {
+                state.move_axes = glm::vec2{0.0f, 1.0f};
+                state.run = move->gait == MoveGait::Run;
+            }
+            NpcMoveProgress* prog = world.get<NpcMoveProgress>(id);
+            if (prog == nullptr) {
+                world.add(id, NpcMoveProgress{active.sequence, dist, 0.0f});
+                prog = world.get<NpcMoveProgress>(id);
+            } else if (prog->sequence != active.sequence) {
+                *prog = NpcMoveProgress{active.sequence, dist, 0.0f};
+            }
+            if (prog != nullptr) {
+                if (dist < prog->best_m - static_cast<float>(config::NPC_STUCK_PROGRESS_M)) {
+                    prog->best_m = dist;
+                    prog->stall_s = 0.0f;
+                } else if (state.move_axes.y > 0.0f) {
+                    prog->stall_s += DT;
+                    if (prog->stall_s >= static_cast<float>(config::NPC_STUCK_S)) {
+                        finish(queue, events, id, NpcActionFailure::PathBlocked);
+                        continue;
+                    }
+                }
+            }
+        } else if (auto* face = std::get_if<Face>(&active.action)) {
+            glm::vec3 point = face->point;
+            if (!face->target.is_null()) {
+                const auto* tt = world.alive(face->target)
+                                     ? world.get<components::Transform>(face->target)
+                                     : nullptr;
+                if (tt == nullptr) {
+                    finish(queue, events, id, NpcActionFailure::TargetGone);
+                    continue;
+                }
+                point = tt->position;
+            }
+            const float want_yaw = yaw_to(transform.position, point);
+            state.yaw = turn_toward(state.yaw, want_yaw, turn_rate);
+            if (std::abs(wrap_pi(want_yaw - state.yaw))
+                < glm::radians(static_cast<float>(config::NPC_FACE_DONE_DEG))) {
+                finish(queue, events, id, NpcActionFailure::None);
+            }
+        } else if (auto* wait = std::get_if<Wait>(&active.action)) {
+            if (queue.active_elapsed >= wait->seconds) {
+                finish(queue, events, id, NpcActionFailure::None);
+            }
+        } else {
+            // Say / GiveItem / Attack / SetSchedule — не сейчас (диалоги, боёвка,
+            // расписания); контракт не даёт исполнителю выдумывать действия,
+            // так что действие просто завершается, и об этом сказано вслух.
+            static bool said = false;
+            if (!said) {
+                std::fprintf(stderr, "[npc] Say/GiveItem/Attack/SetSchedule ещё не исполняются "
+                                     "— завершаются сразу (сказано один раз)\n");
+                said = true;
+            }
+            finish(queue, events, id, NpcActionFailure::None);
+        }
+    }
+}
+
+} // namespace dfn::gameplay

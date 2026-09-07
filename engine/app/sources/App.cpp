@@ -70,6 +70,7 @@ AI Agents Notice (must follow):
 #include "engine/gameplay/sources/InventoryScreen.h"
 #include "engine/gameplay/sources/Item.h"
 #include "engine/gameplay/sources/PlayerActions.h"
+#include "engine/gameplay/sources/NpcAction.h"
 #include "engine/gameplay/sources/PlayerMovement.h" // sim's confirmed stage-2 API
 #include "engine/gameplay/sources/PropCollision.h"
 #include "engine/gameplay/sources/ViewModel.h"
@@ -4688,6 +4689,9 @@ int App::run() {
                         }
                     }
                 }
+                // ИСПОЛНИТЕЛЬ ОЧЕРЕДЕЙ НПС — до шага ходоков: он пишет НПС ввод
+                // (рыск, ось, передача), и дальше сим ведёт их как игрока.
+                gameplay::execute_npc_actions(world_, *physics_, bus_, npc_sim_tick_++);
                 gameplay::player_pre_step(world_, *physics_,
                     [this](glm::vec2 xz) { return chunks_.water_surface_at(xz); },
                     step_ctx_);
