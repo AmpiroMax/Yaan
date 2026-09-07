@@ -2008,10 +2008,25 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         const bool ground = drive.grounded && drive.posture_blend < 0.5f
                             && drive.crouch_blend < 0.5f;
         const ClipEntry& cur = entry_for(lib, play.role, play.variant);
-        const float end_s = cur.active_s > 0.0f ? std::min(cur.active_s, cur.duration_s)
-                                                : cur.duration_s;
+        float end_s = cur.active_s > 0.0f ? std::min(cur.active_s, cur.duration_s)
+                                          : cur.duration_s;
+        // ЗАКОН ОТЗЫВЧИВОСТИ (владелец 07.09): старт и остановка — доли
+        // секунды, дальше ход забирает цикл (стык — инерциализация, §13.7).
+        if (play.role == ClipRole::StartWalk || play.role == ClipRole::StartRun) {
+            end_s = std::min(end_s, static_cast<float>(config::START_CLIP_MAX_S));
+        } else if (play.role == ClipRole::StopWalk || play.role == ClipRole::StopRun) {
+            end_s = std::min(end_s, static_cast<float>(config::STOP_CLIP_MAX_S));
+        }
         const bool over = !transit_role(play.role) || cur.duration_s <= 0.0f
                           || play.time_s >= end_s - 1.0e-4f;
+        // ПОВОРОТ ДОВЕРНУЛ: разница «взгляд − корпус» меньше TURN_DONE_DEG или
+        // сменила знак — клип обрывается, а не крутит свои 90° до конца.
+        bool turn_done = false;
+        if (play.transit == Transit::Turn && drive.view_valid) {
+            const float d = wrap_pi(drive.view_yaw - drive.facing_yaw);
+            turn_done = std::abs(d) < glm::radians(static_cast<float>(config::TURN_DONE_DEG))
+                        || (play.turn_sign > 0 && d < 0.0f) || (play.turn_sign < 0 && d > 0.0f);
+        }
         if (play.transit != Transit::None) {
             // РАЗРЫВ ПЕРЕХОДА ВВОДОМ: клип старта отменяется отпусканием,
             // остановка и поворот — нажатием. Ждать конца клипа значило бы
@@ -2019,7 +2034,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
             // который владелец ругал микрошаг.
             const bool broken =
                 (play.transit == Transit::Start && !input)
-                || (play.transit != Transit::Start && input) || !ground;
+                || (play.transit != Transit::Start && input) || !ground || turn_done;
             if (over || broken) {
                 if (play.transit == Transit::Turn) {
                     play.turn_gap_s = static_cast<float>(config::TURN_MIN_GAP_S);
@@ -2049,7 +2064,10 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                 want = ClipRole::Stagger;
                 play.transit = Transit::Stagger;
             } else if (input && !was_move && !was_transit && locomotion(want) && lib.has(start)
-                && play.move_dir == MoveDir::Forward) {
+                       && play.move_dir == MoveDir::Forward && play.role == ClipRole::Idle) {
+                // СТАРТ — ТОЛЬКО ИЗ ПОКОЯ: после приземления на бегу (роль
+                // JumpLoop/JumpLand) клип старта разгонял тело заново три
+                // секунды (владелец 07.09, п. 4).
                 // СТАРТ — только вперёд: клипов старта вбок и назад нет, и
                 // подменять их стартом вперёд значит выносить не ту ногу.
                 want = start;
@@ -2067,6 +2085,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                 if (std::abs(d) > glm::radians(static_cast<float>(config::TURN_FIRE_DEG))) {
                     want = d > 0.0f ? ClipRole::TurnR : ClipRole::TurnL;
                     play.transit = Transit::Turn;
+                    play.turn_sign = d > 0.0f ? 1 : -1;
                 }
             }
         }
@@ -2231,7 +2250,11 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                                             * cur.mix_duration_s
                                       : 0.0f;
     } else if (cur.duration_s > 0.0f) {
-        play.time_s += dt;
+        // КЛИП ПОВОРОТА ИГРАЕТ БЫСТРЕЕ (TURN_CLIP_RATE): камера ушла — корпус
+        // догоняет за доли секунды, угол за тик вынимается из таза и растёт
+        // вместе с темпом.
+        const bool turn_clip = play.role == ClipRole::TurnL || play.role == ClipRole::TurnR;
+        play.time_s += dt * (turn_clip ? static_cast<float>(config::TURN_CLIP_RATE) : 1.0f);
         play.time_s = one_shot(play.role) ? std::min(play.time_s, cur.duration_s)
                                           : wrap01(play.time_s / cur.duration_s)
                                                 * cur.duration_s;

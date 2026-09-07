@@ -840,9 +840,9 @@ struct TransitRun {
 /// хвостами `input_ticks`, корень и рыск корпуса ведутся ровно так, как их
 /// ведёт App (заявка от стопы + root_yaw_delta от опорной стопы).
 TransitRun run_transit(Harness& h, anim::Gait gait, float speed, float view_yaw,
-                       uint32_t hold_ticks, uint32_t total_ticks) {
+                       uint32_t hold_ticks, uint32_t total_ticks, bool transitions = true) {
     TransitRun out;
-    h.body.set_transitions(true);
+    h.body.set_transitions(transitions);
     if (const char* csv = app::door_value("DFN_LOCO_CSV"); csv != nullptr && *csv != '\0') {
         h.body.set_telemetry(true, std::string{csv} + ".transit" + std::to_string(++terrain_runs)
                                        + ".csv");
@@ -975,6 +975,10 @@ TEST_CASE("the_walk_and_the_run_start_with_their_own_clip") {
         Harness h;
         REQUIRE(h.ok);
         const TransitRun r = run_transit(h, gait, speed, 0.0f, 300, 300);
+        // ЭТАЛОН ОТЗЫВЧИВОСТИ: тот же ход без клипов перехода.
+        Harness h_plain;
+        REQUIRE(h_plain.ok);
+        const TransitRun plain = run_transit(h_plain, gait, speed, 0.0f, 300, 300, false);
         std::string chain;
         for (const std::string& x : r.roles) {
             chain += x + " ";
@@ -999,7 +1003,14 @@ TEST_CASE("the_walk_and_the_run_start_with_their_own_clip") {
         // против 1…2 мм в цикле. Причина та же, что у трусцы в §11.3: клип
         // разгона не совпадает по скорости с моделью сима на первых шагах.
         // Порог здесь — «не сантиметры», а не «как в цикле».
-        CHECK(r.transit_plants >= 1);
+        // ЗАКОН ОТЗЫВЧИВОСТИ (владелец 07.09): клип старта играет
+        // START_CLIP_MAX_S (0,35 с), и полной опоры под ним может не быть —
+        // опор под переходом не требуем; требуем ПУТЬ: за 5 с с клипом
+        // старта тело проходит не меньше 85 % пути цикла без него (до
+        // обрезки: 4,73 м против 6,40 — три секунды разгона «от улитки»).
+        MESSAGE(name << ": путь с клипом старта " << r.travelled_m << " м, без него "
+                     << plain.travelled_m << " м");
+        CHECK(r.travelled_m >= 0.85f * plain.travelled_m);
         // СТАРТ БЕГА СНОСИТ БОЛЬШЕ СТАРТА ХОДЬБЫ, и это записанный хвост:
         // замер 04.09 — 1,9 мм у MX_Start_Walking против 29,1 мм у
         // MX_Idle_To_Sprint. Причина та же, что у бега в §11.3: в рывке с
