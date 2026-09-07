@@ -70,8 +70,15 @@ void model_rotations(const skel::Skeleton& skeleton, std::span<const JointLocal>
 
 void apply_look(const skel::Skeleton& skeleton, const LookLayer& layer, float yaw, float weight,
                 std::span<JointLocal> sample) {
+    // рыск сим'а по часовой = поворот на −угол вокруг +Y
+    apply_chain_rotation(skeleton, layer, glm::vec3{0.0f, 1.0f, 0.0f}, -yaw, weight, sample);
+}
+
+void apply_chain_rotation(const skel::Skeleton& skeleton, const LookLayer& layer,
+                          const glm::vec3& axis_model, float angle, float weight,
+                          std::span<JointLocal> sample) {
     if (!layer.valid() || sample.size() < skeleton.size() || weight <= 0.0f
-        || std::abs(yaw) < 1.0e-5f) {
+        || std::abs(angle) < 1.0e-5f) {
         return;
     }
     std::vector<glm::quat> model;
@@ -84,9 +91,7 @@ void apply_look(const skel::Skeleton& skeleton, const LookLayer& layer, float ya
         const int32_t p = skeleton.joints[static_cast<std::size_t>(j)].parent;
         const glm::quat parent = p >= 0 ? model[static_cast<std::size_t>(p)]
                                         : glm::quat{1.0f, 0.0f, 0.0f, 0.0f};
-        // рыск сим'а по часовой = glm-поворот на −угол вокруг +Y
-        const glm::quat turn = glm::angleAxis(-yaw * layer.share[i] * weight,
-                                              glm::vec3{0.0f, 1.0f, 0.0f});
+        const glm::quat turn = glm::angleAxis(angle * layer.share[i] * weight, axis_model);
         JointLocal& jl = sample[static_cast<std::size_t>(j)];
         jl.rotation = glm::normalize(glm::inverse(parent) * turn * parent
                                      * glm::normalize(jl.rotation));

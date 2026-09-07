@@ -106,6 +106,12 @@ struct BodyDrive {
     /// идут часы клипа на ходу. Отрицательное — неизвестно (часы по времени).
     float travelled_m = -1.0f;
     bool grounded = true;
+    /// ТОЛЧОК ЭТОГО ТИКА (HIT_REACTIONS_PHYSICS.md §2 ярус 0): скорость, с
+    /// которой мир двигает капсулу, в системе тела (XZ), м/с — из контактов
+    /// капсулы, у которых pushed_character (тело тяжелее CHARACTER_PUSH_MASS_KG),
+    /// и из импульсов (character_add_impulse). Корпус наклоняется по толчку
+    /// (PUSH_LEAN_*), сильный (STAGGER_PUSH_MPS) — одноразовый клип удара.
+    glm::vec3 push_mps_model{0.0f};
     float vertical_velocity = 0.0f; // m/s, + up
     float crouch_blend = 0.0f;      // sim's eased 0..1
     // Internal animation state (this zone's, decayed/advanced in update).

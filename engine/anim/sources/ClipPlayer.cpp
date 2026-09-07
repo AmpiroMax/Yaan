@@ -173,6 +173,8 @@ constexpr RoleNames ROLE_NAMES[] = {
      {"MX_Left_Turn_90", "MX_Left_turn_90", "Turn_Left_90", "Left_Turn_90"}},
     {ClipRole::TurnR, "TurnR",
      {"~MX_Left_Turn_90", "MX_Right_Turn_90", "Turn_Right_90", "Right_Turn_90"}},
+    {ClipRole::Stagger, "Stagger",
+     {"MX_Sword_and_shield_impact", "MX_Sword_and_shield_impact_2", "Hit_Chest", "Hit_Reaction"}},
 };
 static_assert(std::size(ROLE_NAMES) == CLIP_ROLE_COUNT,
               "every role needs a row in the name table");
@@ -335,7 +337,7 @@ bool one_shot_role(ClipRole r) {
     return r == ClipRole::JumpStart || r == ClipRole::JumpLand
            || r == ClipRole::StartWalk || r == ClipRole::StartRun
            || r == ClipRole::StopWalk || r == ClipRole::StopRun
-           || r == ClipRole::TurnL || r == ClipRole::TurnR;
+           || r == ClipRole::TurnL || r == ClipRole::TurnR || r == ClipRole::Stagger;
 }
 
 /// Роль перехода — та, что ведёт ноги на месте (старт, остановка, поворот);
@@ -343,7 +345,7 @@ bool one_shot_role(ClipRole r) {
 bool transit_role(ClipRole r) {
     return r == ClipRole::StartWalk || r == ClipRole::StartRun
            || r == ClipRole::StopWalk || r == ClipRole::StopRun
-           || r == ClipRole::TurnL || r == ClipRole::TurnR;
+           || r == ClipRole::TurnL || r == ClipRole::TurnR || r == ClipRole::Stagger;
 }
 
 namespace {
@@ -1930,6 +1932,27 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         const float k = (tau > 0.0f && dt > 0.0f) ? 1.0f - std::exp(-dt / tau) : 1.0f;
         play.look_yaw += (want - play.look_yaw) * k;
     }
+    play.prev_lean = play.lean;
+    {
+        // НАКЛОН ПО ТОЛЧКУ (ярус 0): угол PUSH_LEAN_DEG_PER_MPS на м/с толчка,
+        // не больше PUSH_LEAN_MAX_DEG, по направлению толчка; догон и возврат
+        // за PUSH_LEAN_SMOOTH_S. Тела без толчка — ноль побитово.
+        glm::vec3 want{0.0f};
+        const glm::vec2 p{drive.push_mps_model.x, drive.push_mps_model.z};
+        const float mag = glm::length(p);
+        if (mag > 1.0e-4f) {
+            const float deg = std::min(static_cast<float>(config::PUSH_LEAN_MAX_DEG),
+                                       mag * static_cast<float>(config::PUSH_LEAN_DEG_PER_MPS));
+            const glm::vec2 dir = p / mag * glm::radians(deg);
+            want = glm::vec3{dir.x, 0.0f, dir.y};
+        }
+        const float tau = static_cast<float>(config::PUSH_LEAN_SMOOTH_S);
+        const float k = (tau > 0.0f && dt > 0.0f) ? 1.0f - std::exp(-dt / tau) : 1.0f;
+        play.lean += (want - play.lean) * k;
+        if (glm::dot(want, want) == 0.0f && glm::dot(play.lean, play.lean) < 1.0e-8f) {
+            play.lean = glm::vec3{0.0f};
+        }
+    }
     play.prev_transit_dose = play.transit_dose;
     {
         // ДОЗА ПЕРЕХОДА: 1, пока играет одноразовый клип перехода, и обратно к
@@ -2018,7 +2041,14 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                                                             : ClipRole::StartRun;
             const ClipRole stop = drive.gait == Gait::Walk ? ClipRole::StopWalk
                                                            : ClipRole::StopRun;
-            if (input && !was_move && !was_transit && locomotion(want) && lib.has(start)
+            const float push = glm::length(glm::vec2{drive.push_mps_model.x, drive.push_mps_model.z});
+            if (!was_transit && lib.has(ClipRole::Stagger)
+                && push >= static_cast<float>(config::STAGGER_PUSH_MPS)) {
+                // УДАР/ТОЛЧОК (ярус 0 → 1): мир двинул капсулу сильнее порога —
+                // тело отыгрывает удар одноразовым клипом, ввод не спрашивается.
+                want = ClipRole::Stagger;
+                play.transit = Transit::Stagger;
+            } else if (input && !was_move && !was_transit && locomotion(want) && lib.has(start)
                 && play.move_dir == MoveDir::Forward) {
                 // СТАРТ — только вперёд: клипов старта вбок и назад нет, и
                 // подменять их стартом вперёд значит выносить не ту ногу.
@@ -2424,6 +2454,16 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     // СЛОЙ ВЗГЛЯДА — после стойки (она уже поставила грудь), до рук.
     apply_look(skeleton, lib.look, glm::mix(play.prev_look_yaw, play.look_yaw, a), 1.0f,
                out_sample.first(n));
+    // НАКЛОН ПО ТОЛЧКУ — той же цепочкой позвонков, вокруг горизонтали.
+    {
+        const glm::vec3 lean = glm::mix(play.prev_lean, play.lean, a);
+        const float ang = glm::length(lean);
+        if (ang > 1.0e-5f) {
+            // наклон ВДОЛЬ толчка: ось — горизонталь, перпендикулярная ему
+            const glm::vec3 axis = glm::normalize(glm::cross(glm::vec3{0.0f, 1.0f, 0.0f}, lean / ang));
+            apply_chain_rotation(skeleton, lib.look, axis, ang, 1.0f, out_sample.first(n));
+        }
+    }
 
     // THE ARM LAYER DOES NOT SWITCH OFF WHEN THE SWORD COMES OUT, and that
     // single `1.0f - weapon` was the wave's worst line. Measured: drawn, the

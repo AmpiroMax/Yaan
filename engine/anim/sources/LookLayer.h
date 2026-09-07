@@ -50,4 +50,11 @@ struct LookLayer {
 void apply_look(const skel::Skeleton& skeleton, const LookLayer& layer, float yaw,
                 float weight, std::span<JointLocal> sample);
 
+/// Повернуть цепочку вокруг ПРОИЗВОЛЬНОЙ оси системы тела (единичной) на
+/// `angle` по долям слоя — наклон корпуса по толчку (ярус 0 реакций), тот
+/// же механизм, что взгляд; apply_look — частный случай с осью Y.
+void apply_chain_rotation(const skel::Skeleton& skeleton, const LookLayer& layer,
+                          const glm::vec3& axis_model, float angle, float weight,
+                          std::span<JointLocal> sample);
+
 } // namespace dfn::anim

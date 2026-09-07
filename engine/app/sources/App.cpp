@@ -4732,6 +4732,29 @@ int App::run() {
                             drive->view_yaw = cam_yaw_ + glm::pi<float>();
                             drive->view_valid = stand_cam_ == 6;
                         }
+                        // ТОЛЧОК (ярус 0): контакты капсулы, где мир двинул её
+                        // (pushed_character — тело тяжелее CHARACTER_PUSH_MASS_KG),
+                        // в скорость толчка в системе тела: корпус наклоняется,
+                        // сильный — клип удара (STAGGER_PUSH_MPS).
+                        drive->push_mps_model = glm::vec3{0.0f};
+                        if (physics_ != nullptr && ps->character.valid()) {
+                            glm::vec3 push{0.0f};
+                            for (const platform::CharacterContact& c :
+                                 physics_->character_contacts(ps->character)) {
+                                if (!c.pushed_character) {
+                                    continue;
+                                }
+                                const float along = glm::dot(c.relative_velocity, c.normal);
+                                if (along > 0.0f) {
+                                    push += c.normal * along;
+                                }
+                            }
+                            push.y = 0.0f;
+                            drive->push_mps_model = glm::vec3{
+                                glm::rotate(glm::mat4{1.0f}, ps->body_yaw,
+                                            glm::vec3{0.0f, 1.0f, 0.0f})
+                                * glm::vec4{push, 0.0f}};
+                        }
                         drive->grounded = !ps->airborne;
                         drive->vertical_velocity = ps->vertical_velocity;
                         drive->crouch_blend = ps->crouch_blend;

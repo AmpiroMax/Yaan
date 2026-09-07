@@ -148,8 +148,11 @@ enum class ClipRole : uint8_t {
     StopRun,
     TurnL,
     TurnR,
+    /// УДАР/ТОЛЧОК (HIT_REACTIONS §2, ярус 0 → 1): одноразовый клип реакции на
+    /// сильный толчок капсулы (STAGGER_PUSH_MPS); играет на месте.
+    Stagger,
 };
-inline constexpr uint32_t CLIP_ROLE_COUNT = 22;
+inline constexpr uint32_t CLIP_ROLE_COUNT = 23;
 
 /// Класс направления хода по углу к лицу (§9.2), с гистерезисом от прежнего.
 enum class MoveDir : uint8_t { Forward = 0, StrafeL, StrafeR, Backward };
@@ -173,7 +176,7 @@ enum class MoveDir : uint8_t { Forward = 0, StrafeL, StrafeR, Backward };
 /// отдаётся телу (§13.3), а слой стойки на них снимается (§13.4).
 [[nodiscard]] bool transit_role(ClipRole role);
 /// Что сейчас идёт вместо цикла: старт, остановка, поворот (или ничего).
-enum class Transit : uint8_t { None = 0, Start, Stop, Turn };
+enum class Transit : uint8_t { None = 0, Start, Stop, Turn, Stagger };
 
 [[nodiscard]] constexpr uint32_t role_index(ClipRole r) {
     return static_cast<uint32_t>(r);
@@ -574,6 +577,10 @@ struct ClipPlayback {
     /// prev — для кадра между тиками.
     float look_yaw = 0.0f;
     float prev_look_yaw = 0.0f;
+    /// НАКЛОН КОРПУСА ПО ТОЛЧКУ (ярус 0): вектор в системе тела, XZ, длина —
+    /// угол в радианах (PUSH_LEAN_*), сглажен; prev — для кадра.
+    glm::vec3 lean{0.0f};
+    glm::vec3 prev_lean{0.0f};
     /// Clip time in seconds for the CURRENT role and for the one fading out.
     float time_s = 0.0f;
     float previous_time_s = 0.0f;

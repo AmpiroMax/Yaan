@@ -10,6 +10,7 @@ Responsibility:
 Key items:
 - the_head_follows_the_camera_within_the_limit
 - no_view_no_change (контрольная рука)
+- a_push_leans_the_chest_along_it_and_a_hard_one_staggers (ярус 0 реакций)
 Dependencies:
 - Uses: doctest, engine/anim, tests/character/ClipTestModel.h, HumanBase.dfo.
 - Used by: ctest (character_look_layer).
@@ -25,6 +26,7 @@ AI Agents Notice (must follow):
 #include <doctest/doctest.h>
 
 #include <cmath>
+#include <span>
 #include <vector>
 
 #include <glm/gtc/quaternion.hpp>
@@ -116,4 +118,63 @@ TEST_CASE("no_view_no_change") {
     REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib, play, 1.0f, s1));
     // тот же покой, но со взглядом — голова ушла (контрольная рука: без — нет)
     CHECK(std::abs(head_yaw(m.obj.skeleton, s1, head) - y0) > glm::radians(20.0f));
+}
+
+TEST_CASE("a_push_leans_the_chest_along_it_and_a_hard_one_staggers") {
+    Model m;
+    REQUIRE(load(m));
+    const int32_t chest = m.obj.skeleton.find("DEF-spine.003");
+    const int32_t head = m.obj.skeleton.find("DEF-head");
+    REQUIRE(chest >= 0);
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    anim::ClipPlayback play;
+    std::vector<anim::JointLocal> base(m.obj.skeleton.size());
+    std::vector<anim::JointLocal> pushed(m.obj.skeleton.size());
+    for (int i = 0; i < 30; ++i) {
+        anim::advance_playback(m.lib, drive, 1.0f / 60.0f, play);
+    }
+    REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib, play, 1.0f, base));
+    // слабый толчок в спину (по −Z, вперёд по системе тела): наклон, без клипа
+    drive.push_mps_model = glm::vec3{0.0f, 0.0f, -1.0f};
+    for (int i = 0; i < 30; ++i) {
+        anim::advance_playback(m.lib, drive, 1.0f / 60.0f, play);
+    }
+    REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib, play, 1.0f, pushed));
+    CHECK(play.role == anim::ClipRole::Idle);
+    const float lean_deg = glm::degrees(glm::length(play.lean));
+    // модельная ориентация головы: угол между базой и толчком
+    auto model_rot = [&](std::span<const anim::JointLocal> s, int32_t j) {
+        glm::quat q{1.0f, 0.0f, 0.0f, 0.0f};
+        std::vector<int32_t> chain;
+        for (int32_t k = j; k >= 0; k = m.obj.skeleton.joints[static_cast<std::size_t>(k)].parent) {
+            chain.push_back(k);
+        }
+        for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+            q = q * glm::normalize(s[static_cast<std::size_t>(*it)].rotation);
+        }
+        return glm::normalize(q);
+    };
+    const glm::quat d = glm::inverse(model_rot(base, head)) * model_rot(pushed, head);
+    const float head_deg = glm::degrees(2.0f * std::acos(std::min(1.0f, std::abs(d.w))));
+    MESSAGE("толчок 1 м/с: наклон слоя " << lean_deg << "°, голова ушла на " << head_deg << "°");
+    CHECK(lean_deg == doctest::Approx(static_cast<float>(config::PUSH_LEAN_DEG_PER_MPS)).epsilon(0.05));
+    CHECK(head_deg == doctest::Approx(lean_deg).epsilon(0.1));
+    // сильный толчок — клип удара (машина переходов включена), затем покой
+    Model mt;
+    REQUIRE(load(mt, false, {}, /*transitions=*/true));
+    anim::ClipPlayback pt;
+    drive.push_mps_model = glm::vec3{0.0f};
+    for (int i = 0; i < 30; ++i) {
+        anim::advance_playback(mt.lib, drive, 1.0f / 60.0f, pt);
+    }
+    drive.push_mps_model = glm::vec3{0.0f, 0.0f, -static_cast<float>(config::STAGGER_PUSH_MPS) * 1.5f};
+    anim::advance_playback(mt.lib, drive, 1.0f / 60.0f, pt);
+    CHECK(pt.role == anim::ClipRole::Stagger);
+    drive.push_mps_model = glm::vec3{0.0f};
+    for (int i = 0; i < 240; ++i) {
+        anim::advance_playback(mt.lib, drive, 1.0f / 60.0f, pt);
+    }
+    CHECK(pt.role == anim::ClipRole::Idle);
+    CHECK(glm::length(pt.lean) < 1.0e-3f);
 }
