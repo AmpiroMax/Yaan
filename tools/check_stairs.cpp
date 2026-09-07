@@ -1257,11 +1257,20 @@ void check_file(const std::string& path) {
     // (tools/known_findings.h).
     std::vector<std::string> known_lines;
     std::vector<std::string> live_lines;
+    // ИСПЫТАТЕЛЬНЫЙ СТЕНД — СВОЙ КЛАСС, не отсрочка: чертежи stand-*.dfh
+    // (стенд персонажа) нарочно за гранью жилой лестницы — мостики 19…54°
+    // проверяют, как нога ступает на ступень, которой в городе не бывает.
+    // Судья пропорций не судит фикстуру Knight каноном — и этот судья не судит
+    // стенд полосой жилых маршей. Но каждое ожидаемое нарушение ВСЁ РАВНО
+    // названо в паспорте (--known) с причиной: новый мостик с новым нарушением
+    // — новая находка, а не молчание.
+    const bool rig = name.rfind("stand-", 0) == 0;
     for (const Bad& b : bad) {
         std::string why;
         if (g_known.take(name, b.cls, &why)) {
             ++g_known_hits;
-            known_lines.push_back(b.text + "  [ИЗВЕСТНОЕ, " + why + "]");
+            known_lines.push_back(b.text + (rig ? "  [ИСПЫТАТЕЛЬНЫЙ СТЕНД — ожидаемо, "
+                                                : "  [ИЗВЕСТНОЕ, ") + why + "]");
             continue;
         }
         live_lines.push_back(b.text);
