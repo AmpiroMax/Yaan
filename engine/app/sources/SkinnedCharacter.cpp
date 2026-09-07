@@ -763,11 +763,13 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
     // парила над своей ступенью на 20 см (прибор app_grounded_locomotion,
     // синтетический марш). Корень вычитает прыжок в тот же тик, тело
     // остаётся, где было, и уже плавно поднимается за планом.
+    bool ground_jumped = false;
     if (ticked_) {
         const float jump = standing_ground.y - last_ground_y_;
         if (std::abs(jump) > 0.02f) {
             root_dy_ = std::clamp(root_dy_ - jump, -anim::FOOT_IK_ROOT_LIMIT_M,
                                   anim::FOOT_IK_ROOT_LIMIT_M);
+            ground_jumped = true;
         }
     }
     last_ground_y_ = standing_ground.y;
@@ -816,6 +818,22 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
         anim::plan_foot_ik(skeleton_, foot_setup_, foot_probe_, tick_sample_);
     plan_ = tick_plan;
     const float k = dt > 0.0f ? 1.0f - std::exp(-dt / FOOT_IK_ROOT_TAU_S) : 1.0f;
+    // РАМПА БЕЗ ЛАГА, СКАЧОК — ЧЕРЕЗ ФИЛЬТР (склоны, 07.09): на подъёме план
+    // опускания корня — непрерывная рампа (опорная стопа уходит всё ниже
+    // капсулы, −7 мм за тик), и фильтр первого порядка отстаёт от рампы на
+    // τ·скорость = 0,08 с × 0,42 м/с = 34 мм — прибор показывал парение 17 мм
+    // (MX_Walking — 49). Изменение плана до FOOT_IK_ROOT_RAMP_MPS корень
+    // берёт сразу; больше (смена опорной стопы) — сглаживается, как прежде.
+    // (Пробовано 07.09: на тике скачка капсулы ставить корень ровно в план —
+    // проникание на марше выросло 13,5 → 25,7 мм: план тика не то, что нужно
+    // кадру между тиками. Оставлено вычитание скачка + фильтр.)
+    if (has_plan_root_dy_ && !ground_jumped) {
+        const float ramp_cap = static_cast<float>(config::FOOT_IK_ROOT_RAMP_MPS) * dt;
+        const float d = tick_plan.root_dy - plan_root_dy_prev_;
+        root_dy_ += std::clamp(d, -ramp_cap, ramp_cap);
+    }
+    plan_root_dy_prev_ = tick_plan.root_dy;
+    has_plan_root_dy_ = true;
     root_dy_ += (tick_plan.root_dy - root_dy_) * k;
 }
 

@@ -458,6 +458,9 @@ private:
     /// seat: a jump that is glued to the ground is not a jump, and a seated
     /// body's feet answer to the bench.
     float ik_strength_ = 0.0f;
+    /// План опускания корня прошлого тика — упреждение рампы (склоны).
+    float plan_root_dy_prev_ = 0.0f;
+    bool has_plan_root_dy_ = false;
     /// One frame's scratch for the tick-time probe pose.
     std::vector<anim::JointLocal> tick_sample_;
     /// ИНЕРЦИАЛИЗАЦИЯ СТЫКОВ (§13.7): две прошлые показанные позы (до
