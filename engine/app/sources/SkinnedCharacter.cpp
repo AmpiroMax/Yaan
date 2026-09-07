@@ -851,6 +851,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     // тела (loco_.root_yaw_delta ниже), а поза контрвращается на накопленный
     // угол — в мире картинка та же, но её несёт рыск сущности.
     turn_accum_prev_rad_ = turn_accum_rad_;
+    turn_counter_prev_rad_ = turn_counter_rad();
     if (tick_sampled_ && pelvis_joint_ >= 0) {
         const float raw = anim::pelvis_yaw(skeleton_, tick_sample_, pelvis_joint_);
         // ВЫНИМАЕТСЯ У ВСЕХ КЛИПОВ ПЕРЕХОДА, а не только у поворота: замер
@@ -1187,6 +1188,14 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
         // it was filtered. Applying an unfiltered shift per frame would put
         // the stair's whole rise into one frame at the nosing.
         if (foot_setup_.valid()) {
+            // КОНТРВРАЩЕНИЕ И В КАДРЕ, не только на тике (§13.3): без него
+            // нарисованное тело поворачивалось дважды — позой и рыском, — а
+            // детектор «кадр против тиков» этого не видел: он сравнивает
+            // бёдра и колени, а контрвращение сидит в корне (дыра прибора,
+            // §14.3, найдена 07.09).
+            anim::counter_rotate_root(skeleton_, foot_setup_.roots,
+                                      glm::mix(turn_counter_prev_rad_, turn_counter_rad(), a),
+                                      sample_);
             anim::warp_legs(skeleton_, foot_setup_,
                             glm::mix(leg_warp_prev_rad_, leg_warp_rad_, a), sample_);
         }

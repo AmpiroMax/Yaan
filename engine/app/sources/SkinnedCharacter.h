@@ -474,6 +474,7 @@ private:
     /// начинается с нуля, а не с развёрнутого таза.
     float turn_accum_rad_ = 0.0f;
     float turn_accum_prev_rad_ = 0.0f;
+    float turn_counter_prev_rad_ = 0.0f; ///< контрвращение прошлого тика — кадр интерполирует
     float pelvis_yaw_raw_ = 0.0f;
     float turn_yaw_delta_ = 0.0f; ///< вынутый угол за этот тик, рад
     anim::ClipRole last_role_ = anim::ClipRole::Idle; ///< роль прошлого тика (первый тик клипа)

@@ -1604,6 +1604,9 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
             }
         }
     }
+    for (ClipEntry& e : lib.role) {
+        e.exit_phase.fill(-1.0f);
+    }
     // КОНЕЦ ДВИЖЕНИЯ ОДНОРАЗОВЫХ КЛИПОВ (§13.1): последний момент, когда таз или
     // стопа ещё идут быстрее ONE_SHOT_STILL_MPS, плюс запас в кроссфейд.
     {
@@ -1644,10 +1647,57 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                 }
             }
             entry.active_s = std::min(entry.duration_s, last_moving_s + CLIP_CROSSFADE_S);
-            std::fprintf(stderr, "[clips] one-shot %.*s: движение до %.2f с из %.2f\n",
+            // СТОПА ВЫХОДА: чья лодыжка ниже на конце движения
+            sample_clip_pose(skeleton, clips[static_cast<std::size_t>(entry.clip)],
+                             std::max(0.0f, entry.active_s - CLIP_CROSSFADE_S), a);
+            model_matrices_for(skeleton, a, la, ma);
+            const float yl = ma[static_cast<std::size_t>(setup.ankle[0])][3].y;
+            const float yr = ma[static_cast<std::size_t>(setup.ankle[1])][3].y;
+            entry.exit_left = yl <= yr;
+            // БЛИЖАЙШАЯ ПО ПОЗЕ НОГ ФАЗА КАЖДОГО ЦИКЛА
+            const int32_t legs[] = {setup.hip[0], setup.hip[1], setup.knee[0], setup.knee[1],
+                                    setup.ankle[0], setup.ankle[1]};
+            const int32_t pelvis_j =
+                skeleton.joints[static_cast<std::size_t>(setup.hip[0])].parent;
+            for (const RoleNames& cyc : ROLE_NAMES) {
+                const ClipEntry& ce = lib.role[role_index(cyc.role)];
+                if (!ce.present() || !locomotion_role(cyc.role) || one_shot_role(cyc.role)
+                    || ce.duration_s <= 0.0f) {
+                    continue;
+                }
+                float best = std::numeric_limits<float>::max();
+                float best_phase = -1.0f;
+                for (int k = 0; k < 32; ++k) {
+                    const float phase = float(k) / 32.0f;
+                    // время цикла по фазе — та же формула, что locomotion_time()
+                    sample_clip_pose(skeleton, clips[static_cast<std::size_t>(ce.clip)],
+                                     wrap01(phase - PHASE_LEFT + ce.footfall_phase)
+                                         * ce.duration_s,
+                                     b);
+                    float dist = 0.0f;
+                    const auto ang = [&](int32_t j) {
+                        const glm::quat qa = glm::normalize(a[static_cast<std::size_t>(j)].rotation);
+                        const glm::quat qb = glm::normalize(b[static_cast<std::size_t>(j)].rotation);
+                        return 2.0f * std::acos(std::clamp(std::abs(glm::dot(qa, qb)), 0.0f, 1.0f));
+                    };
+                    for (const int32_t j : legs) {
+                        dist += ang(j);
+                    }
+                    if (pelvis_j >= 0) {
+                        dist += ang(pelvis_j);
+                    }
+                    if (dist < best) {
+                        best = dist;
+                        best_phase = phase;
+                    }
+                }
+                entry.exit_phase[role_index(cyc.role)] = best_phase;
+            }
+            std::fprintf(stderr, "[clips] one-shot %.*s: движение до %.2f с из %.2f, выход на %s\n",
                          static_cast<int>(row.name.size()), row.name.data(),
                          static_cast<double>(entry.active_s),
-                         static_cast<double>(entry.duration_s));
+                         static_cast<double>(entry.duration_s),
+                         entry.exit_left ? "левой" : "правой");
         }
     }
     // КРИВЫЕ ПУТИ — ПОСЛЕ ВСЕГО (§11.1): зеркало полцикла (mirror_dose) и
@@ -1869,8 +1919,12 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     {
         // ДОЗА ПЕРЕХОДА: 1, пока играет одноразовый клип перехода, и обратно к
         // нулю за то же время, что кроссфейд ролей.
+        // …и слой стойки возвращается за ТО ЖЕ время, что кроссфейд из перехода
+        // (fade_s): за 0,1 с его поправки колена давали рывок 2 700 рад/с² на
+        // стыке старт → цикл, хотя фаза была подобрана по позе (замер 07.09).
         const float want = transit_role(play.role) ? 1.0f : 0.0f;
-        const float move = CLIP_CROSSFADE_S > 0.0f ? dt / CLIP_CROSSFADE_S : 1.0f;
+        const float span = play.fade_s > 0.0f ? play.fade_s : CLIP_CROSSFADE_S;
+        const float move = span > 0.0f ? dt / span : 1.0f;
         play.transit_dose = play.transit_dose < want
                                 ? std::min(want, play.transit_dose + move)
                                 : std::max(want, play.transit_dose - move);
@@ -2048,12 +2102,28 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
         play.previous_time_s = play.time_s;
         play.previous_stride = play.stride;
         play.fade = 1.0f;
+        // КРОССФЕЙД ИЗ ПЕРЕХОДА В ЦИКЛ ДЛИННЕЕ ОБЫЧНОГО (TRANSIT_CROSSFADE_S):
+        // позы разные даже при подобранной фазе, и за 0,1 с колено дёргало
+        // 2 700 рад/с² (замер 07.09); рывок обратно пропорционален времени.
+        play.fade_s = transit_role(play.role) && locomotion(want)
+                          ? static_cast<float>(config::TRANSIT_CROSSFADE_S)
+                          : CLIP_CROSSFADE_S;
+        // СТЫК ПЕРЕХОД → ЦИКЛ: цикл начинается с той стопы, на которой кончился
+        // клип перехода (ClipEntry::exit_left), а не с той фазы, что осталась
+        // от прошлого хода.
+        if (transit_role(play.previous) && locomotion(want) && lib.feet_drive) {
+            const ClipEntry& from = entry_for(lib, play.previous, play.previous_variant);
+            const float matched = from.exit_phase[role_index(want)];
+            play.phase = matched >= 0.0f ? matched
+                                         : (from.exit_left ? PHASE_LEFT : wrap01(PHASE_LEFT + 0.5f));
+        }
         play.role = want;
         play.variant = want_variant;
         play.time_s = locomotion(want) ? 0.0f : 0.0f;
     }
     if (play.fade > 0.0f && dt > 0.0f) {
-        play.fade = std::max(0.0f, play.fade - dt / CLIP_CROSSFADE_S);
+        const float fade_s = play.fade_s > 0.0f ? play.fade_s : CLIP_CROSSFADE_S;
+        play.fade = std::max(0.0f, play.fade - dt / fade_s);
     }
 
     const ClipEntry& cur = entry_for(lib, play.role, play.variant);
