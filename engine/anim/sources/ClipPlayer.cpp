@@ -1477,6 +1477,7 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
     lib.stance = build_stance_layer(rig, skeleton, binding);
     lib.arms = build_arm_clearance(skeleton, binding);
     lib.mirror = build_mirror_map(skeleton);
+    lib.look = build_look_layer(skeleton);
     lib.boxes = build_hitboxes(rig.proportions);
     // ...И ПОДОГНАНЫ ПО КОЖЕ ЭТОГО ТЕЛА, если она пришла. Канонные размеры
     // остаются отправной точкой (у части, за которую не голосует ни одна
@@ -1915,6 +1916,19 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     // takes, so the knees straighten while the walk clip is fading out and not
     // a frame after it.
     play.prev_phase = play.phase;
+    play.prev_look_yaw = play.look_yaw;
+    {
+        // ВЗГЛЯД ЗА КАМЕРОЙ: цель — разница «взгляд − корпус» в пределах
+        // LOOK_MAX_DEG (тела без взгляда — ноль), догоняется за LOOK_SMOOTH_S.
+        float want = 0.0f;
+        if (drive.view_valid) {
+            const float limit = glm::radians(static_cast<float>(config::LOOK_MAX_DEG));
+            want = std::clamp(wrap_pi(drive.view_yaw - drive.facing_yaw), -limit, limit);
+        }
+        const float tau = static_cast<float>(config::LOOK_SMOOTH_S);
+        const float k = (tau > 0.0f && dt > 0.0f) ? 1.0f - std::exp(-dt / tau) : 1.0f;
+        play.look_yaw += (want - play.look_yaw) * k;
+    }
     play.prev_transit_dose = play.transit_dose;
     {
         // ДОЗА ПЕРЕХОДА: 1, пока играет одноразовый клип перехода, и обратно к
@@ -2404,6 +2418,9 @@ bool playback_sample(const skel::Skeleton& skeleton, const SkinnedRigBinding& bi
     stance.twist_gain =
         gain_for(cur.twist_peak_rad, static_cast<float>(config::STANCE_TWIST_RUN), 1.0f);
     apply_stance(skeleton, lib.stance, stance, out_sample);
+    // СЛОЙ ВЗГЛЯДА — после стойки (она уже поставила грудь), до рук.
+    apply_look(skeleton, lib.look, glm::mix(play.prev_look_yaw, play.look_yaw, a), 1.0f,
+               out_sample.first(n));
 
     // THE ARM LAYER DOES NOT SWITCH OFF WHEN THE SWORD COMES OUT, and that
     // single `1.0f - weapon` was the wave's worst line. Measured: drawn, the

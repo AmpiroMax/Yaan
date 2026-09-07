@@ -90,6 +90,7 @@ AI Agents Notice (must follow):
 
 #include "engine/anim/sources/Body.h"
 #include "engine/anim/sources/Clips.h"
+#include "engine/anim/sources/LookLayer.h"
 #include "engine/anim/sources/Mirror.h"
 #include "engine/anim/sources/Pose.h"
 #include "engine/anim/sources/PoseLayers.h"
@@ -426,6 +427,8 @@ struct ClipLibrary {
     /// клиренс: обе руки сравнения обязаны выходить из одного бинарника.
     MirrorMap mirror;
     float mirror_dose = 0.5f;
+    /// СЛОЙ ВЗГЛЯДА (LookLayer.h): шея и грудь за камерой до LOOK_MAX_DEG.
+    LookLayer look;
     /// ЧАСЫ КЛИПА ОТ ПУТИ (§11.1): фаза хода из кривой пути и фактического
     /// смещения корня (BodyDrive::travelled_m), а не из dt·rate. По умолчанию
     /// ложь — часы по времени; дверь DFN_CLIP_CLOCK=path включает (приёмка
@@ -560,6 +563,10 @@ struct ClipPlayback {
     float turn_gap_s = 0.0f;
     float fade = 0.0f;
     float fade_s = 0.0f; ///< длительность текущего кроссфейда (переход → цикл длиннее)
+    /// РЫСК ВЗГЛЯДА ОТНОСИТЕЛЬНО КОРПУСА, сглаженный (LOOK_SMOOTH_S), рад;
+    /// prev — для кадра между тиками.
+    float look_yaw = 0.0f;
+    float prev_look_yaw = 0.0f;
     /// Clip time in seconds for the CURRENT role and for the one fading out.
     float time_s = 0.0f;
     float previous_time_s = 0.0f;

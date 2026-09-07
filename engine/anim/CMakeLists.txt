@@ -30,6 +30,7 @@ add_library(dfn_anim STATIC
     sources/FootIk.cpp
     sources/RootMotion.cpp
     sources/LocoTelemetry.cpp
+    sources/LookLayer.cpp
     sources/Hitbox.cpp
     sources/BodyGaps.cpp
     sources/RestFit.cpp

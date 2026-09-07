@@ -58,6 +58,14 @@ set_tests_properties(character_clips_slide PROPERTIES LABELS "known-defect")
 # получает тик с заложенным дефектом и обязан его засчитать сверх порога реестра.
 add_dfn_test(character_loco_telemetry character/LocoTelemetryTests.cpp
              dfn_anim dfn_core)
+
+# СЛОЙ ВЗГЛЯДА (07.09): голова и грудь за камерой до LOOK_MAX_DEG, ноги не
+# тронуты, без взгляда — тождество.
+add_dfn_test(character_look_layer character/LookLayerTests.cpp
+             dfn_anim dfn_render dfn_core)
+if(TARGET dfn_characters)
+    add_dependencies(character_look_layer dfn_characters)
+endif()
 if(TARGET dfn_characters)
     add_dependencies(character_clips_slide dfn_characters)
 endif()
