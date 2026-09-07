@@ -512,10 +512,9 @@ def asset_provenance(name):
     return "лицензия не найдена в паспортах паков — проверить вручную"
 
 
-def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
+def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence, seen=None):
     """Материал части: альбедо (+нормаль) внешними файлами <часть>_albedo.png."""
     import hashlib
-    import shutil
     mh = parse_mhmat_of(mhclo)
     if mh is None or "diffuseTexture" not in mh[1]:
         raise SystemExit("part %s has no material with diffuseTexture" % kind)
@@ -537,14 +536,31 @@ def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
     transparent = str(tex.get("transparent", "False")).lower() == "true"
     two_sided = str(tex.get("backfaceCull", "True")).lower() != "true"
     label = kind if kind != "clothes" else name
+    used = []
     for role, path in files:
-        fname = "%s_%s.png" % (label, role)
-        dst = os.path.join(tex_dir, fname)
-        shutil.copyfile(path, dst)
-        sha = hashlib.sha256(open(dst, "rb").read()).hexdigest()
-        sums.append("%s  %s" % (sha, fname))
-        licence.append("%s — %s «%s» (%s): %s; источник %s"
-                       % (fname, kind, name, os.path.basename(path), asset_provenance(name), mat_path))
+        # ОДИН ИСХОДНЫЙ ЛИСТ — ОДИН ФАЙЛ РЯДОМ С ВЫХОДОМ, и сходство берётся
+        # по СОДЕРЖИМОМУ, а не по пути: ряса и её капюшон лежат разными
+        # ассетами и несут по своей копии одной и той же картинки (17 МБ),
+        # а у шлема альбедо и AO — вообще один файл. Копия под вторым именем —
+        # это лишние мегабайты в репозитории и второй раз та же текстура
+        # в памяти.
+        key = hashlib.sha256(open(path, "rb").read()).hexdigest()
+        if seen is not None and key in seen:
+            fname = seen[key]
+            dst = os.path.join(tex_dir, fname)
+            log("sheet %s: тот же файл, что у %s — берётся он" % (os.path.basename(path), fname))
+        else:
+            fname = "%s_%s.png" % (label, role)
+            dst = os.path.join(tex_dir, fname)
+            copy_sheet_as_png(path, dst)
+            sha = hashlib.sha256(open(dst, "rb").read()).hexdigest()
+            sums.append("%s  %s" % (sha, fname))
+            licence.append("%s — %s «%s» (%s): %s; источник %s"
+                           % (fname, kind, name, os.path.basename(path),
+                              asset_provenance(name), mat_path))
+            if seen is not None:
+                seen[key] = fname
+        used.append((role, fname))
         img = bpy.data.images.get(fname)
         if img is None or os.path.abspath(bpy.path.abspath(img.filepath)) != os.path.abspath(dst):
             img = bpy.data.images.load(dst, check_existing=True)
@@ -571,7 +587,11 @@ def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
         else:
             # AO: в glTF идёт occlusionTexture (экспортёр узнаёт узел glTF Material
             # Output); здесь — просто внешним файлом с ролью ao, узел не строим.
-            img.colorspace_settings.name = "Non-Color"
+            # Пространство цвета трогается, только если это СВОЙ файл: у шлема
+            # AO — тот же casco.jpg, что альбедо, и Non-Color на общем блоке
+            # перекрасил бы альбедо.
+            if fname.endswith("_ao.png"):
+                img.colorspace_settings.name = "Non-Color"
             nodes.remove(texn)
     if hasattr(mat, "blend_method"):
         mat.blend_method = "CLIP" if transparent else "OPAQUE"
@@ -581,7 +601,7 @@ def part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
     bsdf.inputs["Roughness"].default_value = 0.5
     ob.data.materials.clear()
     ob.data.materials.append(mat)
-    return [("%s_%s.png" % (label, role), rel_dir + "/" + "%s_%s.png" % (label, role)) for role, _ in files]
+    return [(fname, rel_dir + "/" + fname) for _role, fname in used]
 
 
 def parse_delete_verts(mhclo_path):
@@ -684,6 +704,46 @@ def body_index_map(glb_path):
         v = int(struct.unpack_from("<" + fmt, binc, base + i * stride)[0])
         out.setdefault(v, []).append(i)
     return out
+
+
+# Предел стороны листа вещи (см. copy_sheet_as_png).
+SHEET_MAX_PX = 2048
+
+
+def copy_sheet_as_png(src, dst):
+    """Лист вещи ложится РЯДОМ С ВЫХОДОМ ИМЕННО PNG-ом И НЕ ШИРЕ SHEET_MAX_PX.
+
+    Два повода, оба замерены на общинных паках:
+    - JPEG (шлем тамплиера: casco.jpg). Импортёр .dfo читает только PNG и
+      проверяет сигнатуру файла, а не имя, поэтому переименованный JPEG — это
+      не «почти то же самое», а лист, которого у вещи не будет вовсе;
+    - 4096² (ряса монаха: альбедо 17 МБ, нормаль 12 МБ на ОДНУ вещь). Фигура
+      ростом 1,73 м занимает в кадре FullHD от силы 900 пикселей — половина
+      этого листа не доживает до экрана ни на одном плане, а вес едет в
+      репозиторий и в память как есть.
+
+    Лист, который уже PNG и уложился в предел, копируется БАЙТ В БАЙТ: его
+    sha256 совпадает с исходником пака, и паспорт лицензии сходится."""
+    import shutil
+    img = bpy.data.images.load(src)
+    # РАЗМЕР ЧИТАЕТСЯ ДО СМЕНЫ ФОРМАТА: Blender грузит файл лениво, и запись
+    # с уже переставленным форматом падает «does not have any image data».
+    w, h = img.size[0], img.size[1]
+    if w == 0 or h == 0:
+        bpy.data.images.remove(img)
+        raise SystemExit("cannot decode sheet " + src)
+    if os.path.splitext(src)[1].lower() == ".png" and max(w, h) <= SHEET_MAX_PX:
+        bpy.data.images.remove(img)
+        shutil.copyfile(src, dst)
+        return
+    if max(w, h) > SHEET_MAX_PX:
+        k = SHEET_MAX_PX / float(max(w, h))
+        img.scale(max(1, int(round(w * k))), max(1, int(round(h * k))))
+    img.file_format = "PNG"
+    img.save(filepath=dst)
+    log("sheet %s: %s (%dx%d) -> %dx%d PNG" % (os.path.basename(dst), os.path.basename(src),
+                                               w, h, img.size[0], img.size[1]))
+    bpy.data.images.remove(img)
 
 
 def parse_mhmat_of(mhclo_path):
@@ -1565,9 +1625,10 @@ def export_parts(parts, mesh, rig, out, suffix="parts", body_map=None):
     rel_dir = "textures/" + stem
     tex_dir = os.path.join(os.path.dirname(out), "textures", stem)
     os.makedirs(tex_dir, exist_ok=True)
-    sums, licence, uris = [], [], {}
+    sums, licence, uris, seen = [], [], {}, {}
     for kind, name, ob, mhclo in parts:
-        for img_name, uri in part_material(kind, name, ob, mhclo, tex_dir, rel_dir, sums, licence):
+        for img_name, uri in part_material(kind, name, ob, mhclo, tex_dir, rel_dir,
+                                           sums, licence, seen):
             uris[img_name] = uri
         if body_map is not None:
             hidden = parse_delete_verts(mhclo)

@@ -375,9 +375,11 @@ if(TARGET dfn_import_gltf)
         if("${DFN_CHAR_DIR}/HumanBase.morphed" IN_LIST DFN_CHAR_OUTPUTS)
             list(APPEND _body_ready "${DFN_CHAR_DIR}/HumanBase.morphed")
         endif()
-        # Наборы одежды: HumanBase.clothes.glb (костюм/ботинки MakeHuman) и
-        # HumanBase.clothes.viking.glb (туника/штаны/сапоги, CC0 сообщества).
-        foreach(_set "parts" "clothes" "clothes.viking")
+        # Наборы одежды: HumanBase.clothes.glb (костюм/ботинки MakeHuman),
+        # HumanBase.clothes.viking.glb (туника/штаны/сапоги) и три средневековых
+        # набора — monk (ряса с капюшоном и сапоги), hero (дублет с сапогами),
+        # knight (сюрко, сапоги, шлем тамплиера), все CC0 сообщества.
+        foreach(_set "parts" "clothes" "clothes.viking" "clothes.monk" "clothes.hero" "clothes.knight")
             if(EXISTS "${DFN_CHAR_DIR}/HumanBase.${_set}.glb")
                 add_custom_command(
                     OUTPUT "${DFN_CHAR_DIR}/HumanBase.${_set}.dfo"
