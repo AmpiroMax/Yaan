@@ -1238,7 +1238,10 @@ void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
     for (std::size_t side = 0; side < 2; ++side) {
         world[side] = glm::vec3{to_world * glm::vec4{contact_curr_.point[side], 1.0f}};
     }
-    if (!contact_curr_.valid || !foot_lock_) {
+    // ДОРОЖКА КОРНЯ (§16.6): замка стопы нет — опорная стопа стоит потому,
+    // что капсула едет ровно на авторский ход таза; IK только по высоте.
+    // Замок с якорями остаётся у прежнего пути (контрольная рука) до сноса.
+    if (!contact_curr_.valid || !foot_lock_ || loco_.verbatim) {
         locks_ = anim::FootLockState{};
         feed_telemetry(drive, dt, world);
         return;

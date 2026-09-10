@@ -123,6 +123,44 @@ void CharacterFeet::tick(SkinnedCharacter& body, float dt) {
         r.ground = c.ground;
         r.friction_pair = c.friction_pair;
         r.slope_tan = c.slope_tan;
+        const anim::LocomotionOut& lo = body.locomotion();
+        if (lo.verbatim) {
+            // СТОПА — ДАТЧИК (§16.6): стоит, пока стоит по расписанию клипа.
+            const bool sched = lo.valid && lo.planted[side];
+            if (planted_[side]) {
+                if (!sched) {
+                    physics_->set_foot_mode(foot_[side], platform::FootMode::Swing);
+                    planted_[side] = false;
+                } else {
+                    const platform::BodyPose now = physics_->body_pose(foot_[side]);
+                    const glm::vec3 d = now.position - body_seen_[side];
+                    if (embedded) {
+                        // выдавливание из препятствия — не скольжение
+                    } else if (glm::dot(d, d) > 1.0e-12f) {
+                        body.add_root_slip(glm::vec3{d.x, 0.0f, d.z});
+                        r.slip_delta = d;
+                    }
+                    body_seen_[side] = now.position;
+                }
+            }
+            if (!planted_[side]) {
+                if (sched && !embedded && c.touching) {
+                    // постановка там, где тело есть (кинематический мах довёз)
+                    physics_->set_foot_mode(foot_[side], platform::FootMode::Plant);
+                    body_seen_[side] = physics_->body_pose(foot_[side]).position;
+                    planted_[side] = true;
+                } else {
+                    physics_->set_foot_kinematic_pose(foot_[side], pose);
+                }
+            }
+            r.planted = planted_[side];
+            SkinnedCharacter::FootPhysicsNote note;
+            note.planted = r.planted;
+            note.holds = r.holds;
+            note.slip_mps = r.slip_mps;
+            body.note_foot_physics(side, note);
+            continue;
+        }
         if (planted_[side]) {
             if (lk.locked[side]) {
                 const platform::BodyPose now = physics_->body_pose(foot_[side]);

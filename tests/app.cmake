@@ -371,6 +371,7 @@ if(TARGET dfn_render AND TARGET dfn_core)
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFeet.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyFerry.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp

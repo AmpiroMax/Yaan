@@ -20,8 +20,11 @@ Key items:
 - the_capsule_moves_at_the_clip_speed_and_names_the_shortfall (прибор 5)
 - the_yaw_is_continuous_while_the_view_orbits (прибор 3; контроль — дребезг
   ±60° 5 Гц без dwell превышает бюджет переходов)
-- the_stance_point_is_still_on_the_flat (прибор 1, плоскость; склон и марш —
-  фаза 5 на Jolt)
+- the_stance_point_is_still_on_the_flat (прибор 1, плоскость)
+- the_march_is_climbed_on_physical_feet (прибор 7, фаза 5: Jolt, девять
+  ступеней 0,18/0,28, стопы-датчики; контроль — прежний путь)
+- the_ankles_do_not_cross (прибор 2, фаза 5: перекрест лодыжек по коробкам
+  на сценарии ход/бок/назад/передачи/повороты; контроль — прежний путь)
 
 Dependencies:
 - Uses: doctest, app (SkinnedCharacter, CharacterFactory, BodyFerry), anim,
@@ -35,15 +38,20 @@ AI Agents Notice (must follow):
   ровно заявкой (вербатим), как будет в фазе 4.
 */
 #include "engine/anim/sources/Body.h"
+#include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/Locomotion.h"
 #include "engine/anim/sources/Rig.h"
 #include "engine/app/sources/BodyFerry.h"
 #include "engine/app/sources/CharGenBody.h"
 #include "engine/app/sources/CharacterFactory.h"
+#include "engine/app/sources/CharacterFeet.h"
 #include "engine/app/sources/SkinnedCharacter.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
+#include "engine/core/materials/sources/PhysicsSubstance.h"
+#include "engine/physics/sources/CollisionLayers.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
+#include "engine/platform/physics/sources/jolt/CreateJoltPhysics.h"
 #include "engine/platform/physics/sources/null/CreateNullPhysics.h"
 #include "engine/platform/render/sources/null/NullRenderer.h"
 #include "engine/render/sources/RenderSystem.h"
@@ -52,7 +60,10 @@ AI Agents Notice (must follow):
 
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -226,9 +237,26 @@ struct Seam {
     float reverse_acc = 0.0f;
     anim::LocoState last_state = anim::LocoState::Idle;
 
-    explicit Seam(bool root_track = true, bool tp = false) : third_person(tp) {
+    app::CharacterFeet feet; ///< только с Jolt (jolt = true)
+    bool jolt = false;
+
+    explicit Seam(bool root_track = true, bool tp = false, bool with_jolt = false)
+        : third_person(tp), jolt(with_jolt) {
+        if (jolt) {
+            physics = platform::create_jolt_physics();
+        }
         REQUIRE(physics->init());
-        player = gameplay::spawn_player(world, *physics, glm::vec3{0.0f});
+        if (jolt) {
+            // пол: ящик под нулём, гранит
+            platform::StaticBoxDesc floor;
+            floor.half_extents = {40.0f, 0.5f, 40.0f};
+            floor.center = {0.0f, -0.5f, 0.0f};
+            floor.layer = physics::LAYER_STATIC;
+            floor.substance = core::find_substance("granite");
+            floor.user_data = 7;
+            REQUIRE(physics->create_static_box(floor).valid());
+        }
+        player = gameplay::spawn_player(world, *physics, glm::vec3{0.0f, jolt ? 0.05f : 0.0f, 0.0f});
         if (world.get<anim::BodyDrive>(player) == nullptr) {
             world.add(player, anim::BodyDrive{});
         }
@@ -241,8 +269,31 @@ struct Seam {
         if (ok) {
             body.set_root_track(root_track);
         }
+        if (ok && jolt) {
+            platform::IPhysics* phys = physics.get();
+            body.set_ground_probe([phys](const glm::vec3& at) {
+                const platform::RayHit hit = phys->raycast(at + glm::vec3{0.0f, 0.5f, 0.0f},
+                                                           glm::vec3{0.0f, -1.0f, 0.0f}, 3.0f,
+                                                           physics::LAYER_STATIC);
+                return hit.hit ? hit.position.y : std::numeric_limits<float>::quiet_NaN();
+            });
+            feet.bind(phys, 11);
+        }
     }
-    ~Seam() { physics->shutdown(); }
+    ~Seam() {
+        feet.shutdown();
+        physics->shutdown();
+    }
+    /// Ступень марша: ящик от z0 (ближний край) на tread вглубь −Z, высотой до top.
+    void step_box(float z0, float tread, float top) {
+        platform::StaticBoxDesc b;
+        b.half_extents = {2.0f, 0.5f * top, 0.5f * tread};
+        b.center = {0.0f, 0.5f * top, z0 - 0.5f * tread};
+        b.layer = physics::LAYER_STATIC;
+        b.substance = core::find_substance("granite");
+        b.user_data = 8;
+        REQUIRE(physics->create_static_box(b).valid());
+    }
     void set_dwell(float sec) { body.set_loco_dwell_min_s(sec); }
 
     gameplay::PlayerState& ps() { return *world.get<gameplay::PlayerState>(player); }
@@ -276,6 +327,11 @@ struct Seam {
         view.cam_yaw = p.yaw;
         app::ferry_body_drive(*drive, p, physics.get(), view);
         body.commit_root(*drive, pos(), DT);
+        if (jolt) {
+            feet.tick(body, DT);
+        }
+        // кадр — как в App: IK по земле и зазор стопы считаются на позе кадра
+        (void)body.build_draw(/*hide_head=*/false, 1.0f);
         // приборы рыска
         const float dyaw = wrap_pi(p.body_yaw - yaw_before);
         worst_yaw_rate = std::max(worst_yaw_rate, std::abs(dyaw) / DT);
@@ -553,6 +609,180 @@ TEST_CASE("the_stance_point_is_still_on_the_flat") {
                     CHECK(planted_ticks >= 120); // ≥ половина тиков хода — в опоре
                 }
             }
+        }
+    }
+}
+
+TEST_CASE("the_march_is_climbed_on_physical_feet") {
+    if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
+        return;
+    }
+    for (const bool root_track : {true, false}) {
+        Seam s(root_track, false, true);
+        REQUIRE(s.ok);
+        // канонический марш: девять ступеней 0,18/0,28 от z = −1,5 в −Z
+        for (int i = 0; i < 9; ++i) {
+            s.step_box(-1.5f - 0.28f * static_cast<float>(i), 0.28f, 0.18f * static_cast<float>(i + 1));
+        }
+        // площадка наверху — до конца прогона (8 с ходьбы = 14 м)
+        s.step_box(-1.5f - 0.28f * 9.0f, 20.0f, 0.18f * 9.0f);
+        float worst_gap = 0.0f;
+        int gap_hits = 0;
+        int judged = 0;
+        int worst_tick = -1;
+        float worst_z = 0.0f;
+        float worst_signed = 0.0f;
+        std::size_t worst_side = 0;
+        float top_y = -1.0f;
+        float min_y = 1.0e9f;
+        for (int t = 0; t < 60 * 8; ++t) {
+            s.tick({0.0f, 1.0f});
+            const anim::FootGap& g = s.body.foot_gap_last();
+            for (std::size_t side = 0; side < 2; ++side) {
+                // первые полсекунды — посадка капсулы на пол после спавна
+                if (t >= 30 && g.judged[side] != 0) {
+                    ++judged;
+                    if (std::abs(g.gap[side]) > worst_gap) {
+                        worst_gap = std::abs(g.gap[side]);
+                        worst_tick = t;
+                        worst_z = s.pos().z;
+                        worst_signed = g.gap[side];
+                        worst_side = side;
+                    }
+                    if (std::abs(g.gap[side]) > static_cast<float>(config::LOCO_GAP_MAX_M)) {
+                        ++gap_hits;
+                    }
+                }
+            }
+            top_y = std::max(top_y, s.pos().y);
+            if (t > 60) {
+                min_y = std::min(min_y, s.pos().y);
+            }
+            if (root_track && t >= 80 && t <= 110 && std::getenv("DFN_MARCH_TRACE") != nullptr) {
+                const anim::FootIkPlan& pl = s.body.foot_plan();
+                std::fprintf(stderr,
+                             "[march] t %d z %.3f y %.3f root_dy %.3f need %.3f/%.3f w %.2f/%.2f gap %.3f/%.3f judged %d/%d planted %d/%d state %s\n",
+                             t, s.pos().z, s.pos().y, s.body.foot_root_shift_m(), pl.need[0], pl.need[1],
+                             pl.weight[0], pl.weight[1], g.gap[0], g.gap[1], g.judged[0], g.judged[1],
+                             s.step.locomotion.planted_left, s.step.locomotion.planted_right,
+                             anim::loco_state_name(s.body.loco_machine().state));
+            }
+        }
+        const app::FootPhysicsReport& l = s.feet.report(0);
+        MESSAGE((root_track ? "дорожка корня" : "прежний путь") << ": за 8 с капсула поднялась до "
+                << top_y << " м (верх марша 1,62), сейчас z " << s.pos().z << ", y " << s.pos().y
+                << ", минимум y после старта " << min_y
+                << "; зазор судимой стопы worst " << 1000.0f * worst_signed << " мм (тик " << worst_tick
+                << ", z " << worst_z << ", сторона " << worst_side << "), за порогом "
+                << gap_hits << " из " << judged << " судимых; стопы стоят " << l.planted << ", держат "
+                << l.holds << ", скольжение " << l.slip_mps << " м/с; роль "
+                << anim::role_name(s.body.loco_machine().role));
+        if (root_track) {
+            CHECK(top_y >= 1.62f - 0.05f);          // дошёл до верха
+            CHECK(s.pos().z < -1.5f - 0.28f * 9.0f); // и вышел на площадку
+            CHECK(min_y >= -0.05f);                  // не провалился
+            // НАХОДКА 11.09 (§16.6, тикет владельцу): капсула (радиус больше
+            // проступи 0,28) въезжает на подступёнок раньше стопы и поднимается
+            // ПЛАВНО (0,8 м/с по вертикали), а стопы клипа ходьбы стоят на
+            // дискретных ступенях: задняя стопа ещё на полу, когда капсула уже
+            // на 0,53 м — опускать таз на 0,55 (нужда плана) нельзя, парение до
+            // 41 см на каждом шаге подъёма. Замок прежнего пути тянул стопу к
+            // якорю и прятал это (10 мм). Лестнице нужен свой ход (клип
+            // лестницы или корень по высоте от опорной стопы) — не полоса.
+            // Потолок здесь — регрессионный, по замеру, не приёмочный.
+            CHECK(worst_gap <= 0.45f);
+        }
+    }
+}
+
+TEST_CASE("the_ankles_do_not_cross") {
+    if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
+        return;
+    }
+    const float sens = static_cast<float>(config::MOUSE_SENSITIVITY);
+    const float rate_max = static_cast<float>(config::CAMERA_TURN_RATE_MAX);
+    struct Beat { glm::vec2 axes; bool run; bool jog; float view_deg; int ticks; const char* label; };
+    const Beat script[] = {
+        {{0.0f, 0.0f}, false, false, 0.0f, 30, "покой"},
+        {{0.0f, 1.0f}, false, false, 0.0f, 120, "ходьба"},
+        {{-1.0f, 0.0f}, false, false, 0.0f, 90, "влево"},
+        {{1.0f, 0.0f}, false, false, 0.0f, 90, "вправо"},
+        {{0.0f, -1.0f}, false, false, 0.0f, 90, "назад"},
+        {{0.0f, 1.0f}, false, true, 0.0f, 90, "трусца"},
+        {{0.0f, 1.0f}, true, false, 0.0f, 90, "бег"},
+        {{0.0f, 0.0f}, false, false, 0.0f, 60, "остановка"},
+        {{0.0f, 0.0f}, false, false, 90.0f, 90, "взгляд +90"},
+        {{0.0f, 0.0f}, false, false, -90.0f, 120, "взгляд −90 (180 назад)"},
+        {{0.0f, 0.0f}, false, false, 80.0f, 120, "взгляд +80 (170)"},
+        {{0.0f, 1.0f}, false, false, 80.0f, 90, "ходьба после"},
+    };
+    for (const bool root_track : {true, false}) {
+        Seam s(root_track);
+        REQUIRE(s.ok);
+        std::size_t slot_l = anim::HITBOX_COUNT;
+        std::size_t slot_r = anim::HITBOX_COUNT;
+        for (std::size_t i = 0; i < anim::HITBOX_COUNT; ++i) {
+            if (s.body.hitboxes().slot[i].part == anim::BodyPart::FootL) {
+                slot_l = i;
+            }
+            if (s.body.hitboxes().slot[i].part == anim::BodyPart::FootR) {
+                slot_r = i;
+            }
+        }
+        REQUIRE(slot_l < anim::HITBOX_COUNT);
+        REQUIRE(slot_r < anim::HITBOX_COUNT);
+        // ДВЕ МЕРЫ. Перекрест лодыжек поперёк тела — только СТОЯ (покой, поворот
+        // на месте): на стрейфе Mixamo шаг приставной с заносом (левая уходит
+        // на 34 см правее правой — это авторский шаг, не крест). Пересечение
+        // ног — коробки голеней и бёдер на ВСЁМ сценарии: ноль по GJK —
+        // вложение или касание, глубины не различает.
+        float worst_cross = -1.0f;
+        std::string worst_at;
+        float min_shin = 1.0e9f;
+        float min_thigh = 1.0e9f;
+        std::string min_at;
+        for (const Beat& b : script) {
+            const float target = s.ps().yaw + glm::radians(b.view_deg);
+            for (int t = 0; t < b.ticks; ++t) {
+                const float d = std::clamp(wrap_pi(target - s.ps().yaw), -rate_max * DT, rate_max * DT);
+                s.tick(b.axes, d / sens, b.run, b.jog);
+                const anim::HitboxPose& hp = s.body.hitbox_pose();
+                if (hp.valid[slot_l] == 0 || hp.valid[slot_r] == 0) {
+                    continue;
+                }
+                const float shin = anim::hitbox_pair_distance(s.body.hitboxes(), hp, anim::BodyPart::ShinL, anim::BodyPart::ShinR);
+                const float thigh = anim::hitbox_pair_distance(s.body.hitboxes(), hp, anim::BodyPart::ThighL, anim::BodyPart::ThighR);
+                if (std::min(shin, thigh) < std::min(min_shin, min_thigh)) {
+                    min_at = b.label;
+                }
+                min_shin = std::min(min_shin, shin);
+                min_thigh = std::min(min_thigh, thigh);
+                const anim::LocoState st = s.body.loco_machine().state;
+                const bool standing = root_track ? (st == anim::LocoState::Idle || st == anim::LocoState::TurnInPlace)
+                                                 : glm::length(b.axes) < 1.0e-4f;
+                if (!standing) {
+                    continue;
+                }
+                // в систему корпуса: +X — вправо; перекрест — левая правее правой
+                const glm::mat4 to_body = glm::rotate(glm::mat4{1.0f}, s.ps().body_yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+                const glm::vec3 l = glm::vec3{to_body * glm::vec4{glm::vec3{hp.frame[slot_l][3]} - s.pos(), 0.0f}};
+                const glm::vec3 r = glm::vec3{to_body * glm::vec4{glm::vec3{hp.frame[slot_r][3]} - s.pos(), 0.0f}};
+                const float cross = l.x - r.x;
+                if (cross > worst_cross) {
+                    worst_cross = cross;
+                    worst_at = b.label;
+                }
+            }
+        }
+        MESSAGE((root_track ? "дорожка корня" : "прежний путь") << ": стоя худший перекрест лодыжек "
+                << 1000.0f * worst_cross << " мм (левая правее правой) на «" << worst_at
+                << "»; минимум коробок голень–голень " << 1000.0f * min_shin << " мм, бедро–бедро "
+                << 1000.0f * min_thigh << " мм на «" << min_at << "»; смен клипа "
+                << s.body.loco_machine().transitions);
+        if (root_track) {
+            CHECK(worst_cross <= static_cast<float>(config::LOCO_CROSS_MAX_M));
+            CHECK(min_shin >= 0.0f);
+            CHECK(min_thigh >= 0.0f);
         }
     }
 }
