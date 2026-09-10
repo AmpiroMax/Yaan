@@ -70,10 +70,6 @@ constexpr float INPUT_MPS = 0.15f; ///< как MOVING_SPEED_MPS у ролей
 }
 
 /// Угол ввода от носа корпуса (рад, знак сим'а: вправо +).
-[[nodiscard]] float input_angle(const glm::vec3& d) {
-    return std::atan2(d.x, -d.z);
-}
-
 /// Темп цикла: заказ / скорость дорожки, в полосе LOCOMOTION_TEMPO_BAND.
 [[nodiscard]] float tempo_for(const ClipEntry& e, float want_mps) {
     const float band = static_cast<float>(config::LOCOMOTION_TEMPO_BAND);
@@ -276,13 +272,19 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
     switch (m.state) {
     case LocoState::Idle: {
         if (input) {
-            const float a = input_angle(in.want_dir_model);
-            const MoveDir cls = move_dir_class(in.want_dir_model, MoveDir::Forward);
-            if (cls == MoveDir::Forward
-                && std::abs(a) > glm::radians(static_cast<float>(config::BODY_TURN_START_DEG))) {
-                enter_turn(lib, m, a);
-                if (m.state == LocoState::TurnInPlace) {
-                    return;
+            // ВВОД ДАЛЬШЕ BODY_TURN_START_DEG ОТ КОРПУСА — СНАЧАЛА РАЗВОРОТ КЛИПОМ,
+            // ПОТОМ СТАРТ (§16.4). «Дальше» мерится по ВЗГЛЯДУ: от третьего лица
+            // взгляд на ходу = направление ввода (тело идёт, куда просят), от
+            // первого прицел привязан к корпусу ближе порога и не стреляет; у
+            // НПС взгляд — заказ исполнителя (Face/MoveTo). Класс направления
+            // тут ни при чём: назад-вправо при корпусе по взгляду — Backward.
+            if (in.view_valid) {
+                const float d = wrap_pi_l(in.view_yaw - in.body_yaw);
+                if (std::abs(d) > glm::radians(static_cast<float>(config::BODY_TURN_START_DEG))) {
+                    enter_turn(lib, m, d);
+                    if (m.state == LocoState::TurnInPlace) {
+                        return;
+                    }
                 }
             }
             enter_move(lib, m, in);

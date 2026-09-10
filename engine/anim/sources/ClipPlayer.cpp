@@ -1195,6 +1195,18 @@ void measure_contact_schedule(const skel::Skeleton& skeleton, const SkinnedRigBi
                     kept.push_back(sg);
                 }
             }
+            // БЕГ СТОИТ КОРОТКО: у MX_Standard_Run неподвижность стопы длится
+            // ~0,07 с, у спринта ~0,03 с — короче CONTACT_MIN_PLANT_S, и фильтр
+            // «касание — не постановка» выбрасывал ВСЕ опоры бега (замер
+            // 11.09: постановок 0/0, шаги без событий). Порог режет только
+            // дребезг рядом с настоящей опорой: если не осталось ничего —
+            // самая длинная неподвижность и есть постановка.
+            if (kept.empty() && !segs.empty()) {
+                const Seg longest = *std::max_element(
+                    segs.begin(), segs.end(),
+                    [](const Seg& a, const Seg& b) { return (a.to - a.from) < (b.to - b.from); });
+                kept.push_back(longest);
+            }
             // …но касание в самом начале/конце петли — половина одной постановки
             if (cyclic && !segs.empty() && segs.front().from == 0 && segs.back().to == n
                 && (segs.front().to - segs.front().from) + (segs.back().to - segs.back().from)

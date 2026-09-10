@@ -366,11 +366,12 @@ if(TARGET dfn_render AND TARGET dfn_core)
     # НОВАЯ ЛОКОМОЦИЯ (§16, фаза 3): дорожка корня и машина состояний на пути
     # игрока; контрольная рука — прежний путь (set_root_track(false)).
     add_dfn_test(app_locomotion app/LocomotionTests.cpp
-                 dfn_render dfn_platform_render dfn_anim dfn_core)
+                 dfn_render dfn_platform_render dfn_anim dfn_gameplay dfn_physics dfn_platform_physics dfn_core)
     target_sources(app_locomotion PRIVATE
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyFerry.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp
         ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp

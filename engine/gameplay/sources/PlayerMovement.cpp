@@ -506,22 +506,34 @@ void player_pre_step(PlayerState& state, platform::IPhysics& physics, float wate
         // приложение). Раньше доворот жил в App и ходоки без приложения
         // (плейтест, приборы движения) стояли с корпусом на нуле, а привязь
         // прицела к корпусу (TURN_LEAD_MAX_DEG) не давала им развернуться.
-        if (want_len > 1.0e-5f) {
+        // ДОРОЖКА КОРНЯ (§16.4, заявка вербатим): на ходу корпус доворачивается
+        // К ВЗГЛЯДУ (`yaw`: прицел от первого лица, заказ исполнителя у НПС; от
+        // третьего лица `yaw` и есть корпус — доворот к вводу делает рига
+        // третьего лица в приложении), любым классом ввода: бок и назад идут
+        // своими клипами при корпусе, стоящем по взгляду. Пока рыск ведёт клип
+        // (поворот на месте) — корпус не трогается вовсе. Прежний шов
+        // (контрольная рука) — к направлению ввода, как было.
+        const bool yaw_owned = step.locomotion.valid && step.locomotion.yaw_owned_by_clip;
+        if (want_len > 1.0e-5f && !yaw_owned) {
             const float want_yaw = std::atan2(state.want_dir.x, -state.want_dir.y);
-            float d = want_yaw - state.body_yaw;
+            const float target = step.locomotion.valid && step.locomotion.verbatim ? state.yaw : want_yaw;
+            float d = target - state.body_yaw;
             d = std::atan2(std::sin(d), std::cos(d));
-            const float step = static_cast<float>(config::BODY_TURN_RATE) * DT;
-            state.body_yaw += std::clamp(d, -step, step);
+            const float step_rad = static_cast<float>(config::BODY_TURN_RATE) * DT;
+            state.body_yaw += std::clamp(d, -step_rad, step_rad);
         }
         if (step.locomotion.valid && physics.character_grounded(state.character)) {
             const glm::vec2 req = step.locomotion.delta_xz;
-            if (axes_len > 1.0e-4f) {
+            if (step.locomotion.verbatim || axes_len <= 1.0e-4f) {
+                // ЗАЯВКА ВЕРБАТИМ: ввод выбрал состояние и клип, вектор — у
+                // дорожки корня; без ввода ноги дошагивают остановку.
+                displacement.x = req.x;
+                displacement.z = req.y;
+            } else {
+                // прежний шов: модуль от анимации, направление от ввода
                 const float mag = glm::length(req);
                 displacement.x = state.want_dir.x * mag;
                 displacement.z = state.want_dir.y * mag;
-            } else {
-                displacement.x = req.x;
-                displacement.z = req.y;
             }
         }
 

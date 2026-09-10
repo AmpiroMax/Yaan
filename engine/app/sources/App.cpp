@@ -4422,10 +4422,28 @@ int App::run() {
                     // скоростью на месте — и ни один кадр стенда не был бы
                     // воспроизводим.
                     if (pw < 0.5f && !stand_seq_ && stand_cam_ == 0) {
+                        // ДОВОРОТ УСТУПАЕТ КЛИПУ (§16.4): пока рыск ведёт клип
+                        // поворота — или ввод дальше BODY_TURN_START_DEG от
+                        // корпуса и клип вот-вот его возьмёт — рига только
+                        // переписывает оси в систему корпуса (темп 0), иначе
+                        // два автора крутили бы один рыск.
+                        float rate = static_cast<float>(config::BODY_TURN_RATE);
+                        const anim::LocomotionOut& plo = skinned_character_.locomotion();
+                        if (plo.valid && plo.yaw_owned_by_clip) {
+                            rate = 0.0f;
+                        } else if (plo.valid && plo.verbatim
+                                   && glm::length(ps->move_axes) > 1.0e-4f) {
+                            const float want = cam_yaw_ + move_yaw_from_axes(ps->move_axes);
+                            const float gap = std::atan2(std::sin(want - ps->yaw),
+                                                         std::cos(want - ps->yaw));
+                            if (std::abs(gap) > glm::radians(static_cast<float>(
+                                    config::BODY_TURN_START_DEG))) {
+                                rate = 0.0f;
+                            }
+                        }
                         const ThirdPersonStep turn = third_person_step(
                             ps->yaw, cam_yaw_, ps->move_axes,
-                            static_cast<float>(visual_dt),
-                            static_cast<float>(config::BODY_TURN_RATE));
+                            static_cast<float>(visual_dt), rate);
                         ps->yaw = turn.body_yaw;
                         ps->move_axes = turn.move_axes;
                     }
@@ -4671,29 +4689,23 @@ int App::run() {
                         skinned_character_.advance(*cdrive, feet,
                                                    static_cast<float>(timestep_.step_dt()));
                         const anim::LocomotionOut& lo = skinned_character_.locomotion();
-                        // ПОВОРОТ КОРПУСА ОТ ОПОРНОЙ СТОПЫ (§13): клип поворота
-                        // на месте крутит таз над стоящей стопой, и ровно на
-                        // столько поворачивается корпус. Прицел (ps->yaw) не
-                        // трогается — мышь всегда сама по себе.
+                        // ПОВОРОТ КОРПУСА — ИЗ ДОРОЖКИ КОРНЯ КЛИПА (§16.4): клип
+                        // поворота на месте крутит корпус ровно на свой рыск.
+                        // Прицел от первого лица (ps->yaw) не трогается — мышь
+                        // сама по себе. От третьего лица ps->yaw — ЭТО КОРПУС
+                        // (камера — cam_yaw_, её ведёт только мышь), поэтому
+                        // рыск клипа идёт и в него: план фазы 4 предлагал снять
+                        // эту строку как «рыск камеры», но камера тут не при чём.
                         if (auto* pst = world_.get<gameplay::PlayerState>(player_);
                             pst != nullptr && lo.valid && lo.root_yaw_delta != 0.0f) {
                             pst->body_yaw += lo.root_yaw_delta;
                             if (third_person_) {
-                                // от третьего лица корпус — это и есть ps->yaw
                                 pst->yaw += lo.root_yaw_delta;
                             }
                         }
-                        if (lo.valid) {
-                            const float yaw = anim::body_root_for(*cdrive, feet).yaw;
-                            const glm::vec3 w = glm::vec3{
-                                glm::rotate(glm::mat4{1.0f}, -yaw, glm::vec3{0.0f, 1.0f, 0.0f})
-                                * glm::vec4{lo.root_delta_model, 0.0f}};
-                            step_ctx_.locomotion.valid = true;
-                            step_ctx_.locomotion.delta_xz = glm::vec2{w.x, w.z};
-                            step_ctx_.locomotion.phase = lo.phase;
-                            step_ctx_.locomotion.footfall_left = lo.footfall[0];
-                            step_ctx_.locomotion.footfall_right = lo.footfall[1];
-                        }
+                        // ЗАЯВКА СИМУ — одним паромом с НПС (BodyFerry).
+                        step_ctx_.locomotion = ferry_locomotion_request(
+                            lo, anim::body_root_for(*cdrive, feet).yaw);
                     }
                 }
                 // ИСПОЛНИТЕЛЬ ОЧЕРЕДЕЙ НПС — до шага ходоков: он пишет НПС ввод
@@ -4718,6 +4730,7 @@ int App::run() {
                         // ПАРОМ — одна функция для игрока и НПС (BodyFerry.h).
                         BodyView view;
                         view.third_person = third_person_;
+                        view.root_track = skinned_character_.ready() && skinned_character_.root_track();
                         view.cam_yaw = cam_yaw_;
                         view.stand_cam = stand_cam_;
                         ferry_body_drive(*drive, *ps, physics_.get(), view);

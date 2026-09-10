@@ -145,6 +145,12 @@ struct PlayerState {
     // факту было бы кругом.
     float want_speed_mps = 0.0f;
     glm::vec2 want_dir{0.0f, 0.0f};
+    /// ЗАКАЗ РЫСКА КОРПУСА ОТ ИСПОЛНИТЕЛЯ НПС (§16.4): куда встать лицом (Face,
+    /// MoveTo — конечная цель, не рыск, доворачиваемый по NPC_TURN_RATE).
+    /// Тело поворачивается клипом, когда разница с корпусом больше
+    /// TURN_FIRE_DEG; меньше — только прицел (стоя тело не переступает).
+    float want_yaw = 0.0f;
+    bool want_yaw_valid = false;
 
     // Jump: LATCHED like pending_look, not sampled. Render outpaces the fixed
     // tick, so a press and release inside one tick would otherwise be lost —
@@ -285,6 +291,14 @@ struct StepContext {
         float phase = 0.0f;             ///< фаза шага [0,1) — часы анимации
         bool footfall_left = false;
         bool footfall_right = false;
+        bool planted_left = false;      ///< стопа в опоре (расписание клипа)
+        bool planted_right = false;
+        /// РЫСК КОРПУСА ВЕДЁТ КЛИП (поворот на месте): сим корпус не доворачивает.
+        bool yaw_owned_by_clip = false;
+        /// ЗАЯВКА ВЕРБАТИМ (§16.4, дорожка корня): delta_xz — всё смещение,
+        /// и модуль, и направление; ложь — прежний шов («модуль от анимации,
+        /// направление от ввода») — контрольная рука DFN_ROOT_TRACK=0.
+        bool verbatim = false;
     };
     LocomotionRequest locomotion;
 };

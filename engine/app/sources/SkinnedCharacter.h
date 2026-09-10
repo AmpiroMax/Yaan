@@ -286,6 +286,9 @@ public:
     void set_root_track(bool on) { root_track_ = on; }
     [[nodiscard]] bool root_track() const { return root_track_; }
     [[nodiscard]] const anim::LocoMachine& loco_machine() const { return loco_m_; }
+    /// КОНТРОЛЬНАЯ РУКА ПРИБОРА ДРЕБЕЗГА (§16.4): порог жизни состояния машины
+    /// (0 — без dwell; отрицательное — из реестра LOCO_STATE_DWELL_S).
+    void set_loco_dwell_min_s(float s) { loco_m_.dwell_min_s = s; }
     void set_transitions(bool on) {
         transitions_ = on;
         library_.transitions = on;

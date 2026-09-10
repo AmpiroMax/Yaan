@@ -27,6 +27,7 @@ AI Agents Notice (must follow):
 #pragma once
 
 #include "engine/anim/sources/Body.h"
+#include "engine/anim/sources/RootMotion.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/gameplay/sources/StepFeel.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"
@@ -36,13 +37,24 @@ AI Agents Notice (must follow):
 namespace dfn::app {
 
 struct BodyView {
-    bool npc = false;          ///< НПС: взгляда нет, корпус — рыск ходока
-    bool third_person = false; ///< игрок от третьего лица: корпус = ps->yaw
+    bool npc = false;          ///< НПС: взгляд — заказ исполнителя (want_yaw)
+    /// ДОРОЖКА КОРНЯ (§16.4) у этого тела: корпус ведут клипы и сим; ложь —
+    /// прежний шов: от третьего лица и у НПС корпус = рыск ходока, взгляда
+    /// у НПС нет (контрольная рука DFN_ROOT_TRACK=0).
+    bool root_track = true;
+    bool third_person = false; ///< игрок от третьего лица: ps->yaw — корпус
     float cam_yaw = 0.0f;      ///< рыск камеры обвода
     uint32_t stand_cam = 0;    ///< камера стенда (0 — нет); 6 — «лицо», взгляд в объектив
 };
 
 void ferry_body_drive(anim::BodyDrive& drive, gameplay::PlayerState& ps,
                       const platform::IPhysics* physics, const BodyView& view);
+
+/// ЗАЯВКА ЛОКОМОЦИИ — ИЗ ЗОНЫ ПЕРСОНАЖА В СИМ (§16.4), одна функция для игрока
+/// и НПС: смещение корня из системы тела в мир (поворот на −рыск корпуса),
+/// фаза, постановки, опора, класс направления, владение рыском, вербатим.
+/// Невалидный выход — невалидная заявка (капсула едет от ввода).
+[[nodiscard]] gameplay::StepContext::LocomotionRequest
+ferry_locomotion_request(const anim::LocomotionOut& lo, float body_yaw);
 
 } // namespace dfn::app

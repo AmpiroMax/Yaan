@@ -109,6 +109,7 @@ void NpcBodies::before_step(ecs::World& world, const platform::IPhysics* physics
         }
         BodyView view;
         view.npc = true;
+        view.root_track = npc->body.ready() && npc->body.root_track();
         ferry_body_drive(*drive, *ps, physics, view);
         walker->request = {};
         if (!npc->body.ready()) {
@@ -119,17 +120,8 @@ void NpcBodies::before_step(ecs::World& world, const platform::IPhysics* physics
         if (lo.valid && lo.root_yaw_delta != 0.0f) {
             ps->body_yaw += lo.root_yaw_delta;
         }
-        if (lo.valid) {
-            const float yaw = anim::body_root_for(*drive, tr->position).yaw;
-            const glm::vec3 w = glm::vec3{
-                glm::rotate(glm::mat4{1.0f}, -yaw, glm::vec3{0.0f, 1.0f, 0.0f})
-                * glm::vec4{lo.root_delta_model, 0.0f}};
-            walker->request.valid = true;
-            walker->request.delta_xz = glm::vec2{w.x, w.z};
-            walker->request.phase = lo.phase;
-            walker->request.footfall_left = lo.footfall[0];
-            walker->request.footfall_right = lo.footfall[1];
-        }
+        walker->request =
+            ferry_locomotion_request(lo, anim::body_root_for(*drive, tr->position).yaw);
     }
 }
 

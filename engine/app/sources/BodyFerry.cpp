@@ -34,14 +34,27 @@ void ferry_body_drive(anim::BodyDrive& drive, gameplay::PlayerState& ps,
     // рыск игрока и есть корпус (ThirdPersonRig); от первого — доворот в
     // PlayerMovement; стоя корпус поворачивает КЛИП (root_yaw_delta).
     if (view.third_person && !view.npc) {
+        // От третьего лица ps.yaw и есть корпус (рига третьего лица пишет в
+        // него доворот к вводу, клип поворота — свой рыск через приложение).
         ps.body_yaw = ps.yaw;
     }
+    if (view.npc && !view.root_track) {
+        ps.body_yaw = ps.yaw; // прежний шов: корпус НПС — его прицел
+    }
     drive.facing_yaw = ps.body_yaw;
+    const bool has_input = glm::length(ps.want_dir) > 1.0e-4f;
     if (view.npc) {
-        // НПС: взгляда нет (лид 07.09) — повороты на месте не стреляют,
-        // корпус ведёт исполнитель очереди через рыск ходока.
-        drive.view_yaw = ps.yaw;
-        drive.view_valid = false;
+        // НПС (§16.4): взгляд — заказ исполнителя очереди (Face, цель MoveTo);
+        // без заказа поворот на месте не стреляет. Прежний шов: взгляда нет.
+        drive.view_yaw = ps.want_yaw_valid ? ps.want_yaw : ps.yaw;
+        drive.view_valid = view.root_track && ps.want_yaw_valid;
+    } else if (view.third_person && view.root_track) {
+        // ТРЕТЬЕ ЛИЦО (решение владельца 10.09): стоя тело камеру НЕ догоняет —
+        // мышь облетает; взгляд для машины — направление ввода, и он есть
+        // только пока ввод держат: дальше BODY_TURN_START_DEG от корпуса —
+        // сначала клип разворота, потом старт.
+        drive.view_yaw = has_input ? std::atan2(ps.want_dir.x, -ps.want_dir.y) : ps.body_yaw;
+        drive.view_valid = has_input;
     } else {
         drive.view_yaw = view.third_person ? view.cam_yaw : ps.yaw;
         drive.view_valid = true;
@@ -95,6 +108,26 @@ void ferry_body_drive(anim::BodyDrive& drive, gameplay::PlayerState& ps,
     case gameplay::Gait::Jog:  drive.gait = anim::Gait::Jog;  break;
     case gameplay::Gait::Run:  drive.gait = anim::Gait::Run;  break;
     }
+}
+
+gameplay::StepContext::LocomotionRequest ferry_locomotion_request(const anim::LocomotionOut& lo,
+                                                                 float body_yaw) {
+    gameplay::StepContext::LocomotionRequest req;
+    if (!lo.valid) {
+        return req;
+    }
+    const glm::vec3 w = glm::vec3{glm::rotate(glm::mat4{1.0f}, -body_yaw, glm::vec3{0.0f, 1.0f, 0.0f})
+                                  * glm::vec4{lo.root_delta_model, 0.0f}};
+    req.valid = true;
+    req.delta_xz = glm::vec2{w.x, w.z};
+    req.phase = lo.phase;
+    req.footfall_left = lo.footfall[0];
+    req.footfall_right = lo.footfall[1];
+    req.planted_left = lo.planted[0];
+    req.planted_right = lo.planted[1];
+    req.yaw_owned_by_clip = lo.yaw_owned_by_clip;
+    req.verbatim = lo.verbatim;
+    return req;
 }
 
 } // namespace dfn::app

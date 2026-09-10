@@ -130,10 +130,11 @@ void execute_npc_actions(ecs::World& world, platform::IPhysics& physics,
                                         NpcActionFailure::Interrupted});
             queue.interrupted_sequence = 0;
         }
-        // КОРПУС НПС — ЕГО РЫСК: взгляда у НПС нет (клипы поворота на месте
-        // не стреляют — контракт третьего лица), корпус доворачивается вместе
-        // с прицелом исполнителя.
-        state.body_yaw = state.yaw;
+        // КОРПУС НПС ВЕДЁТ ТЕЛО (§16.4): исполнитель заказывает, куда встать
+        // лицом (want_yaw), тело поворачивается клипом, на ходу доворачивается
+        // к прицелу симом; без действия заказа нет. (Прежний шов копирует
+        // прицел в корпус — NpcBodies, контрольная рука.)
+        state.want_yaw_valid = false;
         if (queue.pending.empty()) {
             continue;
         }
@@ -152,6 +153,8 @@ void execute_npc_actions(ecs::World& world, platform::IPhysics& physics,
             }
             const float want_yaw = yaw_to(transform.position, move->target);
             state.yaw = turn_toward(state.yaw, want_yaw, turn_rate);
+            state.want_yaw = want_yaw;
+            state.want_yaw_valid = true;
             // Идём, когда цель впереди: иначе сначала доворот на месте (клипы
             // поворота у тела стреляют по той же разнице «взгляд − корпус»).
             const float off = std::abs(wrap_pi(want_yaw - state.yaw));
@@ -192,6 +195,8 @@ void execute_npc_actions(ecs::World& world, platform::IPhysics& physics,
             }
             const float want_yaw = yaw_to(transform.position, point);
             state.yaw = turn_toward(state.yaw, want_yaw, turn_rate);
+            state.want_yaw = want_yaw;
+            state.want_yaw_valid = true;
             if (std::abs(wrap_pi(want_yaw - state.yaw))
                 < glm::radians(static_cast<float>(config::NPC_FACE_DONE_DEG))) {
                 finish(queue, events, id, NpcActionFailure::None);

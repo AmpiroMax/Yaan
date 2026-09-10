@@ -1061,7 +1061,20 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
                 crossed = crossed || (a <= b ? (pp > a && pp <= b) : (pp > a || pp <= b));
             }
             loco_.footfall[side] = crossed;
+            // ОПОРА ПО РАСПИСАНИЮ: фаза внутри [постановка, отрыв) любого
+            // окна; окно «полный круг» (покой: постановка == отрыв) — всегда.
+            bool planted = false;
+            for (uint8_t i = 0; i < e.plant_count[side]; ++i) {
+                const float p = e.plant_phase[side][i];
+                const float l = e.lift_phase[side][i];
+                const float ph = loco_m_.phase;
+                planted = planted || (p == l) || (p < l ? (ph >= p && ph < l) : (ph >= p || ph < l));
+            }
+            loco_.planted[side] = planted;
         }
+        loco_.dir = loco_m_.dir;
+        loco_.yaw_owned_by_clip = anim::loco_yaw_owned_by_clip(library_, loco_m_);
+        loco_.verbatim = true;
         if (slip_count_ > 0) {
             const glm::vec3 mean = slip_sum_world_ / static_cast<float>(slip_count_);
             const float yaw = anim::body_root_for(drive, standing_ground).yaw;
@@ -1157,6 +1170,10 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         loco_.root_yaw_delta = turn_yaw_delta_;
         loco_.footfall =
             anim::detect_footfalls(contact_prev_, contact_curr_, lock_params_.on_weight);
+        loco_.dir = play_.move_dir;
+        for (std::size_t side = 0; side < 2; ++side) {
+            loco_.planted[side] = contact_curr_.support[side] >= lock_params_.on_weight;
+        }
         // СКОЛЬЖЕНИЕ ФИЗИЧЕСКОЙ СТОПЫ (§12, CharacterFeet): ход поставленной
         // стопы за прошлый тик — в корень, в системе тела.
         if (slip_count_ > 0) {
