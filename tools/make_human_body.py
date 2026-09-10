@@ -75,8 +75,19 @@ from mathutils import Matrix, Vector  # type: ignore
 
 # ---------------------------------------------------------------- аргументы --
 
-# ход таза за клип, с которого снятие хода идёт покадрово (см. retarget_mapped)
+# ход таза за клип, с которого ход считается ХОДОМ и уходит в сустав root (см.
+# retarget_mapped / root_track_pass); меньше — клип «на месте», таз де-дрифтуется
 MIXAMO_TRAVEL_LOCK_M = 0.3
+# ДОРОЖКА КОРНЯ (LOCOMOTION_GROUNDED.md §16, 10.09): рыск таза за клип не меньше
+# этого — поворот, он уходит в сустав root; меньше — колебание позы, остаётся
+# в тазе. Сглаживание рыска — окно ±ROOT_YAW_SMOOTH_FRAMES кадров: покачивание
+# таза при ходьбе (±10° за шаг) — поза, тренд — курс.
+BAKE_ROOT_YAW_MIN_DEG = 15.0
+ROOT_YAW_SMOOTH_FRAMES = 5
+# ХОД КОРНЯ ИЗ СТОП для клипов, авторски сделанных «на месте» (UAL): один раз
+# офлайн, вся петля видна — монотонно по оси хода, окно сглаживания в кадрах.
+ROOT_FROM_FEET_SMOOTH_FRAMES = 2
+ROOT_FROM_FEET_AIR_M = 0.05
 
 DEFAULTS = {
     # ТЕЛО, ОДОБРЕННОЕ ВЛАДЕЛЬЦЕМ 02.09 («он прям супер выглядит как надо»):
@@ -126,11 +137,15 @@ DEFAULTS = {
     "clothes-set": "",
     # ТРЕТИЙ ДОНОР — MIXAMO (владелец 02.09-2 скачал набор): папка с .fbx
     # (With Skin, 30 fps), каждый файл — один клип, имя клипа = имя файла
-    # (пробелы → _), приставка --mixamo-prefix. Ход таза по горизонтали
-    # (клипы без In Place) вычитается линейно — клип становится «на месте»,
-    # как того требует корень от опорной стопы. Сырые FBX в репозиторий не
+    # (пробелы → _), приставка --mixamo-prefix. Ход и рыск таза уходят в
+    # сустав root (дорожка корня, §16) — таз локально «на месте», капсулу
+    # ведёт дорожка; клипы на месте де-дрифтуются. Сырые FBX в репозиторий не
     # кладутся (лицензия Mixamo), только испечённые клипы в glb.
     "mixamo": "",
+    # ХОД КОРНЯ ИЗ СТОП (§16): клипы UAL, у которых таз авторски стоит на месте,
+    # получают дорожку корня офлайн-фитом по опорной стопе — один раз, здесь,
+    # а не интегратором в движке. Список через запятую; пусто — никому.
+    "root-from-feet": "Walk_Loop,Jog_Fwd_Loop,Sprint_Loop",
     "mixamo-only": "",
     "mixamo-prefix": "MX_",
     "tris": "0",          # без децимации: 26 756 треугольников, пальцы целы
@@ -1252,8 +1267,18 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None, clip_nam
         # обе стопы шаркают (Right Turn 90: снос 320 мм при покадровом,
         # 15 мм при линейном — прибор standing_body_turns…, 07.09). Порог —
         # MIXAMO_TRAVEL_LOCK_M: меньше — линейно, больше — покадрово.
-        hips_lock = None
+        # ХОД ТАЗА — В КОРЕНЬ, А НЕ ДОЛОЙ (§16, 10.09). Клип с ходом (≥
+        # MIXAMO_TRAVEL_LOCK_M за клип) проходит В МИРОВЫХ координатах как есть;
+        # пост-проход root_track_pass переносит ход и рыск таза в сустав root,
+        # и таз становится локально «на месте» через композицию базисов
+        # (rest⁻¹ · rest_root · pose_root⁻¹ · pose_hips) — это и есть дорожка,
+        # которой движок ведёт капсулу. До 10.09 ход вырезался (покадрово или
+        # линейно) и выбрасывался, а движок угадывал его заново по стопам.
+        # …КЛИПАМ «НА МЕСТЕ» (повороты, действия стоя) — линейный де-дрифт
+        # таза, как прежде: у них ход за клип — сантиметры, а внутри клипа таз
+        # обходит стоящую стопу дугой; дуга — поза, остаётся в тазе.
         drift = None
+        move_root = False
         if strip_travel and "DEF-hips" in bone_map:
             hips = src_rig.pose.bones[bone_map["DEF-hips"]]
             bpy.context.scene.frame_set(f0)
@@ -1262,13 +1287,11 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None, clip_nam
             p1 = (to_rig @ to_src @ hips.matrix).to_translation()
             travel = (p1 - p0).xy.length
             if travel >= MIXAMO_TRAVEL_LOCK_M:
-                hips_lock = (p0.x, p0.y)
-                log("  %s: travel %.2f m over %d frames stripped per frame" % (clip, travel, f1 - f0))
+                move_root = True
             else:
                 drift = Vector((p1.x - p0.x, p1.y - p0.y, 0.0))
-                log("  %s: travel %.2f m over %d frames stripped linearly (in place)" % (clip, travel, f1 - f0))
         out = bpy.data.actions.new("retargeted2@" + clip)
-        made.append((out, prefix + clip))
+        made.append((out, prefix + clip, move_root, strip_travel))
         rig.animation_data.action = out
         for frame in range(f0, f1 + 1):
             bpy.context.scene.frame_set(frame)
@@ -1288,9 +1311,7 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None, clip_nam
                     head = rest_head[n].copy()
                 elif n == "DEF-hips" and n in src_world:
                     trans = src_world[n].to_translation()
-                    if hips_lock is not None:
-                        trans = Vector((hips_lock[0], hips_lock[1], trans.z))
-                    elif drift is not None and f1 > f0:
+                    if drift is not None and f1 > f0:
                         trans = trans - drift * (float(frame - f0) / float(f1 - f0))
                     head = rest_head[n] + (trans - src_rest_head[n]) * hips_scale
                 else:
@@ -1317,14 +1338,233 @@ def retarget_mapped(rig, src_rig, bone_map, sources, prefix, only=None, clip_nam
     src_rig.animation_data.action = None
     for action in sources:
         bpy.data.actions.remove(action)
-    for out, name in made:
+    for out, name, move_root, yaw_ok in made:
         out.name = name
+        if yaw_ok:
+            root_track_pass(rig, out, name, move_xy=move_root)
+    rig.animation_data.action = None
     log("donor2: %d clips, worst head error %.6f m" % (len(made), worst))
-    return [name for _, name in made]
+    return [name for _, name, _, _ in made]
 
 
 def rot_of(m):
     return m.to_3x3().normalized()
+
+
+def _twist_z(rot3):
+    """Закрутка ориентации вокруг мировой Z (swing-twist), рад."""
+    q = rot3.to_quaternion()
+    return 2.0 * math.atan2(q.z, q.w)
+
+
+def _unwrap(vals):
+    out = [vals[0]]
+    for v in vals[1:]:
+        d = v - out[-1]
+        while d > math.pi:
+            d -= 2.0 * math.pi
+        while d < -math.pi:
+            d += 2.0 * math.pi
+        out.append(out[-1] + d)
+    return [v - out[0] for v in out]
+
+
+def _smooth(vals, half):
+    if half <= 0:
+        return list(vals)
+    n = len(vals)
+    out = []
+    for i in range(n):
+        a = max(0, i - half)
+        b = min(n, i + half + 1)
+        out.append(sum(vals[a:b]) / float(b - a))
+    return out
+
+
+def _hips_track(rig, action, f0, f1):
+    """Таз в пространстве арматуры по кадрам действия: (xy, rot3)."""
+    rig.animation_data.action = action
+    hips = rig.pose.bones["DEF-hips"]
+    xy, rots = [], []
+    for frame in range(f0, f1 + 1):
+        bpy.context.scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        m = hips.matrix
+        t = m.to_translation()
+        xy.append(Vector((t.x, t.y)))
+        rots.append(rot_of(m))
+    return xy, rots
+
+
+def apply_root_track(rig, action, f0, f1, xy, yaw, move_body=False):
+    """ПЕРЕПИСАТЬ КОРЕНЬ И ТАЗ так, чтобы корень нёс xy[f] и рыск yaw[f]
+    ОТНОСИТЕЛЬНО ТАЗА ПЕРВОГО КАДРА, а МИРОВАЯ поза таза не изменилась: таз
+    становится локальным к корню. ОСЬ КОРНЯ — ЧЕРЕЗ ТАЗ: в пространстве
+    арматуры таз стоит в ~1 м от начала корня (по Y), и поворот корня вокруг
+    его начала уносил таз в локальных координатах на 0,7 м (замер 10.09).
+    Корень первого кадра ставится под таз; движок сбрасывает корень в позу
+    кадра 0 клипа, а не в бинд (для клипов без дорожки это одно и то же).
+    Проверка после записи — мировой таз до/после ≤ 1e-4 м."""
+    rest_root = rig.data.bones["root"].matrix_local.copy()
+    rest_hips = rig.data.bones["DEF-hips"].matrix_local.copy()
+    head_root = rig.data.bones["root"].head_local.copy()
+    rot_root = rot_of(rest_root)
+    rig.animation_data.action = action
+    pb_root = rig.pose.bones["root"]
+    pb_hips = rig.pose.bones["DEF-hips"]
+    before = []
+    for frame in range(f0, f1 + 1):
+        bpy.context.scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        before.append(pb_hips.matrix.copy())
+    pivot = before[0].to_translation()
+    if move_body:
+        # КЛИП АВТОРСКИ НА МЕСТЕ (UAL): вместе с корнем едет и мировой таз —
+        # иначе таз в локальных координатах корня уезжает назад на длину
+        # дорожки, и тело в движке пятится под едущей капсулой (замер 10.09).
+        before = [Matrix.Translation(Vector((xy[i].x, xy[i].y, 0.0))) @ m
+                  for i, m in enumerate(before)]
+    for i, frame in enumerate(range(f0, f1 + 1)):
+        pose_hips = before[i]
+        head = Vector((pivot.x + xy[i].x, pivot.y + xy[i].y, head_root.z))
+        pose_root = Matrix.Translation(head) @ (Matrix.Rotation(yaw[i], 3, "Z") @ rot_root).to_4x4()
+        pb_root.rotation_mode = "QUATERNION"
+        pb_root.matrix_basis = rest_root.inverted() @ pose_root
+        pb_root.keyframe_insert("rotation_quaternion", frame=frame, group="root")
+        pb_root.keyframe_insert("location", frame=frame, group="root")
+        pb_hips.rotation_mode = "QUATERNION"
+        pb_hips.matrix_basis = rest_hips.inverted() @ rest_root @ pose_root.inverted() @ pose_hips
+        pb_hips.keyframe_insert("rotation_quaternion", frame=frame, group="DEF-hips")
+        pb_hips.keyframe_insert("location", frame=frame, group="DEF-hips")
+    worst = 0.0
+    spread = 0.0
+    first_local = None
+    for i, frame in enumerate(range(f0, f1 + 1)):
+        bpy.context.scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        t = pb_hips.matrix.to_translation()
+        worst = max(worst, (t - before[i].to_translation()).length)
+        # таз относительно корня, ПО ГОРИЗОНТАЛИ (боб и присед — поза, не ход)
+        rel = Matrix.Rotation(-yaw[i], 3, "Z") @ Vector((t.x - pivot.x - xy[i].x,
+                                                        t.y - pivot.y - xy[i].y, 0.0))
+        if first_local is None:
+            first_local = rel
+        spread = max(spread, (rel - first_local).length)
+    return worst, spread
+
+
+def root_track_pass(rig, action, name, move_xy):
+    """ДОРОЖКА КОРНЯ ИЗ ТАЗА: ход (если move_xy) и рыск (если за клип ≥
+    BAKE_ROOT_YAW_MIN_DEG) таза относительно первого кадра — в root."""
+    f0 = int(math.floor(action.frame_range[0]))
+    f1 = int(math.ceil(action.frame_range[1]))
+    xy, rots = _hips_track(rig, action, f0, f1)
+    xy_rel = [v - xy[0] for v in xy] if move_xy else [Vector((0.0, 0.0)) for _ in xy]
+    # РЫСК — ЗАКРУТКА ОТНОСИТЕЛЬНОЙ ОРИЕНТАЦИИ к первому кадру (мировая дельта),
+    # а не абсолютной: в абсолютной зашита ориентация кости покоя (Y вдоль
+    # кости), и её «закрутка вокруг Z» — не курс (10.09: спред таза 1,27 м).
+    inv0 = rots[0].inverted()
+    yaw = _smooth(_unwrap([_twist_z(r @ inv0) for r in rots]), ROOT_YAW_SMOOTH_FRAMES)
+    yaw_total = yaw[-1]
+    move_yaw = abs(math.degrees(yaw_total)) >= BAKE_ROOT_YAW_MIN_DEG
+    if not move_yaw:
+        yaw = [0.0 for _ in yaw]
+    if not move_xy and not move_yaw:
+        log("  %s: root track — in place (yaw %.1f°)" % (name, math.degrees(yaw_total)))
+        return
+    worst, spread = apply_root_track(rig, action, f0, f1, xy_rel, yaw)
+    travel = xy_rel[-1].length
+    mode = "travel+yaw" if (move_xy and move_yaw) else ("travel" if move_xy else "yaw")
+    log("  %s: root track %s — travel %.2f m, yaw %.1f°, hips local spread %.0f mm, "
+        "world error %.2e m" % (name, mode, travel, math.degrees(yaw_total) if move_yaw else 0.0,
+                                1000.0 * spread, worst))
+    if worst > 1e-4:
+        raise SystemExit("%s: root track broke the hips world pose by %.4f m" % (name, worst))
+    # у поворота на месте таз обходит опорную стопу дугой — это поза, спред
+    # до ~0,3 м законен; у клипа с ходом таз обязан стоять над корнем
+    if move_xy and spread > 0.05:
+        raise SystemExit("%s: hips not in place relative to root (%.0f mm)" % (name, 1000.0 * spread))
+
+
+def fit_root_from_feet(rig, action, name):
+    """ХОД КОРНЯ ИЗ СТОП, ОФЛАЙН, для клипов, авторски стоящих на месте (UAL):
+    нижняя из четырёх точек (лодыжки, носки) считается опорной, её ход за
+    кадр, взятый с обратным знаком, — ход тела; в полёте (все точки выше
+    ROOT_FROM_FEET_AIR_M над своим покоем) скорость держится; ход монотонен по
+    оси клипа (среднее направление), окно сглаживания; записывается в root."""
+    f0 = int(math.floor(action.frame_range[0]))
+    f1 = int(math.ceil(action.frame_range[1]))
+    joints = ["DEF-foot.L", "DEF-toe.L", "DEF-foot.R", "DEF-toe.R"]
+    rest_z = {n: rig.data.bones[n].head_local.z for n in joints}
+    rig.animation_data.action = action
+    pos = []
+    for frame in range(f0, f1 + 1):
+        bpy.context.scene.frame_set(frame)
+        bpy.context.view_layer.update()
+        pos.append({n: rig.pose.bones[n].matrix.to_translation().copy() for n in joints})
+    # ОРИЕНТИР ВЫСОТЫ — САМАЯ НИЗКАЯ ТОЧКА КЛИПА, а не покой: ретаргет UAL держит
+    # стопы на 2…5 см выше покоя, и «в воздухе» по покою читалось 18 из 20
+    # кадров спринта (10.09).
+    floor_z = min(min(pos[i][n].z - rest_z[n] for n in joints) for i in range(len(pos)))
+    deltas = []
+    for i in range(1, len(pos)):
+        low = min(joints, key=lambda n: pos[i][n].z - rest_z[n])
+        if pos[i][low].z - rest_z[low] - floor_z > ROOT_FROM_FEET_AIR_M:
+            deltas.append(None)
+        else:
+            d = pos[i][low] - pos[i - 1][low]
+            deltas.append(Vector((-d.x, -d.y)))
+    known = [d for d in deltas if d is not None]
+    if not known:
+        log("  %s: root from feet — no contact found, left in place" % name)
+        return
+    axis = Vector((0.0, 0.0))
+    for d in known:
+        axis += d
+    if axis.length < 1e-6:
+        log("  %s: root from feet — no net travel, left in place" % name)
+        return
+    axis.normalize()
+    # МЕДИАНА СКОРОСТИ ОПОРНОЙ СТОПЫ, а не интеграл покадрово: покадровая сумма
+    # тянет за собой кадры постановки/отрыва (стопа ещё тормозит или уже
+    # ускоряется) и полёт — трусца UAL давала 6,25 м/с вместо ~3 (10.09).
+    # Цикл — постоянная скорость по построению, так что дорожка линейная.
+    # ПЛОСКАЯ СТОПА — ЧИСТЫЙ ЗАМЕР: когда и лодыжка, и носок опорной ноги у
+    # пола, обе точки едут со скоростью тела (перекат с пятки на носок даёт
+    # лодыжке другую скорость). Есть такие кадры — медиана по ним; нет (спринт
+    # на носках) — верхний квартиль всех опорных, потому что скользящие
+    # касания могут только занижать.
+    flat = []
+    for i in range(1, len(pos)):
+        if deltas[i - 1] is None:
+            continue
+        low = min(joints, key=lambda n: pos[i][n].z - rest_z[n])
+        mate = low.replace("foot", "toe") if "foot" in low else low.replace("toe", "foot")
+        if pos[i][mate].z - rest_z[mate] - floor_z <= ROOT_FROM_FEET_AIR_M:
+            v = deltas[i - 1].dot(axis)
+            if v > 0.0:
+                flat.append(v)
+    proj = sorted(d.dot(axis) for d in known if d.dot(axis) > 0.0)
+    if not proj:
+        log("  %s: root from feet — no forward stance motion, left in place" % name)
+        return
+    if len(flat) >= 4:
+        per_frame = sorted(flat)[len(flat) // 2]
+        how = "flat-foot median of %d" % len(flat)
+    else:
+        per_frame = proj[(3 * len(proj)) // 4]
+        how = "upper quartile of %d" % len(proj)
+    xy = [axis * (per_frame * i) for i in range(f1 - f0 + 1)]
+    yaw = [0.0 for _ in xy]
+    worst, spread = apply_root_track(rig, action, f0, f1, xy, yaw, move_body=True)
+    fps = bpy.context.scene.render.fps or 30
+    log("  %s: root from feet — travel %.2f m over %d frames (%.2f m/s; %s; stance frames %d of %d, "
+        "per-frame min/med/max %.3f/%.3f/%.3f), axis (%.2f %.2f), hips local spread %.0f mm, "
+        "world error %.2e m"
+        % (name, xy[-1].length, f1 - f0, xy[-1].length * fps / max(1, f1 - f0), how, len(proj),
+           len(deltas), proj[0], per_frame, proj[-1], axis.x, axis.y, 1000.0 * spread, worst))
+    if worst > 1e-4:
+        raise SystemExit("%s: root from feet broke the hips world pose by %.4f m" % (name, worst))
 
 
 # ------------------------------------------------------------------- main ---
@@ -1370,6 +1610,11 @@ def main():
         align_rest_to_donor(mesh, rig, src_rig, extra=[ob for _, _, ob, _ in parts])
         only = [x for x in opt["only"].split(",") if x]
         made = retarget(rig, src_rig, moving={"DEF-hips"}, only=only)
+        from_feet = [x for x in opt["root-from-feet"].split(",") if x]
+        for action in bpy.data.actions:
+            if action.name in from_feet and action.name in made:
+                fit_root_from_feet(rig, action, action.name)
+        rig.animation_data.action = None
         for o in list(bpy.data.objects):
             if o.name not in before and o is not src_rig:
                 bpy.data.objects.remove(o, do_unlink=True)

@@ -248,9 +248,74 @@ struct ContactSet {
 [[nodiscard]] ContactSet build_contacts(const Rig& rig, const skel::Skeleton& skeleton,
                                         const SkinnedRigBinding& binding);
 
+struct ClipEntry;
+/// Корень (суставы без родителя) — в позу кадра 0 клипа: поза «на месте».
+void neutralize_root(const skel::Skeleton& skeleton, const skel::AnimClip& clip,
+                     std::span<JointLocal> out);
+/// ДОРОЖКА КОРНЯ ИЗ КАНАЛОВ СУСТАВА 0 клипа (см. RootTrack): ресемпл по фазе,
+/// ход от кадра 0, рыск — закрутка вокруг вертикали относительно кадра 0.
+void measure_root_track(const skel::Skeleton& skeleton, const skel::AnimClip& clip,
+                        bool mirrored, ClipEntry& entry);
+/// РАСПИСАНИЕ КОНТАКТОВ (ClipEntry::plant_phase/lift_phase) по позе «на месте»
+/// плюс дорожка корня; `cyclic` — петля (постановка через стык — одна).
+void measure_contact_schedule(const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
+                              const ContactSet& contacts, std::span<const skel::AnimClip> clips,
+                              bool cyclic, ClipEntry& entry);
+
+/// ДОРОЖКА КОРНЯ КЛИПА (LOCOMOTION_GROUNDED.md §16, 10.09): что авторский
+/// сустав root (сустав без родителя) делает за клип — ход по горизонтали и
+/// рыск, — ресемплировано равномерно по фазе, накопительно от фазы 0.
+/// Единственный источник перемещения тела: капсула едет на root_delta между
+/// двумя фазами, поза рисуется «на месте» (корень в позе кадра 0). Меряется
+/// при загрузке из каналов сустава 0 (measure_root_track); зеркальному клипу
+/// зеркалится (x → −x, рыск → −рыск).
+inline constexpr uint32_t ROOT_TRACK_POINTS = 128;
+/// Постановок стопы за клип, сколько помним на сторону (шаг — 1, старт/поворот
+/// — до 3); лишние — самые короткие — отбрасываются вслух.
+inline constexpr uint32_t MAX_PLANTS_PER_SIDE = 4;
+
+struct RootTrack {
+    std::array<glm::vec2, ROOT_TRACK_POINTS> xz{}; ///< модель, м, от фазы 0
+    std::array<float, ROOT_TRACK_POINTS> yaw{};    ///< рад, знак сим'а (+ по часовой), развёрнуто
+    float total_m = 0.0f;     ///< длина пути по дорожке за клип
+    float total_yaw = 0.0f;   ///< рыск за клип, рад, со знаком
+    float mps = 0.0f;         ///< total_m / duration — скорость клипа
+    bool valid = false;       ///< сустав 0 ведёт клип (ход ≥ 5 см или рыск ≥ 5°)
+    /// Поза корня на кадре 0 клипа: в неё сбрасывается корень при выборке
+    /// (sample_clip_pose), чтобы поза была «на месте»; у клипов без дорожки
+    /// это и есть их постоянный корень — кадр бит-в-бит как до дорожки.
+    glm::vec3 pose0_t{0.0f};
+    glm::quat pose0_r{1.0f, 0.0f, 0.0f, 0.0f};
+};
+
+/// Ход корня между двумя фазами клипа с учётом петли (wrap); рыск умножен на
+/// yaw_warp (motion warping поворотов: 90° клип на 45° — warp 0,5).
+struct RootDelta {
+    glm::vec2 xz{0.0f};
+    float yaw = 0.0f;
+};
+[[nodiscard]] RootDelta root_track_delta(const RootTrack& track, float from_phase,
+                                         float to_phase, bool cyclic, float yaw_warp = 1.0f);
+/// Значение дорожки в фазе (интерполяция между точками; вне [0,1) — по петле).
+[[nodiscard]] glm::vec2 root_track_xz_at(const RootTrack& track, float phase);
+[[nodiscard]] float root_track_yaw_at(const RootTrack& track, float phase);
+
 /// What load-time measurement found out about one clip.
 struct ClipEntry {
     int32_t clip = -1;         ///< index into the model's clip list, -1 = absent
+    RootTrack root;            ///< дорожка корня (§16)
+    /// РАСПИСАНИЕ КОНТАКТОВ (§16): фазы постановки и отрыва каждой стопы,
+    /// измеренные при загрузке по этому телу: точка контакта в полосе
+    /// GRIP_TOLERANCE_M над своим покоем И её мировая скорость (локальная +
+    /// дорожка корня) ниже CONTACT_STILL_MPS. Заменяет веса опоры по высоте
+    /// на каждом тике: постановка — событие клипа, а не порог тика.
+    std::array<std::array<float, MAX_PLANTS_PER_SIDE>, 2> plant_phase{};
+    std::array<std::array<float, MAX_PLANTS_PER_SIDE>, 2> lift_phase{};
+    std::array<uint8_t, 2> plant_count{};
+    /// У КЛИПА СТАРТА: фаза, с которой его дорожка идёт со скоростью цикла
+    /// (≥ START_HANDOFF_FRAC × mps цикла) — цикл забирает ход отсюда. −1 — не
+    /// старт или не разгоняется до цикла.
+    float handoff_phase = -1.0f;
     /// КЛИП ВЗЯТ ЗЕРКАЛОМ (§13.6): в таблице ролей имя с приставкой «~» —
     /// «зеркало клипа такого-то». Правый поворот — зеркало левого: у Mixamo
     /// Right Turn 90 актёр шаркает обеими стопами, и опора по высоте его не

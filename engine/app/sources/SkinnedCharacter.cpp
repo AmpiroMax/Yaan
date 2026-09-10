@@ -924,9 +924,21 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         // нарисовано, а на ходу сим всё равно доворачивает корпус к вводу.
         const bool turning = anim::transit_role(play_.role);
         float delta = 0.0f;
-        // На тике смены клипа разница «таз прошлого клипа − таз нового» — это
-        // разница ПОЗ, а не поворот: первый кадр нового клипа — точка отсчёта.
-        if (turning && has_pelvis_raw_ && !play_.switched) {
+        // ДОРОЖКА КОРНЯ (§16, фаза 1): у клипа, чей рыск лежит в суставе root,
+        // поворот за тик берётся из дорожки между двумя временами клипа; в
+        // позе рыска больше нет (корень нейтрализован), контрвращение — ноль.
+        // Клип без дорожки — как прежде, из таза.
+        const anim::ClipEntry& cur_ent = anim::entry_for(library_, play_.role, play_.variant);
+        const bool track_turn = cur_ent.root.valid
+                                && std::abs(cur_ent.root.total_yaw) > glm::radians(5.0f)
+                                && cur_ent.duration_s > 0.0f;
+        if (turning && track_turn) {
+            const float p0 = play_.switched ? 0.0f : play_.prev_time_s / cur_ent.duration_s;
+            const float p1 = play_.time_s / cur_ent.duration_s;
+            delta = anim::root_track_delta(cur_ent.root, p0, p1, false).yaw;
+        } else if (turning && has_pelvis_raw_ && !play_.switched) {
+            // На тике смены клипа разница «таз прошлого клипа − таз нового» —
+            // разница ПОЗ, а не поворот: первый кадр нового клипа — точка отсчёта.
             delta = shortest_turn(pelvis_yaw_raw_, raw);
         }
         if (static const bool trace = [] {
@@ -950,8 +962,8 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         }
         pelvis_yaw_raw_ = raw;
         has_pelvis_raw_ = true;
-        if (turning) {
-            turn_accum_rad_ += delta;
+        if (turning && !track_turn) {
+            turn_accum_rad_ += delta; // контрвращение позы — только у рыска из таза
         }
         turn_yaw_delta_ = delta;
     } else {

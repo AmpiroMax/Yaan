@@ -84,6 +84,10 @@ constexpr float STANCE_GAIN_MAX = 3.0f;
 /// contact point is a JOINT and not the sole, so it rides a centimetre or so
 /// above the grass while the ball of the foot rolls over it.
 constexpr float GRIP_TOLERANCE_M = 0.03f;
+/// КОРОЧЕ ЭТОГО КАСАНИЕ — НЕ ПОСТАНОВКА (расписание контактов, §16): стопа в
+/// махе задевает пол на 1…3 выборки при приземлении и отрыве, и такое
+/// «касание» дробило опору на куски (замер 10.09: по 2…4 куска на цикл).
+constexpr float CONTACT_MIN_PLANT_S = 0.08f;
 
 /// The fraction of the candidate stance samples the travel fit trusts. The
 /// fit is a LEAST TRIMMED one (see fit_travel) and this is its trimming: a
@@ -359,6 +363,73 @@ MoveDir role_dir_class(ClipRole r) {
 }
 } // namespace
 
+namespace {
+
+/// Значение канала в момент t — линейно между ключами (поворот — nlerp);
+/// вне диапазона — крайний ключ. Для дорожки корня и позы кадра 0.
+[[nodiscard]] glm::vec4 channel_at(const skel::AnimChannel& ch, float t) {
+    if (ch.times.empty() || ch.values.size() != ch.times.size()) {
+        return glm::vec4{0.0f};
+    }
+    if (t <= ch.times.front()) {
+        return ch.values.front();
+    }
+    if (t >= ch.times.back()) {
+        return ch.values.back();
+    }
+    const auto hi = std::upper_bound(ch.times.begin(), ch.times.end(), t);
+    const std::size_t i1 = static_cast<std::size_t>(hi - ch.times.begin());
+    const std::size_t i0 = i1 - 1;
+    const float span = ch.times[i1] - ch.times[i0];
+    const float f = span > 1.0e-6f ? (t - ch.times[i0]) / span : 0.0f;
+    glm::vec4 v = ch.values[i0] + (ch.values[i1] - ch.values[i0]) * f;
+    if (ch.path == skel::AnimPath::Rotation) {
+        // nlerp: короткая дуга
+        glm::vec4 b = ch.values[i1];
+        if (glm::dot(ch.values[i0], b) < 0.0f) {
+            b = -b;
+        }
+        v = ch.values[i0] + (b - ch.values[i0]) * f;
+        const float len = glm::length(v);
+        if (len > 1.0e-6f) {
+            v /= len;
+        }
+    }
+    return v;
+}
+
+/// Поза сустава `joint` в момент t по каналам клипа (бинд там, где канала нет).
+void joint_pose_at(const skel::Skeleton& skeleton, const skel::AnimClip& clip, uint32_t joint,
+                   float t, glm::vec3& translation, glm::quat& rotation) {
+    translation = skeleton.joints[joint].bind_translation;
+    rotation = skeleton.joints[joint].bind_rotation;
+    for (const skel::AnimChannel& ch : clip.channels) {
+        if (ch.joint != joint) {
+            continue;
+        }
+        const glm::vec4 v = channel_at(ch, t);
+        if (ch.path == skel::AnimPath::Translation) {
+            translation = glm::vec3{v};
+        } else if (ch.path == skel::AnimPath::Rotation) {
+            rotation = glm::normalize(glm::quat{v.w, v.x, v.y, v.z});
+        }
+    }
+}
+
+} // namespace
+
+void neutralize_root(const skel::Skeleton& skeleton, const skel::AnimClip& clip,
+                     std::span<JointLocal> out) {
+    const std::size_t n = std::min(skeleton.size(), out.size());
+    for (std::size_t j = 0; j < n; ++j) {
+        if (skeleton.joints[j].parent >= 0) {
+            continue;
+        }
+        joint_pose_at(skeleton, clip, static_cast<uint32_t>(j), 0.0f, out[j].translation,
+                      out[j].rotation);
+    }
+}
+
 void sample_clip_pose(const skel::Skeleton& skeleton, const skel::AnimClip& clip,
                       float time_s, std::span<JointLocal> out) {
     const std::size_t n = std::min(skeleton.size(), out.size());
@@ -374,6 +445,11 @@ void sample_clip_pose(const skel::Skeleton& skeleton, const skel::AnimClip& clip
         out[i].rotation = r[i];
         out[i].scale = sc[i];
     }
+    // КОРЕНЬ — НЕ ПОЗА (§16): дорожка сустава root ведёт КАПСУЛУ (RootTrack),
+    // а поза рисуется на месте — корень сбрасывается в позу кадра 0 клипа.
+    // У клипов без дорожки корень постоянен, и это бит-в-бит их прежний
+    // корень; у клипов с дорожкой — тело стоит над капсулой на любом кадре.
+    neutralize_root(skeleton, clip, out.first(n));
 }
 
 void blend_local(std::span<const JointLocal> a, std::span<const JointLocal> b,
@@ -906,6 +982,234 @@ namespace {
     return src;
 }
 
+} // namespace
+
+// --- ДОРОЖКА КОРНЯ И РАСПИСАНИЕ КОНТАКТОВ (§16) ------------------------------
+
+namespace {
+
+/// Рыск сим'а (+ по часовой сверху) из закрутки ориентации вокруг вертикали.
+[[nodiscard]] float twist_yaw_sim(const glm::quat& q) {
+    // swing-twist вокруг +Y: twist = normalize(w, 0, y, 0); угол = 2·atan2(y, w)
+    // (glm против часовой) → знак сим'а обратный, как в pelvis_yaw.
+    return -2.0f * std::atan2(q.y, q.w);
+}
+
+[[nodiscard]] float wrap_pi_f(float a) {
+    return std::atan2(std::sin(a), std::cos(a));
+}
+
+} // namespace
+
+void measure_root_track(const skel::Skeleton& skeleton, const skel::AnimClip& clip,
+                        bool mirrored, ClipEntry& entry) {
+    RootTrack& tr = entry.root;
+    tr = RootTrack{};
+    int32_t root = -1;
+    for (std::size_t j = 0; j < skeleton.size(); ++j) {
+        if (skeleton.joints[j].parent < 0) {
+            root = static_cast<int32_t>(j);
+            break;
+        }
+    }
+    if (root < 0 || clip.duration_s <= 0.0f) {
+        return;
+    }
+    bool keyed = false;
+    for (const skel::AnimChannel& ch : clip.channels) {
+        if (ch.joint == static_cast<uint32_t>(root) && ch.times.size() >= 2) {
+            keyed = true;
+        }
+    }
+    glm::vec3 t0;
+    glm::quat q0;
+    joint_pose_at(skeleton, clip, static_cast<uint32_t>(root), 0.0f, t0, q0);
+    tr.pose0_t = t0;
+    tr.pose0_r = q0;
+    if (!keyed) {
+        return;
+    }
+    const glm::quat inv0 = glm::inverse(q0);
+    float prev_yaw = 0.0f;
+    float length = 0.0f;
+    for (uint32_t i = 0; i < ROOT_TRACK_POINTS; ++i) {
+        const float t = clip.duration_s * static_cast<float>(i)
+                        / static_cast<float>(ROOT_TRACK_POINTS - 1);
+        glm::vec3 ti;
+        glm::quat qi;
+        joint_pose_at(skeleton, clip, static_cast<uint32_t>(root), t, ti, qi);
+        const glm::vec3 d = ti - t0;
+        glm::vec2 xz{d.x, d.z};
+        float yaw = twist_yaw_sim(glm::normalize(qi * inv0));
+        if (mirrored) {
+            xz.x = -xz.x;
+            yaw = -yaw;
+        }
+        // разворот: накопление через разницу с прошлой точкой
+        const float unwrapped = i == 0 ? 0.0f : prev_yaw + wrap_pi_f(yaw - wrap_pi_f(prev_yaw));
+        prev_yaw = unwrapped;
+        tr.xz[i] = xz;
+        tr.yaw[i] = unwrapped;
+        if (i > 0) {
+            length += glm::length(xz - tr.xz[i - 1]);
+        }
+    }
+    tr.total_m = length;
+    tr.total_yaw = tr.yaw[ROOT_TRACK_POINTS - 1];
+    tr.mps = length / clip.duration_s;
+    tr.valid = length > 0.05f || std::abs(tr.total_yaw) > glm::radians(5.0f);
+    if (!tr.valid) {
+        // клип без дорожки — ноль ровно, не шум квантования: покой не едет
+        tr.xz.fill(glm::vec2{0.0f});
+        tr.yaw.fill(0.0f);
+        tr.total_m = 0.0f;
+        tr.total_yaw = 0.0f;
+        tr.mps = 0.0f;
+    }
+}
+
+glm::vec2 root_track_xz_at(const RootTrack& track, float phase) {
+    const float f = std::clamp(phase, 0.0f, 1.0f) * static_cast<float>(ROOT_TRACK_POINTS - 1);
+    const auto i0 = static_cast<uint32_t>(std::floor(f));
+    const uint32_t i1 = std::min(i0 + 1, ROOT_TRACK_POINTS - 1);
+    const float a = f - static_cast<float>(i0);
+    return track.xz[i0] + (track.xz[i1] - track.xz[i0]) * a;
+}
+
+float root_track_yaw_at(const RootTrack& track, float phase) {
+    const float f = std::clamp(phase, 0.0f, 1.0f) * static_cast<float>(ROOT_TRACK_POINTS - 1);
+    const auto i0 = static_cast<uint32_t>(std::floor(f));
+    const uint32_t i1 = std::min(i0 + 1, ROOT_TRACK_POINTS - 1);
+    const float a = f - static_cast<float>(i0);
+    return track.yaw[i0] + (track.yaw[i1] - track.yaw[i0]) * a;
+}
+
+RootDelta root_track_delta(const RootTrack& track, float from_phase, float to_phase,
+                           bool cyclic, float yaw_warp) {
+    RootDelta out;
+    if (!track.valid) {
+        return out;
+    }
+    // ПЕТЛЯ: фаза to < from — прошли стык; ход = (до конца) + (от начала).
+    // Хвостовая точка дорожки — конец клипа, стык считается непрерывным.
+    if (cyclic && to_phase < from_phase) {
+        const RootDelta a = root_track_delta(track, from_phase, 1.0f, false, yaw_warp);
+        const RootDelta b = root_track_delta(track, 0.0f, to_phase, false, yaw_warp);
+        out.xz = a.xz + b.xz;
+        out.yaw = a.yaw + b.yaw;
+        return out;
+    }
+    out.xz = root_track_xz_at(track, to_phase) - root_track_xz_at(track, from_phase);
+    out.yaw = (root_track_yaw_at(track, to_phase) - root_track_yaw_at(track, from_phase)) * yaw_warp;
+    return out;
+}
+
+void measure_contact_schedule(const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
+                              const ContactSet& contacts, std::span<const skel::AnimClip> clips,
+                              bool cyclic, ClipEntry& entry) {
+    entry.plant_count = {0, 0};
+    entry.plant_phase = {};
+    entry.lift_phase = {};
+    if (!entry.present() || entry.duration_s <= 0.0f || !contacts.valid()) {
+        return;
+    }
+    const ContactTrack track =
+        track_contacts(skeleton, binding, contacts, mix_of(entry, clips), 1.0f, MEASURE_SAMPLES);
+    if (track.samples() == 0) {
+        return;
+    }
+    const std::size_t n = track.samples();
+    const float dt = entry.duration_s / static_cast<float>(n);
+    const float still = static_cast<float>(config::CONTACT_STILL_MPS);
+    for (std::size_t side = 0; side < 2; ++side) {
+        std::vector<char> down(n, 0);
+        for (std::size_t k = 0; k < n; ++k) {
+            const float ph = static_cast<float>(k) / static_cast<float>(n);
+            const float ph1 = static_cast<float>(k + 1) / static_cast<float>(n);
+            const glm::vec2 r0 = root_track_xz_at(entry.root, ph);
+            const glm::vec2 r1 = root_track_xz_at(entry.root, cyclic && k + 1 == n ? 1.0f : ph1);
+            const float y0 = root_track_yaw_at(entry.root, ph);
+            const float y1 = root_track_yaw_at(entry.root, cyclic && k + 1 == n ? 1.0f : ph1);
+            for (std::size_t c = 0; c < track.tracks(); ++c) {
+                if (track.side[c] != side || !track.down(c, k, GRIP_TOLERANCE_M)) {
+                    continue;
+                }
+                // мировая точка = дорожка + повёрнутая локальная (рыск сим'а по
+                // часовой = поворот на −yaw в системе x/z)
+                const auto world = [](const glm::vec3& p, const glm::vec2& r, float yaw) {
+                    const float c0 = std::cos(-yaw);
+                    const float s0 = std::sin(-yaw);
+                    return r + glm::vec2{c0 * p.x - s0 * p.z, s0 * p.x + c0 * p.z};
+                };
+                const glm::vec2 w0 = world(track.joint[c][k], r0, y0);
+                const glm::vec2 w1 = world(track.joint[c][k + 1], r1, y1);
+                if (glm::length(w1 - w0) / dt < still) {
+                    down[k] = 1;
+                    break;
+                }
+            }
+        }
+        // отрезки «стоит»
+        struct Seg {
+            std::size_t from;
+            std::size_t to; // exclusive
+        };
+        std::vector<Seg> segs;
+        for (std::size_t k = 0; k < n; ++k) {
+            if (down[k] && (k == 0 || !down[k - 1])) {
+                segs.push_back({k, k});
+            }
+            if (down[k]) {
+                segs.back().to = k + 1;
+            }
+        }
+        {
+            const auto min_len = static_cast<std::size_t>(std::ceil(CONTACT_MIN_PLANT_S / dt));
+            std::vector<Seg> kept;
+            for (const Seg& sg : segs) {
+                if (sg.to - sg.from >= min_len) {
+                    kept.push_back(sg);
+                }
+            }
+            // …но касание в самом начале/конце петли — половина одной постановки
+            if (cyclic && !segs.empty() && segs.front().from == 0 && segs.back().to == n
+                && (segs.front().to - segs.front().from) + (segs.back().to - segs.back().from)
+                       >= min_len) {
+                if (kept.empty() || kept.front().from != 0) {
+                    kept.insert(kept.begin(), segs.front());
+                }
+                if (kept.back().to != n) {
+                    kept.push_back(segs.back());
+                }
+            }
+            segs = kept;
+        }
+        if (cyclic && segs.size() >= 2 && segs.front().from == 0 && segs.back().to == n) {
+            // постановка через стык петли — одна: начинается в хвосте
+            segs.front().from = segs.back().from;
+            segs.front().to += n;
+            segs.pop_back();
+        }
+        std::sort(segs.begin(), segs.end(),
+                  [](const Seg& a, const Seg& b) { return (a.to - a.from) > (b.to - b.from); });
+        if (segs.size() > MAX_PLANTS_PER_SIDE) {
+            std::fprintf(stderr,
+                         "[anim] clip %d: %zu contact segments on side %zu, keeping the %u "
+                         "longest\n",
+                         entry.clip, segs.size(), side, MAX_PLANTS_PER_SIDE);
+            segs.resize(MAX_PLANTS_PER_SIDE);
+        }
+        std::sort(segs.begin(), segs.end(), [](const Seg& a, const Seg& b) { return a.from < b.from; });
+        for (std::size_t i = 0; i < segs.size(); ++i) {
+            entry.plant_phase[side][i] = static_cast<float>(segs[i].from % n) / static_cast<float>(n);
+            entry.lift_phase[side][i] = static_cast<float>(segs[i].to % n) / static_cast<float>(n);
+        }
+        entry.plant_count[side] = static_cast<uint8_t>(segs.size());
+    }
+}
+
+namespace {
+
 /// EVERYTHING MEASUREMENT KNOWS ABOUT ONE POSE SOURCE: its native travel, the
 /// phase its left foot plants at, how still that plant is, and the two curves
 /// over the stride grid. Written into `entry` so a blended gear is measured by
@@ -1192,6 +1496,37 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
             continue;
         }
         ++lib.resolved;
+    }
+    // ДОРОЖКА КОРНЯ И РАСПИСАНИЕ КОНТАКТОВ (§16) — у каждой разрешённой роли.
+    for (const RoleNames& row : ROLE_NAMES) {
+        ClipEntry& entry = lib.role[role_index(row.role)];
+        if (!entry.present()) {
+            continue;
+        }
+        measure_root_track(skeleton, clips[static_cast<std::size_t>(entry.clip)], entry.mirrored,
+                           entry);
+        measure_contact_schedule(skeleton, binding, lib.contacts, clips,
+                                 locomotion_role(row.role), entry);
+    }
+    // ПЕРЕДАЧА ХОДА ОТ СТАРТА К ЦИКЛУ: фаза старта, с которой его дорожка идёт
+    // не медленнее START_HANDOFF_FRAC × скорости цикла.
+    for (const auto [start, cycle] : {std::pair{ClipRole::StartWalk, ClipRole::Walk},
+                                      std::pair{ClipRole::StartRun, ClipRole::Sprint}}) {
+        ClipEntry& s = lib.role[role_index(start)];
+        const ClipEntry& c = lib.role[role_index(cycle)];
+        s.handoff_phase = -1.0f;
+        if (!s.present() || !s.root.valid || !c.present() || !c.root.valid || c.root.mps <= 0.0f) {
+            continue;
+        }
+        const float want = static_cast<float>(config::START_HANDOFF_FRAC) * c.root.mps;
+        const float dphase = 1.0f / static_cast<float>(ROOT_TRACK_POINTS - 1);
+        for (uint32_t i = 1; i < ROOT_TRACK_POINTS; ++i) {
+            const float v = glm::length(s.root.xz[i] - s.root.xz[i - 1]) / (dphase * s.duration_s);
+            if (v >= want) {
+                s.handoff_phase = static_cast<float>(i) * dphase;
+                break;
+            }
+        }
     }
     // THE STRIDE MEASUREMENTS. Only the roles that travel need them: asking
     // for a stride curve on Idle produces a row of zeros that every reader

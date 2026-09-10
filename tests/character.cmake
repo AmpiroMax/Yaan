@@ -59,6 +59,15 @@ set_tests_properties(character_clips_slide PROPERTIES LABELS "known-defect")
 add_dfn_test(character_loco_telemetry character/LocoTelemetryTests.cpp
              dfn_anim dfn_core)
 
+# ДОРОЖКА КОРНЯ (§16, 10.09): дорожка сустава root воспроизводит авторский ход и
+# рыск, стык петли непрерывен, варп масштабирует только рыск, поза на месте,
+# расписание контактов, фаза передачи старта.
+add_dfn_test(character_root_track character/RootTrackTests.cpp
+             dfn_anim dfn_render dfn_core)
+if(TARGET dfn_characters)
+    add_dependencies(character_root_track dfn_characters)
+endif()
+
 # ИНЕРЦИАЛИЗАЦИЯ СТЫКОВ (07.09): кривая Болло и непрерывность скорости на суставе.
 add_dfn_test(character_inertializer character/InertializerTests.cpp
              dfn_anim dfn_core)
