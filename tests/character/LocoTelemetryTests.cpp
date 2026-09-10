@@ -260,8 +260,15 @@ TEST_CASE("the_first_foot_to_lift_after_a_start_is_the_start_foot") {
 
 TEST_CASE("a_floating_support_foot_is_a_gap") {
     Bench b;
-    b.gap.gap = {2.0f * static_cast<float>(config::LOCO_GAP_MAX_M), 0.0f};
+    // стоящая по расписанию стопа, поднятая на 5 см, — парение
+    b.gap.gap = {0.05f, 0.0f};
     b.gap.judged = {1, 1};
     b.tick();
     CHECK(b.row(anim::LocoProbe::Gap).hits == 1);
+    // контроль: та же стопа В МАХЕ (не стоит по расписанию) — клип держит её в
+    // воздухе, прибор молчит
+    b.loco.planted[0] = false;
+    b.tick();
+    CHECK(b.row(anim::LocoProbe::Gap).hits == 1);
+    CHECK(b.row(anim::LocoProbe::Gap).last == doctest::Approx(0.0f));
 }

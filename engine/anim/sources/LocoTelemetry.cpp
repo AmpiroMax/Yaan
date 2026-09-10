@@ -237,7 +237,18 @@ void LocoTelemetry::push(const LocoTick& t) {
     }
     tick_dt_ = dt;
     // 2. зазор опорной стопы
-    note(P::Gap, 1000.0f * t.gap.worst_abs());
+    {
+        // ЗАЗОР — ТОЛЬКО У СТОПЫ, СТОЯЩЕЙ ПО РАСПИСАНИЮ КЛИПА (§16.8, лид 11.09):
+        // в прыжке и приседе прибор судил стопу, которую клип держит в воздухе
+        // (0,3…1,3 м на ленте стенда) — это не парение, а мах/полёт.
+        float worst = 0.0f;
+        for (std::size_t s = 0; s < 2; ++s) {
+            if (t.loco->planted[s] && t.gap.judged[s] != 0) {
+                worst = std::max(worst, std::abs(t.gap.gap[s]));
+            }
+        }
+        note(P::Gap, 1000.0f * worst);
+    }
 
     // 3–5. угловое ускорение суставов ноги (локальное — то, что видно как рывок)
     const auto joint_accel = [&](int32_t j) {
