@@ -51,7 +51,64 @@ ProcMesh.h owns the id map; do not register before their ack).
 
 ## The stride-phase seam (sim's clock — agreed, pinned 10:08:2026)
 
-**ШОВ ЗАМЕНЁН (решение группового синка 02.09: координатор daggerfall-n-63, anim,
+**ШОВ ЗАМЕНЁН ВТОРОЙ РАЗ — ДОРОЖКА КОРНЯ (переделка 10.09, docs/design/
+LOCOMOTION_GROUNDED.md §16; сдано фазами 1–7, 11.09).** Действующий порядок —
+«клип (дорожка сустава root) → машина состояний → заявка вербатим → капсула
+через физику»:
+
+- ДВИЖЕНИЕ И РЫСК ТЕЛА — ТОЛЬКО АВТОРСКАЯ ДОРОЖКА КОРНЯ КЛИПА. Выпечка
+  (tools/make_human_body.py) пишет ход и рыск таза в сустав 0 `root`
+  (относительно кадра 0, ось через таз кадра 0); загрузка ресемплирует её в
+  `ClipEntry::root` (`RootTrack`, 128 точек по фазе); при выборке корень
+  сбрасывается в позу кадра 0 (`neutralize_root`) — поза рисуется на месте,
+  капсула едет на `root_track_delta` между двумя фазами. Клипы «на месте»
+  (UAL Walk/Jog/Sprint/Crouch_Fwd_Loop) получают дорожку по стопам на выпечке
+  (`--root-from-feet`). Зеркальному клипу дорожка зеркалится (x → −x, рыск →
+  −рыск).
+- ОДИН КЛОК — МАШИНА `LocoMachine` (`Locomotion.h`): Idle, TurnInPlace,
+  Start, Cycle, Stop, Stagger, Air; решения на входе в состояние и по концу
+  клипа, единственный анти-дребезг `LOCO_STATE_DWELL_S`; темп цикла = заказ /
+  скорость дорожки в полосе `LOCOMOTION_TEMPO_BAND`; старт отдаёт ход циклу на
+  `min(handoff_phase, START_CLIP_MAX_S)`, остановка кончается на
+  `min(settle_phase, STOP_CLIP_MAX_S)` (закон отзывчивости владельца); поворот
+  на месте — ближайший клип 90/180 L/R с варпом рыска `TURN_WARP_MIN..MAX`,
+  играет до `settle_phase`, не перецеливается. Запертая капсула (мир
+  исполнил меньше `LOCO_BLOCKED_FRAC` заявки подряд `LOCO_BLOCKED_S`,
+  `LocoInput::travelled_m`) — из Start/Cycle сразу в Idle с защёлкой «в эту
+  сторону не стартовать» до отпускания или ввода дальше
+  `LOCO_BLOCKED_RELEASE_DEG`. `advance_playback(…, &machine)`
+  берёт роль, темп и время клипа из машины; фаза шага сима — та же фаза через
+  шов опоры левой стопы (`ClipEntry::footfall_phase` — середина её окна опоры
+  по расписанию).
+- РАСПИСАНИЕ КОНТАКТОВ (`measure_contact_schedule`): стопа стоит, когда её
+  точка касания (носок или лодыжка) в полосе `GRIP_TOLERANCE_M` над покоем и
+  её мировая скорость (локальная + дорожка) ниже `CONTACT_STILL_MPS`;
+  постановка и отрыв — фазы клипа (`plant_phase`/`lift_phase`), события шага,
+  опора и высота тела на лестнице читают их. У бега неподвижность короче
+  `CONTACT_MIN_PLANT_S` — остаётся самая длинная.
+- ЗАЯВКА ВЕРБАТИМ: `LocomotionOut` (смещение в системе тела, рыск, постановки,
+  опора, класс направления, владение рыском) → `ferry_locomotion_request`
+  (BodyFerry, один паром для игрока и НПС) → `StepContext::LocomotionRequest`
+  → `player_pre_step` двигает капсулу ровно заявкой; корпус на ходу
+  доворачивается к взгляду `BODY_TURN_RATE`, пока рыск не ведёт клип. Стопы
+  — ДАТЧИКИ (`CharacterFeet`): постановка по расписанию, тело стопы
+  динамическое, ход поставленного тела — скольжение — в корень; замка и
+  якорей нет. Высота тела — от земли под опорной стопой по датчику, цель в
+  мире (`ROOT_HEIGHT_RATE_MPS`), на спуске — капсула.
+- Контрольные руки из того же бинарника: `DFN_ROOT_TRACK=0` — капсула от
+  модели скорости ввода, роль от ввода, заявки нет; `DFN_CLIP_TRANSITIONS=0`
+  — машина без старта/остановки/поворота; `DFN_ROOT_HEIGHT=capsule` — прежний
+  фильтр высоты. Приборы: `character_root_track`, `character_locomotion`,
+  `app_locomotion` (скорость капсулы = клип × темп с обязательной недостачей,
+  рыск при облёте, точка опоры, марш 9×0,18/0,28 на Jolt — парение ≤ 2 см,
+  перекрест лодыжек, прогон записанного ввода побитово, минута сценария под
+  бюджетом смен), `app_grounded_locomotion`, `app_physical_feet`.
+
+Два абзаца ниже — ПРЕЖНИЕ швы (02.09 и 10.08), оставлены как след; их
+механизмы (корень от опорной стопы, замок, стрид-скейл, часы от пути)
+снесены фазой 6 (§16.7).
+
+**ШОВ 02.09 (снят 11.09; решение группового синка 02.09: координатор daggerfall-n-63, anim,
 sim; правило 26).** Владелец потребовал, чтобы ноги твёрдо стояли на земле, а
 снос стопы при порядке «капсула → фаза → клип → стопа» структурный: три
 источника скорости стопы сходятся только в среднем за цикл. Действующий порядок
@@ -200,24 +257,29 @@ enum, because neither adds a bone:
   fair for a walk and wrong for a run: a running foot lands on the ball, and on
   this asset the jog's ankle never came within 2.6 cm of its own standing height
   while its toe was on the ground.
+- **"The foot is down" for the CONTACT SCHEDULE (§16.2) also needs the WORLD
+  speed of the point** (local motion plus the root track) below
+  `CONTACT_STILL_MPS`: a heel rolling forward at rest height is not planted.
 - **"The foot is down" is measured against that joint's height in OUR REST POSE,**
   not against its own lowest sample in the clip. Every joint has a minimum in
   every clip, including clips where it never approaches the ground.
 
-**Grounding is a property of a clip AT A STRIDE SCALE, measured once.** Scaling a
-leg's swing to cover sim's ground also changes how far the leg REACHES, so a
-shrunk stride straightens the knee and the pelvis must ride higher. The lift that
-puts the deepest contact of the cycle exactly on the ground is stored per scale
-(`ClipEntry::ground_curve`) and added to the ROOT joint's translation in the
-frame. It is a constant over the cycle on purpose: a per-frame clamp would delete
-the flight phase of a run. The jump triple and the seat are excluded by name — a
-body that is supposed to leave the ground may not be pulled back onto it.
+**(СНЯТО фазой 6: стрид-скейла и `ground_curve` больше нет — подъём к земле даёт только IK стоп от щупа мира.)**
+~~Grounding is a property of a clip AT A STRIDE SCALE, measured once. Scaling a~~
+~~leg's swing to cover sim's ground also changes how far the leg REACHES, so a~~
+~~shrunk stride straightens the knee and the pelvis must ride higher. The lift that~~
+~~puts the deepest contact of the cycle exactly on the ground is stored per scale~~
+~~(`ClipEntry::ground_curve`) and added to the ROOT joint's translation in the~~
+~~frame. It is a constant over the cycle on purpose: a per-frame clamp would delete~~
+~~the flight phase of a run. The jump triple and the seat are excluded by name — a~~
+~~body that is supposed to leave the ground may not be pulled back onto it.~~
 
-**Still not foot IK.** There is no per-foot ground raycast and no two-link knee
-solve, so on a slope or a stair the pair of feet is still level with each other.
-What this adds is the seam such a solver needs: a vertical root correction derived
-from a MEASUREMENT, with the measurement currently coming from the clip's own
-cycle instead of from the world.
+**(СНЯТО фазой 5/6: IK стоп по земле мира есть — `FootIk.h`, щуп приложения; измерения из клипа нет.)**
+~~**Still not foot IK.** There is no per-foot ground raycast and no two-link knee~~
+~~solve, so on a slope or a stair the pair of feet is still level with each other.~~
+~~What this adds is the seam such a solver needs: a vertical root correction derived~~
+~~from a MEASUREMENT, with the measurement currently coming from the clip's own~~
+~~cycle instead of from the world.~~
 
 ## Layers, masks and hitboxes (wave "stance, weapon, feet, hitboxes", 31.08)
 
@@ -259,18 +321,20 @@ stair's nosing the heel and the ball ask for heights 0.18 m apart, more than a
 0.11 m foot can span, and standing on the nosing with the heel up is what a
 person does.
 
-**`ClipEntry::ground_curve` is now a MEASUREMENT and not a drawing step.** The
-per-scale constant it holds still says how deep a clip sits at a stride scale,
-and the tests read it; nothing adds it to the root any more, because the foot
-solve above supplies the same shift from the world instead of from the clip's
-own flat floor. Two mechanisms moving the root would double-count.
+**(СНЯТО фазой 6: `ground_curve` удалена вместе со стрид-скейлом.)**
+~~`ClipEntry::ground_curve` is now a MEASUREMENT and not a drawing step. The~~
+~~per-scale constant it holds still says how deep a clip sits at a stride scale,~~
+~~and the tests read it; nothing adds it to the root any more, because the foot~~
+~~solve above supplies the same shift from the world instead of from the clip's~~
+~~own flat floor. Two mechanisms moving the root would double-count.~~
 
-**A gear with no clip near it plays a BLEND of the two it has.** `ClipEntry`
-carries a second clip and a weight; the two are sampled with their PLANTS
-ALIGNED (each shifted by its own footfall phase) and blended before the stride
-scale is applied. The weight is solved, not chosen: it is the blend whose
-measured cycle travel equals what sim demands. On HumanBase the JOG takes
-Jog_Fwd_Loop blended 75 % into Walk_Loop and its stride scale lands at 1.01.
+**(СНЯТО фазой 6: смесей клипов по скорости нет — передача играет свой клип в полосе темпа, недостача называется прибором.)**
+~~A gear with no clip near it plays a BLEND of the two it has. `ClipEntry`~~
+~~carries a second clip and a weight; the two are sampled with their PLANTS~~
+~~ALIGNED (each shifted by its own footfall phase) and blended before the stride~~
+~~scale is applied. The weight is solved, not chosen: it is the blend whose~~
+~~measured cycle travel equals what sim demands. On HumanBase the JOG takes~~
+~~Jog_Fwd_Loop blended 75 % into Walk_Loop and its stride scale lands at 1.01.~~
 
 **`ClipRole::WeaponIdle` is a LAYER, not a state.** `role_for_drive` never
 returns it; it is what the upper half wears over the legs' locomotion while
