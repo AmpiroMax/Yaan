@@ -28,6 +28,8 @@ Key items:
 - the_recorded_input_replays_bit_for_bit (прибор 6, фаза 7: ввод по тикам
   пишется в .dftraj (секция INPT), прогон даёт побитово ту же походку;
   контроль — другой ввод даёт другую)
+- a_wall_stops_the_walk_instead_of_the_feet_sliding (§16.9, Jolt: стена на
+  пути; контроль — без правила цикл крутится в стену, стопа ≥ 1 м/с)
 - a_minute_of_scripted_input_stays_under_the_transition_budget (прибор 4,
   фаза 7: 60 с сценария — смен клипа в секунду ≤ бюджета; контроль —
   нажатие/отпускание каждый тик)
@@ -1006,4 +1008,78 @@ TEST_CASE("a_minute_of_scripted_input_stays_under_the_transition_budget") {
     }
     CHECK(with_dwell * 4 < without);
     CHECK(static_cast<float>(with_dwell) / 10.0f <= 8.0f);
+}
+
+TEST_CASE("a_wall_stops_the_walk_instead_of_the_feet_sliding") {
+    if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
+        return;
+    }
+    // СТЕНА ПОПЕРЁК ХОДА В 1,5 М (§16.9). Дорожка корня заказывает 3 см/тик, мир
+    // исполняет 0: без правила цикл ходьбы крутится на месте и «опорная»
+    // стопа едет со скоростью хода (замер 11.09 у края стенда: 2,2 м/с). С
+    // правилом машина останавливается за LOCO_BLOCKED_S и стоит, пока ввод
+    // держится в стену.
+    for (const bool rule : {true, false}) {
+        Seam s(true, false, true);
+        REQUIRE(s.ok);
+        if (!rule) {
+            s.body.set_loco_blocked_min_s(1.0e9f);
+        }
+        platform::StaticBoxDesc wall;
+        wall.half_extents = {2.0f, 1.0f, 0.1f};
+        wall.center = {0.0f, 1.0f, -1.5f - 0.1f};
+        wall.layer = physics::LAYER_STATIC;
+        wall.substance = core::find_substance("granite");
+        wall.user_data = 9;
+        REQUIRE(s.physics->create_static_box(wall).valid());
+        float t_blocked = -1.0f;   ///< когда капсула встала (ход < 1 мм/тик при заявке)
+        float t_stopped = -1.0f;   ///< когда машина вышла из цикла/старта
+        float worst_planted = 0.0f; ///< мировая скорость нижней точки стоящей по расписанию стопы в установившемся состоянии после t_blocked+0,5 с
+        int planted_ticks = 0;
+        std::array<glm::vec2, 2> prev{};
+        std::array<bool, 2> was{};
+        for (int t = 0; t < 240; ++t) {
+            const glm::vec3 before = s.pos();
+            s.tick({0.0f, 1.0f});
+            const float t_s = static_cast<float>(t + 1) * DT;
+            const float moved = glm::length(glm::vec2{s.pos().x - before.x, s.pos().z - before.z});
+            const float asked = glm::length(s.step.locomotion.delta_xz);
+            if (t_blocked < 0.0f && t_s > 0.5f && asked > 0.01f && moved < 0.001f) {
+                t_blocked = t_s;
+            }
+            const anim::LocoState st = s.body.loco_machine().state;
+            if (t_blocked >= 0.0f && t_stopped < 0.0f && st != anim::LocoState::Cycle
+                && st != anim::LocoState::Start) {
+                t_stopped = t_s;
+            }
+            const std::array<bool, 2> now{s.step.locomotion.planted_left, s.step.locomotion.planted_right};
+            for (std::size_t side = 0; side < 2; ++side) {
+                const glm::vec2 w = contact_world(s, side);
+                // судится установившееся состояние: стык гасит инерциализация, и
+                // её склейка двигает стопы до 3 м/с (§16.6) — это не ход в стену
+                const bool steady = s.body.loco_machine().dwell_s >= static_cast<float>(config::INERTIAL_BLEND_S) + 2.0f * DT;
+                if (t_blocked >= 0.0f && t_s > t_blocked + 0.5f && steady && now[side] && was[side]) {
+                    worst_planted = std::max(worst_planted, glm::length(w - prev[side]) / DT);
+                    ++planted_ticks;
+                }
+                prev[side] = w;
+            }
+            was = now;
+        }
+        const anim::LocoState end = s.body.loco_machine().state;
+        MESSAGE(std::string{rule ? "правило" : "контроль"} << ": капсула встала на " << t_blocked << " с, машина вышла из хода на "
+                << t_stopped << " с, в конце " << std::string{anim::loco_state_name(end)} << ", стоящая стопа после остановки худшее "
+                << worst_planted << " м/с за " << planted_ticks << " тиков, z " << s.pos().z);
+        REQUIRE(t_blocked >= 0.0f);
+        if (rule) {
+            REQUIRE(t_stopped >= 0.0f);
+            CHECK(t_stopped - t_blocked <= static_cast<float>(config::LOCO_BLOCKED_S) + 3.0f * DT);
+            CHECK(end == anim::LocoState::Idle);
+            CHECK(s.body.loco_machine().blocked);
+            CHECK(worst_planted <= 0.1f); // покой: стопы стоят
+        } else {
+            CHECK(end == anim::LocoState::Cycle);
+            CHECK(worst_planted >= 1.0f); // цикл в стену: «опорная» стопа едет со скоростью хода
+        }
+    }
 }

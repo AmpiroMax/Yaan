@@ -21,6 +21,8 @@ Key items:
 - strafe_enters_the_cycle_directly_and_keeps_the_yaw
 - tempo_follows_the_order_within_the_band
 - the_real_library_walks_the_same_table
+- a_blocked_capsule_stops_the_walk_and_a_new_direction_restarts_it (§16.9;
+  контроль — без правила цикл крутится при нулевом ходе капсулы)
 
 Dependencies:
 - Uses: doctest, engine/anim, tests/character/ClipTestModel.h.
@@ -374,3 +376,89 @@ TEST_CASE("the_real_library_walks_the_same_table") {
     CHECK(std::abs(glm::degrees(tr2.body_yaw) - 175.0f) < 2.0f * static_cast<float>(config::TURN_FIRE_DEG));
 }
 
+TEST_CASE("a_blocked_capsule_stops_the_walk_and_a_new_direction_restarts_it") {
+    const anim::ClipLibrary lib = synthetic();
+    // ход мира за тик — доля заявки прошлого тика: 1 = мир исполняет, 0 —
+    // лоб в стену, 0,7 — скольжение вдоль стены (ещё ход)
+    auto walk = [&](anim::LocoMachine& m, anim::LocoInput& in, Trace& tr, float frac, int ticks) {
+        for (int t = 0; t < ticks; ++t) {
+            in.travelled_m = frac * m.request_m;
+            tick(lib, in, m, tr);
+        }
+    };
+    SUBCASE("wall") {
+        anim::LocoMachine m;
+        anim::LocoInput in;
+        Trace tr;
+        in.want_speed_mps = 1.5f;
+        in.want_dir_model = {0.0f, 0.0f, -1.0f};
+        walk(m, in, tr, 1.0f, 60);
+        CHECK(m.state == anim::LocoState::Cycle);
+        walk(m, in, tr, 0.7f, 60); // вдоль стены — ход
+        CHECK(m.state == anim::LocoState::Cycle);
+        CHECK(!m.blocked);
+        const float t_wall = tr.t_s;
+        float t_idle = -1.0f;
+        for (int t = 0; t < 60; ++t) { // лоб в стену, ввод держится
+            walk(m, in, tr, 0.0f, 1);
+            if (t_idle < 0.0f && m.state == anim::LocoState::Idle) {
+                t_idle = tr.t_s;
+            }
+        }
+        CHECK(m.blocked);
+        CHECK(m.state == anim::LocoState::Idle);
+        REQUIRE(t_idle >= 0.0f);
+        CHECK(t_idle - t_wall <= doctest::Approx(config::LOCO_BLOCKED_S + 2.0f * DT));
+        walk(m, in, tr, 0.0f, 120); // ещё 2 с в стену — стоим, без стартов
+        CHECK(m.state == anim::LocoState::Idle);
+        // покой сразу, не клип остановки: его корень ползёт вперёд, куда мир не пускает
+        CHECK(chain(tr) == "Idle StartWalk Walk Idle ");
+        // ввод ушёл на 90° — старт разрешён (стрейф входит циклом сразу)
+        in.want_dir_model = {1.0f, 0.0f, 0.0f};
+        walk(m, in, tr, 1.0f, 2);
+        CHECK(!m.blocked);
+        CHECK(m.state == anim::LocoState::Cycle);
+        CHECK(m.role == anim::ClipRole::StrafeR);
+        MESSAGE("роли: " << chain(tr) << "| покой через " << (t_idle - t_wall) << " с после стены");
+    }
+    SUBCASE("release_clears_the_latch") {
+        anim::LocoMachine m;
+        anim::LocoInput in;
+        Trace tr;
+        in.want_speed_mps = 1.5f;
+        in.want_dir_model = {0.0f, 0.0f, -1.0f};
+        walk(m, in, tr, 1.0f, 60);
+        walk(m, in, tr, 0.0f, 60);
+        CHECK(m.blocked);
+        in.want_speed_mps = 0.0f;
+        walk(m, in, tr, 1.0f, 1);
+        CHECK(!m.blocked);
+        in.want_speed_mps = 1.5f;
+        walk(m, in, tr, 1.0f, 1);
+        CHECK(m.state == anim::LocoState::Start);
+    }
+    SUBCASE("control_without_the_rule_the_cycle_spins_into_the_wall") {
+        anim::LocoMachine m;
+        m.blocked_min_s = 1.0e9f;
+        anim::LocoInput in;
+        Trace tr;
+        in.want_speed_mps = 1.5f;
+        in.want_dir_model = {0.0f, 0.0f, -1.0f};
+        walk(m, in, tr, 1.0f, 60);
+        walk(m, in, tr, 0.0f, 120);
+        CHECK(m.state == anim::LocoState::Cycle);
+        CHECK(!m.blocked);
+        CHECK(chain(tr) == "Idle StartWalk Walk ");
+    }
+    SUBCASE("unknown_travel_keeps_the_rule_silent") {
+        anim::LocoMachine m;
+        anim::LocoInput in;
+        Trace tr;
+        in.want_speed_mps = 1.5f;
+        in.want_dir_model = {0.0f, 0.0f, -1.0f};
+        for (int t = 0; t < 120; ++t) {
+            tick(lib, in, m, tr); // travelled_m = −1
+        }
+        CHECK(m.state == anim::LocoState::Cycle);
+    }
+}

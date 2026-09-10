@@ -288,6 +288,9 @@ public:
     /// КОНТРОЛЬНАЯ РУКА ПРИБОРА ДРЕБЕЗГА (§16.4): порог жизни состояния машины
     /// (0 — без dwell; отрицательное — из реестра LOCO_STATE_DWELL_S).
     void set_loco_dwell_min_s(float s) { loco_m_.dwell_min_s = s; }
+    /// КОНТРОЛЬНАЯ РУКА ПРИБОРА ЗАПЕРТОЙ КАПСУЛЫ (§16.9): порог запертости
+    /// (большое число — правила нет; отрицательное — из реестра LOCO_BLOCKED_S).
+    void set_loco_blocked_min_s(float s) { loco_m_.blocked_min_s = s; }
     void set_transitions(bool on) {
         transitions_ = on;
         library_.transitions = on;

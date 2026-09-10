@@ -37,6 +37,10 @@ constexpr float INPUT_MPS = 0.15f; ///< как MOVING_SPEED_MPS у ролей
     return std::atan2(std::sin(a), std::cos(a));
 }
 
+[[nodiscard]] float blocked_min(const LocoMachine& m) {
+    return m.blocked_min_s >= 0.0f ? m.blocked_min_s : static_cast<float>(config::LOCO_BLOCKED_S);
+}
+
 [[nodiscard]] float dwell_min(const LocoMachine& m) {
     return m.dwell_min_s >= 0.0f ? m.dwell_min_s : static_cast<float>(config::LOCO_STATE_DWELL_S);
 }
@@ -221,12 +225,53 @@ RootDelta loco_root_delta(const ClipLibrary& lib, const LocoMachine& m) {
                             m.state == LocoState::TurnInPlace ? m.turn_warp : 1.0f);
 }
 
+namespace {
+/// Состояния и часы за тик; заявка прошлого тика уже сверена с миром (ниже).
+void step_states(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachine& m, bool go);
+} // namespace
+
 void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachine& m) {
+    const bool input = in.want_speed_mps > INPUT_MPS;
+    // --- ЗАПЕРТАЯ КАПСУЛА (§16.9) --------------------------------------------
+    // Мир исполнил заявку прошлого тика меньше чем на LOCO_BLOCKED_FRAC —
+    // тик запертости; подряд LOCO_BLOCKED_S на старте или в цикле — остановка,
+    // и защёлка: в эту же сторону не стартовать, пока ввод не отпущен или не
+    // ушёл дальше LOCO_BLOCKED_RELEASE_DEG. Без защёлки было бы «старт —
+    // заперто — стоп — старт» с периодом в полсекунды.
+    if (in.travelled_m >= 0.0f && m.request_m > 1.0e-4f
+        && in.travelled_m < static_cast<float>(config::LOCO_BLOCKED_FRAC) * m.request_m) {
+        m.blocked_s += dt;
+    } else {
+        m.blocked_s = 0.0f;
+    }
+    if (m.blocked) {
+        const glm::vec2 a{in.want_dir_model.x, in.want_dir_model.z};
+        const glm::vec2 b{m.blocked_dir.x, m.blocked_dir.z};
+        const float la = glm::length(a);
+        const float lb = glm::length(b);
+        const float cos_rel = std::cos(glm::radians(static_cast<float>(config::LOCO_BLOCKED_RELEASE_DEG)));
+        if (!input || la < 1.0e-6f || lb < 1.0e-6f || glm::dot(a, b) / (la * lb) < cos_rel) {
+            m.blocked = false;
+        }
+    }
+    if (!m.blocked && input && (m.state == LocoState::Start || m.state == LocoState::Cycle)
+        && m.blocked_s >= blocked_min(m)) {
+        m.blocked = true;
+        m.blocked_dir = in.want_dir_model;
+        m.blocked_s = 0.0f;
+    }
+    step_states(lib, in, dt, m, input && !m.blocked);
+    // заявка этого тика — мир ответит на неё к следующему
+    m.request_m = glm::length(loco_root_delta(lib, m).xz);
+}
+
+namespace {
+void step_states(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachine& m, const bool go) {
     m.entered = false;
     m.prev_phase = m.phase;
     m.dwell_s += dt;
     m.since_stagger_s += dt;
-    const bool input = in.want_speed_mps > INPUT_MPS;
+    const bool input = in.want_speed_mps > INPUT_MPS; // ввод есть (для отпускания)
     const float dmin = dwell_min(m);
 
     // --- ЧАСЫ ТЕКУЩЕГО КЛИПА -----------------------------------------------
@@ -253,7 +298,7 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
     }
     if (m.state == LocoState::Air) {
         // приземлились: ход продолжается циклом, иначе покой
-        if (input) {
+        if (go) {
             m.dir = move_dir_class(in.want_dir_model, MoveDir::Forward);
             const ClipRole c = cycle_role(lib, in.gait, m.dir);
             enter(lib, m, LocoState::Cycle, c, 0.0f);
@@ -273,7 +318,7 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
 
     switch (m.state) {
     case LocoState::Idle: {
-        if (input) {
+        if (go) {
             // ВВОД ДАЛЬШЕ BODY_TURN_START_DEG ОТ КОРПУСА — СНАЧАЛА РАЗВОРОТ КЛИПОМ,
             // ПОТОМ СТАРТ (§16.4). «Дальше» мерится по ВЗГЛЯДУ: от третьего лица
             // взгляд на ходу = направление ввода (тело идёт, куда просят), от
@@ -304,7 +349,7 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
         if (m.phase < end_phase(cur)) {
             return; // доигрывается ДО КОНЦА, ни порог, ни новый ввод не режут
         }
-        if (input) {
+        if (go) {
             enter_move(lib, m, in);
             return;
         }
@@ -316,6 +361,13 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
         // ОТПУСТИЛ НА СТАРТЕ — остановка не раньше dwell: касание клавиши на
         // тик давало старт-стоп-старт каждые 10 тиков (12 смен/с при бюджете
         // 3); 0,15 с старта до остановки — всё ещё «отпустил — сразу встал».
+        // ЗАПЕРТАЯ КАПСУЛА — сразу покой, не клип остановки: у MX_Stop_Walking
+        // корень ползёт вперёд, а вперёд мир не пускает — это был бы ещё
+        // метр скольжения; стык гасит инерциализация.
+        if (input && !go) {
+            enter(lib, m, LocoState::Idle, ClipRole::Idle, 0.0f);
+            return;
+        }
         if (!input && m.dwell_s >= dmin) {
             enter_stop(lib, m, in);
             return;
@@ -336,6 +388,10 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
         return;
     }
     case LocoState::Cycle: {
+        if (input && !go) { // капсула заперта — покой (см. Start)
+            enter(lib, m, LocoState::Idle, ClipRole::Idle, 0.0f);
+            return;
+        }
         if (!input) {
             enter_stop(lib, m, in);
             return;
@@ -357,7 +413,7 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
         return;
     }
     case LocoState::Stop: {
-        if (input && m.dwell_s >= dmin) {
+        if (go && m.dwell_s >= dmin) {
             enter_move(lib, m, in);
             return;
         }
@@ -375,7 +431,7 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
     }
     case LocoState::Stagger: {
         if (m.phase >= end_phase(cur)) {
-            if (input) {
+            if (go) {
                 enter_move(lib, m, in);
             } else {
                 enter(lib, m, LocoState::Idle, ClipRole::Idle, 0.0f);
@@ -387,6 +443,7 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
         return;
     }
 }
+} // namespace
 
 void rotate_root_joints(const skel::Skeleton& skeleton, std::span<const int32_t> roots, float yaw,
                         std::span<JointLocal> sample) {

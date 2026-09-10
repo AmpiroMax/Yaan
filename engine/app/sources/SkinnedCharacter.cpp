@@ -948,6 +948,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         in.view_valid = drive.view_valid;
         in.grounded = drive.grounded;
         in.push_mps = glm::length(glm::vec2{drive.push_mps_model.x, drive.push_mps_model.z});
+        in.travelled_m = drive_p.travelled_m; // что мир исполнил из прошлой заявки (§16.9)
         anim::loco_step(library_, in, dt, loco_m_);
         const anim::ClipEntry& e = library_[loco_m_.role];
         for (std::size_t side = 0; side < 2; ++side) {
@@ -959,7 +960,13 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         sched_planted_ = {false, false};
         height_owner_ = {false, false};
         if (root_track_) {
-            loco_m_ = anim::LocoMachine{}; // вернёмся на землю — с покоя
+            // вернёмся на землю — с покоя; пороги прибора (dwell, запертость)
+            // принадлежат прогону, а не состоянию, и переживают сброс
+            const float dwell_min = loco_m_.dwell_min_s;
+            const float blocked_min = loco_m_.blocked_min_s;
+            loco_m_ = anim::LocoMachine{};
+            loco_m_.dwell_min_s = dwell_min;
+            loco_m_.blocked_min_s = blocked_min;
         }
     }
     anim::advance_playback(library_, drive_ref, dt, play_, loco_active_ ? &loco_m_ : nullptr);
