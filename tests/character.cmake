@@ -59,6 +59,14 @@ set_tests_properties(character_clips_slide PROPERTIES LABELS "known-defect")
 add_dfn_test(character_loco_telemetry character/LocoTelemetryTests.cpp
              dfn_anim dfn_core)
 
+# МАШИНА ЛОКОМОЦИИ (§16, 10.09): таблица переходов на синтетической библиотеке и
+# на теле; поворот доигрывается, дребезг камеры под бюджетом (контроль: без dwell).
+add_dfn_test(character_locomotion character/LocomotionTests.cpp
+             dfn_anim dfn_render dfn_core)
+if(TARGET dfn_characters)
+    add_dependencies(character_locomotion dfn_characters)
+endif()
+
 # ДОРОЖКА КОРНЯ (§16, 10.09): дорожка сустава root воспроизводит авторский ход и
 # рыск, стык петли непрерывен, варп масштабирует только рыск, поза на месте,
 # расписание контактов, фаза передачи старта.

@@ -179,6 +179,10 @@ constexpr RoleNames ROLE_NAMES[] = {
      {"~MX_Left_Turn_90", "MX_Right_Turn_90", "Turn_Right_90", "Right_Turn_90"}},
     {ClipRole::Stagger, "Stagger",
      {"MX_Sword_and_shield_impact", "MX_Sword_and_shield_impact_2", "Hit_Chest", "Hit_Reaction"}},
+    {ClipRole::Turn180L, "Turn180L",
+     {"MX_Walking_Turn_180", "MX_Sword_and_shield_180_turn", "Turn_Left_180", "Left_Turn_180"}},
+    {ClipRole::Turn180R, "Turn180R",
+     {"~MX_Walking_Turn_180", "~MX_Sword_and_shield_180_turn", "Turn_Right_180", "Right_Turn_180"}},
 };
 static_assert(std::size(ROLE_NAMES) == CLIP_ROLE_COUNT,
               "every role needs a row in the name table");
@@ -341,7 +345,8 @@ bool one_shot_role(ClipRole r) {
     return r == ClipRole::JumpStart || r == ClipRole::JumpLand
            || r == ClipRole::StartWalk || r == ClipRole::StartRun
            || r == ClipRole::StopWalk || r == ClipRole::StopRun
-           || r == ClipRole::TurnL || r == ClipRole::TurnR || r == ClipRole::Stagger;
+           || r == ClipRole::TurnL || r == ClipRole::TurnR || r == ClipRole::Stagger
+           || r == ClipRole::Turn180L || r == ClipRole::Turn180R;
 }
 
 /// Роль перехода — та, что ведёт ноги на месте (старт, остановка, поворот);
@@ -349,7 +354,8 @@ bool one_shot_role(ClipRole r) {
 bool transit_role(ClipRole r) {
     return r == ClipRole::StartWalk || r == ClipRole::StartRun
            || r == ClipRole::StopWalk || r == ClipRole::StopRun
-           || r == ClipRole::TurnL || r == ClipRole::TurnR || r == ClipRole::Stagger;
+           || r == ClipRole::TurnL || r == ClipRole::TurnR || r == ClipRole::Stagger
+           || r == ClipRole::Turn180L || r == ClipRole::Turn180R;
 }
 
 namespace {
@@ -1058,6 +1064,21 @@ void measure_root_track(const skel::Skeleton& skeleton, const skel::AnimClip& cl
     tr.total_yaw = tr.yaw[ROOT_TRACK_POINTS - 1];
     tr.mps = length / clip.duration_s;
     tr.valid = length > 0.05f || std::abs(tr.total_yaw) > glm::radians(5.0f);
+    entry.settle_phase = 0.0f;
+    if (tr.valid) {
+        const float dphase = 1.0f / static_cast<float>(ROOT_TRACK_POINTS - 1);
+        const float dts = dphase * clip.duration_s;
+        const float v_still = static_cast<float>(config::CONTACT_STILL_MPS) / 3.0f;
+        const float w_still = glm::radians(10.0f);
+        for (uint32_t i = ROOT_TRACK_POINTS - 1; i >= 1; --i) {
+            const float v = glm::length(tr.xz[i] - tr.xz[i - 1]) / dts;
+            const float w = std::abs(tr.yaw[i] - tr.yaw[i - 1]) / dts;
+            if (v >= v_still || w >= w_still) {
+                entry.settle_phase = std::min(1.0f, static_cast<float>(i) * dphase + 2.0f * dphase);
+                break;
+            }
+        }
+    }
     if (!tr.valid) {
         // клип без дорожки — ноль ровно, не шум квантования: покой не едет
         tr.xz.fill(glm::vec2{0.0f});
@@ -1507,6 +1528,22 @@ ClipLibrary build_clip_library(const Rig& rig, const skel::Skeleton& skeleton,
                            entry);
         measure_contact_schedule(skeleton, binding, lib.contacts, clips,
                                  locomotion_role(row.role), entry);
+    }
+    // ЛЕВЫЙ ИЛИ ПРАВЫЙ — ПО ЗАМЕРЕННОМУ ЗНАКУ: имя клипа поворота не говорит,
+    // куда он крутит (MX_Walking_Turn_180 — вправо); рыск сим'а + по часовой,
+    // левый поворот отрицательный.
+    for (const auto [l, r] : {std::pair{ClipRole::TurnL, ClipRole::TurnR},
+                              std::pair{ClipRole::Turn180L, ClipRole::Turn180R}}) {
+        ClipEntry& el = lib.role[role_index(l)];
+        ClipEntry& er = lib.role[role_index(r)];
+        if (el.present() && el.root.valid && el.root.total_yaw > 0.0f) {
+            std::fprintf(stderr, "[anim] %.*s крутит вправо (%.0f°) — роли %.*s/%.*s поменяны местами\n",
+                         static_cast<int>(role_name(l).size()), role_name(l).data(),
+                         static_cast<double>(glm::degrees(el.root.total_yaw)),
+                         static_cast<int>(role_name(l).size()), role_name(l).data(),
+                         static_cast<int>(role_name(r).size()), role_name(r).data());
+            std::swap(el, er);
+        }
     }
     // ПЕРЕДАЧА ХОДА ОТ СТАРТА К ЦИКЛУ: фаза старта, с которой его дорожка идёт
     // не медленнее START_HANDOFF_FRAC × скорости цикла.
