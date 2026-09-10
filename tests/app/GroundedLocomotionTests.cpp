@@ -50,6 +50,7 @@ AI Agents Notice (must follow):
 #include <array>
 #include <string>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <filesystem>
 #include <tuple>
@@ -100,6 +101,9 @@ struct Harness {
     /// две секунды каждого прогона играет клип старта. Приёмка самих
     /// переходов — отдельные случаи, они включают их явно.
     Harness() {
+        // КОНТРОЛЬНАЯ РУКА (§16): прежний механизм на прежних клипах UAL — ровно то,
+        // что видел владелец до переделки; роли по умолчанию теперь Mixamo.
+        setenv("DFN_CLIP_ROLES", "Walk=Walk_Loop,Jog=Jog_Fwd_Loop", 1);
         app::CharacterSpec spec;
         spec.proportions = &rig;
         spec.mesh_asset = app::VIEWER_BODY_MESH_ID;
@@ -108,6 +112,9 @@ struct Harness {
                                   fs::path(app::CHARGEN_SOURCE_BODY), spec);
         if (ok) {
             body.set_transitions(false);
+            // ПРЕЖНИЙ ПУТЬ: эти приборы меряют корень от стоп и замок; новая
+            // локомоция (§16) — в tests/app/LocomotionTests.cpp
+            body.set_root_track(false);
         }
     }
     ~Harness() {

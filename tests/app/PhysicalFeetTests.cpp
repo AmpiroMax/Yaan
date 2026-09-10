@@ -41,6 +41,7 @@ AI Agents Notice (must follow):
 
 #include <array>
 #include <cmath>
+#include <cstdlib>
 #include <limits>
 #include <filesystem>
 #include <memory>
@@ -66,6 +67,9 @@ struct Stand {
     glm::vec3 downhill{0.0f};
 
     explicit Stand(float slope_deg, const char* substance, bool physical_feet) {
+        // КОНТРОЛЬНАЯ РУКА (§16): прежний механизм на прежних клипах UAL — ровно то,
+        // что видел владелец до переделки; роли по умолчанию теперь Mixamo.
+        setenv("DFN_CLIP_ROLES", "Walk=Walk_Loop,Jog=Jog_Fwd_Loop", 1);
         app::CharacterSpec spec;
         spec.proportions = &rig;
         spec.mesh_asset = app::VIEWER_BODY_MESH_ID;
@@ -76,6 +80,7 @@ struct Stand {
             return;
         }
         body.set_transitions(false);
+        body.set_root_track(false); // прежний путь — до фазы 5 (стопы-датчики)
         physics = platform::create_jolt_physics();
         REQUIRE(physics->init());
         // склон: поверхность через начало, наклон вокруг Z — вниз по −X

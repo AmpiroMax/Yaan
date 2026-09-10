@@ -20,6 +20,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/ClipPlayer.h"
 
 #include "engine/anim/sources/FootIk.h"
+#include "engine/anim/sources/Locomotion.h"
 #include "engine/anim/sources/RootMotion.h"
 
 #include "engine/core/config/sources/Constants.h"
@@ -125,12 +126,14 @@ constexpr RoleNames ROLE_NAMES[] = {
     // Спринт остаётся UAL Sprint_Loop (стопа 4,79 при заказе 6,0 — 1,25×, край
     // полосы; Mixamo-спринта в паке нет — MX_Standard_Run всего 3,1).
     // Роль по умолчанию — за словом владельца; DFN_CLIP_ROLES примеряет.
-    // РОЛИ ПО УМОЛЧАНИЮ — ПРЕЖНИЕ UAL до слова владельца (тикет ролей, синк с
-    // лидом 04.09); предложение: Walk=MX_Walking, Jog=MX_Standard_Run (см. выше).
+    // РОЛИ ПО УМОЛЧАНИЮ — СЛОВО ВЛАДЕЛЬЦА 10.09 (переделка на дорожку корня,
+    // LOCOMOTION_GROUNDED.md §16): Walk=MX_Walking (1,71 м/с), Jog=MX_Standard_Run
+    // (4,2 м/с) — у них авторский ход таза в дорожке; UAL Walk_Loop/Jog_Fwd_Loop
+    // остаются запасными (дорожка у них синтезирована по стопам на выпечке).
     {ClipRole::Walk, "Walk",
-     {"Walk_Loop", "Walk_Fwd_Loop", "Walk", "MX_Walking"}},
+     {"MX_Walking", "Walk_Loop", "Walk_Fwd_Loop", "Walk"}},
     {ClipRole::Jog, "Jog",
-     {"Jog_Fwd_Loop", "Jog_Loop", "Jog", "MX_Standard_Run"}},
+     {"MX_Standard_Run", "Jog_Fwd_Loop", "Jog_Loop", "Jog"}},
     {ClipRole::Sprint, "Sprint",
      {"Sprint_Loop", "Sprint", "Run_Fwd_Loop", "Running"}},
     {ClipRole::JumpStart, "JumpStart",
@@ -2265,7 +2268,7 @@ namespace {
 } // namespace
 
 void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
-                      ClipPlayback& play) {
+                      ClipPlayback& play, const LocoMachine* machine) {
     // THE PREVIOUS TICK, snapshotted before anything moves. Render reads it
     // with an alpha exactly as it reads PreviousTransform (Rule 12); a pose
     // that only exists for the current tick is the reason a 30 Hz sim looked
@@ -2366,7 +2369,10 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
             wrap01(play.weapon_time_s / guard_entry.duration_s) * guard_entry.duration_s;
     }
 
-    ClipRole want = role_for_drive(lib, drive, play.move_dir);
+    ClipRole want = machine != nullptr ? machine->role : role_for_drive(lib, drive, play.move_dir);
+    if (machine != nullptr) {
+        play.move_dir = machine->dir;
+    }
     // ПЕРЕХОДЫ: СТАРТ, ОСТАНОВКА, ПОВОРОТ НА МЕСТЕ (заказ владельца 04.09;
     // LOCOMOTION_GROUNDED.md §13). Их выбирает СОБЫТИЕ, а не состояние:
     // «ввод появился», «ввод пропал», «камера ушла от корпуса». Пока
@@ -2375,7 +2381,7 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
     // одна десятая секунды кроссфейда.
     play.turn_gap_s = std::max(0.0f, play.turn_gap_s - dt);
     play.stagger_gap_s = std::max(0.0f, play.stagger_gap_s - dt);
-    if (lib.transitions) {
+    if (lib.transitions && machine == nullptr) {
         const bool moving = drive_speed(lib, drive) > MOVING_SPEED_MPS;
         const bool input = drive.want_speed_mps > MOVING_SPEED_MPS;
         const bool ground = drive.grounded && drive.posture_blend < 0.5f
@@ -2616,8 +2622,23 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
             }
         }
     }
+    if (machine != nullptr && cur.duration_s > 0.0f) {
+        // ЧАСЫ ОТ МАШИНЫ (§16): фаза машины — доля КЛИПА (как у дорожки
+        // корня); фаза шага (PHASE_LEFT = левая внизу) — обратное отображение
+        // locomotion_time, чтобы стойка, боб и события шага читали то же.
+        play.rate = machine->rate;
+        play.time_s = std::clamp(machine->phase, 0.0f, 1.0f) * cur.duration_s;
+        if (locomotion(play.role)) {
+            play.phase = wrap01(machine->phase + PHASE_LEFT - cur.footfall_phase);
+            play.mix_time_s = cur.mixed() ? wrap01(play.phase - PHASE_LEFT + cur.mix_footfall)
+                                                * cur.mix_duration_s
+                                          : 0.0f;
+        }
+    }
     const float phase = lib.feet_drive ? play.phase : drive.stride_phase;
-    if (locomotion(play.role)) {
+    if (machine != nullptr && cur.duration_s > 0.0f) {
+        // часы уже поставлены машиной
+    } else if (locomotion(play.role)) {
         play.time_s = locomotion_time(cur, phase);
         play.mix_time_s = cur.mixed() ? wrap01(phase - PHASE_LEFT
                                                + cur.mix_footfall)

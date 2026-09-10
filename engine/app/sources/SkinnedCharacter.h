@@ -66,6 +66,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/FootIk.h"
 #include "engine/anim/sources/Inertializer.h"
+#include "engine/anim/sources/Locomotion.h"
 #include "engine/anim/sources/HeldBlade.h"
 #include "engine/anim/sources/LocoTelemetry.h"
 #include "engine/anim/sources/Hitbox.h"
@@ -279,6 +280,12 @@ public:
     void set_feet_drive(bool on);
     /// §13: одноразовые клипы перехода (старт, остановка, поворот). Прибор,
     /// характеризующий цикл, выключает их — иначе мерил бы разгон.
+    /// ДОРОЖКА КОРНЯ (§16, фаза 3): движение и рыск тела — из дорожки клипа
+    /// через машину состояний (Locomotion.h); false — прежний путь (корень
+    /// от опорной стопы, пороги переходов) — контрольная рука DFN_ROOT_TRACK=0.
+    void set_root_track(bool on) { root_track_ = on; }
+    [[nodiscard]] bool root_track() const { return root_track_; }
+    [[nodiscard]] const anim::LocoMachine& loco_machine() const { return loco_m_; }
     void set_transitions(bool on) {
         transitions_ = on;
         library_.transitions = on;
@@ -507,6 +514,9 @@ private:
     /// скорости сим'а (speed_model_), клип идёт за фактическим ходом корня.
     bool clip_clock_path_ = false;
     bool transitions_ = true; ///< §13: старт/остановка/поворот (DFN_CLIP_TRANSITIONS=0 — без)
+    bool root_track_ = true;  ///< §16: дорожка корня и машина (DFN_ROOT_TRACK=0 — прежний путь)
+    anim::LocoMachine loco_m_{};
+    bool loco_active_ = false; ///< этот тик роль и часы вела машина
     float speed_model_mps_ = 0.0f;
     /// ПОВОРОТ, ВЫНУТЫЙ ИЗ КЛИПА (§13): накопленный за клип угол таза. Его
     /// прибавляет к рыску тела сим (LocomotionOut::root_yaw_delta) и на него

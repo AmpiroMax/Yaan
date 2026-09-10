@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 155> TABLE{{
+constexpr std::array<Door, 156> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -308,6 +308,9 @@ constexpr std::array<Door, 155> TABLE{{
      DoorRead::Once},
     {"DFN_PHYSICAL_FEET",
      "0 — БЕЗ ФИЗИЧЕСКИХ СТОП (LOCOMOTION_GROUNDED.md §12): замок стопы держит якорь клипа, как до 07.09; тел стоп в мире физики нет. Контрольная рука приёмки стоп на склонах и льду (прибор phys_slip).",
+     DoorRead::Once},
+    {"DFN_ROOT_TRACK",
+     "0 — ПРЕЖНИЙ ПУТЬ ДВИЖЕНИЯ (корень от опорной стопы, пороги переходов, замок стопы) вместо дорожки корня клипа и машины состояний (LOCOMOTION_GROUNDED.md §16). Контрольная рука всех приборов новой локомоции: обе руки из одного бинарника.",
      DoorRead::Once},
     {"DFN_CLIP_INERTIAL",
      "0 — СМЕНА КЛИПА ЛИНЕЙНЫМ КРОССФЕЙДОМ, как до 07.09 (LOCOMOTION_GROUNDED.md §13.7): контрольная рука инерциализации стыков, у которой новый клип играет сразу, а разница поз гасится квинтикой за INERTIAL_BLEND_S. Прибор: рывок колена на стыке старт → цикл.",

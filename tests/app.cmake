@@ -363,6 +363,23 @@ if(TARGET dfn_render AND TARGET dfn_core)
         add_dependencies(app_grounded_locomotion dfn_characters)
     endif()
 
+    # НОВАЯ ЛОКОМОЦИЯ (§16, фаза 3): дорожка корня и машина состояний на пути
+    # игрока; контрольная рука — прежний путь (set_root_track(false)).
+    add_dfn_test(app_locomotion app/LocomotionTests.cpp
+                 dfn_render dfn_platform_render dfn_anim dfn_core)
+    target_sources(app_locomotion PRIVATE
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharGenBody.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterFactory.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/SkinnedCharacter.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterTextures.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/CharacterParts.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/PngImage.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/BodyHitboxes.cpp
+        ${CMAKE_SOURCE_DIR}/engine/app/sources/AppDoors.cpp)
+    if(TARGET dfn_characters)
+        add_dependencies(app_locomotion dfn_characters)
+    endif()
+
     # ТЕЛА НПС (07.09): болванчик-ходок — тело НПС по CharacterFactory идёт в точку
     # той же заявкой локомоции, что игрок; снос по телеметрии, приход в радиус.
     add_dfn_test(app_npc_bodies app/NpcBodiesTests.cpp

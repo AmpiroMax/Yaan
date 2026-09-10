@@ -70,10 +70,10 @@ TEST_CASE("clip_library_resolves_roles") {
     // клипа от пути требуют клип, чья стопа в опоре идёт со скоростью заказа
     // в полосе темпа; UAL Walk_Loop — 1,0 м/с при заказе 1,8, Jog_Fwd_Loop —
     // 2,76 при 3,0 (терпимо), MX_Standard_Run — 3,16 (ближе всех).
-    // …роли по умолчанию — прежние UAL до слова владельца (тикет ролей);
-    // предложение: MX_Walking / MX_Standard_Run.
-    CHECK(clip_name_of(m, anim::ClipRole::Walk) == "Walk_Loop");
-    CHECK(clip_name_of(m, anim::ClipRole::Jog) == "Jog_Fwd_Loop");
+    // …СЛОВО ВЛАДЕЛЬЦА 10.09 (переделка на дорожку корня, §16): Walk и Jog —
+    // Mixamo с авторским ходом таза; UAL остаются запасными.
+    CHECK(clip_name_of(m, anim::ClipRole::Walk) == "MX_Walking");
+    CHECK(clip_name_of(m, anim::ClipRole::Jog) == "MX_Standard_Run");
     // THE SPRINT ROLE PLAYS Sprint_Loop — its own clip, by name. Until 02.09
     // the library handed the fastest gear the clip named "jog" because a jog
     // bent to RUN_SPEED slid less than the sprint bent to it (0.027 against

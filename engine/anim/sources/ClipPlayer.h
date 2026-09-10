@@ -738,8 +738,12 @@ struct ClipPlayback {
 /// ONE FIXED TICK. Snapshots the previous tick, picks the role, starts a
 /// cross-fade if it changed, and moves both clip times: locomotion roles are
 /// placed by sim's stride phase, everything else advances by `dt`.
+struct LocoMachine;
+/// `machine` (Locomotion.h, §16) — если дана, роль и часы клипа берутся из
+/// машины состояний (решения на входе), а не из состояния привода и порогов
+/// переходов; прыжок/приземление по-прежнему решает признак земли.
 void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
-                      ClipPlayback& play);
+                      ClipPlayback& play, const LocoMachine* machine = nullptr);
 
 /// THE FRAME. `alpha` in [0,1] interpolates between the previous tick and this
 /// one exactly as render interpolates a Transform (Rule 12's shape). Writes the

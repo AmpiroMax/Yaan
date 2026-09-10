@@ -226,6 +226,8 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         transitions_ = !(tr != nullptr && tr[0] == '0');
         const char* in = door_value("DFN_CLIP_INERTIAL");
         inertial_on_ = !(in != nullptr && in[0] == '0');
+        const char* rt = door_value("DFN_ROOT_TRACK");
+        root_track_ = !(rt != nullptr && rt[0] == '0');
         lock_params_ = anim::FootLockParams::from_config();
     }
     const char* roles = door_value("DFN_CLIP_ROLES");
@@ -860,7 +862,25 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         drive_p.travelled_m = glm::length(glm::vec2{d.x, d.z});
     }
     const anim::BodyDrive& drive_ref = drive_p;
-    anim::advance_playback(library_, drive_ref, dt, play_);
+    // МАШИНА ЛОКОМОЦИИ (§16, фаза 3): наземный ход — роль и часы от машины;
+    // присед, посадка, плавание — прежний выбор по состоянию привода.
+    loco_active_ = root_track_ && drive.grounded && drive.posture_blend < 0.5f
+                   && drive.crouch_blend < 0.5f && library_.has(anim::ClipRole::Idle);
+    if (loco_active_) {
+        anim::LocoInput in;
+        in.want_dir_model = drive.move_dir_model;
+        in.want_speed_mps = drive.want_speed_mps;
+        in.gait = drive.gait;
+        in.view_yaw = drive.view_yaw;
+        in.body_yaw = drive.facing_yaw;
+        in.view_valid = drive.view_valid;
+        in.grounded = drive.grounded;
+        in.push_mps = glm::length(glm::vec2{drive.push_mps_model.x, drive.push_mps_model.z});
+        anim::loco_step(library_, in, dt, loco_m_);
+    } else if (root_track_) {
+        loco_m_ = anim::LocoMachine{}; // вернёмся на землю — с покоя
+    }
+    anim::advance_playback(library_, drive_ref, dt, play_, loco_active_ ? &loco_m_ : nullptr);
     tick_sample_.resize(skeleton_.size());
     tick_sampled_ = playing_clips()
                     && anim::playback_sample(skeleton_, binding_, clips_, library_, play_,
@@ -932,7 +952,16 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         const bool track_turn = cur_ent.root.valid
                                 && std::abs(cur_ent.root.total_yaw) > glm::radians(5.0f)
                                 && cur_ent.duration_s > 0.0f;
-        if (turning && track_turn) {
+        if (loco_active_) {
+            // ДОРОЖКА КОРНЯ: рыск за тик — из машины (с варпом поворота); остаток
+            // варпа (warp − 1) × пройденный рыск клипа — поворотом позы, чтобы
+            // стопы кончили клип там же, где кончил корпус (фаза 3).
+            delta = anim::loco_root_delta(library_, loco_m_).yaw;
+            if (loco_m_.state == anim::LocoState::TurnInPlace && cur_ent.root.valid) {
+                const float covered = anim::root_track_yaw_at(cur_ent.root, loco_m_.phase);
+                turn_accum_rad_ = -(loco_m_.turn_warp - 1.0f) * covered;
+            }
+        } else if (turning && track_turn) {
             const float p0 = play_.switched ? 0.0f : play_.prev_time_s / cur_ent.duration_s;
             const float p1 = play_.time_s / cur_ent.duration_s;
             delta = anim::root_track_delta(cur_ent.root, p0, p1, false).yaw;
@@ -962,7 +991,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         }
         pelvis_yaw_raw_ = raw;
         has_pelvis_raw_ = true;
-        if (turning && !track_turn) {
+        if (turning && !track_turn && !loco_active_) {
             turn_accum_rad_ += delta; // контрвращение позы — только у рыска из таза
         }
         turn_yaw_delta_ = delta;
@@ -1014,8 +1043,35 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         contact_curr_ = anim::contact_state(skeleton_, foot_setup_, plan, pure_sample_);
     }
     loco_ = anim::LocomotionOut{};
-    if (feet_drive_ && library_.feet_drive && contact_prev_.valid && contact_curr_.valid
-        && drive.grounded && drive.posture_blend < 0.5f) {
+    if (loco_active_) {
+        // ОДИН ХОЗЯИН ДВИЖЕНИЯ (§16): ход и рыск за тик — из дорожки корня
+        // текущего клипа; никакого интегратора по стопам, сглаживания и
+        // модели скорости. Постановки — из расписания контактов клипа.
+        const anim::RootDelta rd = anim::loco_root_delta(library_, loco_m_);
+        loco_.root_delta_model = glm::vec3{rd.xz.x, 0.0f, rd.xz.y};
+        loco_.root_yaw_delta = rd.yaw;
+        loco_.phase = play_.phase;
+        const anim::ClipEntry& e = library_[loco_m_.role];
+        for (std::size_t side = 0; side < 2; ++side) {
+            bool crossed = false;
+            for (uint8_t i = 0; i < e.plant_count[side]; ++i) {
+                const float pp = e.plant_phase[side][i];
+                const float a = loco_m_.prev_phase;
+                const float b = loco_m_.phase;
+                crossed = crossed || (a <= b ? (pp > a && pp <= b) : (pp > a || pp <= b));
+            }
+            loco_.footfall[side] = crossed;
+        }
+        if (slip_count_ > 0) {
+            const glm::vec3 mean = slip_sum_world_ / static_cast<float>(slip_count_);
+            const float yaw = anim::body_root_for(drive, standing_ground).yaw;
+            loco_.root_delta_model += glm::vec3{
+                glm::rotate(glm::mat4{1.0f}, yaw, glm::vec3{0.0f, 1.0f, 0.0f})
+                * glm::vec4{mean, 0.0f}};
+        }
+        loco_.valid = true;
+    } else if (feet_drive_ && library_.feet_drive && contact_prev_.valid && contact_curr_.valid
+               && drive.grounded && drive.posture_blend < 0.5f) {
         glm::vec3 raw =
             anim::root_motion_step(contact_prev_, contact_curr_, dt, root_state_,
                                    anim::travel_axis(anim::role_move_dir(play_.role)));
