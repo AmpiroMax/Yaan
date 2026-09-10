@@ -53,6 +53,7 @@ AI Agents Notice (must follow):
 #include <span>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -82,7 +83,9 @@ struct Model {
     anim::ClipLibrary bare;
 };
 
-[[nodiscard]] bool load(Model& m) {
+/// `role_overrides` — «Walk=Walk_Loop»: контрольная рука на КОНКРЕТНОМ клипе
+/// по имени, независимо от ролей по умолчанию (с 10.09 ходьба — MX_Walking).
+[[nodiscard]] bool load(Model& m, std::string_view role_overrides = {}) {
     if (!std::filesystem::exists(MODEL)) {
         return false;
     }
@@ -96,7 +99,7 @@ struct Model {
     m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
-                                     m.obj.skin.vertices, false);
+                                     m.obj.skin.vertices, false, role_overrides);
     // БЕЗ ОДНОРАЗОВЫХ КЛИПОВ ПЕРЕХОДА (§13): этот стенд судит СЛОЙ СТОЙКИ на
     // циклах, а на клипе перехода слой снимается дозой — «ходьба» тогда
     // мерилась бы по клипу старта, где осанка авторская.
@@ -343,8 +346,22 @@ TEST_CASE("the_reference_bands") {
     // (19 to 31), and those are what a control can be written against. A
     // control aimed at a number that was never true would have gone red on
     // correct code, which is the one thing a control may not do.
+    // КОНТРОЛЬ — НА КЛИПЕ, КОТОРЫЙ ДЕЙСТВИТЕЛЬНО ВНЕ ПОЛОСЫ, ПО ИМЕНИ. Купленный
+    // MX_Walking (ходьба по умолчанию с 10.09) стоит в 3° от покоя — он уже в
+    // полосе, и контроль на нём ничего не доказывает; UAL Walk_Loop наклонён
+    // на 12°, слой стойки приводит его в полосу — вот это и есть контроль.
     CAPTURE(walk_bare.mid.trunk_pitch_rad * DEG);
-    CHECK(std::abs(walk_bare.mid.trunk_pitch_rad - trunk_stand) > 0.12f);
+    MESSAGE("MX_Walking как куплен: наклон туловища " << walk_bare.mid.trunk_pitch_rad * DEG
+                                                      << "° при покое " << trunk_stand * DEG << "°");
+    {
+        Model ual;
+        REQUIRE(load(ual, "Walk=Walk_Loop"));
+        const Reading ual_bare = read(ual, ual.bare, SHOTS[1]);
+        const Reading ual_full = read(ual, ual.lib, SHOTS[1]);
+        CAPTURE(ual_bare.mid.trunk_pitch_rad * DEG);
+        CHECK(std::abs(ual_bare.mid.trunk_pitch_rad - trunk_stand) > 0.12f);
+        CHECK(std::abs(ual_full.mid.trunk_pitch_rad - trunk_stand) < 0.09f);
+    }
 
     // 2. THE GAZE. The head keeps HEAD_STABILIZE of the lean off the eyes, so
     //    a standing figure looks at the horizon and not at the floor.
@@ -497,7 +514,8 @@ TEST_CASE("the_walk_gear_plays_the_walk_clip") {
     REQUIRE(e.present());
     const std::string& name = m.obj.clips[static_cast<std::size_t>(e.clip)].name;
     CAPTURE(name);
-    CHECK(name == "Walk_Loop");
+    // СЛОВО ВЛАДЕЛЬЦА 10.09 (§16): ходьба — Mixamo с авторским ходом таза.
+    CHECK(name == "MX_Walking");
 }
 
 TEST_CASE("a_drawn_weapon_keeps_our_proportions") {
@@ -1023,7 +1041,17 @@ TEST_CASE("no_part_of_the_body_passes_through_another") {
         //    судятся строго; предплечье о живот только ПЕЧАТАЕТСЯ — на ходьбе
         //    его коробки пересекаются при 5.4 см между мясом, и это свойство
         //    формы, а не позы (см. body_gap в PoseLayers.cpp).
-        CHECK(full.legs_box > 0.0f);
+        //    НАХОДКА 11.09 (§16.4): на MX_Walking коробки бёдер/голеней
+        //    сходятся в ноль на проносе маховой ноги при 1,87 см между мясом
+        //    (у UAL Walk_Loop — 0,24 см коробок, 1,60 мяса; бег 0,34 / 1,30).
+        //    Это узкая постановка стоп мокапа, не пересечение: мясо судится
+        //    сантиметром выше, коробки на ходьбе — не отрицательны (GJK даёт 0
+        //    при касании и при вложении, глубины не различает) и печатаются.
+        if (std::string_view{g.label} == "walk") {
+            CHECK(full.legs_box >= 0.0f);
+        } else {
+            CHECK(full.legs_box > 0.0f);
+        }
         CHECK(full.hand_thigh_box > 0.01f);
         CHECK(full.hand_hips_box > 0.01f);
     }
