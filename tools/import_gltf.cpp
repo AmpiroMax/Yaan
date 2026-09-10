@@ -1,4 +1,5 @@
 /*
+
 Module: tools
 File: tools/import_gltf.cpp
 
@@ -91,6 +92,7 @@ AI Agents Notice (must follow):
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <map>
+#include <limits>
 #include <string>
 #include <utility>
 #include <vector>
@@ -387,6 +389,7 @@ struct JointOrder {
 
 void read_clips(const cgltf_data* data, const JointOrder& order,
                 std::vector<skel::AnimClip>& out) {
+    uint32_t leading_hold_clips = 0;
     for (cgltf_size a = 0; a < data->animations_count; ++a) {
         const cgltf_animation& anim = data->animations[a];
         skel::AnimClip clip;
@@ -446,8 +449,31 @@ void read_clips(const cgltf_data* data, const JointOrder& order,
             }
         }
         if (!clip.channels.empty()) {
+            // ВРЕМЯ КЛИПА НАЧИНАЕТСЯ С ПЕРВОГО КЛЮЧА. У Mixamo первый ключ стоит
+            // на кадре 1 (t = 1/30), а клип считался с нуля: первые 33 мс —
+            // удержание позы и нулевой ход дорожки корня, то есть запинка
+            // капсулы раз в цикл (замер 11.09: 4 сегмента из 127 без хода у
+            // MX_Walking, скорость капсулы 0 один тик на цикл). Ключи сдвигаются
+            // к нулю, длительность — до последнего ключа.
+            float t0 = std::numeric_limits<float>::max();
+            for (const skel::AnimChannel& c : clip.channels) {
+                t0 = std::min(t0, c.times.front());
+            }
+            if (t0 > 1.0e-6f) {
+                for (skel::AnimChannel& c : clip.channels) {
+                    for (float& t : c.times) {
+                        t -= t0;
+                    }
+                }
+                clip.duration_s = std::max(0.0f, clip.duration_s - t0);
+                ++leading_hold_clips;
+            }
             out.push_back(std::move(clip));
         }
+    }
+    if (leading_hold_clips > 0) {
+        std::fprintf(stderr, "[import] %u clips started past t=0 (first key at 1/30 s): times shifted to the first key\n",
+                     leading_hold_clips);
     }
 }
 

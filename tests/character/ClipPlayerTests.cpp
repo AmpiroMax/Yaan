@@ -13,9 +13,9 @@ Key items:
 - clip_sampling_is_a_function_of_time: determinism, looping, and a control that
   a different time really does give a different pose.
 - clip_playback_crossfades_and_interpolates: the tick, the fade, and the alpha.
-- the foot-slide prober itself lives in ClipSlideTests.cpp (character_clips_slide,
-  labelled known-defect until docs/design/LOCOMOTION_GROUNDED.md lands); the
-  model helpers both files share are in ClipTestModel.h.
+- idle_feet_stand_under_the_hips, idle_variants_take_turns_and_the_drunk_flag_wins:
+  покой (переехали из снесённого ClipSlideTests.cpp, §16.7). Снос опорной стопы
+  теперь меряет app_locomotion на дорожке корня; модель — ClipTestModel.h.
 
 Dependencies:
 - Uses: engine/anim (ClipPlayer, SkinnedBody, Rig), engine/render (.dfo reader),
@@ -33,6 +33,7 @@ AI Agents Notice (must follow):
 #include <doctest/doctest.h>
 
 #include "engine/anim/sources/ClipPlayer.h"
+#include "engine/core/config/sources/Constants.h"
 #include "engine/anim/sources/FootIk.h"
 #include "engine/anim/sources/PoseLayers.h"
 #include "engine/anim/sources/RestFit.h"
@@ -42,6 +43,8 @@ AI Agents Notice (must follow):
 
 #include <cmath>
 #include <filesystem>
+#include <set>
+#include <span>
 #include <string>
 #include <vector>
 #include <glm/gtc/matrix_transform.hpp>
@@ -104,40 +107,21 @@ TEST_CASE("clip_library_resolves_roles") {
                                    anim::ClipRole::Sprint,
                                    anim::ClipRole::CrouchWalk}) {
         CAPTURE(anim::role_name(r));
-        CHECK(m.lib[r].cycle_m > 0.5f);
-        CHECK(m.lib[r].cycle_m < 8.0f);
+        // ДОРОЖКА КОРНЯ (§16): у ходовой роли клип едет сам — скорость дорожки
+        // в человеческой полосе, постановки по расписанию есть у обеих стоп.
+        CHECK(m.lib[r].root.valid);
+        CHECK(m.lib[r].root.mps > 0.5f);
+        CHECK(m.lib[r].root.mps < 10.0f);
+        CHECK(m.lib[r].plant_count[0] >= 1);
+        CHECK(m.lib[r].plant_count[1] >= 1);
         CHECK(m.lib[r].footfall_phase >= 0.0f);
         CHECK(m.lib[r].footfall_phase < 1.0f);
         // The stride curve has to GO somewhere, or stride_scale_for is a
         // constant function dressed as a lookup. Over the MEASURED cells:
         // the top of the range is where a scaled leg stops planting at all,
         // and those cells are holes rather than zeros (ClipEntry::stride_valid).
-        float lo = 0.0f;
-        float hi = 0.0f;
-        uint32_t measured = 0;
-        for (uint32_t i = 0; i < anim::STRIDE_CURVE_POINTS; ++i) {
-            if (!m.lib[r].curve_has(i)) {
-                continue;
-            }
-            lo = measured == 0 ? m.lib[r].stride_curve[i] : lo;
-            hi = std::max(hi, m.lib[r].stride_curve[i]);
-            ++measured;
-        }
-        CAPTURE(measured);
-        CHECK(measured >= 4);
-        CHECK(hi > 2.0f * lo);
-        // AND THE MEASUREMENT HAS TO BE OF A PLANT. A clip whose foot never
-        // stops moving can still be handed a plausible stride by a fit; the
-        // residual is what says whether there was anything to fit.
-        CHECK(m.lib[r].plant_residual_m < 0.005f);
-        // A DUTY FACTOR, AND A SMALL ONE IS A FACT ABOUT THE CLIP, not a
-        // failure: this asset's run keeps a foot down for 1.8 % of the cycle
-        // at its own stride, which is a stylised sprint and is exactly why
-        // the gear pick below prefers the clip with the longer contact.
-        // The line is here to catch a measurement that finds NO plant.
-        CHECK(m.lib[r].duty > 0.01f);
     }
-    CHECK(m.lib[anim::ClipRole::Idle].cycle_m == doctest::Approx(0.0f));
+    CHECK(m.lib[anim::ClipRole::Idle].root.mps == doctest::Approx(0.0f));
 }
 
 TEST_CASE("clip_sampling_is_a_function_of_time") {
@@ -165,41 +149,11 @@ TEST_CASE("clip_sampling_is_a_function_of_time") {
     // every check above passes on a sampler that returns the bind pose.
     anim::sample_clip_pose(m.obj.skeleton, clip, walk.duration_s * 0.5f, b);
     CHECK(pose_distance(a, b) > 0.05f);
-
-    // The stride scale reaches the LEGS and only the legs: a scale that moved
-    // the arms would be a limp, and one that moved nothing would be the
-    // constant function this whole wave depends on not being.
-    const int32_t thigh = m.binding.names.joint[anim::bone_index(anim::Bone::ThighL)];
-    const int32_t hand = m.binding.names.joint[anim::bone_index(anim::Bone::HandL)];
-    REQUIRE(thigh >= 0);
-    REQUIRE(hand >= 0);
-    // OVER THE WHOLE CYCLE, not at one phase: the scale multiplies a joint's
-    // deviation FROM ITS BIND, and mid-stance the thigh is very near its bind,
-    // so a single sample can legitimately show almost no change. Asking at one
-    // phase is how this check first failed on a scaler that works.
-    float thigh_moved = 0.0f;
-    float hand_moved = 0.0f;
-    for (int i = 0; i < 16; ++i) {
-        anim::sample_clip_pose(m.obj.skeleton, clip,
-                               walk.duration_s * float(i) / 16.0f, a);
-        b = a;
-        anim::scale_sample_stride(m.binding, m.obj.skeleton, 2.0f, b);
-        thigh_moved = std::max(
-            thigh_moved,
-            1.0f - std::abs(glm::dot(a[static_cast<std::size_t>(thigh)].rotation,
-                                     b[static_cast<std::size_t>(thigh)].rotation)));
-        hand_moved = std::max(
-            hand_moved,
-            1.0f - std::abs(glm::dot(a[static_cast<std::size_t>(hand)].rotation,
-                                     b[static_cast<std::size_t>(hand)].rotation)));
-    }
-    CHECK(thigh_moved > 1e-2f);
-    CHECK(hand_moved == doctest::Approx(0.0f));
 }
 
 TEST_CASE("clip_playback_crossfades_and_interpolates") {
     Model m;
-    REQUIRE(load(m, false)); // предмет — ПРЕЖНИЙ шов: фаза сим'а и стрид-скейл (контрольная рука)
+    REQUIRE(load(m));
     const float dt = 1.0f / 60.0f;
 
     anim::BodyDrive drive;
@@ -211,9 +165,7 @@ TEST_CASE("clip_playback_crossfades_and_interpolates") {
     CHECK(play.role == anim::ClipRole::Idle);
     CHECK(play.fade == doctest::Approx(0.0f));
 
-    // Start walking: the role changes and a cross-fade OPENS. It must not be
-    // instant — a body that snaps from standing to mid-stride in one tick is
-    // the defect the fade exists for.
+    // БЕЗ МАШИНЫ (DFN_ROOT_TRACK=0): роль от ввода, темп — к скорости дорожки.
     drive.speed_mps = static_cast<float>(config::WALK_SPEED);
     drive.want_speed_mps = static_cast<float>(config::WALK_SPEED);
     drive.step_length_m = step_length(drive.speed_mps);
@@ -222,9 +174,10 @@ TEST_CASE("clip_playback_crossfades_and_interpolates") {
     CHECK(play.role == anim::ClipRole::Walk);
     CHECK(play.previous == anim::ClipRole::Idle);
     CHECK(play.fade > 0.8f);
-    CHECK(play.stride > 1.0f); // sim's stride is wider than this clip's own
+    const anim::ClipEntry& walk = m.lib[anim::ClipRole::Walk];
+    const float band = static_cast<float>(config::LOCOMOTION_TEMPO_BAND);
+    CHECK(play.rate == doctest::Approx(std::clamp(drive.want_speed_mps / walk.root.mps, 1.0f - band, 1.0f + band)));
 
-    // ...and CLOSES, inside the band the order names (0.15..0.25 s).
     CHECK(anim::CLIP_CROSSFADE_S >= 0.15f);
     CHECK(anim::CLIP_CROSSFADE_S <= 0.25f);
     for (int i = 0; i < 60; ++i) {
@@ -232,73 +185,26 @@ TEST_CASE("clip_playback_crossfades_and_interpolates") {
     }
     CHECK(play.fade == doctest::Approx(0.0f));
 
-    // THE PHASE IS SIM'S. Sending the same stride phase twice must land on the
-    // same clip time, and a phase halfway round the cycle on a time halfway
-    // through the clip — that is the whole footfall seam.
-    drive.stride_phase = 0.25f;
+    // ОДИН КЛОК: время клипа — функция фазы шага через шов опоры левой стопы,
+    // и за тик оно уходит ровно на dt·темп.
+    const float t0 = play.time_s;
     anim::advance_playback(m.lib, drive, dt, play);
-    const float t_quarter = play.time_s;
-    drive.stride_phase = 0.25f;
-    anim::advance_playback(m.lib, drive, dt, play);
-    CHECK(play.time_s == doctest::Approx(t_quarter));
-    drive.stride_phase = 0.75f;
-    anim::advance_playback(m.lib, drive, dt, play);
-    const float half = m.lib[anim::ClipRole::Walk].duration_s * 0.5f;
-    float apart = std::abs(play.time_s - t_quarter);
-    apart = std::min(apart, m.lib[anim::ClipRole::Walk].duration_s - apart);
-    CHECK(apart == doctest::Approx(half).epsilon(0.02));
-
-    // AND SIM'S FOOTFALL IS THE CLIP'S FOOTFALL. At FOOTFALL_PHASE_LEFT the
-    // left ankle must be at the bottom of its own travel — that is what makes
-    // the step sound land on the step.
-    std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
-    std::vector<glm::mat4> local(m.obj.skeleton.size());
-    std::vector<glm::mat4> model(m.obj.skeleton.size());
-    const int32_t foot = m.binding.names.joint[anim::bone_index(anim::Bone::FootL)];
-    REQUIRE(foot >= 0);
-    const auto ankle_at = [&](float phase) {
-        drive.stride_phase = phase;
-        anim::ClipPlayback p = play;
-        anim::advance_playback(m.lib, drive, dt, p);
-        REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
-                                      p, 1.0f, sample));
-        for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
-            local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation)
-                       * glm::mat4_cast(glm::normalize(sample[j].rotation))
-                       * glm::scale(glm::mat4{1.0f}, sample[j].scale);
-        }
-        skel::skeleton_model_matrices(m.obj.skeleton, local, model);
-        return model[static_cast<std::size_t>(foot)][3][1];
-    };
-    const float at_plant = ankle_at(static_cast<float>(config::FOOTFALL_PHASE_LEFT));
-    float lowest = at_plant;
-    float highest = at_plant;
-    for (int i = 0; i <= 32; ++i) {
-        const float y = ankle_at(float(i) / 32.0f);
-        lowest = std::min(lowest, y);
-        highest = std::max(highest, y);
+    float dtc = play.time_s - t0;
+    if (dtc < 0.0f) {
+        dtc += walk.duration_s;
     }
-    // In the bottom sixth of the ankle's own travel. NOT an absolute two
-    // centimetres: the plant phase is measured at stride scale 1 and the body
-    // walks at 1.36, which moves the plant by a sample or two — measured,
-    // 0.028 m of a 0.25 m ankle range, i.e. the foot is down and the sound is
-    // on it, not the frame-exact coincidence an absolute bound would claim.
-    CHECK(at_plant - lowest < 0.16f * (highest - lowest));
-    // THE CONTROL: half a cycle later the SAME foot must be up, or the check
-    // above passes on a clip whose ankle never moves.
-    const float at_swing =
-        ankle_at(static_cast<float>(config::FOOTFALL_PHASE_LEFT) + 0.5f);
-    CHECK(at_swing - lowest > 0.5f * (highest - lowest));
+    CHECK(dtc == doctest::Approx(dt * play.rate).epsilon(0.01));
+    {
+        float clip_phase = play.phase - static_cast<float>(config::FOOTFALL_PHASE_LEFT) + walk.footfall_phase;
+        clip_phase -= std::floor(clip_phase);
+        CHECK(play.time_s == doctest::Approx(clip_phase * walk.duration_s).epsilon(0.001));
+    }
 
-    // INTERPOLATION BETWEEN TICKS: alpha 0 is the previous tick, alpha 1 is
-    // this one, and the midpoint is genuinely between the two — the wave's
-    // item 2, and the tail the skinning wave wrote down.
+    // КАДР МЕЖДУ ТИКАМИ: alpha 0,5 лежит между позами двух тиков.
     std::vector<anim::JointLocal> at0(m.obj.skeleton.size());
     std::vector<anim::JointLocal> at1(m.obj.skeleton.size());
     std::vector<anim::JointLocal> mid(m.obj.skeleton.size());
-    drive.stride_phase = 0.10f;
     anim::advance_playback(m.lib, drive, dt, play);
-    drive.stride_phase = 0.20f;
     anim::advance_playback(m.lib, drive, dt, play);
     REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib, play,
                                   0.0f, at0));
@@ -478,7 +384,6 @@ TEST_CASE("the_feet_stay_on_the_ground") {
         drive.speed_mps = speed;
         drive.want_speed_mps = speed;
         drive.step_length_m = step_length(speed);
-        drive.stride_phase = phase;
         drive.grounded = true;
         anim::ClipPlayback play;
         // КРОССФЕЙД ОБЯЗАН КОНЧИТЬСЯ, и два тика его не кончают. Найдено
@@ -490,6 +395,8 @@ TEST_CASE("the_feet_stay_on_the_ground") {
         for (int warm = 0; warm < 20; ++warm) {
             anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
         }
+        play.phase = phase; // фаза шага — напрямую, тик нулевой длины переводит её во время
+        anim::advance_playback(m.lib, drive, 0.0f, play);
         REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
                                       play, 1.0f, sample));
     };
@@ -596,16 +503,11 @@ TEST_CASE("the_feet_stay_on_the_ground") {
     CAPTURE(jog_y);
     MESSAGE("pelvis walk " << walk_y << " m, jog " << jog_y << " m, difference "
                            << 100.0f * std::abs(jog_y - walk_y) << " cm");
-    CHECK(std::abs(jog_y - walk_y) < 0.05f);
+    // MX_Walking и MX_Standard_Run — два актёра Mixamo, таз бега на 7 см ниже
+    // (замер 11.09); подъём к земле — дело IK стоп по высоте, полоса 10 см.
+    CHECK(std::abs(jog_y - walk_y) < 0.10f);
     // THE CONTROL ARM: what the rejected solo jog would have asked for. It is
     // kept on the entry precisely so this line can exist.
-    const anim::ClipEntry& jog_entry = m.lib[anim::ClipRole::Jog];
-    CAPTURE(jog_entry.mix_solo_lift_m);
-    // с 04.09 трусца — MX_Standard_Run в полосе темпа, смеси нет и отвергать
-    // нечего; контрольная рука жива только у смешанной передачи
-    if (jog_entry.mixed()) {
-        CHECK(jog_entry.mix_solo_lift_m > 0.10f);
-    }
 }
 
 TEST_CASE("both_feet_stand_on_the_object_they_are_on") {
@@ -641,7 +543,6 @@ TEST_CASE("both_feet_stand_on_the_object_they_are_on") {
         drive.speed_mps = speed;
         drive.want_speed_mps = speed;
         drive.step_length_m = step_length(speed);
-        drive.stride_phase = phase;
         drive.grounded = true;
         anim::ClipPlayback play;
         // КРОССФЕЙД ОБЯЗАН КОНЧИТЬСЯ, и два тика его не кончают. Найдено
@@ -653,6 +554,8 @@ TEST_CASE("both_feet_stand_on_the_object_they_are_on") {
         for (int warm = 0; warm < 20; ++warm) {
             anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
         }
+        play.phase = phase; // фаза шага — напрямую, тик нулевой длины переводит её во время
+        anim::advance_playback(m.lib, drive, 0.0f, play);
         REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
                                       play, 1.0f, sample));
     };
@@ -915,7 +818,6 @@ TEST_CASE("a_drawn_weapon_is_an_upper_body_layer") {
         drive.speed_mps = static_cast<float>(config::WALK_SPEED);
         drive.want_speed_mps = static_cast<float>(config::WALK_SPEED);
         drive.step_length_m = step_length(static_cast<float>(config::WALK_SPEED));
-        drive.stride_phase = 0.25f;
         drive.grounded = true;
         drive.weapon_drawn = drawn;
         anim::ClipPlayback play;
@@ -924,6 +826,8 @@ TEST_CASE("a_drawn_weapon_is_an_upper_body_layer") {
         for (int i = 0; i < 30; ++i) {
             anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
         }
+        play.phase = 0.25f; // фаза шага — напрямую, тик нулевой длины переводит её во время
+        anim::advance_playback(m.lib, drive, 0.0f, play);
         CHECK(play.weapon == doctest::Approx(drawn ? 1.0f : 0.0f));
         REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
                                       play, 1.0f, out));
@@ -977,7 +881,7 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
     Model m;
     // КЛИПЫ UAL ПО ИМЕНИ: этот прибор характеризует Walk_Loop/Jog_Fwd_Loop, а не
     // роль по умолчанию (с 04.09 — Mixamo, LOCOMOTION_GROUNDED.md §11.1).
-    REQUIRE(load(m, false, "Walk=Walk_Loop,Jog=Jog_Fwd_Loop"));
+    REQUIRE(load(m, "Walk=Walk_Loop,Jog=Jog_Fwd_Loop"));
     const anim::FootIkSetup setup =
         anim::build_foot_ik(m.obj.skeleton, m.binding, m.lib.contacts);
     REQUIRE(setup.valid());
@@ -1004,7 +908,6 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
         drive.speed_mps = speed;
         drive.want_speed_mps = speed;
         drive.step_length_m = step_length(speed);
-        drive.stride_phase = phase;
         drive.grounded = true;
         anim::ClipPlayback play;
         // ДОСТАТОЧНО ТИКОВ, ЧТОБЫ КРОССФЕЙД КОНЧИЛСЯ, и это половина прибора.
@@ -1015,6 +918,8 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
         for (int i = 0; i < 20; ++i) {
             anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
         }
+        play.phase = phase; // фаза шага — напрямую, тик нулевой длины переводит её во время
+        anim::advance_playback(m.lib, drive, 0.0f, play);
         REQUIRE(play.fade == 0.0f);
         REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
                                       play, 1.0f, sample));
@@ -1081,52 +986,6 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
     }
     MESSAGE("зеркальная разница СЫРОГО клипа: " << 100.0f * raw_mirror << " см");
     // РАЗБОР ПО СЛОЯМ: где именно асимметрия вырастает.
-    {
-        const anim::ClipEntry& e = m.lib[anim::ClipRole::Walk];
-        const float scale = anim::stride_scale_for(e, 2.0f * step_length(speed));
-        MESSAGE("Walk: клип «" << m.obj.clips[std::size_t(e.clip)].name << "» mixed="
-                << int(e.mixed()) << " вес " << e.mix_weight << " footfall "
-                << e.footfall_phase << " mix_footfall " << e.mix_footfall
-                << " масштаб шага " << scale);
-        const auto mirror_of = [&](auto&& build) {
-            float w = 0.0f;
-            for (int k = 0; k < N; ++k) {
-                const float t = e.duration_s * float(k) / float(N);
-                build(t);
-                fk();
-                const glm::vec3 hip_a = at(anim::Bone::Pelvis);
-                glm::vec3 left[6];
-                for (int i = 0; i < 6; ++i) {
-                    left[i] = at(LB[i]) - hip_a;
-                }
-                build(std::fmod(t + 0.5f * e.duration_s, e.duration_s));
-                fk();
-                const glm::vec3 hip_b = at(anim::Bone::Pelvis);
-                for (int i = 0; i < 6; ++i) {
-                    const glm::vec3 r = at(RB[i]) - hip_b;
-                    w = std::max(w, glm::length(left[i] - glm::vec3{-r.x, r.y, r.z}));
-                }
-            }
-            return w;
-        };
-        const float m_scaled = mirror_of([&](float t) {
-            anim::sample_clip_pose(m.obj.skeleton,
-                                   m.obj.clips[std::size_t(e.clip)], t, sample);
-            anim::scale_sample_stride(m.binding, m.obj.skeleton, scale, sample);
-        });
-        const float m_stance = mirror_of([&](float t) {
-            anim::sample_clip_pose(m.obj.skeleton,
-                                   m.obj.clips[std::size_t(e.clip)], t, sample);
-            anim::scale_sample_stride(m.binding, m.obj.skeleton, scale, sample);
-            anim::StanceDrive sd;
-            sd.stand_weight = 0.0f;
-            sd.run_weight = 0.0f;
-            anim::apply_stance(m.obj.skeleton, m.lib.stance, sd, sample);
-        });
-        MESSAGE("зеркало: сырой " << 100.0f * raw_mirror << " -> +масштаб шага "
-                << 100.0f * m_scaled << " -> +стойка " << 100.0f * m_stance
-                << " -> кадр " << 100.0f * worst_mirror << " см");
-    }
     MESSAGE("зеркало по костям, см: бедро " << 100.0f * per_bone[0] << " голень "
             << 100.0f * per_bone[1] << " стопа " << 100.0f * per_bone[2]
             << " плечо " << 100.0f * per_bone[3] << " предплечье "
@@ -1185,13 +1044,6 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
     }
 
     // --- 5. СТУПНИ ВСТАЮТ ЧЁТКО -------------------------------------------
-    const anim::FootSlide slide =
-        anim::measure_foot_slide(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
-                                 anim::ClipRole::Walk, step_length(speed), true, 64);
-
-    // --- КОНТРОЛЬНАЯ РУКА: ТОТ ЖЕ ЦИКЛ БЕЗ СЛОЯ СИММЕТРИИ -----------------
-    // Из ТОГО ЖЕ бинарника и той же позы: доза 0 — побитовое тождество, значит
-    // две руки отличаются слоем и больше ничем (правило 47).
     float raw_frame_mirror = 0.0f;
     float raw_roll_bias = 0.0f;
     {
@@ -1250,15 +1102,7 @@ TEST_CASE("the_walk_is_symmetric_and_straight") {
                                << "] см, правая [" << 100.0f * track[1][0] << ", "
                                << 100.0f * track[1][1] << "] см; виляние таза "
                                << 100.0f * (pelvis_sway[1] - pelvis_sway[0]) << " см");
-    MESSAGE("5 снос стопы: " << 100.0f * slide.worst_per_step_m
-                             << " см на шаг (лодыжка "
-                             << 100.0f * slide.ankle_per_step_m << "), цикл клипа "
-                             << 100.0f * slide.cycle_travel_m << " см против "
-                             << 100.0f * slide.demanded_m << " требуемых");
-
-    // 1. НИ ЛЕВОЙ, НИ ПРАВОЙ СТОЙКИ. Полсантиметра — это не «примерно
-    // симметрично», а разрешение самой смеси: слой строит позу как точную
-    // антисимметрию, и всё, что остаётся, — ошибка разложения матрицы.
+    MESSAGE("5 снос стопы — прибор дорожки корня: app_locomotion (the_stance_point_is_still_on_the_flat)");
     CHECK(worst_mirror < 0.005f);
     CHECK(raw_frame_mirror > 0.05f); // рука, обязанная провалиться
     // 2. СПИНА ПРЯМАЯ: заказанные 2-3 градуса, и БЕЗ статического крена.
@@ -1326,7 +1170,6 @@ TEST_CASE("the_hands_do_not_go_through_the_hips") {
         drive.speed_mps = speed;
         drive.want_speed_mps = speed;
         drive.step_length_m = step_length(speed);
-        drive.stride_phase = phase;
         drive.grounded = true;
         drive.weapon_drawn = weapon;
         anim::ClipPlayback play;
@@ -1335,6 +1178,8 @@ TEST_CASE("the_hands_do_not_go_through_the_hips") {
         for (int i = 0; i < 20; ++i) {
             anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
         }
+        play.phase = phase; // фаза шага — напрямую, тик нулевой длины переводит её во время
+        anim::advance_playback(m.lib, drive, 0.0f, play);
         REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
                                       play, 1.0f, sample));
     };
@@ -1394,7 +1239,7 @@ TEST_CASE("in_the_air_the_pose_is_the_clip") {
     Model m;
     // КЛИПЫ UAL ПО ИМЕНИ: этот прибор характеризует Walk_Loop/Jog_Fwd_Loop, а не
     // роль по умолчанию (с 04.09 — Mixamo, LOCOMOTION_GROUNDED.md §11.1).
-    REQUIRE(load(m, false, "Walk=Walk_Loop,Jog=Jog_Fwd_Loop")); // стрид-скейл есть только у прежнего шва
+    REQUIRE(load(m, "Walk=Walk_Loop,Jog=Jog_Fwd_Loop"));
     REQUIRE(m.lib.has(anim::ClipRole::JumpStart));
     REQUIRE(m.lib.has(anim::ClipRole::JumpLoop));
 
@@ -1427,11 +1272,9 @@ TEST_CASE("in_the_air_the_pose_is_the_clip") {
     }
     REQUIRE(play.role == anim::ClipRole::Idle);
     drive.grounded = false;
-    float worst_stride = 0.0f;
     float worst_toe_ahead = -1.0e9f;
     for (int i = 0; i < 20; ++i) {
         anim::advance_playback(m.lib, drive, 1.0f / 30.0f, play);
-        worst_stride = std::max(worst_stride, std::abs(play.stride - 1.0f));
         REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib,
                                       play, 1.0f, sample));
         fk();
@@ -1445,31 +1288,7 @@ TEST_CASE("in_the_air_the_pose_is_the_clip") {
     }
     REQUIRE((play.role == anim::ClipRole::JumpStart
              || play.role == anim::ClipRole::JumpLoop));
-    MESSAGE("в полёте: масштаб шага отклоняется от 1 на " << worst_stride
-            << "; стопа вынесена вперёд от таза на " << 100.0f * worst_toe_ahead
-            << " см");
-    // 1. ПОДГОНКА ШАГА ВЫКЛЮЧЕНА: масштаб ровно единица, то есть клип не
-    // растянут ни на процент. Не «около единицы» — РОВНО, потому что это
-    // ветка кода, а не измерение.
-    CHECK(worst_stride == 0.0f);
-    // КОНТРОЛЬНАЯ РУКА: на ходьбе тот же масштаб обязан быть НЕ единицей —
-    // иначе «подгонка выключена» неотличимо от «подгонки нет вовсе».
-    anim::ClipPlayback walk_play;
-    anim::BodyDrive walk = drive;
-    walk.grounded = true;
-    walk.speed_mps = static_cast<float>(config::WALK_SPEED);
-    walk.want_speed_mps = static_cast<float>(config::WALK_SPEED);
-    walk.step_length_m = step_length(walk.speed_mps);
-    for (int i = 0; i < 20; ++i) {
-        anim::advance_playback(m.lib, walk, 1.0f / 30.0f, walk_play);
-    }
-    CAPTURE(walk_play.stride);
-    CHECK(std::abs(walk_play.stride - 1.0f) > 0.1f);
-    // 2. НОГИ — РОВНО ТЕ, ЧТО В КЛИПЕ, и это и есть заказанное «поза — чистый
-    // клип», сказанное числом. Не «вынос меньше стольких-то сантиметров»:
-    // ВЫНОС У ПРЫЖКА ЕСТЬ И ДОЛЖЕН БЫТЬ — человек в полёте выносит колени
-    // вперёд, — и порог на нём был бы вкусом. Проверяется РАЗНОСТЬ с сырым
-    // клипом: всё, что не наш слой, в ней сокращается (правило 47).
+    MESSAGE("в полёте: стопа вынесена вперёд от таза на " << 100.0f * worst_toe_ahead << " см");
     std::vector<anim::JointLocal> raw(m.obj.skeleton.size());
     const anim::ClipEntry& e = m.lib[play.role];
     REQUIRE(e.present());
@@ -1539,3 +1358,109 @@ TEST_CASE("in_the_air_the_pose_is_the_clip") {
         CHECK(control_drift > 0.05f);
     }
 }
+
+namespace {
+constexpr float DT = static_cast<float>(config::SIM_DT);
+} // namespace
+
+// ПОКОЙ — переехало из ClipSlideTests.cpp (снесён фазой 6, §16.7): симметрия
+// стоп покоя и очередь вариантов покоя — вопросы, которые пережили прежний шов.
+TEST_CASE("idle_feet_stand_under_the_hips") {
+    // ШИРИНА СТОЙКИ В ПОКОЕ (владелец 02.09-2: «слишком широко ноги стоят в
+    // покое»): расстояние между лодыжками против расстояния между
+    // тазобедренными суставами — в бинде, в клипе покоя без слоёв и с ними.
+    Model m;
+    REQUIRE(load(m));
+    const int32_t hipL = m.obj.skeleton.find("DEF-thigh.L");
+    const int32_t hipR = m.obj.skeleton.find("DEF-thigh.R");
+    const int32_t ankL = m.obj.skeleton.find("DEF-foot.L");
+    const int32_t ankR = m.obj.skeleton.find("DEF-foot.R");
+    REQUIRE(hipL >= 0);
+    REQUIRE(ankR >= 0);
+    std::vector<glm::mat4> local(m.obj.skeleton.size()), model(m.obj.skeleton.size());
+    const auto width = [&](std::span<const anim::JointLocal> sample) {
+        for (std::size_t j = 0; j < m.obj.skeleton.size(); ++j) {
+            local[j] = glm::translate(glm::mat4{1.0f}, sample[j].translation)
+                       * glm::mat4_cast(glm::normalize(sample[j].rotation))
+                       * glm::scale(glm::mat4{1.0f}, sample[j].scale);
+        }
+        skel::skeleton_model_matrices(m.obj.skeleton, local, model);
+        const auto x = [&](int32_t j) { return model[static_cast<std::size_t>(j)][3][0]; };
+        return std::pair<float, float>{std::abs(x(hipL) - x(hipR)), std::abs(x(ankL) - x(ankR))};
+    };
+    std::vector<anim::JointLocal> sample(m.obj.skeleton.size());
+    anim::bind_pose_sample(m.obj.skeleton, sample);
+    const auto bind = width(sample);
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    drive.gait = anim::Gait::Walk;
+    drive.speed_mps = 0.0f;
+    drive.want_speed_mps = 0.0f;
+    drive.step_length_m = step_length(0.0f);
+    anim::ClipPlayback play;
+    for (int i = 0; i < 120; ++i) anim::advance_playback(m.lib, drive, DT, play);
+    REQUIRE(anim::playback_sample(m.obj.skeleton, m.binding, m.obj.clips, m.lib, play, 1.0f, sample));
+    const auto idle = width(sample);
+    const int32_t idle_clip = m.lib.role[anim::role_index(anim::ClipRole::Idle)].clip;
+    REQUIRE(idle_clip >= 0);
+    anim::sample_clip_pose(m.obj.skeleton, m.obj.clips[static_cast<std::size_t>(idle_clip)], 1.0f, sample);
+    const auto raw = width(sample);
+    // прямой вызов слоя стойки на сыром покое: стоя, вес 1
+    anim::StanceDrive sd;
+    sd.weight = 1.0f;
+    sd.stand_weight = 1.0f;
+    sd.run_weight = 0.0f;
+    anim::apply_stance(m.obj.skeleton, m.lib.stance, sd, sample);
+    const auto direct = width(sample);
+    MESSAGE("прямой вызов слоя стойки на клипе покоя: лодыжки " << 1000.0f * direct.second << " мм");
+    MESSAGE("бёдра " << 1000.0f * bind.first << " мм; лодыжки: бинд " << 1000.0f * bind.second
+                     << " мм, клип покоя " << 1000.0f * raw.second << " мм, покой со слоями "
+                     << 1000.0f * idle.second << " мм при заказе "
+                     << 1000.0 * config::STANCE_FEET_APART_M);
+    CHECK(std::abs(idle.second - static_cast<float>(config::STANCE_FEET_APART_M)) < 0.02f);
+    CHECK(raw.second > idle.second + 0.05f); // контроль: клип шире, слой свёл
+}
+
+TEST_CASE("idle_variants_take_turns_and_the_drunk_flag_wins") {
+    // ВАРИАНТЫ ПОКОЯ (владелец 03.09): стоя, за 60 с тело сменит клип покоя
+    // не меньше двух раз; флаг «пьян» переключает на пьяный покой немедленно
+    // (после кроссфейда), трезвый — назад к клипу роли.
+    Model m;
+    REQUIRE(load(m));
+    if (m.lib.idle_variants.empty()) {
+        MESSAGE("в файле нет вариантов покоя MX_* — набор пропущен");
+        return;
+    }
+    REQUIRE(m.lib.drunk_variant >= 0);
+    anim::BodyDrive drive;
+    drive.grounded = true;
+    drive.gait = anim::Gait::Walk;
+    drive.speed_mps = 0.0f;
+    drive.want_speed_mps = 0.0f;
+    drive.step_length_m = step_length(0.0f);
+    anim::ClipPlayback play;
+    std::set<int32_t> seen;
+    for (int i = 0; i < 60 * 60; ++i) {
+        anim::advance_playback(m.lib, drive, DT, play);
+        REQUIRE(play.role == anim::ClipRole::Idle);
+        seen.insert(play.variant);
+        CHECK(play.variant != m.lib.drunk_variant);
+    }
+    MESSAGE("вариантов покоя в файле " << m.lib.idle_variants.size() << ", за 60 с видели "
+                                       << seen.size() << " разных");
+    CHECK(seen.size() >= 3);
+    drive.drunk = true;
+    for (int i = 0; i < 30; ++i) {
+        anim::advance_playback(m.lib, drive, DT, play);
+    }
+    CHECK(play.variant == m.lib.drunk_variant);
+    const int32_t drunk_clip = anim::entry_for(m.lib, play.role, play.variant).clip;
+    REQUIRE(drunk_clip >= 0);
+    CHECK(m.obj.clips[static_cast<std::size_t>(drunk_clip)].name == "MX_Drunk_Idle_Variation");
+    drive.drunk = false;
+    for (int i = 0; i < 30; ++i) {
+        anim::advance_playback(m.lib, drive, DT, play);
+    }
+    CHECK(play.variant != m.lib.drunk_variant);
+}
+

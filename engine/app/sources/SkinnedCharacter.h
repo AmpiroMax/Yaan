@@ -71,7 +71,6 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/LocoTelemetry.h"
 #include "engine/anim/sources/Hitbox.h"
 #include "engine/anim/sources/Rig.h"
-#include "engine/anim/sources/RootMotion.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/app/sources/CharacterParts.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
@@ -248,12 +247,10 @@ public:
     void commit_root(const anim::BodyDrive& drive, const glm::vec3& standing_ground,
                      float dt);
     [[nodiscard]] const anim::ContactState& contacts() const { return contact_curr_; }
-    [[nodiscard]] const anim::FootLockState& foot_locks() const { return locks_; }
     /// ФИЗИЧЕСКИЕ СТОПЫ (CharacterFeet, §12): коробка стопы этого тика в МИРЕ
     /// (кадр хитбокса FootL/FootR по позе тика × корень) и её полуразмеры.
     [[nodiscard]] bool foot_box_world(std::size_t side, glm::mat4& frame, glm::vec3& half) const;
     /// Якорь замка называет физика: тело стопы село/сползло — точка за ним.
-    void set_lock_anchor(std::size_t side, const glm::vec3& world) { locks_.anchor[side] = world; }
     /// Ход поставленной стопы за тик (мир, XZ) — в корень следующего тика:
     /// тело съезжает вместе со стопой. Несколько стоп — среднее.
     void add_root_slip(const glm::vec3& world) {
@@ -268,7 +265,6 @@ public:
     };
     void note_foot_physics(std::size_t side, const FootPhysicsNote& n) { foot_phys_[side] = n; }
     /// Параметры замка — приборам: контрольная рука «без переступа».
-    [[nodiscard]] anim::FootLockParams& lock_params() { return lock_params_; }
     /// ЗАЗОР СТОП ПОСЛЕДНЕГО КАДРА (знаковый, по FootIk::foot_gap) — после
     /// подъёма на грунт и замка; прибор ступеней/склона читает его с кадра.
     [[nodiscard]] const anim::FootGap& foot_gap_last() const { return last_gap_; }
@@ -281,7 +277,6 @@ public:
     /// Двери: DFN_ROOT_FROM_FEET=0 — прежний шов (сим двигает, стрид-скейл),
     /// DFN_FOOT_LOCK=0 — без замка. Тесты ставят их напрямую (правило 47:
     /// обе руки из одного бинарника).
-    void set_feet_drive(bool on);
     /// §13: одноразовые клипы перехода (старт, остановка, поворот). Прибор,
     /// характеризующий цикл, выключает их — иначе мерил бы разгон.
     /// ДОРОЖКА КОРНЯ (§16, фаза 3): движение и рыск тела — из дорожки клипа
@@ -298,9 +293,6 @@ public:
         library_.transitions = on;
     }
     [[nodiscard]] bool transitions() const { return transitions_; }
-    void set_foot_lock(bool on) { foot_lock_ = on; }
-    [[nodiscard]] bool feet_drive() const { return feet_drive_; }
-    [[nodiscard]] bool foot_lock() const { return foot_lock_; }
 
     /// Builds the palette for one pose and returns the draw that shows it.
     /// `hide_head` collapses the head bone so a first-person camera inside the
@@ -508,7 +500,6 @@ private:
     /// контрвращения и варпа ног) и гаситель разницы; dt тика — для кадра.
     anim::Inertializer inertial_;
     /// Поза клипа этого тика БЕЗ остатка стыка — корень и контакты читают её.
-    std::vector<anim::JointLocal> pure_sample_;
     std::vector<anim::JointLocal> shown_prev_;
     std::vector<anim::JointLocal> shown_prev2_;
     float inertial_dt_ = 0.0f;
@@ -517,7 +508,7 @@ private:
     /// контакты читают её, не снимая второй раз.
     bool tick_sampled_ = false;
 
-    // --- ПЕРЕМЕЩЕНИЕ ОТ СТОПЫ И ЗАМОК (RootMotion.h, FootIk.h) --------------
+    // --- ДОРОЖКА КОРНЯ, СТОПЫ-ДАТЧИКИ (Locomotion.h, FootIk.h, §16) ----------
     anim::LocomotionOut loco_{};
     /// Физические стопы (§12): коробки стоп по позе тика, скольжение к корню,
     /// заметки для прибора.
@@ -527,31 +518,18 @@ private:
     glm::vec3 slip_sum_world_{0.0f};
     uint32_t slip_count_ = 0;
     std::array<FootPhysicsNote, 2> foot_phys_{};
-    anim::ContactState contact_prev_{};
     anim::ContactState contact_curr_{};
-    anim::FootLockState locks_{};
     /// Память корневого движения: оценка скорости тела и инерция полёта.
-    anim::RootMotionState root_state_{};
-    anim::FootLockParams lock_params_{};
-    anim::FootLockRelease lock_release_{}; ///< сдвиг отпускания замка (FootIk.h)
-    bool feet_drive_ = true;
-    bool foot_lock_ = true;
     /// ROOT_MOTION_SMOOTH_S в силе (DFN_ROOT_SMOOTH=0 снимает).
-    bool root_smooth_ = true;
-    glm::vec3 smoothed_delta_{0.0f};
     /// ДВЕРЬ DFN_SLIDE_TRACE: печатать остаток, который замку приходится
     /// закрывать (мировая точка касания до замка минус якорь), раз в 10 тиков.
-    bool slide_trace_ = false;
-    uint32_t slide_trace_ticks_ = 0;
     /// §11.1: часы клипа от пути (DFN_CLIP_CLOCK=path; по умолчанию пока время —
     /// приёмка трусцы/бега ждёт клипов под скорость) — корень ведёт модель
     /// скорости сим'а (speed_model_), клип идёт за фактическим ходом корня.
-    bool clip_clock_path_ = false;
     bool transitions_ = true; ///< §13: старт/остановка/поворот (DFN_CLIP_TRANSITIONS=0 — без)
     bool root_track_ = true;  ///< §16: дорожка корня и машина (DFN_ROOT_TRACK=0 — прежний путь)
     anim::LocoMachine loco_m_{};
     bool loco_active_ = false; ///< этот тик роль и часы вела машина
-    float speed_model_mps_ = 0.0f;
     /// ПОВОРОТ, ВЫНУТЫЙ ИЗ КЛИПА (§13): накопленный за клип угол таза. Его
     /// прибавляет к рыску тела сим (LocomotionOut::root_yaw_delta) и на него
     /// же контрвращается поза — в мире картинка та же, но следующий клип
@@ -560,8 +538,6 @@ private:
     float turn_frozen_rad_ = 0.0f; ///< угол ушедшего клипа (и остаток позапрошлого), гаснет весом уходящей позы
     float turn_counter_prev_rad_ = 0.0f; ///< контрвращение прошлого тика — кадр интерполирует
     float turn_counter_end_rad_ = 0.0f;  ///< контрвращение на конец advance — станет prev
-    float pelvis_yaw_raw_ = 0.0f;
-    float turn_yaw_delta_ = 0.0f; ///< вынутый угол за этот тик, рад
     anim::ClipRole last_role_ = anim::ClipRole::Idle; ///< роль прошлого тика (первый тик клипа)
     /// Вес уходящей позы, 1 → 0: кроссфейд или остаток инерциализации.
     [[nodiscard]] float turn_frozen_w() const {
@@ -573,8 +549,6 @@ private:
         const float now = anim::transit_role(play_.role) ? turn_accum_rad_ : 0.0f;
         return now + turn_frozen_rad_ * turn_frozen_w();
     }
-    bool has_pelvis_raw_ = false;
-    int32_t pelvis_joint_ = -1;
     float leg_warp_rad_ = 0.0f;      ///< поворот ног к вводу (warp_legs), сглаженный
     float leg_warp_prev_rad_ = 0.0f; ///< прошлый тик — кадр интерполирует
     anim::LocoTelemetry telemetry_;
@@ -582,7 +556,8 @@ private:
     std::FILE* telemetry_csv_ = nullptr;
     float telemetry_report_s_ = 0.0f;
     void feed_telemetry(const anim::BodyDrive& drive, float dt,
-                        const std::array<glm::vec3, 2>& contact_world);
+                        const std::array<glm::vec3, 2>& contact_world,
+                        const std::array<glm::vec3, 2>& ankle_world);
     /// ДВЕРЬ DFN_FOOT_TRACE: печатать по стопам грунт, ЗНАКОВЫЙ зазор, вес
     /// опоры и сдвиг корня. Заведена под пункт 3 заказа 31.08 («стоя на
     /// объекте одна стопа парит»): кадр не отвечает на «парит на сантиметр»,

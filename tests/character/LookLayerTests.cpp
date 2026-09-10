@@ -19,6 +19,7 @@ AI Agents Notice (must follow):
 - Пороги — строки реестра.
 */
 #include "engine/anim/sources/ClipPlayer.h"
+#include "engine/anim/sources/Locomotion.h"
 #include "engine/anim/sources/LookLayer.h"
 #include "engine/core/config/sources/Constants.h"
 #include "tests/character/ClipTestModel.h"
@@ -161,19 +162,27 @@ TEST_CASE("a_push_leans_the_chest_along_it_and_a_hard_one_staggers") {
     CHECK(lean_deg == doctest::Approx(static_cast<float>(config::PUSH_LEAN_DEG_PER_MPS)).epsilon(0.05));
     CHECK(head_deg == doctest::Approx(lean_deg).epsilon(0.1));
     // сильный толчок — клип удара (машина переходов включена), затем покой
+    // ТОЛЧОК СИЛЬНЕЕ STAGGER_PUSH_MPS — КЛИП ПОШАТЫВАНИЯ: решает машина (§16.3),
+    // проигрыватель играет её роль.
     Model mt;
-    REQUIRE(load(mt, false, {}, /*transitions=*/true));
+    REQUIRE(load(mt, {}, /*transitions=*/true));
     anim::ClipPlayback pt;
-    drive.push_mps_model = glm::vec3{0.0f};
+    anim::LocoMachine lm;
+    anim::LocoInput in;
+    in.grounded = true;
+    const auto step = [&](float push) {
+        drive.push_mps_model = glm::vec3{0.0f, 0.0f, -push};
+        in.push_mps = push;
+        anim::loco_step(mt.lib, in, 1.0f / 60.0f, lm);
+        anim::advance_playback(mt.lib, drive, 1.0f / 60.0f, pt, &lm);
+    };
     for (int i = 0; i < 30; ++i) {
-        anim::advance_playback(mt.lib, drive, 1.0f / 60.0f, pt);
+        step(0.0f);
     }
-    drive.push_mps_model = glm::vec3{0.0f, 0.0f, -static_cast<float>(config::STAGGER_PUSH_MPS) * 1.5f};
-    anim::advance_playback(mt.lib, drive, 1.0f / 60.0f, pt);
+    step(static_cast<float>(config::STAGGER_PUSH_MPS) * 1.5f);
     CHECK(pt.role == anim::ClipRole::Stagger);
-    drive.push_mps_model = glm::vec3{0.0f};
     for (int i = 0; i < 240; ++i) {
-        anim::advance_playback(mt.lib, drive, 1.0f / 60.0f, pt);
+        step(0.0f);
     }
     CHECK(pt.role == anim::ClipRole::Idle);
     CHECK(glm::length(pt.lean) < 1.0e-3f);

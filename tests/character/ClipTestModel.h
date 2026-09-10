@@ -75,19 +75,15 @@ struct Model {
     anim::ClipLibrary lib;
 };
 
-/// `feet_drive` = true строит библиотеку НОВОГО шва (часы клипа в anim,
-/// перемещение от стопы, docs/design/LOCOMOTION_GROUNDED.md); по умолчанию —
-/// ПРЕЖНИЙ шов (фаза сим'а, стрид-скейл): наборы слоёв (стойка, обход рук,
-/// зеркало, IK стоп) снимают позы НА ЗАДАННОЙ ФАЗЕ через drive.stride_phase, и
-/// это их предмет; шов проверяют ClipSlideTests и app_grounded_locomotion.
+/// Библиотека клипов тела — дорожка корня и расписание контактов (§16);
+/// часы клипа в тесте ведёт advance_playback без машины (темп к дорожке).
 /// role_overrides — «Walk=Walk_Loop,…»: прибор, характеризующий КОНКРЕТНЫЙ клип
 /// (зеркало, спина, контрольная рука подгонки шага), называет его по имени и
 /// не зависит от ролей по умолчанию (с 04.09 ходьба/трусца — Mixamo).
 /// `transitions` — одноразовые клипы перехода (§13). Прибор, характеризующий
 /// САМ ЦИКЛ (размах, снос, темп, крест стоп), выключает их: иначе первые
 /// полсекунды каждого прогона — клип старта, и мерился бы он.
-[[nodiscard]] bool load(Model& m, bool feet_drive = false, std::string_view role_overrides = {},
-                        bool transitions = false) {
+[[nodiscard]] bool load(Model& m, std::string_view role_overrides = {}, bool transitions = false) {
     if (!std::filesystem::exists(MODEL)) {
         return false;
     }
@@ -101,7 +97,7 @@ struct Model {
     m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
-                                     m.obj.skin.vertices, feet_drive, role_overrides);
+                                     m.obj.skin.vertices, role_overrides);
     m.lib.transitions = transitions;
     return true;
 }

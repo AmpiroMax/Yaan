@@ -99,7 +99,7 @@ struct Model {
     m.rig = anim::rest_rig_for(m.obj.skeleton, m.obj.skin.vertices);
     m.binding = anim::bind_skinned_rig(m.rig, m.obj.skeleton);
     m.lib = anim::build_clip_library(m.rig, m.obj.skeleton, m.binding, m.obj.clips,
-                                     m.obj.skin.vertices, false, role_overrides);
+                                     m.obj.skin.vertices, role_overrides);
     // БЕЗ ОДНОРАЗОВЫХ КЛИПОВ ПЕРЕХОДА (§13): этот стенд судит СЛОЙ СТОЙКИ на
     // циклах, а на клипе перехода слой снимается дозой — «ходьба» тогда
     // мерилась бы по клипу старта, где осанка авторская.

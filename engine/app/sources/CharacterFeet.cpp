@@ -70,7 +70,6 @@ void CharacterFeet::tick(SkinnedCharacter& body, float dt) {
     if (physics_ == nullptr || !enabled_ || !body.ready()) {
         return;
     }
-    const anim::FootLockState& lk = body.foot_locks();
     for (std::size_t side = 0; side < 2; ++side) {
         glm::mat4 frame{1.0f};
         glm::vec3 half{0.0f};
@@ -124,9 +123,9 @@ void CharacterFeet::tick(SkinnedCharacter& body, float dt) {
         r.friction_pair = c.friction_pair;
         r.slope_tan = c.slope_tan;
         const anim::LocomotionOut& lo = body.locomotion();
-        if (lo.verbatim) {
+        {
             // СТОПА — ДАТЧИК (§16.6): стоит, пока стоит по расписанию клипа.
-            const bool sched = lo.valid && lo.planted[side];
+            const bool sched = lo.valid && lo.verbatim && lo.planted[side];
             if (planted_[side]) {
                 if (!sched) {
                     physics_->set_foot_mode(foot_[side], platform::FootMode::Swing);
@@ -160,97 +159,7 @@ void CharacterFeet::tick(SkinnedCharacter& body, float dt) {
             note.holds = r.holds;
             note.slip_mps = r.slip_mps;
             body.note_foot_physics(side, note);
-            continue;
         }
-        if (planted_[side]) {
-            if (lk.locked[side]) {
-                const platform::BodyPose now = physics_->body_pose(foot_[side]);
-                if (lk.anchor[side] != anchor_seen_[side]) {
-                    // ЗАМОК ПЕРЕЦЕПИЛСЯ САМ (перекат пятка → носок: +12,6 см за
-                    // тик при стоящем теле — замер 07.09, тест ходьбы терял
-                    // 1,05 м за 9 постановок). Это не ход тела: смещение заново.
-                    anchor_offset_[side] = lk.anchor[side] - now.position;
-                    anchor_seen_[side] = lk.anchor[side];
-                }
-                // СТОИТ: якорь — от тела; его ход — скольжение — в корень (XZ).
-                const glm::vec3 anchor = now.position + anchor_offset_[side];
-                const glm::vec3 d = anchor - lk.anchor[side];
-                if (static const bool trace = [] {
-                        const char* v = door_value("DFN_FEET_TRACE");
-                        return v != nullptr && v[0] == '1';
-                    }(); trace && glm::length(glm::vec2{d.x, d.z}) > 0.003f) {
-                    std::fprintf(stderr,
-                                 "[feet] стопа %zu стоит: тело (%.3f %.3f %.3f) якорь ход "
-                                 "(%+.3f %+.3f %+.3f) касание %d глубина %+.4f нормаль (%.2f %.2f "
-                                 "%.2f) держит %d скольжение %.3f\n",
-                                 side, static_cast<double>(now.position.x),
-                                 static_cast<double>(now.position.y),
-                                 static_cast<double>(now.position.z), static_cast<double>(d.x),
-                                 static_cast<double>(d.y), static_cast<double>(d.z),
-                                 c.touching ? 1 : 0, static_cast<double>(c.depth),
-                                 static_cast<double>(c.normal.x), static_cast<double>(c.normal.y),
-                                 static_cast<double>(c.normal.z), c.holds ? 1 : 0,
-                                 static_cast<double>(c.slip_speed_mps));
-                }
-                if (embedded) {
-                    // тело выдавливают из препятствия — якорь стоит на месте,
-                    // смещение пересчитывается, скольжения нет
-                    anchor_offset_[side] = lk.anchor[side] - now.position;
-                    anchor_seen_[side] = lk.anchor[side];
-                } else if (glm::dot(d, d) > 1.0e-12f) {
-                    body.set_lock_anchor(side, anchor);
-                    body.add_root_slip(glm::vec3{d.x, 0.0f, d.z});
-                    r.slip_delta = d;
-                    anchor_seen_[side] = anchor;
-                } else {
-                    anchor_seen_[side] = anchor;
-                }
-            } else {
-                // ОТПУЩЕН: снова кинематическая, за клипом.
-                physics_->set_foot_mode(foot_[side], platform::FootMode::Swing);
-                planted_[side] = false;
-            }
-        }
-        if (!planted_[side]) {
-            if (lk.locked[side] && !embedded) {
-                // ПОСТАНОВКА: тело становится динамическим ТАМ, ГДЕ ОНО ЕСТЬ —
-                // куда его довёз прошлый тик маха (Plant не ждёт кинематической
-                // позы). Смещение якоря — от ФАКТИЧЕСКОЙ позы тела: считать от
-                // позы клипа значило бы дёрнуть якорь назад на тик маха (2 см
-                // на 1,3 м/с) на каждой постановке — замер 07.09: путь ходьбы
-                // терял 16 %.
-                physics_->set_foot_mode(foot_[side], platform::FootMode::Plant);
-                const platform::BodyPose at = physics_->body_pose(foot_[side]);
-                anchor_offset_[side] = lk.anchor[side] - at.position;
-                anchor_seen_[side] = lk.anchor[side];
-                planted_[side] = true;
-                if (static const bool trace = [] {
-                        const char* v = door_value("DFN_FEET_TRACE");
-                        return v != nullptr && v[0] == '1';
-                    }(); trace) {
-                    std::fprintf(stderr,
-                                 "[feet] стопа %zu ПОСТАНОВКА: тело (%.3f %.3f %.3f), клип (%.3f "
-                                 "%.3f %.3f), якорь (%.3f %.3f %.3f)\n",
-                                 side, static_cast<double>(at.position.x),
-                                 static_cast<double>(at.position.y),
-                                 static_cast<double>(at.position.z),
-                                 static_cast<double>(pose.position.x),
-                                 static_cast<double>(pose.position.y),
-                                 static_cast<double>(pose.position.z),
-                                 static_cast<double>(lk.anchor[side].x),
-                                 static_cast<double>(lk.anchor[side].y),
-                                 static_cast<double>(lk.anchor[side].z));
-                }
-            } else {
-                physics_->set_foot_kinematic_pose(foot_[side], pose);
-            }
-        }
-        r.planted = planted_[side];
-        SkinnedCharacter::FootPhysicsNote note;
-        note.planted = r.planted;
-        note.holds = r.holds;
-        note.slip_mps = r.slip_mps;
-        body.note_foot_physics(side, note);
     }
 }
 

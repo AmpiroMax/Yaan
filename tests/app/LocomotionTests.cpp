@@ -176,12 +176,14 @@ TEST_CASE("forward_walk_comes_from_the_root_track") {
     CHECK(std::abs(r.body_yaw) < 1.0e-3f);
     // 5 с ввода: старт (≤ START_CLIP_MAX_S) + цикл на скорости клипа в полосе
     CHECK(glm::length(glm::vec2{r.root.x, r.root.z}) > 0.8f * expect * 4.5f);
-    // КОНТРОЛЬНАЯ РУКА: прежний путь из того же тела — другой механизм, тот же порядок величин
+    // КОНТРОЛЬНАЯ РУКА (после сноса фазы 6): без дорожки корня заявки нет — на
+    // пути игрока без сима тело не едет; в игре капсулу ведёт модель скорости
+    // ввода (PlayerMovement), роль клипа — от ввода.
     Harness old(false);
     REQUIRE(old.ok);
     const Run o = run(old, speed, anim::Gait::Walk, 300, 360, 0.0f);
-    MESSAGE("прежний путь: роли " << chain(o) << "| путь " << glm::length(glm::vec2{o.root.x, o.root.z}) << " м");
-    CHECK(o.root.z < -3.0f);
+    MESSAGE("контроль DFN_ROOT_TRACK=0: роли " << chain(o) << "| путь " << glm::length(glm::vec2{o.root.x, o.root.z}) << " м");
+    CHECK(o.root.z == 0.0f);
     CHECK(old.body.loco_machine().transitions == 0); // машина не работала
 }
 

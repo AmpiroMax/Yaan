@@ -323,7 +323,7 @@ TEST_CASE("tempo_follows_the_order_within_the_band") {
 
 TEST_CASE("the_real_library_walks_the_same_table") {
     Model mdl;
-    if (!load(mdl)) {
+    if (!load(mdl, {}, /*transitions=*/true)) {
         MESSAGE("no baked body -- skipped");
         return;
     }

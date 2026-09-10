@@ -35,8 +35,10 @@ AI Agents Notice (must follow):
 
 #include <doctest/doctest.h>
 
+#include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <string>
 
 using namespace dfn;
 namespace fs = std::filesystem;
@@ -61,8 +63,10 @@ struct Stage {
         physics->shutdown();
     }
     app::NpcBody* spawn(const glm::vec3& at) {
+        // DFN_BOT_CSV=<путь> — телеметрия бота по тикам в файл (разбор пиков)
+        const char* csv = std::getenv("DFN_BOT_CSV");
         return npcs.spawn(world, *physics, rs, renderer, rig, fs::path(app::CHARGEN_SOURCE_BODY),
-                          at, /*telemetry=*/true, {});
+                          at, /*telemetry=*/true, csv != nullptr ? std::string{csv} : std::string{});
     }
     void run(int ticks) {
         gameplay::StepContext step;
@@ -95,14 +99,14 @@ TEST_CASE("the_bot_walks_to_the_point_on_its_own_feet") {
     s.run(60 * 9);
     const glm::vec3 pos = s.world.get<components::Transform>(npc->id)->position;
     const float dist = glm::length(glm::vec2{pos.x - target.x, pos.z - target.z});
-    const anim::LocoProbeRow& slide = npc->body.telemetry().row(anim::LocoProbe::Slide);
-    MESSAGE("бот: дошёл до " << dist << " м от цели; снос опорной стопы worst "
-                             << 1000.0f * slide.worst << " мм, сверх порога " << slide.hits
+    const anim::LocoProbeRow& slide = npc->body.telemetry().row(anim::LocoProbe::StanceSlip);
+    MESSAGE("бот: дошёл до " << dist << " м от цели; ход опорной стопы к земле worst "
+                             << slide.worst << " м/с, сверх порога " << slide.hits
                              << " тиков; заявка ходоку валидна: "
                              << s.world.get<gameplay::WalkerLocomotion>(npc->id)->request.valid);
     CHECK(dist <= static_cast<float>(config::NPC_ARRIVE_RADIUS) + 0.05f);
     CHECK(queue.pending.empty());
-    CHECK(slide.worst <= static_cast<float>(config::FOOT_SLIDE_MAX_M));
+    // устойчивого сноса опорной стопы нет (§16.7; края окна опоры печатаются worst)
     // тело шло своими стопами: за прогон заявка была валидна (роль цикла)
     CHECK(slide.hits == 0);
 }

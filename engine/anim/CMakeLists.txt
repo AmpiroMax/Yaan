@@ -28,7 +28,6 @@ add_library(dfn_anim STATIC
     sources/HeldBlade.cpp
     sources/ClipPlayer.cpp
     sources/FootIk.cpp
-    sources/RootMotion.cpp
     sources/Locomotion.cpp
     sources/LocoTelemetry.cpp
     sources/LookLayer.cpp

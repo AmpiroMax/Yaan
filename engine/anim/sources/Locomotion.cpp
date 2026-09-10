@@ -25,6 +25,8 @@ AI Agents Notice (must follow):
 #include <algorithm>
 #include <cmath>
 
+#include <glm/gtc/quaternion.hpp>
+
 namespace dfn::anim {
 
 namespace {
@@ -135,7 +137,7 @@ void enter_turn(const ClipLibrary& lib, LocoMachine& m, float want) {
 /// Старт хода из покоя: вперёд — клип старта (если есть), иначе цикл сразу.
 void enter_move(const ClipLibrary& lib, LocoMachine& m, const LocoInput& in) {
     m.dir = move_dir_class(in.want_dir_model, MoveDir::Forward);
-    if (m.dir == MoveDir::Forward) {
+    if (m.dir == MoveDir::Forward && lib.transitions) {
         const ClipRole s = start_role(lib, in.gait);
         if (s != ClipRole::Idle) {
             enter(lib, m, LocoState::Start, s, 0.0f);
@@ -149,7 +151,7 @@ void enter_move(const ClipLibrary& lib, LocoMachine& m, const LocoInput& in) {
 
 void enter_stop(const ClipLibrary& lib, LocoMachine& m, const LocoInput& in) {
     const ClipRole s = stop_role(lib, in.gait);
-    if (s != ClipRole::Idle && m.dir == MoveDir::Forward) {
+    if (s != ClipRole::Idle && m.dir == MoveDir::Forward && lib.transitions) {
         enter(lib, m, LocoState::Stop, s, 0.0f);
     } else {
         enter(lib, m, LocoState::Idle, ClipRole::Idle, 0.0f);
@@ -278,7 +280,7 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
             // первого прицел привязан к корпусу ближе порога и не стреляет; у
             // НПС взгляд — заказ исполнителя (Face/MoveTo). Класс направления
             // тут ни при чём: назад-вправо при корпусе по взгляду — Backward.
-            if (in.view_valid) {
+            if (lib.transitions && in.view_valid) {
                 const float d = wrap_pi_l(in.view_yaw - in.body_yaw);
                 if (std::abs(d) > glm::radians(static_cast<float>(config::BODY_TURN_START_DEG))) {
                     enter_turn(lib, m, d);
@@ -290,7 +292,7 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
             enter_move(lib, m, in);
             return;
         }
-        if (in.view_valid && m.dwell_s >= dmin) {
+        if (lib.transitions && in.view_valid && m.dwell_s >= dmin) {
             const float d = wrap_pi_l(in.view_yaw - in.body_yaw);
             if (std::abs(d) > glm::radians(static_cast<float>(config::TURN_FIRE_DEG))) {
                 enter_turn(lib, m, d);
@@ -380,6 +382,24 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
     }
     case LocoState::Air:
         return;
+    }
+}
+
+void rotate_root_joints(const skel::Skeleton& skeleton, std::span<const int32_t> roots, float yaw,
+                        std::span<JointLocal> sample) {
+    if (sample.size() < skeleton.size() || std::abs(yaw) < 1.0e-6f) {
+        return;
+    }
+    // Рыск сим'а растёт по часовой, а glm::rotate(+θ, Y) поворачивает против —
+    // поэтому «вычесть yaw из позы» это повернуть её на +yaw в glm.
+    const glm::quat turn = glm::angleAxis(yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+    for (const int32_t r : roots) {
+        if (r < 0 || static_cast<std::size_t>(r) >= sample.size()) {
+            continue;
+        }
+        JointLocal& jl = sample[static_cast<std::size_t>(r)];
+        jl.rotation = turn * glm::normalize(jl.rotation);
+        jl.translation = turn * jl.translation;
     }
 }
 

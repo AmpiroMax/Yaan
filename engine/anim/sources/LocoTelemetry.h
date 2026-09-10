@@ -9,16 +9,17 @@ Responsibility:
   детекторы; каждый детектор ведёт худшее значение, число срабатываний и
   порог из реестра (docs/NUMBERS.md, «Приборы локомоции»). Итог — строки на
   экране (DFN_LOCO_HUD), таблица в stderr и CSV по тикам (DFN_LOCO_CSV).
-- Детекторы: снос замкнутой стопы; зазор опорной стопы (парит/утонула);
-  угловое ускорение бедра/колена/стопы (рывок при отрыве); линейное
-  ускорение лодыжки в мире; перекрест лодыжек; боковой снос за окно
-  («змейка»); снос без ввода (короткое нажатие); путь без постановки стопы;
-  скачок скорости корня; разрыв фазы на смене роли; скрутка таза к стопам;
-  минимальный сгиб колена; ошибка заказанной скорости; с какой ноги старт.
+- Детекторы (фаза 6, §16.7): ход точки опорной стопы к земле за опору;
+  зазор опорной стопы (парит/утонула); угловое ускорение бедра/колена/стопы;
+  линейное ускорение лодыжки в мире; перекрест лодыжек; боковой снос за окно
+  («змейка»); снос без ввода; путь без постановки стопы; скачок скорости
+  корня; разрыв фазы на смене роли; скрутка стоп к тазу; минимальный сгиб
+  колена; ошибка заказанной скорости; скольжение физической стопы; скорость
+  рыска корпуса; смен клипа в секунду; варп поворота; с какой ноги старт.
 
 Key items:
 - LocoTick: всё, что прибору нужно от одного тика — поза тика (локальные
-  TRS), контакты, замки, зазор, проигрывание, заявка, ввод, корень до и
+  TRS), контакты, зазор, проигрывание, машина, заявка, ввод, корень до и
   после подтверждения. Плоские данные и указатели, без владения.
 - LocoTelemetry: reset() по скелету, push() на тик, rows() — таблица
   детекторов, summary_lines() — четыре строки для экрана, csv_header() /
@@ -26,7 +27,7 @@ Key items:
 - LocoProbe: перечень детекторов; порядок = порядок строк таблицы.
 
 Dependencies:
-- Uses: FootIk.h, RootMotion.h, ClipPlayer.h, Body.h, Pose.h, SkinnedBody.h
+- Uses: FootIk.h, Locomotion.h, ClipPlayer.h, Body.h, Pose.h, SkinnedBody.h
   (JointLocal), skeleton, glm.
 - Used by: engine/app (SkinnedCharacter кормит, App показывает), tests.
 
@@ -41,7 +42,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/ClipPlayer.h"
 #include "engine/anim/sources/FootIk.h"
 #include "engine/anim/sources/Pose.h"
-#include "engine/anim/sources/RootMotion.h"
+#include "engine/anim/sources/Locomotion.h"
 #include "engine/anim/sources/SkinnedBody.h"
 #include "engine/core/skeleton/sources/Skeleton.h"
 
@@ -63,30 +64,27 @@ struct LocoTick {
     float dt = 0.0f;
     std::span<const JointLocal> pose;          ///< поза тика (локальные TRS суставов)
     const ContactState* contacts = nullptr;
-    const FootLockState* locks = nullptr;
-    const FootLockRelease* release = nullptr;  ///< поправка замка последнего кадра (может быть null)
-    std::array<glm::vec3, 2> contact_world{};  ///< точки касания в мире
+    std::array<glm::vec3, 2> contact_world{};  ///< носок стопы в мире
+    std::array<glm::vec3, 2> ankle_world{};    ///< лодыжка в мире (перекат: стоит одна из двух)
     FootGap gap{};
     const ClipPlayback* play = nullptr;
     const LocomotionOut* loco = nullptr;
+    const LocoMachine* machine = nullptr;      ///< машина (null — без дорожки)
     const BodyDrive* drive = nullptr;
     BodyRoot root{};      ///< корень этого тика, подтверждённый
     BodyRoot root_prev{}; ///< корень прошлого тика
-    /// ФИЗИЧЕСКИЕ СТОПЫ (§12, CharacterFeet): стоит ли тело, держит ли трение,
-    /// измеренное скольжение — заметка прошлого тика.
     std::array<bool, 2> phys_planted{};
     std::array<bool, 2> phys_holds{};
     std::array<float, 2> phys_slip_mps{};
 };
 
 enum class LocoProbe : uint8_t {
-    Slide = 0,     ///< снос замкнутой стопы к якорю В КАДРЕ (после IK и замка), мм
-    Residual,      ///< остаток до замка на тике (что замку закрывать), мм — показание
+    StanceSlip = 0, ///< ход точки опорной (по расписанию) стопы к земле, м/с; порог — CONTACT_STILL_MPS, засчитывается с 3-го тика подряд в устоявшемся цикле (края окна и стыки клипов — только worst)
     Gap,           ///< зазор опорной стопы, мм (модуль)
     ThighAccel,    ///< угловое ускорение бедра в клипе (до IK), рад/с²
     KneeAccel,     ///< угловое ускорение колена в клипе, рад/с²
     FootAccel,     ///< угловое ускорение стопы в клипе, рад/с²
-    FrameThighAccel, ///< то же по кадру — после IK и замка; разница = наш слой
+    FrameThighAccel, ///< то же по кадру — после IK; разница = наш слой
     FrameKneeAccel,
     FrameMismatch,   ///< кадр против интерполяции двух тиков (бедро/колено), град
     AnkleAccel,    ///< линейное ускорение лодыжки в мире, м/с²
@@ -96,10 +94,13 @@ enum class LocoProbe : uint8_t {
     NoStepTravel,  ///< путь без постановки стопы, доля от двух шагов
     RootAccel,     ///< ускорение корня, м/с²
     PhaseJump,     ///< разрыв фазы на смене роли, доля цикла
-    Twist,         ///< скрутка стопы (носок−лодыжка) к тазу (перпендикуляр линии бёдер), град
+    Twist,         ///< скрутка стопы (носок−лодыжка) к тазу, град — LOCO_PELVIS_TWIST_MAX_DEG
     KneeBend,      ///< минимальный сгиб колена под опорой, град
     SpeedError,    ///< ошибка скорости при удержанном вводе, доля
     PhysSlip,      ///< скольжение поставленной ФИЗИЧЕСКОЙ стопы, м/с (§12) — показание
+    TurnRate,      ///< скорость рыска корпуса, град/с — порог BODY_TURN_RATE
+    TransitionsPerS, ///< смен клипа за последнюю секунду — порог LOCO_TRANSITIONS_PER_S_MAX
+    WarpUsed,      ///< |варп − 1| поворота на месте — показание
     COUNT
 };
 
@@ -120,8 +121,7 @@ public:
     void push(const LocoTick& tick);
     /// Кадр после IK и замка: снос стопы к якорю и рывки суставов уже с нашим
     /// слоем. root — корень кадра (интерполированный), alpha — доля тика.
-    void push_frame(std::span<const JointLocal> sample, const BodyRoot& root, float alpha,
-                    const FootLockState& locks);
+    void push_frame(std::span<const JointLocal> sample, const BodyRoot& root, float alpha);
 
     [[nodiscard]] std::span<const LocoProbeRow> rows() const { return rows_; }
     [[nodiscard]] const LocoProbeRow& row(LocoProbe p) const {
@@ -204,6 +204,12 @@ private:
     std::array<uint32_t, 2> start_foot_{};
     bool start_pending_ = false;
     std::array<bool, 2> planted_{};
+    std::array<glm::vec3, 2> stance_prev_{}; ///< носок тик назад (мир)
+    std::array<glm::vec3, 2> stance_ankle_prev_{};
+    std::array<uint32_t, 2> stance_over_{}; ///< тиков подряд быстрее порога (край окна — 1–2)
+    std::array<bool, 2> stance_has_{};
+    std::deque<float> transition_t_;         ///< моменты смен клипа (окно 1 с)
+    uint32_t transitions_seen_ = 0;
 
     ClipRole role_prev_ = ClipRole::Idle;
     bool has_role_ = false;

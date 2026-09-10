@@ -1241,3 +1241,86 @@ UAL Walk_Loop по имени (12°).
 (узкая постановка стоп, §16.4). На стрейфе Mixamo шаг приставной с заносом
 (34 см) — авторский, крестом не судится. Скрутка таза, сгиб колена,
 ускорения суставов — телеметрия фазы 6.
+
+### 16.7. Снос: что удалено, чем измеряется теперь (фаза 6, сдано)
+
+Удалены: `engine/anim/sources/RootMotion.{h,cpp}` (интегратор корня от
+опорной стопы, `RootMotionState`, `detect_footfalls`, `pelvis_yaw`;
+`LocomotionOut` и `rotate_root_joints` переехали в Locomotion.h); замок
+стопы (`FootLockParams/State/Release`, `update_foot_locks`,
+`apply_foot_lock`, `ContactState::support`); в ClipPlayer — подгонка шага
+(`stride_curve`, `scale_sample_stride`, `stride_scale_for`), кривая пути и
+часы от пути (`path_curve`, `path_*`, `LOCO_PATH_PEAK`), смеси клипов по
+скорости (`mix_*`, `measure_root_speed`, `measure_played_speed`,
+`measure_foot_slide`), блок переходов `Transit` с порогами
+(`TURN_CLIP_RATE`, `TURN_DONE_DEG`, `TURN_MIN_GAP_S`), поля `natural_mps`,
+`stance_mps`, `cycle_m`; в SkinnedCharacter — прежний путь целиком (модель
+скорости, сглаживание `ROOT_MOTION_SMOOTH_S`, контрвращение по тазу,
+`pure_sample_`); двери `DFN_FOOT_LOCK`, `DFN_SLIDE_TRACE`, `DFN_TURN_TRACE`,
+`DFN_CLIP_CLOCK`, `DFN_ROOT_SMOOTH`, `DFN_ROOT_FROM_FEET`, `DFN_FEET_TRACE`
+(трасса замка). Строки реестра — отозваны построчно с паспортом «удалено
+фазой 6» (`FOOT_LOCK_*`, `FOOT_SUPPORT_BAND_M`, `FOOT_SWING_SPEED_MPS`,
+`ROOT_MOTION_SMOOTH_S`, `ROOT_ACCEL_MAX_MPS2`, `LOCO_PATH_PEAK`,
+`TURN_CLIP_RATE`, `TURN_DONE_DEG`, `TURN_MIN_GAP_S`); добавлена
+`LOCO_PELVIS_TWIST_MAX_DEG` (45). `DFN_ROOT_TRACK=0` теперь — «капсула от
+модели скорости ввода, роль от ввода, заявки нет»; `DFN_CLIP_TRANSITIONS=0`
+— машина без Start/Stop/TurnInPlace (покой ↔ цикл). Что было и почему
+отвергнуто — §16 (шапка) и §13.
+
+**Удалённые приборы → чем меряется их вопрос (контроль):**
+- удалён `character_clips_slide` (снос опорной стопы при корне от стопы,
+  4 диагностики, `gears_reach_their_ordered_speed`) → снос: `app_locomotion
+  the_stance_point_is_still_on_the_flat` и `app_grounded_locomotion
+  the_planted_foot_stays_put_on_the_player_path` (контроль
+  `DFN_ROOT_TRACK=0`); скорость передач: `app_locomotion
+  the_capsule_moves_at_the_clip_speed_and_names_the_shortfall` (контроль —
+  обязательная недостача); `idle_feet_stand_under_the_hips` и
+  `idle_variants_take_turns…` переехали в `character_clips_played`;
+- удалён `without_the_lock_the_residual_is_larger` (замок против без замка)
+  → замка нет; опора стоит потому, что капсула едет по дорожке:
+  `the_planted_foot_stays_put_on_the_player_path` (контроль — без дорожки
+  тело не едет вовсе);
+- удалён `the_old_seam_slides` (прежний шов сим'а против корня от стопы) →
+  прежнего шва нет; `the_capsule_moves_at_the_clip_speed…` (контроль
+  `DFN_ROOT_TRACK=0`);
+- удалён `diagnostic_what_the_turn_clips_do` → `the_camera_turn_is_one_clip…`
+  и `turning_in_place_steps_the_feet_instead_of_twisting`;
+- удалён `a_locked_foot_away_from_its_anchor_is_slide` (телеметрия замка) →
+  `a_stance_foot_that_moves_in_the_world_is_stance_slip` (контроль — маховая
+  стопа едет сколько угодно), плюс `the_body_turning_faster_than_it_can_is_
+  turn_rate`, `clip_changes_in_a_second_are_counted_from_the_machine`;
+- пробы телеметрии `Slide`, `Residual` → `StanceSlip` (ход точки опорной по
+  расписанию стопы к земле, порог `CONTACT_STILL_MPS`, срабатывание с 3-го
+  тика подряд в устоявшемся цикле), `TurnRate`, `TransitionsPerS`,
+  `WarpUsed`; `Twist` — порог `LOCO_PELVIS_TWIST_MAX_DEG`; `PhaseJump`
+  судится только цикл → цикл (вход из одноразового клипа подбирается по
+  позе ног, это не разрыв);
+- прежние случаи `app_grounded_locomotion` переписаны на дорожке под теми
+  же именами; `clip_playback_crossfades_and_interpolates` — на часах без
+  машины (темп к дорожке, время от фазы шага).
+
+**Дыры, названные, не закрытые:** скрутка таза к линии стоп, сгиб колена и
+ускорения суставов на сценарии поворотов — только телеметрия (`Twist`,
+`KneeBend`, `*Accel`), прибора-судьи в `app_locomotion` нет; поворот ног к
+вводу (`warp_legs`) выключен на дорожке (доза 0), прибор восьми направлений
+его судьбу не решал — диагональ идёт классом направления и доворотом
+корпуса; `LOCOMOTION_TEMPO_BAND` 0,18 и `LOCO_SPEED_ERR_MAX` 0,15 оставлены:
+план сужал их до 0,10 до замера скоростей Mixamo (трусца 4,0 при заказе
+3,0, спринт 9,2 при 6,0 — узкая полоса увела бы капсулу дальше от заказа),
+решение — за словом владельца о скоростях (доска).
+
+**Находки фазы 6.** (1) У всех клипов Mixamo первый ключ стоял на кадре 1
+(t = 1/30), а клип считался с нуля: первые 33 мс — удержание позы и нулевой
+ход дорожки, то есть запинка капсулы один тик на цикл (4 сегмента из 127
+без хода, скорость капсулы 0). Импортёр сдвигает ключи к первому и режет
+длительность (127 клипов); профиль дорожки ходьбы после — 1,46…1,90 м/с без
+нулей (`diagnostic_root_track_speed_profile`). (2) `Crouch_Fwd_Loop` не
+имел дорожки (стоял на месте) — добавлен в `--root-from-feet` выпечки
+(0,80 м/с). (3) На стыках по потолкам отзывчивости (старт → цикл на 0,35 с,
+остановка → покой на 0,4 с) инерциализация за `INERTIAL_BLEND_S` переводит
+позу, и стоящие по расписанию стопы едут по земле до 3 м/с три окна по
+11–14 тиков за прогон бота — цена закона отзывчивости; прибор `StanceSlip`
+эти окна печатает худшим, но не засчитывает. (4) Доворот корпуса на ходу
+(`BODY_TURN_RATE` 7,7 рад/с) проворачивает опорную стопу по земле — виден
+как снос при поворотах на ходу (бот к цели), решение — переступ или
+медленнее доворот (владельцу).

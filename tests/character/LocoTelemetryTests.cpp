@@ -45,12 +45,12 @@ struct Bench {
     anim::LocoTelemetry tm;
     std::vector<anim::JointLocal> pose;
     anim::ContactState contacts;
-    anim::FootLockState locks;
     anim::ClipPlayback play;
     anim::LocomotionOut loco;
     anim::BodyDrive drive;
     anim::BodyRoot root;
     anim::BodyRoot root_prev;
+    const anim::LocoMachine* machine = nullptr;
     std::array<glm::vec3, 2> contact_world{};
     anim::FootGap gap{};
 
@@ -83,7 +83,7 @@ struct Bench {
         pose[ShinL].rotation = glm::angleAxis(0.2f, glm::vec3{1.0f, 0.0f, 0.0f});
         pose[ShinR].rotation = glm::angleAxis(0.2f, glm::vec3{1.0f, 0.0f, 0.0f});
         contacts.valid = true;
-        contacts.support = {0.5f, 0.5f};
+        loco.planted = {true, true};
         contacts.weight = {1.0f, 1.0f};
         contacts.ankle = {glm::vec3{0.1f, 0.05f, 0.0f}, glm::vec3{-0.1f, 0.05f, 0.0f}};
         contacts.point = contacts.ankle;
@@ -103,11 +103,12 @@ struct Bench {
         t.dt = DT;
         t.pose = pose;
         t.contacts = &contacts;
-        t.locks = &locks;
         t.contact_world = contact_world;
+        t.ankle_world = contact_world;
         t.gap = gap;
         t.play = &play;
         t.loco = &loco;
+        t.machine = machine;
         t.drive = &drive;
         t.root = root;
         t.root_prev = root_prev;
@@ -130,29 +131,47 @@ TEST_CASE("clean_ticks_do_not_trip_anything") {
     CHECK(b.tm.report().find("RED") == std::string::npos);
 }
 
-TEST_CASE("a_locked_foot_away_from_its_anchor_is_slide") {
+TEST_CASE("a_stance_foot_that_moves_in_the_world_is_stance_slip") {
     Bench b;
-    b.locks.locked[0] = true;
-    b.locks.strength[0] = 1.0f;
-    b.locks.anchor[0] = b.contact_world[0];
     b.tick();
-    CHECK(b.row(anim::LocoProbe::Residual).last == doctest::Approx(0.0f));
-    const float limit = static_cast<float>(config::FOOT_SLIDE_MAX_M);
-    b.contact_world[0].x += 2.0f * limit;
+    CHECK(b.row(anim::LocoProbe::StanceSlip).hits == 0);
+    // стопа стоит по расписанию, а её точка в мире едет вдвое быстрее порога
+    // три тика подряд: край окна (1–2 тика) не срабатывание, устойчивый снос — да
+    for (int i = 0; i < 3; ++i) {
+        b.contact_world[0].x += 2.0f * static_cast<float>(config::CONTACT_STILL_MPS) * DT; // носок и лодыжка вместе
+        b.tick();
+    }
+    CHECK(b.row(anim::LocoProbe::StanceSlip).last
+          == doctest::Approx(2.0f * static_cast<float>(config::CONTACT_STILL_MPS)).epsilon(0.01));
+    CHECK(b.row(anim::LocoProbe::StanceSlip).hits == 1);
+    // маховая стопа (не стоит) двигаться может сколько угодно — контроль
+    b.loco.planted[1] = false;
+    b.contact_world[1].x += 1.0f;
     b.tick();
-    // остаток до замка — показание, не срабатывание
-    CHECK(b.row(anim::LocoProbe::Residual).last == doctest::Approx(2000.0f * limit).epsilon(0.01));
-    CHECK(b.row(anim::LocoProbe::Residual).hits == 0);
-    // кадр после замка: лодыжка ушла от якоря — это снос
-    // лодыжка L стенда: бедро +0.1 по X, колено согнуто на 0.2 рад — стопа ушла по Z
-    b.locks.anchor[0] = glm::vec3{0.1f, 0.0f, -0.45f * std::sin(0.2f)};
-    b.tm.push_frame(b.pose, b.root, 1.0f, b.locks);
-    CHECK(b.row(anim::LocoProbe::Slide).hits == 0);
-    b.locks.anchor[0].x += 2.0f * limit;
-    b.tick(); // кадры чаще тика прибор не судит
-    b.tm.push_frame(b.pose, b.root, 1.0f, b.locks);
-    CHECK(b.row(anim::LocoProbe::Slide).last == doctest::Approx(2000.0f * limit).epsilon(0.01));
-    CHECK(b.row(anim::LocoProbe::Slide).hits == 1);
+    CHECK(b.row(anim::LocoProbe::StanceSlip).hits == 1);
+}
+
+TEST_CASE("the_body_turning_faster_than_it_can_is_turn_rate") {
+    Bench b;
+    b.tick();
+    CHECK(b.row(anim::LocoProbe::TurnRate).hits == 0);
+    b.root.yaw += 2.0f * static_cast<float>(config::BODY_TURN_RATE) * DT;
+    b.tick();
+    CHECK(b.row(anim::LocoProbe::TurnRate).hits == 1);
+}
+
+TEST_CASE("clip_changes_in_a_second_are_counted_from_the_machine") {
+    Bench b;
+    anim::LocoMachine m;
+    b.machine = &m;
+    b.tick();
+    for (int i = 0; i < 5; ++i) {
+        ++m.transitions;
+        b.tick();
+    }
+    CHECK(b.row(anim::LocoProbe::TransitionsPerS).last == doctest::Approx(5.0f));
+    CHECK(b.row(anim::LocoProbe::TransitionsPerS).hits > 0);
+    b.machine = nullptr;
 }
 
 TEST_CASE("travel_without_input_is_tap_drift") {
@@ -233,7 +252,7 @@ TEST_CASE("the_first_foot_to_lift_after_a_start_is_the_start_foot") {
     b.play.role = anim::ClipRole::Walk;
     b.drive.want_speed_mps = 1.5f;
     b.tick();
-    b.contacts.support[1] = 0.0f; // правая ушла первой
+    b.loco.planted[1] = false; // правая ушла первой
     b.tick();
     CHECK(b.tm.start_foot()[0] == 0);
     CHECK(b.tm.start_foot()[1] == 1);

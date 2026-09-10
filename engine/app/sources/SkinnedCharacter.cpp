@@ -224,16 +224,6 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
     palette_.assign(skeleton_.size(), glm::mat4{1.0f});
     sample_.assign(skeleton_.size(), anim::JointLocal{});
     {
-        const char* rf = door_value("DFN_ROOT_FROM_FEET");
-        feet_drive_ = !(rf != nullptr && rf[0] == '0');
-        const char* fl = door_value("DFN_FOOT_LOCK");
-        foot_lock_ = !(fl != nullptr && fl[0] == '0');
-        const char* st = door_value("DFN_SLIDE_TRACE");
-        slide_trace_ = st != nullptr && st[0] == '1';
-        const char* sm = door_value("DFN_ROOT_SMOOTH");
-        root_smooth_ = !(sm != nullptr && sm[0] == '0');
-        const char* cc = door_value("DFN_CLIP_CLOCK");
-        clip_clock_path_ = cc != nullptr && std::string_view{cc} == "path";
         const char* tr = door_value("DFN_CLIP_TRANSITIONS");
         transitions_ = !(tr != nullptr && tr[0] == '0');
         const char* in = door_value("DFN_CLIP_INERTIAL");
@@ -242,25 +232,17 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         root_track_ = !(rt != nullptr && rt[0] == '0');
         const char* rh = door_value("DFN_ROOT_HEIGHT");
         root_height_feet_ = !(rh != nullptr && std::string_view{rh} == "capsule");
-        lock_params_ = anim::FootLockParams::from_config();
     }
     const char* roles = door_value("DFN_CLIP_ROLES");
     library_ = anim::build_clip_library(rig_, skeleton_, binding_, clips_, bind_vertices_,
-                                        feet_drive_,
                                         roles != nullptr ? std::string_view{roles}
                                                          : std::string_view{});
-    library_.clip_clock_path = clip_clock_path_;
     library_.transitions = transitions_;
     library_.inertial = inertial_on_;
     if (const char* is = door_value("DFN_IDLE_SYMMETRY"); is != nullptr && is[0] == '0') {
         library_.idle_symmetry = 0.0f;
     }
     foot_setup_ = anim::build_foot_ik(skeleton_, binding_, library_.contacts);
-    pelvis_joint_ = skeleton_.find("DEF-hips");
-    if (pelvis_joint_ < 0 && foot_setup_.valid()) {
-        // у чужого скелета таз — родитель бедра, как бы он ни назывался
-        pelvis_joint_ = skeleton_.joints[static_cast<std::size_t>(foot_setup_.hip[0])].parent;
-    }
     {
         const char* lh = door_value("DFN_LOCO_HUD");
         const char* lc = door_value("DFN_LOCO_CSV");
@@ -407,9 +389,8 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
                      anim::role_name(role).data(),
                      clips_[static_cast<std::size_t>(e.clip)].name.c_str(),
                      static_cast<double>(e.duration_s));
-        if (e.cycle_m > 0.0f) {
-            std::fprintf(stderr, ", %.2fm/cycle, plant %.2f", 
-                         static_cast<double>(e.cycle_m),
+        if (e.root.valid && e.root.mps > 0.0f) {
+            std::fprintf(stderr, ", %.2fm/s, plant %.2f", static_cast<double>(e.root.mps),
                          static_cast<double>(e.footfall_phase));
         }
         std::fprintf(stderr, ")");
@@ -995,14 +976,6 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     // приписать его повороту значит довернуть тело на разницу поз покоя и
     // клипа (замер 07.09: после остановки бега тело стреляло вторым
     // поворотом).
-    const float pelvis_raw_pure = (tick_sampled_ && pelvis_joint_ >= 0)
-                                      ? anim::pelvis_yaw(skeleton_, tick_sample_, pelvis_joint_)
-                                      : 0.0f;
-    // ЧИСТАЯ ПОЗА КЛИПА — для корня и контактов: остаток стыка — картинка, а
-    // не ход. Замер 07.09: с остатком в позе гаснущая разница тащила опорную
-    // стопу вперёд, корень терял 0,5 м на стыке старт → спринт, и разгон
-    // начинался заново с 1,3 м/с.
-    pure_sample_ = tick_sample_;
     if (tick_sampled_ && library_.inertial) {
         const std::size_t n = tick_sample_.size();
         if (play_.switched && shown_prev_.size() == n && shown_prev2_.size() == n) {
@@ -1017,131 +990,54 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         shown_prev_.clear();
         shown_prev2_.clear();
     }
-    // ПОВОРОТ, ВЫНУТЫЙ ИЗ КЛИПА (§13). Клип поворота на месте крутит ТАЗ, а
-    // не корень: если оставить как есть, тело провернётся в позе и на выходе
-    // из клипа щёлкнет назад. Поэтому угол таза за тик прибавляется к рыску
-    // тела (loco_.root_yaw_delta ниже), а поза контрвращается на накопленный
-    // угол — в мире картинка та же, но её несёт рыск сущности.
-    // Контрвращение прошлого тика снято В КОНЦЕ прошлого advance (§13.3):
-    // роль уже сменилась, и turn_counter_rad() здесь описывал бы новую.
+    // ОСТАТОК ВАРПА ПОВОРОТА НА МЕСТЕ (§16.4): рыск тика берётся из дорожки
+    // корня (loco_ ниже), а на позу идёт контрвращение на «варп − 1» от
+    // пройденного рыска клипа — нарисованный корпус смотрит туда же, куда
+    // едет капсула. Контрвращение прошлого тика снято в конце прошлого
+    // advance; ушедший клип поворота гаснет весом уходящей позы
+    // (turn_frozen_), чтобы стык не дёрнул корпус.
     turn_counter_prev_rad_ = turn_counter_end_rad_;
     if (play_.switched) {
-        // НОВЫЙ КЛИП — СЧЁТ С НУЛЯ. Угол ушедшего клипа перехода замораживается
-        // (плюс что осталось от позапрошлого) и гаснет весом уходящей позы.
-        // До 07.09 накопитель не сбрасывался: поворот после остановки бега
-        // начинал счёт с +51° клипа остановки, контрвращение рисовало −31°
-        // вместо −90°, а тело стреляло вторым поворотом.
         turn_frozen_rad_ = turn_frozen_rad_ * turn_frozen_w()
                            + (anim::transit_role(play_.previous) ? turn_accum_rad_ : 0.0f);
         turn_accum_rad_ = 0.0f;
     }
-    if (tick_sampled_ && pelvis_joint_ >= 0) {
-        const float raw = pelvis_raw_pure;
-        // ВЫНИМАЕТСЯ У ВСЕХ КЛИПОВ ПЕРЕХОДА, а не только у поворота: замер
-        // 04.09 по ассету — Run_To_Stop поворачивает таз на +59°,
-        // Idle_To_Sprint на −41°, Start_Walking на −12°. Оставить это в позе
-        // значит развернуть тело внутри клипа и щёлкнуть обратно на выходе;
-        // отдать телу — значит «затормозил и встал вполоборота», как и
-        // нарисовано, а на ходу сим всё равно доворачивает корпус к вводу.
-        const bool turning = anim::transit_role(play_.role);
-        float delta = 0.0f;
-        // ДОРОЖКА КОРНЯ (§16, фаза 1): у клипа, чей рыск лежит в суставе root,
-        // поворот за тик берётся из дорожки между двумя временами клипа; в
-        // позе рыска больше нет (корень нейтрализован), контрвращение — ноль.
-        // Клип без дорожки — как прежде, из таза.
-        const anim::ClipEntry& cur_ent = anim::entry_for(library_, play_.role, play_.variant);
-        const bool track_turn = cur_ent.root.valid
-                                && std::abs(cur_ent.root.total_yaw) > glm::radians(5.0f)
-                                && cur_ent.duration_s > 0.0f;
-        if (loco_active_) {
-            // ДОРОЖКА КОРНЯ: рыск за тик — из машины (с варпом поворота); остаток
-            // варпа (warp − 1) × пройденный рыск клипа — поворотом позы, чтобы
-            // стопы кончили клип там же, где кончил корпус (фаза 3).
-            delta = anim::loco_root_delta(library_, loco_m_).yaw;
-            if (loco_m_.state == anim::LocoState::TurnInPlace && cur_ent.root.valid) {
-                const float covered = anim::root_track_yaw_at(cur_ent.root, loco_m_.phase);
-                turn_accum_rad_ = -(loco_m_.turn_warp - 1.0f) * covered;
-            }
-        } else if (turning && track_turn) {
-            const float p0 = play_.switched ? 0.0f : play_.prev_time_s / cur_ent.duration_s;
-            const float p1 = play_.time_s / cur_ent.duration_s;
-            delta = anim::root_track_delta(cur_ent.root, p0, p1, false).yaw;
-        } else if (turning && has_pelvis_raw_ && !play_.switched) {
-            // На тике смены клипа разница «таз прошлого клипа − таз нового» —
-            // разница ПОЗ, а не поворот: первый кадр нового клипа — точка отсчёта.
-            delta = shortest_turn(pelvis_yaw_raw_, raw);
+    if (loco_active_ && loco_m_.state == anim::LocoState::TurnInPlace) {
+        const anim::ClipEntry& cur_ent = library_[loco_m_.role];
+        if (cur_ent.root.valid) {
+            turn_accum_rad_ = -(loco_m_.turn_warp - 1.0f)
+                              * anim::root_track_yaw_at(cur_ent.root, loco_m_.phase);
         }
-        if (static const bool trace = [] {
-                const char* v = door_value("DFN_TURN_TRACE");
-                return v != nullptr && v[0] == '1';
-            }(); trace && turning) {
-            const anim::ClipEntry& ent = anim::entry_for(library_, play_.role, play_.variant);
-            std::fprintf(stderr,
-                         "[turn] %-6.*s clip \"%s\" t %.2f/%.2f s: таз %+7.2f°, за тик %+6.3f°, "
-                         "накоплено %+7.2f°, контрвращение %+7.2f°\n",
-                         static_cast<int>(anim::role_name(play_.role).size()),
-                         anim::role_name(play_.role).data(),
-                         ent.clip >= 0 ? clips_[static_cast<std::size_t>(ent.clip)].name.c_str()
-                                       : "-",
-                         static_cast<double>(play_.time_s),
-                         static_cast<double>(ent.duration_s),
-                         static_cast<double>(raw * 57.29578f),
-                         static_cast<double>(delta * 57.29578f),
-                         static_cast<double>((turn_accum_rad_ + delta) * 57.29578f),
-                         static_cast<double>(turn_counter_rad() * 57.29578f));
-        }
-        pelvis_yaw_raw_ = raw;
-        has_pelvis_raw_ = true;
-        if (turning && !track_turn && !loco_active_) {
-            turn_accum_rad_ += delta; // контрвращение позы — только у рыска из таза
-        }
-        turn_yaw_delta_ = delta;
-    } else {
-        turn_yaw_delta_ = 0.0f;
     }
     if (tick_sampled_ && turn_counter_rad() != 0.0f) {
-        anim::counter_rotate_root(skeleton_, foot_setup_.roots, turn_counter_rad(), tick_sample_);
-        anim::counter_rotate_root(skeleton_, foot_setup_.roots, turn_counter_rad(), pure_sample_);
+        anim::rotate_root_joints(skeleton_, foot_setup_.roots, turn_counter_rad(), tick_sample_);
     }
-    // НОГИ К ВВОДУ (warp_legs): угол между осью роли и направлением хода,
-    // сглаженный за LEG_WARP_SMOOTH_S, в пределах LEG_WARP_MAX_DEG.
     leg_warp_prev_rad_ = leg_warp_rad_;
     {
-        float want_warp = 0.0f;
-        if (library_.clip_clock_path && anim::locomotion_role(play_.role)
-            && drive.want_speed_mps > 1.0e-3f) {
-            const glm::vec3 axis = anim::role_move_dir(play_.role);
-            const glm::vec3 in{drive.move_dir_model.x, 0.0f, drive.move_dir_model.z};
-            if (glm::length(in) > 1.0e-4f) {
-                const glm::vec3 a = glm::normalize(glm::vec3{axis.x, 0.0f, axis.z});
-                const glm::vec3 b = glm::normalize(in);
-                const float cross_y = a.z * b.x - a.x * b.z;
-                const float dot = glm::clamp(glm::dot(a, b), -1.0f, 1.0f);
-                const float limit = glm::radians(static_cast<float>(config::LEG_WARP_MAX_DEG));
-                want_warp = glm::clamp(std::atan2(cross_y, dot), -limit, limit);
-            }
-        }
+        // ПОВОРОТ НОГ К ВВОДУ ВЫКЛЮЧЕН НА ДОРОЖКЕ КОРНЯ (§16.7): капсула едет
+        // ровно по дорожке вдоль корпуса, и повёрнутые к диагонали ноги шли
+        // бы по земле вбок; диагональ — доворот корпуса (сим) или класс
+        // направления (машина). Механизм warp_legs оставлен с дозой 0 —
+        // прибор восьми направлений решит его судьбу.
+        const float want_warp = 0.0f;
         const float tau = static_cast<float>(config::LEG_WARP_SMOOTH_S);
         const float k = (tau > 0.0f && dt > 0.0f) ? 1.0f - std::exp(-dt / tau) : 1.0f;
         leg_warp_rad_ += (want_warp - leg_warp_rad_) * k;
     }
     if (tick_sampled_ && foot_setup_.valid()) {
         anim::warp_legs(skeleton_, foot_setup_, leg_warp_rad_, tick_sample_);
-        anim::warp_legs(skeleton_, foot_setup_, leg_warp_rad_, pure_sample_);
     }
     probe_ground(drive, standing_ground, dt);
     // КОНТАКТЫ ЭТОГО ТИКА. Без луча в мир (смотровая, тесты) вес опоры
     // читается по плоскому грунту — та же поза и тот же вес, что у стенда;
     // заявка от стопы не зависит от того, есть ли кому спросить высоту.
-    contact_prev_ = contact_curr_;
     contact_curr_ = anim::ContactState{};
     if (tick_sampled_ && foot_setup_.valid()) {
-        // Контакты — по ЧИСТОЙ позе клипа (pure_sample_), см. стык выше.
         anim::FootIkProbe flat;
         flat.valid = true;
         const anim::FootIkPlan plan = anim::plan_foot_ik(
-            skeleton_, foot_setup_, foot_probe_.valid ? foot_probe_ : flat, pure_sample_);
-        contact_curr_ = anim::contact_state(skeleton_, foot_setup_, plan, pure_sample_);
+            skeleton_, foot_setup_, foot_probe_.valid ? foot_probe_ : flat, tick_sample_);
+        contact_curr_ = anim::contact_state(skeleton_, foot_setup_, plan, tick_sample_);
     }
     loco_ = anim::LocomotionOut{};
     if (loco_active_) {
@@ -1175,111 +1071,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
                 * glm::vec4{mean, 0.0f}};
         }
         loco_.valid = true;
-    } else if (feet_drive_ && library_.feet_drive && contact_prev_.valid && contact_curr_.valid
-               && drive.grounded && drive.posture_blend < 0.5f) {
-        glm::vec3 raw =
-            anim::root_motion_step(contact_prev_, contact_curr_, dt, root_state_,
-                                   anim::travel_axis(anim::role_move_dir(play_.role)));
-        // ЧАСЫ ОТ ПУТИ: КОРЕНЬ ВЕДЁТ СИМ (§11.1, синк с лидом 04.09). Заявка —
-        // модель скорости: к заказанной не быстрее ROOT_ACCEL_MAX_MPS2, по
-        // направлению ввода; клип догоняет корень своей кривой пути. Стопы
-        // клипа корень не ведут — они за ним стоят.
-        const anim::ClipEntry& cur_entry = anim::entry_for(library_, play_.role, play_.variant);
-        if (library_.clip_clock_path && cur_entry.path_valid && anim::locomotion_role(play_.role)) {
-            // ЗАКАЗ СВЕРХ ПОЛОСЫ ТЕМПА КЛИП НЕ НЕСЁТ: тело идёт не быстрее, чем
-            // стопа клипа в опоре × (1 + LOCOMOTION_TEMPO_BAND) — иначе стопа
-            // едет. Разница — в прибор (speed_err) и в паспорт роли; лечится
-            // клипом под скорость, не разгоном клипа до карикатуры (синк 04.09).
-            const float carry = cur_entry.stance_mps
-                                * (1.0f + static_cast<float>(config::LOCOMOTION_TEMPO_BAND));
-            const float want = std::min(std::max(0.0f, drive.want_speed_mps), carry);
-            const float step = static_cast<float>(config::ROOT_ACCEL_MAX_MPS2) * dt;
-            speed_model_mps_ += std::clamp(want - speed_model_mps_, -step, step);
-            glm::vec3 dir = drive.move_dir_model;
-            dir.y = 0.0f;
-            const float len = glm::length(dir);
-            raw = len > 1.0e-4f ? dir / len * (speed_model_mps_ * dt) : glm::vec3{0.0f};
-            root_state_ = anim::RootMotionState{};
-        } else {
-            speed_model_mps_ = 0.0f;
-        }
-        // ВНЕ ЛОКОМОЦИИ — НОЛЬ: покой, присед на месте, посадка не везут тело.
-        // Кроссфейд в покой дошагивает (fade > 0), после него — стоп.
-        // ОТПУСТИЛИ ВВОД — ЗАЯВКА НОЛЬ СРАЗУ, А НЕ ПОСЛЕ КРОССФЕЙДА (владелец 04.09:
-        // «нажимаю вперёд и сразу отпускаю — микрошаг, чуть сдвинулся, проскользил
-        // вперёд, змейкой»). Прибор LocoTelemetry на стенде: за один такой тап тело
-        // уезжало 29 см вперёд и 12 см вбок, из них 13 см — «полёт» смеси клипов
-        // (обе стопы без опоры → коаст на прежней скорости), остальное — хвост
-        // сглаживания. Стоя роль уже покой: смесь дошагивает на месте, опорную
-        // стопу держит замок.
-        const bool moving_role = anim::locomotion_role(play_.role);
-        // ПОВОРОТ НА МЕСТЕ — КОРНЮ НОЛЬ. Поза контрвращается на вынутый угол
-        // (§13.3), и стоящая в мире стопа в этой системе тела неподвижна ПО
-        // ПОСТРОЕНИЮ: p_world = root + R(−ψ)·R(+ψ)·p_raw = root + p_raw. Всё,
-        // что стопа при этом «идёт» в системе тела, — дуга самого контрвращения,
-        // и брать её за ход корня значило везти тело по 0,37 м за поворот
-        // (владелец 07.09: «перелетает с точки на точку»; прибор метания
-        // взгляда: 1,9 м за пять поворотов), а прибор сноса этого не видел —
-        // замок дотягивал нарисованную стопу к якорю. Остаток 9…14 мм — это
-        // собственный ход стопы в клипе (актёр пивотит на подушечке), его
-        // закрывает замок дозой.
-        if (play_.role == anim::ClipRole::TurnL || play_.role == anim::ClipRole::TurnR) {
-            raw = glm::vec3{0.0f};
-            root_state_ = anim::RootMotionState{};
-        }
-        if (!moving_role) {
-            raw = glm::vec3{0.0f};
-            root_state_ = anim::RootMotionState{};
-            smoothed_delta_ = glm::vec3{0.0f};
-            speed_model_mps_ = 0.0f;
-        }
-        // СГЛАЖИВАНИЕ КАПСУЛЫ (ROOT_MOTION_SMOOTH_S): толчки таза внутри шага
-        // не передаются капсуле; разницу закрывает замок стопы.
-        // Пивот поворота и заявка модели скорости идут без сглаживания: у
-        // сглаживателя, сброшенного на каждом тике, выходило 13 % пивота
-        // (замер 07.09: стопа ехала 397 мм), а модель скорости гладкая сама.
-        const bool turning_now = play_.role == anim::ClipRole::TurnL
-                                 || play_.role == anim::ClipRole::TurnR;
-        const bool path_mode = (library_.clip_clock_path && cur_entry.path_valid) || turning_now;
-        if (turning_now) {
-            smoothed_delta_ = raw;
-        }
-        if (root_smooth_ && !path_mode && dt > 0.0f) {
-            const float tau = static_cast<float>(config::ROOT_MOTION_SMOOTH_S);
-            const float k = tau > 0.0f ? 1.0f - std::exp(-dt / tau) : 1.0f;
-            smoothed_delta_ += (raw - smoothed_delta_) * k;
-            if (glm::length(raw) < 1.0e-6f && glm::length(smoothed_delta_) < 1.0e-4f) {
-                smoothed_delta_ = glm::vec3{0.0f};
-            }
-            loco_.root_delta_model = smoothed_delta_;
-        } else {
-            loco_.root_delta_model = raw;
-        }
-        loco_.phase = play_.phase;
-        // ПОВОРОТ ОТ ОПОРНОЙ СТОПЫ (§9.4/§13): его несут клипы поворота на
-        // месте; на ходу корпус доворачивает сим, и клип цикла своим рыском
-        // тело крутить не должен — иначе поворот считался бы дважды.
-        loco_.root_yaw_delta = turn_yaw_delta_;
-        loco_.footfall =
-            anim::detect_footfalls(contact_prev_, contact_curr_, lock_params_.on_weight);
-        loco_.dir = play_.move_dir;
-        for (std::size_t side = 0; side < 2; ++side) {
-            loco_.planted[side] = contact_curr_.support[side] >= lock_params_.on_weight;
-        }
-        // СКОЛЬЖЕНИЕ ФИЗИЧЕСКОЙ СТОПЫ (§12, CharacterFeet): ход поставленной
-        // стопы за прошлый тик — в корень, в системе тела.
-        if (slip_count_ > 0) {
-            const glm::vec3 mean = slip_sum_world_ / static_cast<float>(slip_count_);
-            const float yaw = anim::body_root_for(drive, standing_ground).yaw;
-            loco_.root_delta_model += glm::vec3{
-                glm::rotate(glm::mat4{1.0f}, yaw, glm::vec3{0.0f, 1.0f, 0.0f})
-                * glm::vec4{mean, 0.0f}};
-        }
-        loco_.valid = true;
     }
-    // THE PROCEDURAL PAIR, kept whether or not the door is open: it costs one
-    // pose evaluation a tick and it is what makes DFN_PROC_GAIT switchable
-    // without a second code path through this file.
     pose_prev_ = ticked_ ? pose_curr_ : anim::evaluate_body_pose(rig, drive);
     root_prev_ = ticked_ ? root_curr_ : anim::body_root_for(drive, standing_ground);
     pose_curr_ = anim::evaluate_body_pose(rig, drive);
@@ -1327,34 +1119,12 @@ void SkinnedCharacter::commit_root(const anim::BodyDrive& drive,
         }
     }
     std::array<glm::vec3, 2> world{};
+    std::array<glm::vec3, 2> ankle_world{};
     for (std::size_t side = 0; side < 2; ++side) {
-        world[side] = glm::vec3{to_world * glm::vec4{contact_curr_.point[side], 1.0f}};
+        world[side] = glm::vec3{to_world * glm::vec4{contact_curr_.toe[side], 1.0f}};
+        ankle_world[side] = glm::vec3{to_world * glm::vec4{contact_curr_.ankle[side], 1.0f}};
     }
-    // ДОРОЖКА КОРНЯ (§16.6): замка стопы нет — опорная стопа стоит потому,
-    // что капсула едет ровно на авторский ход таза; IK только по высоте.
-    // Замок с якорями остаётся у прежнего пути (контрольная рука) до сноса.
-    if (!contact_curr_.valid || !foot_lock_ || loco_.verbatim) {
-        locks_ = anim::FootLockState{};
-        feed_telemetry(drive, dt, world);
-        return;
-    }
-    const std::array<float, 2> lock_weight =
-        loco_.valid ? contact_curr_.support : std::array<float, 2>{0.0f, 0.0f};
-    anim::update_foot_locks(locks_, world, lock_weight, contact_curr_.toe_point, root_curr_.yaw,
-                            dt, lock_params_);
-    if (slide_trace_ && (++slide_trace_ticks_ % 10u) == 0u) {
-        float worst = 0.0f;
-        for (std::size_t side = 0; side < 2; ++side) {
-            if (locks_.locked[side]) {
-                const glm::vec3 d = world[side] - locks_.anchor[side];
-                worst = std::max(worst, glm::length(glm::vec2{d.x, d.z}));
-            }
-        }
-        std::fprintf(stderr, "[slide] residual before lock %.1f mm (L %d R %d)\n",
-                     static_cast<double>(1000.0f * worst), locks_.locked[0] ? 1 : 0,
-                     locks_.locked[1] ? 1 : 0);
-    }
-    feed_telemetry(drive, dt, world);
+    feed_telemetry(drive, dt, world, ankle_world);
 }
 
 void SkinnedCharacter::set_telemetry(bool on, const std::string& csv_path) {
@@ -1391,7 +1161,8 @@ bool SkinnedCharacter::foot_box_world(std::size_t side, glm::mat4& frame, glm::v
 }
 
 void SkinnedCharacter::feed_telemetry(const anim::BodyDrive& drive, float dt,
-                                      const std::array<glm::vec3, 2>& contact_world) {
+                                      const std::array<glm::vec3, 2>& contact_world,
+                                      const std::array<glm::vec3, 2>& ankle_world) {
     if (!telemetry_on_ || !tick_sampled_) {
         return;
     }
@@ -1399,9 +1170,9 @@ void SkinnedCharacter::feed_telemetry(const anim::BodyDrive& drive, float dt,
     t.dt = dt;
     t.pose = tick_sample_;
     t.contacts = &contact_curr_;
-    t.locks = &locks_;
-    t.release = &lock_release_;
+    t.machine = loco_active_ ? &loco_m_ : nullptr;
     t.contact_world = contact_world;
+    t.ankle_world = ankle_world;
     for (std::size_t side = 0; side < 2; ++side) {
         t.phys_planted[side] = foot_phys_[side].planted;
         t.phys_holds[side] = foot_phys_[side].holds;
@@ -1430,18 +1201,6 @@ SkinnedCharacter::~SkinnedCharacter() {
     }
     if (telemetry_csv_ != nullptr) {
         std::fclose(telemetry_csv_);
-    }
-}
-
-void SkinnedCharacter::set_feet_drive(bool on) {
-    feet_drive_ = on;
-    library_.feet_drive = on;
-    if (!on) {
-        loco_ = anim::LocomotionOut{};
-        locks_ = anim::FootLockState{};
-        lock_release_ = anim::FootLockRelease{};
-        root_state_ = anim::RootMotionState{};
-        smoothed_delta_ = glm::vec3{0.0f};
     }
 }
 
@@ -1488,7 +1247,7 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
             // детектор «кадр против тиков» этого не видел: он сравнивает
             // бёдра и колени, а контрвращение сидит в корне (дыра прибора,
             // §14.3, найдена 07.09).
-            anim::counter_rotate_root(skeleton_, foot_setup_.roots,
+            anim::rotate_root_joints(skeleton_, foot_setup_.roots,
                                       glm::mix(turn_counter_prev_rad_, turn_counter_rad(), a),
                                       sample_);
             anim::warp_legs(skeleton_, foot_setup_,
@@ -1523,31 +1282,11 @@ render::RenderSystem::SkinnedDraw SkinnedCharacter::build_draw(bool hide_head,
         // побитово прежний кадр, между — движение, приходящее чуть позже
         // середины. Возводить вес в квадрат ради формальной точности значило
         // бы сделать въезд вдвое вялее ради разницы, которой не видно.
-        // ЗАМОК СТОПЫ В КАДРЕ: якорь — мировая точка касания на тике; кадр
-        // переводит её в систему тела через СВОЙ (интерполированный) корень.
-        if (foot_lock_ && foot_setup_.valid()
-            && (locks_.strength[0] > 0.0f || locks_.strength[1] > 0.0f)) {
-            const glm::mat4 lock_world =
-                glm::translate(glm::mat4{1.0f}, root.ground)
-                * glm::rotate(glm::mat4{1.0f}, -root.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
-            const glm::mat4 to_model = glm::inverse(lock_world);
-            std::array<glm::vec3, 2> target{};
-            std::array<float, 2> strength{};
-            for (std::size_t side = 0; side < 2; ++side) {
-                if (locks_.strength[side] <= 0.0f) {
-                    continue;
-                }
-                target[side] = glm::vec3{to_model * glm::vec4{locks_.anchor[side], 1.0f}};
-                strength[side] = locks_.strength[side];
-            }
-            anim::apply_foot_lock(skeleton_, foot_setup_, target, locks_.anchor_toe, strength,
-                                  sample_, &lock_release_);
-        }
         if (frame_planned) {
             last_gap_ = anim::foot_gap(skeleton_, foot_setup_, foot_probe_, frame_plan, sample_);
         }
         if (telemetry_on_) {
-            telemetry_.push_frame(sample_, root, a, locks_);
+            telemetry_.push_frame(sample_, root, a);
         }
         if (pose_weight_ > 0.0f) {
             pose_sample_.resize(skeleton_.size());

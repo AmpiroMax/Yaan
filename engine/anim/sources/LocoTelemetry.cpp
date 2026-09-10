@@ -110,8 +110,7 @@ void LocoTelemetry::reset(const skel::Skeleton& skeleton, const FootIkSetup& set
         r.lower_is_bad = lower_is_bad;
         r.worst = lower_is_bad ? 1.0e9f : 0.0f;
     };
-    set(P::Slide, "slide", "mm", 1000.0 * config::FOOT_SLIDE_MAX_M);
-    set(P::Residual, "residual", "mm", 0.0);
+    set(P::StanceSlip, "stance", "m/s", config::CONTACT_STILL_MPS);
     set(P::Gap, "gap", "mm", 1000.0 * config::LOCO_GAP_MAX_M);
     set(P::ThighAccel, "thigh_acc", "rad/s2", config::LOCO_JOINT_ACCEL_MAX_RADPS2);
     set(P::KneeAccel, "knee_acc", "rad/s2", config::LOCO_JOINT_ACCEL_MAX_RADPS2);
@@ -126,10 +125,13 @@ void LocoTelemetry::reset(const skel::Skeleton& skeleton, const FootIkSetup& set
     set(P::NoStepTravel, "nostep", "x2step", config::LOCO_NO_STEP_MAX);
     set(P::RootAccel, "root_acc", "m/s2", config::LOCO_ROOT_ACCEL_MAX_MPS2);
     set(P::PhaseJump, "phase", "cycle", config::LOCO_PHASE_JUMP_MAX);
-    set(P::Twist, "twist", "deg", config::FOOT_LOCK_TWIST_MAX_RAD * 180.0 / glm::pi<double>());
+    set(P::Twist, "twist", "deg", config::LOCO_PELVIS_TWIST_MAX_DEG);
     set(P::KneeBend, "knee_bend", "deg", config::LOCO_KNEE_BEND_MIN_DEG, true);
     set(P::SpeedError, "speed_err", "frac", config::LOCO_SPEED_ERR_MAX);
     set(P::PhysSlip, "phys_slip", "m/s", 0.0f);
+    set(P::TurnRate, "turn_rate", "deg/s", config::BODY_TURN_RATE * 180.0 / glm::pi<double>());
+    set(P::TransitionsPerS, "trans_ps", "1/s", config::LOCO_TRANSITIONS_PER_S_MAX);
+    set(P::WarpUsed, "warp", "x", 0.0);
     ready_ = true;
 }
 
@@ -170,7 +172,7 @@ uint32_t LocoTelemetry::total_hits() const {
 
 void LocoTelemetry::push(const LocoTick& t) {
     if (!ready_ || t.dt <= 0.0f || t.pose.size() < skeleton_->size() || t.contacts == nullptr
-        || t.play == nullptr || t.loco == nullptr || t.drive == nullptr || t.locks == nullptr) {
+        || t.play == nullptr || t.loco == nullptr || t.drive == nullptr) {
         return;
     }
     using P = LocoProbe;
@@ -189,16 +191,48 @@ void LocoTelemetry::push(const LocoTick& t) {
     const float want = t.drive->want_speed_mps;
     const bool input = want > 1.0e-3f;
 
-    // 1. снос замкнутой стопы к якорю
+    // 1. ход точки опорной стопы к земле (§16.7): стопа стоит по расписанию
+    //    клипа два тика подряд — её точка касания в мире не должна ехать
+    //    быстрее CONTACT_STILL_MPS (определение опоры; у мокапа сама 0,07…0,2).
     {
+        // Окно расписания снято с чистого клипа на 128 точках, тик и темп
+        // размывают его края на 1–2 тика (удар пяткой, отрыв носка) — они
+        // печатаются худшим, но срабатывание считается только с третьего тика
+        // подряд: устойчивый снос, а не край.
+        // …и только в УСТОЯВШЕМСЯ ЦИКЛЕ: на стыках (старт → цикл по потолку
+        // START_CLIP_MAX_S, остановка → покой по STOP_CLIP_MAX_S) инерциализация
+        // за INERTIAL_BLEND_S переводит позу, и стоящие по расписанию стопы
+        // едут по земле до 3 м/с (замер бота 11.09: три окна по 11–14 тиков).
+        // Это цена закона отзывчивости, названная в §16.7, а не снос опоры.
+        const bool steady = t.machine == nullptr
+                            || (t.machine->state == LocoState::Cycle
+                                && t.machine->dwell_s >= static_cast<float>(config::INERTIAL_BLEND_S));
         float worst = 0.0f;
+        bool sustained = false;
         for (std::size_t s = 0; s < 2; ++s) {
-            if (t.locks->locked[s]) {
-                const glm::vec3 d = t.contact_world[s] - t.locks->anchor[s];
-                worst = std::max(worst, glm::length(glm::vec2{d.x, d.z}));
+            const bool on = t.loco->planted[s];
+            if (on && stance_has_[s]) {
+                // пятка на ударе, носок на перекате: стоит та точка, что медленнее
+                const glm::vec3 d = t.contact_world[s] - stance_prev_[s];
+                const glm::vec3 da = t.ankle_world[s] - stance_ankle_prev_[s];
+                const float v = std::min(glm::length(glm::vec2{d.x, d.z}),
+                                         glm::length(glm::vec2{da.x, da.z})) / dt;
+                worst = std::max(worst, v);
+                stance_over_[s] = v > static_cast<float>(config::CONTACT_STILL_MPS) ? stance_over_[s] + 1 : 0;
+                sustained = sustained || stance_over_[s] >= 3;
+            } else {
+                stance_over_[s] = 0;
             }
+            stance_prev_[s] = t.contact_world[s];
+            stance_ankle_prev_[s] = t.ankle_world[s];
+            stance_has_[s] = on;
         }
-        note(P::Residual, 1000.0f * worst);
+        auto& row = rows_[static_cast<std::size_t>(P::StanceSlip)];
+        row.last = worst;
+        row.worst = std::max(row.worst, worst);
+        if (sustained && steady) {
+            ++row.hits;
+        }
     }
     tick_dt_ = dt;
     // 2. зазор опорной стопы
@@ -342,18 +376,20 @@ void LocoTelemetry::push(const LocoTick& t) {
     // 12. разрыв фазы на смене роли; с какой ноги старт
     if (has_role_ && t.play->role != role_prev_) {
         ++role_changes_;
-        if (locomotion_role(role_prev_) && moving_role) {
+        // цикл → цикл: фаза шага непрерывна; вход в цикл из одноразового клипа
+        // (старт, поворот) подбирается по позе ног (exit_phase) — не разрыв
+        if (locomotion_role(role_prev_) && !one_shot_role(role_prev_) && moving_role
+            && !one_shot_role(t.play->role)) {
             note(P::PhaseJump, wrap_phase(t.play->phase - phase_prev_));
         }
         if (!locomotion_role(role_prev_) && moving_role) {
             start_pending_ = true;
-            planted_ = {t.contacts->support[0] > 0.0f, t.contacts->support[1] > 0.0f};
+            planted_ = t.loco->planted;
         }
     }
     if (start_pending_) {
-        const float off = static_cast<float>(config::FOOT_LOCK_OFF_WEIGHT);
         for (std::size_t s = 0; s < 2 && start_pending_; ++s) {
-            if (planted_[s] && t.contacts->support[s] < off) {
+            if (planted_[s] && !t.loco->planted[s]) {
                 ++start_foot_[s];
                 start_pending_ = false;
             }
@@ -381,7 +417,7 @@ void LocoTelemetry::push(const LocoTick& t) {
             float worst = 0.0f;
             for (std::size_t s = 0; s < 2; ++s) {
                 // только опорная стопа: висящая в махе смотрит носком вниз и назад
-                if (t.contacts->support[s] <= 0.0f) {
+                if (!t.loco->planted[s]) {
                     continue;
                 }
                 const glm::vec3 a = joint_pos(world_[static_cast<std::size_t>(setup_.ankle[s])]);
@@ -401,7 +437,7 @@ void LocoTelemetry::push(const LocoTick& t) {
     {
         float bend_min = 1.0e9f;
         for (std::size_t s = 0; s < 2; ++s) {
-            if (t.contacts->support[s] <= 0.0f) {
+            if (!t.loco->planted[s]) {
                 continue;
             }
             const glm::vec3 h = joint_pos(world_[static_cast<std::size_t>(setup_.hip[s])]);
@@ -432,6 +468,22 @@ void LocoTelemetry::push(const LocoTick& t) {
         has_speed_ema_ = false;
     }
 
+    // 15а. рыск корпуса, смены клипа в секунду, варп поворота (§16.7)
+    {
+        note(P::TurnRate, std::abs(wrap_angle(t.root.yaw - t.root_prev.yaw)) / dt * 180.0f / PI_F);
+        if (t.machine != nullptr) {
+            while (transitions_seen_ < t.machine->transitions) {
+                transition_t_.push_back(seconds_);
+                ++transitions_seen_;
+            }
+            while (!transition_t_.empty() && seconds_ - transition_t_.front() > 1.0f) {
+                transition_t_.pop_front();
+            }
+            note(P::TransitionsPerS, static_cast<float>(transition_t_.size()));
+            note(P::WarpUsed, t.machine->state == LocoState::TurnInPlace
+                                  ? std::abs(t.machine->turn_warp - 1.0f) : 0.0f);
+        }
+    }
     // 16. скольжение поставленной физической стопы (§12) — показание
     {
         float slip = 0.0f;
@@ -458,6 +510,7 @@ void LocoTelemetry::push(const LocoTick& t) {
         since_footfall_m_ = 0.0f;
         speed_ema_ = speed;
         input_held_s_ = 0.0f;
+        transition_t_.clear();
     }
 
     // строка CSV этого тика
@@ -470,37 +523,33 @@ void LocoTelemetry::push(const LocoTick& t) {
         };
         std::snprintf(
             buf, sizeof(buf),
-            "%.4f,%.4f,%.*s,%.3f,%.3f,%.3f,%.4f,%.4f,%.3f,%.3f,%d,%d,%.2f,%.2f,%.1f,%.1f,%.1f,%.1f,"
-            "%.1f,%.1f,%.1f,%.1f,%.1f,%.3f,%.1f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,%.2f,%.2f,%.1f,%.1f,%.4f,%.4f,%.4f,%.4f,%.4f",
+            "%.4f,%.4f,%.*s,%.3f,%.3f,%.3f,%.4f,%.4f,%d,%d,%.2f,%.2f,%.1f,%.1f,%.1f,%.1f,"
+            "%.1f,%.1f,%.3f,%.1f,%.1f,%.3f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.1f,%.2f,%.2f,"
+            "%.4f,%.4f,%.4f,%.4f,%.4f,%.1f,%.0f,%.2f",
             static_cast<double>(seconds_), static_cast<double>(dt),
             static_cast<int>(role_name(t.play->role).size()), role_name(t.play->role).data(),
             static_cast<double>(t.play->phase), static_cast<double>(want),
             static_cast<double>(speed), static_cast<double>(delta.x),
-            static_cast<double>(delta.z), static_cast<double>(c.support[0]),
-            static_cast<double>(c.support[1]), t.locks->locked[0] ? 1 : 0,
-            t.locks->locked[1] ? 1 : 0, static_cast<double>(1000.0f * t.gap.gap[0]),
+            static_cast<double>(delta.z), t.loco->planted[0] ? 1 : 0, t.loco->planted[1] ? 1 : 0,
+            static_cast<double>(1000.0f * t.gap.gap[0]),
             static_cast<double>(1000.0f * t.gap.gap[1]),
             static_cast<double>(joints_[static_cast<std::size_t>(setup_.hip[0])].accel),
             static_cast<double>(joints_[static_cast<std::size_t>(setup_.hip[1])].accel),
             static_cast<double>(joints_[static_cast<std::size_t>(setup_.knee[0])].accel),
             static_cast<double>(joints_[static_cast<std::size_t>(setup_.knee[1])].accel),
             static_cast<double>(ankles_[0].accel), static_cast<double>(ankles_[1].accel),
-            v(P::Residual), v(P::AnkleCross), v(P::LateralDrift), v(P::NoStepTravel),
+            v(P::StanceSlip), v(P::AnkleCross), v(P::LateralDrift), v(P::NoStepTravel),
             v(P::RootAccel), v(P::Twist), v(P::KneeBend), static_cast<double>(pelvis_yaw_deg_),
             static_cast<double>(toe_yaw_deg_[0]), static_cast<double>(toe_yaw_deg_[1]),
             static_cast<double>(frame_joints_[static_cast<std::size_t>(setup_.hip[0])].accel),
             static_cast<double>(frame_joints_[static_cast<std::size_t>(setup_.hip[1])].accel),
             static_cast<double>(frame_joints_[static_cast<std::size_t>(setup_.knee[0])].accel),
             static_cast<double>(frame_joints_[static_cast<std::size_t>(setup_.knee[1])].accel),
-            static_cast<double>(t.locks->strength[0]), static_cast<double>(t.locks->strength[1]),
             static_cast<double>(mismatch_deg_[0]), static_cast<double>(mismatch_deg_[1]),
-            t.release != nullptr && t.release->has[0]
-                ? static_cast<double>(1000.0f * glm::length(t.release->offset[0])) : 0.0,
-            t.release != nullptr && t.release->has[1]
-                ? static_cast<double>(1000.0f * glm::length(t.release->offset[1])) : 0.0,
             static_cast<double>(c.point[0].x), static_cast<double>(c.point[0].z),
             static_cast<double>(c.point[1].x), static_cast<double>(c.point[1].z),
-            static_cast<double>(t.loco->root_delta_model.z));
+            static_cast<double>(t.loco->root_delta_model.z), v(P::TurnRate), v(P::TransitionsPerS),
+            v(P::WarpUsed));
         csv_row_ = buf;
         while (!csv_row_.empty() && csv_row_.back() == '\n') {
             csv_row_.pop_back();
@@ -516,7 +565,7 @@ void LocoTelemetry::push(const LocoTick& t) {
 }
 
 void LocoTelemetry::push_frame(std::span<const JointLocal> sample, const BodyRoot& root,
-                               float alpha, const FootLockState& locks) {
+                               float alpha) {
     if (!ready_ || ticks_ == 0 || sample.size() < skeleton_->size()) {
         return;
     }
@@ -534,26 +583,7 @@ void LocoTelemetry::push_frame(std::span<const JointLocal> sample, const BodyRoo
     has_frame_t_ = true;
     forward_kinematics(sample);
     // снос стопы в кадре: якорный сустав замка против якоря в мире
-    const glm::mat4 to_world =
-        glm::translate(glm::mat4{1.0f}, root.ground)
-        * glm::rotate(glm::mat4{1.0f}, -root.yaw, glm::vec3{0.0f, 1.0f, 0.0f});
-    float worst = 0.0f;
-    bool any = false;
-    for (std::size_t s = 0; s < 2; ++s) {
-        if (!locks.locked[s] || locks.strength[s] < 1.0f) {
-            continue;
-        }
-        const int32_t j = locks.anchor_toe[s] && setup_.toe[s] >= 0 ? setup_.toe[s]
-                                                                    : setup_.ankle[s];
-        const glm::vec3 p =
-            glm::vec3{to_world * glm::vec4{joint_pos(world_[static_cast<std::size_t>(j)]), 1.0f}};
-        const glm::vec3 d = p - locks.anchor[s];
-        worst = std::max(worst, glm::length(glm::vec2{d.x, d.z}));
-        any = true;
-    }
-    if (any) {
-        note(P::Slide, 1000.0f * worst);
-    }
+    (void)root;
     // КАДР ПРОТИВ ТИКОВ: ожидание кадра — slerp двух тиков по alpha; всё сверх —
     // наш слой (IK, замок) или ошибка интерполяции. Незамкнутая нога на ровном
     // стенде обязана совпадать.
@@ -606,7 +636,7 @@ void LocoTelemetry::push_frame(std::span<const JointLocal> sample, const BodyRoo
         }
     }
     if (ticks_ <= WARM_TICKS + 1) {
-        for (const P p : {P::Slide, P::FrameThighAccel, P::FrameKneeAccel, P::FrameMismatch}) {
+        for (const P p : {P::FrameThighAccel, P::FrameKneeAccel, P::FrameMismatch}) {
             auto& r = rows_[static_cast<std::size_t>(p)];
             r.last = 0.0f;
             r.worst = 0.0f;
@@ -616,10 +646,12 @@ void LocoTelemetry::push_frame(std::span<const JointLocal> sample, const BodyRoo
 }
 
 std::string LocoTelemetry::csv_header() {
-    return "t,dt,role,phase,want_mps,speed_mps,dx,dz,support_l,support_r,locked_l,locked_r,"
+    return "t,dt,role,phase,want_mps,speed_mps,dx,dz,planted_l,planted_r,"
            "gap_l_mm,gap_r_mm,thigh_acc_l,thigh_acc_r,knee_acc_l,knee_acc_r,ankle_acc_l,"
-           "ankle_acc_r,residual_mm,cross_mm,drift_mm,nostep,root_acc,twist_deg,knee_bend_deg,"
-           "pelvis_yaw_deg,toe_yaw_l_deg,toe_yaw_r_deg,f_thigh_l,f_thigh_r,f_knee_l,f_knee_r,strength_l,strength_r,mismatch_l_deg,mismatch_r_deg,lock_corr_l_mm,lock_corr_r_mm,pt_l_x,pt_l_z,pt_r_x,pt_r_z,loco_dz,phys_slip_l,phys_slip_r,phys_plant_l,phys_plant_r,phys_hold_l,phys_hold_r";
+           "ankle_acc_r,stance_mps,cross_mm,drift_mm,nostep,root_acc,twist_deg,knee_bend_deg,"
+           "pelvis_yaw_deg,toe_yaw_l_deg,toe_yaw_r_deg,f_thigh_l,f_thigh_r,f_knee_l,f_knee_r,"
+           "mismatch_l_deg,mismatch_r_deg,pt_l_x,pt_l_z,pt_r_x,pt_r_z,loco_dz,turn_rate_dps,"
+           "trans_ps,warp,phys_slip_l,phys_slip_r,phys_plant_l,phys_plant_r,phys_hold_l,phys_hold_r";
 }
 
 std::vector<std::string> LocoTelemetry::summary_lines() const {
@@ -630,12 +662,13 @@ std::vector<std::string> LocoTelemetry::summary_lines() const {
     char buf[160];
     std::vector<std::string> out;
     std::snprintf(buf, sizeof(buf),
-                  "loco %.1fs hits %u  slide %.1f/%.1fmm(%u) resid %.1f gap %.0f/%.0f(%u)",
+                  "loco %.1fs hits %u  stance %.2f/%.2fm/s(%u) gap %.0f/%.0f(%u) turn %.0f(%u) trans %.0f(%u)",
                   static_cast<double>(seconds_), total_hits(),
-                  static_cast<double>(r(P::Slide).last), static_cast<double>(r(P::Slide).worst),
-                  r(P::Slide).hits, static_cast<double>(r(P::Residual).worst),
+                  static_cast<double>(r(P::StanceSlip).last), static_cast<double>(r(P::StanceSlip).worst),
+                  r(P::StanceSlip).hits,
                   static_cast<double>(r(P::Gap).last), static_cast<double>(r(P::Gap).worst),
-                  r(P::Gap).hits);
+                  r(P::Gap).hits, static_cast<double>(r(P::TurnRate).worst), r(P::TurnRate).hits,
+                  static_cast<double>(r(P::TransitionsPerS).worst), r(P::TransitionsPerS).hits);
     out.emplace_back(buf);
     std::snprintf(buf, sizeof(buf),
                   "acc clip thigh %.0f(%u) knee %.0f(%u) | frame %.0f(%u) %.0f(%u) mis %.1f(%u) | ankle %.0f(%u)",

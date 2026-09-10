@@ -208,7 +208,7 @@ struct FootGap {
 /// ТОЧКИ КАСАНИЯ ОБЕИХ СТОП НА ОДНОЙ ПОЗЕ, в системе тела, и вес опоры каждой
 /// (тот же, что FootIkPlan::weight). `point` — подушечка стопы (сустав носка,
 /// когда он есть, иначе лодыжка): при перекате она стоит, а лодыжка вращается
-/// вокруг неё. Это вход корневого движения от стопы (RootMotion.h) и якорь
+/// вокруг неё. Это вход датчиков стоп (CharacterFeet) и приборов
 /// замка стопы (ниже).
 struct ContactState {
     /// Нижняя из двух точек стопы (носок или лодыжка, каждая относительно
@@ -222,14 +222,8 @@ struct ContactState {
     /// Вес IK стоп (FootIkPlan::weight, щедрая полоса 12 см) — для подъёма
     /// на грунт.
     std::array<float, 2> weight{};
-    /// ВЕС ОПОРЫ ДЛЯ КОРНЕВОГО ДВИЖЕНИЯ И ЗАМКА: самая низкая стопа — 1, вторая
-    /// — по полосе FOOT_SUPPORT_BAND_M над ней; обе 0 в полёте (нижняя выше
-    /// FOOT_IK_RELEASE_M). Отдельно от `weight` намеренно: см. строку реестра.
-    std::array<float, 2> support{};
-    /// Какая точка сейчас нижняя: true — подушечка (носок), false — лодыжка.
     std::array<bool, 2> toe_point{};
     bool valid = false;
-    [[nodiscard]] bool any_support() const { return support[0] > 0.0f || support[1] > 0.0f; }
 };
 [[nodiscard]] ContactState contact_state(const skel::Skeleton& skeleton,
                                          const FootIkSetup& setup, const FootIkPlan& plan,
@@ -242,85 +236,9 @@ struct ContactState {
 /// Замок закрывает то, чего корневое движение от стопы не закрывает: капсулу,
 /// которую физика провела иначе (стена, склон, ступень), поворот на ходу,
 /// кроссфейд двух клипов с разными постановками, фильтр корня по высоте.
-struct FootLockParams {
-    float on_weight = 0.6f;
-    float off_weight = 0.3f;
-    float release_s = 0.1f;
-    /// ПЕРЕСТУП ПРИ ПОВОРОТЕ НА МЕСТЕ (владелец 02.09-2: от первого лица
-    /// «ноги прикреплены к точкам и скручиваются крестиком»): корпус ушёл
-    /// над замкнутой стопой дальше этого угла — замок отпускает её, стопа
-    /// уходит под корпус и замыкается заново; вторая стопа ждёт `step_s`.
-    float twist_max_rad = 0.6f;
-    float step_s = 0.2f;
-    /// Строки FOOT_LOCK_* реестра.
-    [[nodiscard]] static FootLockParams from_config();
-};
-struct FootLockState {
-    std::array<bool, 2> locked{};
-    std::array<glm::vec3, 2> anchor{};   ///< мировая точка касания на защёлкивании
-    std::array<bool, 2> anchor_toe{};    ///< якорь — подушечка (true) или лодыжка
-    std::array<float, 2> strength{};     ///< 0..1, сколько замка в силе
-    /// ЗАЩЁЛКНУЛСЯ НА ЭТОМ ТИКЕ — постановка стопы; читатель событий шага.
-    std::array<bool, 2> engaged{};
-    std::array<float, 2> anchor_yaw{}; ///< рыск корпуса на защёлкивании
-    std::array<float, 2> hold_s{};     ///< после переступа: столько не замыкать
-    float step_cooldown_s = 0.0f;      ///< вторая стопа не переступает, пока идёт
-    float last_yaw = 0.0f;             ///< рыск прошлого тика — покой корпуса
-    float still_s = 0.0f;              ///< сколько корпус уже не вращается
-};
-/// Один тик состояния замков: `contact_world` — точки касания этой позы в
-/// МИРЕ (приложение знает корень), `weight` — вес опоры.
-void update_foot_locks(FootLockState& state, const std::array<glm::vec3, 2>& contact_world,
-                       const std::array<float, 2>& weight,
-                       const std::array<bool, 2>& point_is_toe, float body_yaw, float dt,
-                       const FootLockParams& params);
-/// ПРАВКА ПОЗЫ ПОД ЗАМОК: точка касания каждой стопы с силой > 0 ставится в
-/// `point_target_model` (система тела; берётся только горизонталь — высоту
-/// держит apply_foot_ik, а прыжок капсулы на ступень гасит корень, см.
-/// SkinnedCharacter::probe_ground), лодыжка едет вместе с ней, колено
-/// решается двузвенником, бедро доворачивается. Цель дальше вытяжения ноги
-/// режется по досягаемости, а не растягивает ногу.
-/// ОТПУСКАНИЕ ЗАМКА — ЗАМОРОЖЕННЫЙ СДВИГ, А НЕ ЯКОРЬ (владелец 04.09: «в момент,
-/// когда ступня отрывается, ляжка выпрямляется и дёргается назад, потом резко
-/// вперёд»). Прибор LocoTelemetry на стенде: в кадре после замка бедро и колено
-/// отрывающейся ноги ускорялись до 550…1150 рад/с² при 20…130 в самом клипе —
-/// сила замка сходила за FOOT_LOCK_RELEASE_S, а цель оставалась якорем в мире,
-/// от которого стопа клипа уже улетала: поправка = (падающая сила) × (растущий
-/// уход) — горб, то есть рывок назад и вперёд. Теперь на последнем кадре полной
-/// силы запоминается сдвиг «якорь − стопа клипа» в системе тела, и при
-/// отпускании применяется ОН, умноженный на силу: стопа сходит с якоря на
-/// траекторию клипа по прямой.
-/// ПОВОРОТ НОГ К НАПРАВЛЕНИЮ ХОДА (orientation warping, UE Pose Warping;
-/// LOCOMOTION_GROUNDED.md §11.1): клип идёт по своей оси (вперёд, вбок,
-/// назад), ввод — под углом к ней; корень ведёт сим по вводу, и без поворота
-/// стопа клипа едет поперёк на sin(угла) хода (0,5 м за прогон на 30°/120°,
-/// прибор восьми направлений 04.09). Обе ноги поворачиваются вокруг
-/// вертикали в тазобедренных суставах на угол между осью роли и вводом;
-/// корпус не трогается. Длина пути стопы не меняется — кривая пути та же.
 void warp_legs(const skel::Skeleton& skeleton, const FootIkSetup& setup, float warp_rad,
                std::span<JointLocal> sample);
 
-struct FootLockRelease {
-    std::array<glm::vec3, 2> offset{}; ///< сдвиг в системе тела на последнем кадре полной силы
-    std::array<bool, 2> has{};
-};
-
-void apply_foot_lock(const skel::Skeleton& skeleton, const FootIkSetup& setup,
-                     const std::array<glm::vec3, 2>& point_target_model,
-                     const std::array<bool, 2>& target_is_toe,
-                     const std::array<float, 2>& strength, std::span<JointLocal> sample,
-                     FootLockRelease* release = nullptr);
-
-/// HOW PLANTED A FOOT HAS TO BE before the instrument above judges it, and the
-/// number is DERIVED FROM THE SOLVE rather than picked.
-///
-/// The solve scales its lift by the same stance weight, so a foot at weight w
-/// is corrected by w of what it asked for and is short by (1-w) of it BY
-/// CONSTRUCTION — not by a defect. On a canonical 0.18 m rise, 0.95 bounds
-/// that shortfall at 0.009 m, which is inside the centimetre the acceptance
-/// is written in; a looser gate would put the instrument's own fade into the
-/// number it reports. Measured on this asset: the run's releasing foot sits at
-/// weight 0.81 and is 0.024 m short, which is 19 % of 0.125 m exactly.
 inline constexpr float FOOT_JUDGED_WEIGHT = 0.95f;
 
 } // namespace dfn::anim

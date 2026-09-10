@@ -38,7 +38,7 @@ Notes:
 - ЧАСЫ ЛОКОМОЦИИ ТЕПЕРЬ ЗДЕСЬ (решение синка 02.09, docs/design/
   LOCOMOTION_GROUNDED.md): при `ClipLibrary::feet_drive` фаза
   `ClipPlayback::phase` растёт своим темпом (заказ передачи / скорость клипа,
-  в полосе LOCOMOTION_TEMPO_BAND), а корень едет от опорной стопы (RootMotion.h),
+  в полосе LOCOMOTION_TEMPO_BAND), а корень едет от опорной стопы (Locomotion.h),
   так что событие шага, боб камеры и нарисованная постановка — один и тот же
   миг по построению, а не по совпадению двух часов. Прежний шов (фаза сима,
   стрид-скейл) остаётся контрольной рукой (`feet_drive = false`,
@@ -181,7 +181,6 @@ enum class MoveDir : uint8_t { Forward = 0, StrafeL, StrafeR, Backward };
 /// отдаётся телу (§13.3), а слой стойки на них снимается (§13.4).
 [[nodiscard]] bool transit_role(ClipRole role);
 /// Что сейчас идёт вместо цикла: старт, остановка, поворот (или ничего).
-enum class Transit : uint8_t { None = 0, Start, Stop, Turn, Stagger };
 
 [[nodiscard]] constexpr uint32_t role_index(ClipRole r) {
     return static_cast<uint32_t>(r);
@@ -203,32 +202,6 @@ enum class Transit : uint8_t { None = 0, Start, Stop, Turn, Stagger };
 /// that cell — and a straight line across it read 2.80 m where the clip
 /// covers 2.44. Twelve geometric points step by 12^(1/11) = 1.253 each, so
 /// every cell is the same 25 % of stride wherever it sits.
-inline constexpr uint32_t STRIDE_CURVE_POINTS = 12;
-/// Точек кривой пути опорной стопы по циклу (LOCOMOTION_GROUNDED.md §11.1).
-inline constexpr uint32_t PATH_CURVE_POINTS = 64;
-inline constexpr float STRIDE_SCALE_MIN = 0.25f;
-inline constexpr float STRIDE_SCALE_MAX = 3.0f;
-
-/// The scale the i-th curve cell was measured at.
-[[nodiscard]] float stride_scale_at(uint32_t i);
-/// Where `scale` sits on the curve's grid, as a real index (clamped).
-[[nodiscard]] float stride_curve_index(float scale);
-
-/// WHERE A FOOT CAN TOUCH THE GROUND: the rig's foot joint plus whatever the
-/// IMPORTED skeleton hangs off it — a toe, when the asset has one, and this
-/// one does (`DEF-toe.L/R`). It is not a name table: "the children of the foot
-/// joint" is the same sentence on a Rigify export and on Skyrim's
-/// `NPC L Foot -> NPC L Toe0`.
-///
-/// THE PREVIOUS WAVE MEASURED THE ANKLE AND SAID SO, and named it a tail: our
-/// fifteen bones have no toe, so the ankle stood in for the contact point.
-/// The ankle is a fair proxy for a WALK and a wrong one for a RUN, because a
-/// running foot lands on the ball: measured on this asset, the jog's ankle
-/// never came within 3 cm of the ground its toe was standing on, so the
-/// "stance" band caught the ankle mid-flight and read the clip as covering
-/// 5.35 m of ground per cycle where the fit below reads 5.66 m — and, far
-/// worse, the SPRINT read 0.698 m, which asked for a stride scale of 1.14
-/// where 0.79 was right. The toe is in the file. We were not looking at it.
 struct FootContacts {
     std::array<int32_t, 4> joint{};
     /// Where each of those joints sits in OUR REST POSE — the pose whose soles
@@ -312,8 +285,8 @@ struct ClipEntry {
     /// РАСПИСАНИЕ КОНТАКТОВ (§16): фазы постановки и отрыва каждой стопы,
     /// измеренные при загрузке по этому телу: точка контакта в полосе
     /// GRIP_TOLERANCE_M над своим покоем И её мировая скорость (локальная +
-    /// дорожка корня) ниже CONTACT_STILL_MPS. Заменяет веса опоры по высоте
-    /// на каждом тике: постановка — событие клипа, а не порог тика.
+    /// дорожка корня) ниже CONTACT_STILL_MPS. Постановка — событие клипа, а не
+    /// порог тика.
     std::array<std::array<float, MAX_PLANTS_PER_SIDE>, 2> plant_phase{};
     std::array<std::array<float, MAX_PLANTS_PER_SIDE>, 2> lift_phase{};
     std::array<uint8_t, 2> plant_count{};
@@ -323,147 +296,31 @@ struct ClipEntry {
     float handoff_phase = -1.0f;
     /// ГДЕ У ОДНОРАЗОВОГО КЛИПА КОНЧАЕТСЯ ДВИЖЕНИЕ ПО ДОРОЖКЕ (§16): последняя
     /// фаза, где корень ещё едет (≥ CONTACT_STILL_MPS/3) или крутится
-    /// (≥ 10°/с). Машина кончает остановку и поворот здесь — хвост покоя
-    /// клипа (Stop Walking: 1,5 с хода из 6) не держит игрока. 0 — не мерялось.
+    /// (≥ 10°/с). Машина кончает остановку и поворот здесь. 0 — не мерялось.
     float settle_phase = 0.0f;
-    /// КЛИП ВЗЯТ ЗЕРКАЛОМ (§13.6): в таблице ролей имя с приставкой «~» —
-    /// «зеркало клипа такого-то». Правый поворот — зеркало левого: у Mixamo
-    /// Right Turn 90 актёр шаркает обеими стопами, и опора по высоте его не
-    /// читает (снос 295 мм), а Left Turn 90 — чистый пивот (3,4 мм); зеркало
-    /// левого даёт правый той же чистоты. Зеркалится вся поза (mirror_pose)
-    /// сразу после выборки, до кроссфейда и слоёв.
+    /// КЛИП ВЗЯТ ЗЕРКАЛОМ (§13.6): в таблице ролей имя с приставкой «~».
+    /// Зеркалится вся поза (mirror_pose) сразу после выборки, до слоёв;
+    /// дорожка корня зеркалится при загрузке (x → −x, рыск → −рыск).
     bool mirrored = false;
     float duration_s = 0.0f;
-    /// Metres the STANCE foot carries the body per loop at stride scale 1,
-    /// measured through the retarget. Zero for a clip that does not travel.
-    float cycle_m = 0.0f;
-    /// Phase in [0,1) at which this clip's LEFT foot is planted (its contact
-    /// point at its lowest). Zero for a clip with no plant.
+    /// ФАЗА ОПОРЫ ЛЕВОЙ СТОПЫ — середина её окна опоры по расписанию (§16):
+    /// шов фазы шага (PHASE_LEFT) и вход в цикл со стыка клипов идут от неё.
+    /// Ноль у клипа без постановок.
     float footfall_phase = 0.0f;
-    /// cycle_m as a function of stride scale, over the grid
-    /// [STRIDE_SCALE_MIN, STRIDE_SCALE_MAX]. Monotone where the leg has room.
-    std::array<float, STRIDE_CURVE_POINTS> stride_curve{};
-    /// WHICH CELLS OF stride_curve ARE A MEASUREMENT and not a hole, one bit
-    /// each. Past some scale a scaled leg stops planting at all — the swing
-    /// is so wide the foot never settles — and the fit says so by finding no
-    /// plant. Writing a zero into the cell and letting the reader treat it as
-    /// "covers no ground" is what turned the jog's lookup into a refusal:
-    /// stride_scale_for saw a zero in the last cell, decided the whole curve
-    /// was empty and returned scale 1, which is the clip's own 5.58 m against
-    /// the 2.80 m sim asked for — 32 cm of foot slide per step, from a guard.
-    ///
-    /// A MASK AND NOT A COUNT, because the holes are not a tail. The jog's
-    /// curve measures at 0.25, misses at 0.31 and measures again at 0.39 and
-    /// every cell up to 0.97: a prefix rule threw away eight good cells for
-    /// one bad one and clamped the gear to the bottom of the range.
-    uint32_t stride_valid = 0;
-    [[nodiscard]] bool curve_has(uint32_t i) const {
-        return (stride_valid & (1u << i)) != 0;
-    }
-    /// HOW FAR THE MODEL HAS TO BE LIFTED so its lowest contact point stands
-    /// where the rest pose's does, per stride scale, over the same grid.
-    ///
-    /// IT IS NOT A COSMETIC TRIM. Scaling a leg's swing about its BIND —
-    /// which is how this file makes a clip cover sim's ground — also changes
-    /// how far the leg REACHES: scale it down and the knee straightens, so
-    /// the pelvis ought to ride HIGHER and instead the feet went through the
-    /// grass. Measured on the jog at the scale sim's 3 m/s asks for: the
-    /// lowest skinned vertex sat 0.157 m BELOW the ground the character was
-    /// standing on. A person with straighter legs stands taller; this is that
-    /// sentence, as a number, measured once per scale instead of guessed per
-    /// frame.
-    std::array<float, STRIDE_CURVE_POINTS> ground_curve{};
-    /// How still the planted contact point actually is once the fitted travel
-    /// is subtracted, metres per sample, at scale 1. A clip with no real
-    /// plant says so here rather than through a plausible-looking stride.
-    float plant_residual_m = 0.0f;
-    /// Fraction of the cycle either foot spends in contact, at scale 1. A
-    /// walk is over a half, a run well under; a number near zero means the
-    /// measurement below found no plant and the stride it reports is a guess.
-    float duty = 0.0f;
-    /// СКОРОСТЬ КЛИПА НА ЭТОМ ТЕЛЕ, м/с: ход опорной стопы за цикл ИТОГОВОЙ
-    /// записи (со смесью, при масштабе 1) на длительность цикла; ноль у клипа
-    /// без хода. Перемещение ведёт стопа (docs/design/LOCOMOTION_GROUNDED.md),
-    /// поэтому это и есть скорость передачи; заказ передачи добирается ТЕМПОМ
-    /// в полосе LOCOMOTION_TEMPO_BAND (advance_playback), а не масштабом ног.
-    float natural_mps = 0.0f;
-    /// КРИВАЯ ПУТИ ОПОРНОЙ СТОПЫ ПО ЦИКЛУ (§11.1, distance matching): сколько
-    /// метров стопа, стоящая на земле, унесла тело от начала цикла до фазы
-    /// i/(N−1). Монотонна; плоская там, где ни одна стопа не опирается (мах,
-    /// полёт). Часы клипа на ходу берутся из неё: фаза = s⁻¹(s(фаза) +
-    /// |Δкорня|), и стопа стоит на месте по построению — без замка.
-    std::array<float, PATH_CURVE_POINTS> path_curve{};
-    bool path_valid = false;
-    /// ГДЕ У ОДНОРАЗОВОГО КЛИПА КОНЧАЕТСЯ ДВИЖЕНИЕ, с (§13.1). У клипов Mixamo
-    /// хвост покоя: Stop Walking длится 6,0 с, а тормозит 1,5 — если ждать
-    /// конца файла, отпустивший клавишу стоит в «остановке» шесть секунд, и
-    /// поворот к камере всё это время не стреляет. Меряется при сборке: после
-    /// этой секунды ни таз, ни стопы не двигаются быстрее ONE_SHOT_STILL_MPS.
-    /// Ноль — не мерялось, переход кончается по длине клипа.
+    /// ОДНОРАЗОВЫЙ КЛИП: до какой секунды в нём есть движение (последний
+    /// кадр, где какая-то точка стопы быстрее ONE_SHOT_STILL_MPS, плюс
+    /// кроссфейд); какая стопа внизу на выходе; фаза каждого цикла, ближайшая
+    /// по позе ног к выходу (−1 — не мерялось).
     float active_s = 0.0f;
-    /// НА КАКОЙ СТОПЕ ОДНОРАЗОВЫЙ КЛИП КОНЧАЕТСЯ (§13.1): истина — левая ниже
-    /// правой на active_s. Цикл после него начинается с ТОЙ ЖЕ опоры
-    /// (фаза PHASE_LEFT для левой, +½ для правой), иначе на стыке стопа
-    /// подпрыгивает: замер 07.09 — колено 2 741 рад/с² на ходьбе и 5 507 на
-    /// беге при цикле, стартующем всегда с левой.
     bool exit_left = true;
-    /// ФАЗА ЦИКЛА, БЛИЖАЙШАЯ ПО ПОЗЕ НОГ К КОНЦУ ЭТОГО ОДНОРАЗОВОГО КЛИПА, на
-    /// каждую роль цикла (−1 — не мерялось; тогда стык по стопе выхода).
-    /// Опора та же, а ноги всё равно другие: замер 07.09 — при стыке «по
-    /// стопе» колено 2 548 рад/с², по ближайшей позе — см. паспорт. Меряется
-    /// при сборке: 32 фазы цикла против позы выхода, расстояние — сумма углов
-    /// таза, бёдер, голеней и стоп.
     std::array<float, CLIP_ROLE_COUNT> exit_phase{};
-    /// СКОРОСТЬ СТОПЫ ПОД ТЕЛОМ В ОПОРЕ, м/с — путь цикла на время опорных
-    /// ячеек кривой. Это и есть скорость, которую клип изображает: стопа на
-    /// земле неподвижна, значит тело идёт ровно так. natural_mps (корень от
-    /// стоп с коастом полёта) её завышает: Sprint_Loop 6,49 против 4,9.
-    /// Темп клипа (rate) на ходу — заказ/stance_mps.
-    float stance_mps = 0.0f;
-
-    /// THE SECOND CLIP OF A BLENDED GEAR, and the weight it carries.
-    ///
-    /// A GEAR WITH NO CLIP NEAR IT IS THE ONE CASE A SINGLE CLIP CANNOT
-    /// ANSWER. This asset is authored at 1.14, 5.98 and 9.12 m/s; sim's gears
-    /// are 1.8, 3.0 and 6.0. The walk and the run each have a clip within a
-    /// stride scale of 1.35 and 0.82 — that is a clip being ADJUSTED. The JOG
-    /// has neither: reaching 3 m/s means shrinking the jog clip to 0.42 (its
-    /// legs straighten, the feet skim, and grounding it lifts the whole body
-    /// 0.17 m — the "figure grows 18 cm on the gear change" the owner saw) or
-    /// stretching the walk to 1.84, which is a stride nobody walks. Blending
-    /// the two gives a cycle that natively covers what sim asks for, so the
-    /// stride scale lands near 1 and neither clip is bent far from what its
-    /// author drew.
-    ///
-    /// THE WEIGHT IS SOLVED, NOT CHOSEN: it is the blend whose MEASURED cycle
-    /// travel equals the gear's demanded travel. -1 / 0 = no blend.
-    int32_t mix_clip = -1;
-    float mix_duration_s = 0.0f;
-    float mix_footfall = 0.0f;
-    float mix_weight = 0.0f;
-    /// THE AMPLITUDES THE STANCE LAYER'S GAINS ARE MEASURED AGAINST: the peak
-    /// fore-aft arm pitch and the peak shoulder-over-hip twist this clip
-    /// reaches over its own cycle, radians.
-    ///
-    /// MEASURED PER CLIP AND NOT ASSUMED, because a gain is a ratio and a
-    /// ratio needs a denominator that is a fact. "Multiply the twist by 2.3"
-    /// is a sentence about ONE asset; "reach STANCE_TWIST_RUN" is a sentence
-    /// about the reference, and it only becomes a gain once somebody has
-    /// measured what this clip does on its own.
+    /// Что слой стойки узнал о клипе: пик маха рук, пик скрутки плеч и
+    /// средний сгиб локтя — чтобы усиливать их к заказу, а не поверх.
     float arm_swing_peak_rad = 0.0f;
     float twist_peak_rad = 0.0f;
-    /// THE ELBOW THIS CLIP HOLDS ON AVERAGE over its own cycle, radians. The
-    /// arm layer's elbow offset is the reference's elbow minus THIS, per clip:
-    /// a number solved on the idle and reused on the sprint overshot the
-    /// reference by 49 degrees, because the sprint was already right.
     float elbow_mean_rad = 0.0f;
-    /// What the blend cost and bought, kept so the decision is auditable: the
-    /// solo clip's slide and its ground lift at this gear's stride.
-    float mix_solo_slide_m = 0.0f;
-    float mix_solo_lift_m = 0.0f;
 
     [[nodiscard]] bool present() const { return clip >= 0; }
-    [[nodiscard]] bool mixed() const { return mix_clip >= 0 && mix_weight > 0.0f; }
 };
 
 struct ClipLibrary {
@@ -511,23 +368,11 @@ struct ClipLibrary {
     /// (fade = 0, `ClipPlayback::switched`), разницу поз гасит владелец позы;
     /// false — линейный кроссфейд CLIP_CROSSFADE_S, как до 07.09.
     bool inertial = false;
-    /// ЧАСЫ КЛИПА ОТ ПУТИ (§11.1): фаза хода из кривой пути и фактического
-    /// смещения корня (BodyDrive::travelled_m), а не из dt·rate. По умолчанию
-    /// ложь — часы по времени; дверь DFN_CLIP_CLOCK=path включает (приёмка
-    /// 04.09: ходьба/стрейфы/назад ≤ 2 мм, трусца 2,8, бег ждёт клипа под 6 м/с).
-    bool clip_clock_path = false;
     /// ПЕРЕХОДЫ ВКЛЮЧЕНЫ (§13): старт, остановка, поворот на месте. Ложь —
     /// прежний шов «состояние → цикл» без одноразовых клипов: контрольная
     /// рука приборов, которые характеризуют САМ ЦИКЛ (его размах, снос,
     /// темп), и дверь DFN_CLIP_TRANSITIONS=0 для сравнения в игре.
     bool transitions = true;
-    /// ПЕРЕМЕЩЕНИЕ ВЕДЁТ ОПОРНАЯ СТОПА (docs/design/LOCOMOTION_GROUNDED.md):
-    /// часы локомоции живут здесь (ClipPlayback::phase), масштаб размаха ног
-    /// равен 1, темп — в полосе LOCOMOTION_TEMPO_BAND, корневое смещение за тик
-    /// выводится из стопы (RootMotion.h). false — прежний шов: фаза сим'а и
-    /// стрид-скейл, побитово прежний кадр (дверь DFN_ROOT_FROM_FEET=0 —
-    /// контрольная рука приёмки, правило 47).
-    bool feet_drive = true;
     /// ДОЗА СИММЕТРИИ ПОКОЯ: поза Idle, смешанная со своим зеркалом на той же
     /// фазе (строка IDLE_SYMMETRY_DOSE; 0 — клип как есть, контрольная рука).
     float idle_symmetry = static_cast<float>(config::IDLE_SYMMETRY_DOSE);
@@ -558,22 +403,18 @@ struct ClipLibrary {
 [[nodiscard]] const ClipEntry& entry_for(const ClipLibrary& lib, ClipRole role, int32_t variant);
 
 /// Путь опорной стопы от начала цикла до фазы (м), по кривой записи.
-[[nodiscard]] float path_travel_at(const ClipEntry& entry, float phase);
 /// Фаза, на которой путь стал s (м) — обратная кривая; s сверх цикла
 /// заворачивается. Плоский участок кривой обратной не имеет — тогда фаза
 /// плоского участка, ближайшая спереди.
-[[nodiscard]] float path_phase_at(const ClipEntry& entry, float s);
 /// Наклон кривой на фазе (м на единицу фазы); ноль — стопа не опирается.
-[[nodiscard]] float path_slope_at(const ClipEntry& entry, float phase);
 /// Фаза после хода ds (м) от фазы phase — ВПЕРЁД по кривой, внутри текущего
 /// участка опоры: дошли до плоского участка (мах/полёт) — встали на его
 /// начало, остаток хода свободен. Никогда не назад.
-[[nodiscard]] float path_phase_after(const ClipEntry& entry, float phase, float ds);
 
 [[nodiscard]] ClipLibrary build_clip_library(
     const Rig& rig, const skel::Skeleton& skeleton, const SkinnedRigBinding& binding,
     std::span<const skel::AnimClip> clips,
-    std::span<const platform::SkinnedVertex> skin = {}, bool feet_drive = true,
+    std::span<const platform::SkinnedVertex> skin = {},
     std::string_view role_overrides = {});
 /// `role_overrides`: "Walk=KK_Walking_A,Jog=KK_Running_A" — роль по её
 /// короткому имени получает НАЗВАННЫЙ клип вместо табличного (дверь
@@ -594,19 +435,14 @@ void blend_local(std::span<const JointLocal> a, std::span<const JointLocal> b,
 /// This is what makes a 1.03 m clip stride cover 1.96 m of sim's ground, and
 /// it is deliberately expressed against the bind rather than against our rest:
 /// the bind is the only frame both the clip and the skeleton already agree on.
-void scale_sample_stride(const SkinnedRigBinding& binding,
-                         const skel::Skeleton& skeleton, float scale,
-                         std::span<JointLocal> sample);
 
 /// The scale whose measured travel is `target_m`, read backwards off the
 /// entry's curve. CLAMPED to [STRIDE_SCALE_MIN, STRIDE_SCALE_MAX]; when the
 /// target is past the end of the curve the clamp is what the caller gets and
 /// the residual slide is real.
-[[nodiscard]] float stride_scale_for(const ClipEntry& entry, float target_m);
 
 /// The lift the entry's ground_curve asks for at `scale`, linearly between
 /// the two grid points that bracket it. Metres, positive = up.
-[[nodiscard]] float ground_lift_for(const ClipEntry& entry, float scale);
 
 /// How long a cross-fade between two roles lasts, seconds. One number for
 /// every transition on purpose: a per-pair table is a thing nobody keeps true,
@@ -631,7 +467,6 @@ struct ClipPlayback {
     MoveDir move_dir = MoveDir::Forward; ///< класс направления с гистерезисом (§9.2)
     uint32_t variant_pick = 0; ///< счётчик выборов — детерминированная «случайность»
     /// 1 -> 0 while the previous role fades out. Zero means "no cross-fade".
-    Transit transit = Transit::None; ///< идёт переход (старт/остановка/поворот)
     /// СКОЛЬКО СЕЙЧАС «КЛИП ПЕРЕХОДА», 0..1, сглажено кроссфейдом. На этот вес
     /// СНИМАЕТСЯ СЛОЙ СТОЙКИ: клипы Mixamo (поворот, старт, остановка) —
     /// готовые авторские позы, а слой правит осанку ЦИКЛОВ UAL, которым
@@ -642,14 +477,11 @@ struct ClipPlayback {
     /// Сколько ещё нельзя запускать поворот на месте (TURN_MIN_GAP_S): камера,
     /// уехавшая на 180°, доворачивается двумя клипами по 90°, но не подряд
     /// кадр-в-кадр — иначе тело крутится волчком.
-    float turn_gap_s = 0.0f;
     /// Знак поворота на месте, который сейчас играет (+1 вправо, −1 влево):
     /// клип обрывается, когда разница «взгляд − корпус» меньше TURN_DONE_DEG
     /// или сменила знак — довернул.
-    int8_t turn_sign = 0;
     /// Пауза после клипа удара (STAGGER_MIN_GAP_S): длящийся толчок — один
     /// клип, а не клип каждый тик.
-    float stagger_gap_s = 0.0f;
     float fade = 0.0f;
     float fade_s = 0.0f; ///< длительность текущего кроссфейда (переход → цикл длиннее)
     /// НА ЭТОМ ТИКЕ СМЕНИЛАСЬ РОЛЬ (или вариант покоя) — событие одного тика;
@@ -670,14 +502,10 @@ struct ClipPlayback {
     /// (ClipEntry::mix_clip). Carried rather than recomputed in the frame
     /// because the frame has no stride phase: it interpolates between two
     /// ticks, and each tick is what knew where in the cycle it was.
-    float mix_time_s = 0.0f;
-    float previous_mix_time_s = 0.0f;
     /// The weapon guard runs off its OWN seconds: it is not locomotion, it has
     /// no stride, and its cycle is a man breathing over a raised blade.
     float weapon_time_s = 0.0f;
     /// Stride scale in force this tick, and the one the previous role had.
-    float stride = 1.0f;
-    float previous_stride = 1.0f;
     /// ЧАСЫ ЛОКОМОЦИИ ЭТОЙ ЗОНЫ, [0,1) на цикл L+R, когда `ClipLibrary::feet_drive`:
     /// растут на dt·rate/длительность клипа роли, в покое стоят (как прежде
     /// держал сим на остановке). Наружу публикуются как фаза для боба камеры и
@@ -691,10 +519,6 @@ struct ClipPlayback {
     float prev_time_s = 0.0f;
     float prev_previous_time_s = 0.0f;
     float prev_fade = 0.0f;
-    float prev_stride = 1.0f;
-    float prev_previous_stride = 1.0f;
-    float prev_mix_time_s = 0.0f;
-    float prev_previous_mix_time_s = 0.0f;
     float prev_weapon_time_s = 0.0f;
     /// WHETHER THE HANDS ARE FULL, eased. 0 = sheathed (the arm layer is on
     /// and the whole body plays one clip), 1 = drawn (the arm layer is off and
@@ -754,48 +578,5 @@ void advance_playback(const ClipLibrary& lib, const BodyDrive& drive, float dt,
                                    std::span<const skel::AnimClip> clips,
                                    const ClipLibrary& lib, const ClipPlayback& play,
                                    float alpha, std::span<JointLocal> out_sample);
-
-/// MEASUREMENT, and the prober item 4 of the wave is built on it: how far the
-/// stance foot slides in WORLD space while the body walks with `step_length_m`.
-/// The world track of each foot while it is PLANTED is what is measured, and
-/// one plant is one step, so the two feet are judged separately and the worse
-/// of them is the answer — the unit the acceptance threshold is written in
-/// ("<= 2 cm per step"). Summing the pair would let a foot that plants cleanly
-/// pay for one that does not.
-struct FootSlide {
-    /// THE NUMBER THE THRESHOLD IS ABOUT: the widest the planted foot's world
-    /// position spreads while it is planted, worse of the two feet.
-    ///
-    /// AND FOR ONE FOOT IT IS THE BEST OF ITS CONTACT JOINTS, not the worst,
-    /// which is the opposite convention to the one between the two FEET and
-    /// is right for the opposite reason. Two feet are two independent claims
-    /// and the worse one is the answer. Two contact joints of the SAME foot
-    /// are one claim seen twice: while the ball of the foot is planted the
-    /// ankle is rotating ABOUT it and honestly travels five centimetres, and
-    /// counting that as slide would say every real heel-to-toe roll is a
-    /// defect. The question is "did this foot have a point that stayed still",
-    /// and the best-planted joint is the one that answers it.
-    float worst_per_step_m = 0.0f;
-    /// The same measurement made at the ANKLE alone — the unit the previous
-    /// wave reported and the one the order names. Kept beside the headline so
-    /// the two waves' numbers can be compared at all.
-    float ankle_per_step_m = 0.0f;
-    /// The same plant measured as summed path instead of spread — the strict
-    /// reading. It can only be larger; the gap between the two is jitter.
-    float path_per_step_m = 0.0f;
-    float cycle_travel_m = 0.0f;   ///< what the clip actually covered
-    float demanded_m = 0.0f;       ///< what sim said the body covered
-    /// How still the planted contact point is once the FITTED travel is taken
-    /// out, per sample. It answers "is there a plant here at all", which a
-    /// slide figure alone cannot: a clip whose foot never stops moving can
-    /// still report a small drift if its plant window is two samples long.
-    float plant_residual_m = 0.0f;
-};
-[[nodiscard]] FootSlide measure_foot_slide(const skel::Skeleton& skeleton,
-                                           const SkinnedRigBinding& binding,
-                                           std::span<const skel::AnimClip> clips,
-                                           const ClipLibrary& lib, ClipRole role,
-                                           float step_length_m, bool stride_match,
-                                           uint32_t samples);
 
 } // namespace dfn::anim

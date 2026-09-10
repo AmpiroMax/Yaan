@@ -200,3 +200,48 @@ TEST_CASE("a_start_clip_hands_off_to_the_cycle") {
     }
 }
 
+
+TEST_CASE("diagnostic_root_track_speed_profile") {
+    // ПРОФИЛЬ СКОРОСТИ ДОРОЖКИ ПО ФАЗЕ: где таз клипа замирает (провал до нуля
+    // — тик капсулы без хода, видимая запинка) и где рвётся вперёд.
+    Model m;
+    REQUIRE(load(m));
+    for (const anim::ClipRole r : {anim::ClipRole::Walk, anim::ClipRole::Jog, anim::ClipRole::Sprint,
+                                   anim::ClipRole::Backward, anim::ClipRole::StrafeL, anim::ClipRole::StrafeR}) {
+        const anim::ClipEntry& e = role(m, r);
+        if (!e.present() || !e.root.valid) {
+            continue;
+        }
+        const float dphase = 1.0f / static_cast<float>(anim::ROOT_TRACK_POINTS - 1);
+        float vmin = 1.0e9f;
+        float vmax = 0.0f;
+        float at_min = 0.0f;
+        int zeros = 0;
+        for (uint32_t i = 1; i < anim::ROOT_TRACK_POINTS; ++i) {
+            const float v = glm::length(e.root.xz[i] - e.root.xz[i - 1]) / (dphase * e.duration_s);
+            if (v < vmin) {
+                vmin = v;
+                at_min = static_cast<float>(i) * dphase;
+            }
+            vmax = std::max(vmax, v);
+            zeros += v < 0.05f ? 1 : 0;
+        }
+        const skel::AnimClip& clip = m.obj.clips[static_cast<std::size_t>(e.clip)];
+        float t_first = 0.0f;
+        float t_last = 0.0f;
+        std::size_t keys = 0;
+        for (const skel::AnimChannel& ch : clip.channels) {
+            if (ch.joint == 0 && ch.path == skel::AnimPath::Translation && !ch.times.empty()) {
+                t_first = ch.times.front();
+                t_last = ch.times.back();
+                keys = ch.times.size();
+            }
+        }
+        MESSAGE(anim::role_name(r) << ": канал root: " << keys << " ключей, первый " << t_first << " с, последний "
+                                   << t_last << " с, длительность клипа " << e.duration_s);
+        MESSAGE(anim::role_name(r) << ": средняя " << e.root.mps << " м/с, минимум " << vmin << " на фазе " << at_min
+                                   << ", максимум " << vmax << ", сегментов медленнее 0,05 м/с: " << zeros << " из 127");
+        // цикл ходьбы не замирает: минимум мгновенной скорости выше трети средней
+        CHECK(vmin > 0.33f * e.root.mps);
+    }
+}

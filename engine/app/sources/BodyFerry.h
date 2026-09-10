@@ -27,7 +27,7 @@ AI Agents Notice (must follow):
 #pragma once
 
 #include "engine/anim/sources/Body.h"
-#include "engine/anim/sources/RootMotion.h"
+#include "engine/anim/sources/Locomotion.h"
 #include "engine/gameplay/sources/PlayerMovement.h"
 #include "engine/gameplay/sources/StepFeel.h"
 #include "engine/platform/physics/interfaces/IPhysics.h"

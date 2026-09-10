@@ -30,6 +30,7 @@ Dependencies:
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
+- LocomotionOut и rotate_root_joints переехали сюда из RootMotion.h (снесён фазой 6).
 - Числа — реестр (LOCO_STATE_DWELL_S, BODY_TURN_START_DEG, TURN_WARP_*,
   TURN_FIRE_DEG, LOCOMOTION_TEMPO_BAND, STAGGER_*); в коде литералов нет.
 */
@@ -38,7 +39,9 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/Clips.h"
 #include "engine/anim/sources/ClipPlayer.h"
 
+#include <array>
 #include <cstdint>
+#include <span>
 
 #include <glm/glm.hpp>
 
@@ -92,6 +95,37 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
 /// Рыск тела принадлежит клипу (поворот на месте или клип с рыском в
 /// дорожке): сим не доворачивает корпус к вводу.
 [[nodiscard]] bool loco_yaw_owned_by_clip(const ClipLibrary& lib, const LocoMachine& m);
+
+/// ЗАЯВКА ЛОКОМОЦИИ ЗА ТИК — что зона просит у мира (§16.4).
+struct LocomotionOut {
+    /// Смещение корня за тик в системе тела (y = 0), метры — дорожка корня
+    /// плюс скольжение поставленной физической стопы.
+    glm::vec3 root_delta_model{0.0f};
+    /// Фаза шага [0,1) — часы этой зоны, для боба камеры и событий.
+    float phase = 0.0f;
+    /// Рыск корпуса за тик из дорожки корня, рад (+ по часовой, как рыск сим'а).
+    float root_yaw_delta = 0.0f;
+    /// Постановка стопы на этом тике: [0] левая, [1] правая.
+    std::array<bool, 2> footfall{};
+    /// Стопа в опоре по расписанию контактов клипа.
+    std::array<bool, 2> planted{};
+    /// Класс направления хода — приборам и приложению (третье лицо).
+    MoveDir dir = MoveDir::Forward;
+    /// Рыск корпуса принадлежит клипу (поворот на месте): ни сим, ни
+    /// приложение корпус не доворачивают.
+    bool yaw_owned_by_clip = false;
+    /// Заявка вербатим: смещение капсулы = root_delta целиком.
+    bool verbatim = false;
+    /// Ложь — заявки нет (нет клипов, воздух, поза, DFN_ROOT_TRACK=0):
+    /// сим двигает капсулу от модели скорости ввода.
+    bool valid = false;
+};
+
+/// ПОВОРОТ КОРНЕВЫХ СУСТАВОВ ПОЗЫ на `yaw` (рад, знак сим'а): остаток варпа
+/// поворота на месте — нарисованный корпус смотрит туда же, куда едет
+/// капсула. yaw = 0 — no-op бит-в-бит.
+void rotate_root_joints(const skel::Skeleton& skeleton, std::span<const int32_t> roots, float yaw,
+                        std::span<JointLocal> sample);
 
 struct TurnPick {
     ClipRole role = ClipRole::Idle;
