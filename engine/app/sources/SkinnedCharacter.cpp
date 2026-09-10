@@ -63,6 +63,18 @@ namespace {
 /// followed inside one stride.
 constexpr float FOOT_IK_ROOT_TAU_S = 0.08f;
 
+/// ОПОРА ПО РАСПИСАНИЮ КЛИПА: фаза внутри [постановка, отрыв) любого окна;
+/// окно «полный круг» (покой: постановка == отрыв) — всегда.
+[[nodiscard]] bool schedule_planted(const anim::ClipEntry& e, std::size_t side, float ph) {
+    bool planted = false;
+    for (uint8_t i = 0; i < e.plant_count[side]; ++i) {
+        const float p = e.plant_phase[side][i];
+        const float l = e.lift_phase[side][i];
+        planted = planted || (p == l) || (p < l ? (ph >= p && ph < l) : (ph >= p || ph < l));
+    }
+    return planted;
+}
+
 /// How fast the whole solve fades in and out (a jump, sitting down). Its own
 /// number: it gates a MECHANISM rather than tracks a surface, and it wants to
 /// be off before the take-off frame rather than a tick after it.
@@ -228,6 +240,8 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
         inertial_on_ = !(in != nullptr && in[0] == '0');
         const char* rt = door_value("DFN_ROOT_TRACK");
         root_track_ = !(rt != nullptr && rt[0] == '0');
+        const char* rh = door_value("DFN_ROOT_HEIGHT");
+        root_height_feet_ = !(rh != nullptr && std::string_view{rh} == "capsule");
         lock_params_ = anim::FootLockParams::from_config();
     }
     const char* roles = door_value("DFN_CLIP_ROLES");
@@ -765,7 +779,18 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
     // парила над своей ступенью на 20 см (прибор app_grounded_locomotion,
     // синтетический марш). Корень вычитает прыжок в тот же тик, тело
     // остаётся, где было, и уже плавно поднимается за планом.
-    if (ticked_) {
+    if (ticked_ && dt > 0.0f) {
+        const float vy = (standing_ground.y - last_ground_y_) / dt;
+        ground_vy_mps_ += (vy - ground_vy_mps_) * gate_k;
+        // гистерезис: вниз быстрее 0,1 м/с — спуск; вверх/ровно — конец спуска
+        if (ground_vy_mps_ < -0.1f) {
+            capsule_descending_ = true;
+        } else if (ground_vy_mps_ > -0.02f) {
+            capsule_descending_ = false;
+        }
+    }
+    const bool feet_own = root_height_feet_ && loco_active_ && !capsule_descending_;
+    if (ticked_ && !feet_own) {
         const float jump = standing_ground.y - last_ground_y_;
         if (std::abs(jump) > 0.02f) {
             root_dy_ = std::clamp(root_dy_ - jump, -anim::FOOT_IK_ROOT_LIMIT_M,
@@ -776,6 +801,7 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
     foot_probe_.valid = false;
     if (!ground_probe_ || !foot_setup_.valid() || !playing_clips()) {
         root_dy_ += (0.0f - root_dy_) * gate_k;
+        has_root_world_ = false;
         return;
     }
     // THE POSE THIS TICK ENDED ON, which is where the rays go from. The frame
@@ -812,9 +838,27 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
         foot_probe_.ankle_ground[side] = ground_under(foot_setup_.ankle[side], 0.0f);
         foot_probe_.toe_ground[side] =
             ground_under(foot_setup_.toe[side], foot_probe_.ankle_ground[side]);
+        // ОДНА СТУПЕНЬ НА ОПОРУ: земля поставленной по расписанию стопы берётся
+        // на постановке и держится до отрыва (в мире; сюда — относительно
+        // земли капсулы этого тика). Без дорожки/машины — как прежде, щуп.
+        if (feet_own) {
+            if (height_owner_[side]) {
+                if (!ground_frozen_[side]) {
+                    frozen_ankle_ground_[side] = root.ground.y + foot_probe_.ankle_ground[side];
+                    frozen_toe_ground_[side] = root.ground.y + foot_probe_.toe_ground[side];
+                    ground_frozen_[side] = true;
+                }
+                foot_probe_.ankle_ground[side] = frozen_ankle_ground_[side] - root.ground.y;
+                foot_probe_.toe_ground[side] = frozen_toe_ground_[side] - root.ground.y;
+            } else {
+                ground_frozen_[side] = false;
+            }
+        } else {
+            ground_frozen_[side] = false;
+        }
     }
     foot_probe_.valid = true;
-    const anim::FootIkPlan tick_plan =
+    anim::FootIkPlan tick_plan =
         anim::plan_foot_ik(skeleton_, foot_setup_, foot_probe_, tick_sample_);
     plan_ = tick_plan;
     const float k = dt > 0.0f ? 1.0f - std::exp(-dt / FOOT_IK_ROOT_TAU_S) : 1.0f;
@@ -827,6 +871,53 @@ void SkinnedCharacter::probe_ground(const anim::BodyDrive& drive,
     // (Пробовано 07.09: на тике скачка капсулы ставить корень ровно в план —
     // проникание на марше выросло 13,5 → 25,7 мм: план тика не то, что нужно
     // кадру между тиками. Оставлено вычитание скачка + фильтр.)
+    if (feet_own) {
+        // ЧЬЯ ЗЕМЛЯ ВЕДЁТ ВЫСОТУ — ОПОРНАЯ СТОПА ПО РАСПИСАНИЮ КЛИПА, не по
+        // высоте стопы в клипе: на лестнице маховая стопа плоской ходьбы идёт у
+        // своей высоты покоя и по модели «стоит», и план тянул тело к земле под
+        // ней (на спуске — вниз к нижней ступени, пока опорная ещё наверху:
+        // парение 26 см). Двойная опора — среднее двух земель.
+        const std::array<float, 2> need = tick_plan.need;
+        if (height_owner_[0] && height_owner_[1]) {
+            tick_plan.root_dy = 0.5f * (need[0] + need[1]);
+        } else if (height_owner_[0]) {
+            tick_plan.root_dy = need[0];
+        } else if (height_owner_[1]) {
+            tick_plan.root_dy = need[1];
+        }
+        tick_plan.root_dy = std::clamp(tick_plan.root_dy, -anim::FOOT_IK_ROOT_LIMIT_M,
+                                       anim::FOOT_IK_ROOT_LIMIT_M);
+        plan_ = tick_plan;
+    }
+    if (!feet_own) {
+        has_root_world_ = false;
+    }
+    if (feet_own) {
+        // ЛЕСТНИЦА (§16.6, 11.09): хозяин высоты рисуемого тела — земля под
+        // опорной стопой, а не капсула. Капсула (радиус больше проступи)
+        // въезжает на подступёнок раньше стопы и поднимается плавно 0,8 м/с;
+        // фильтр ОТНОСИТЕЛЬНО капсулы отставал от этого подъёма, и задняя
+        // стопа парила до 41 см. Цель держится в МИРЕ: план (взвешенная земля
+        // под опорной стопой) + земля капсулы = мировая высота корня; к ней
+        // идём не быстрее ROOT_HEIGHT_RATE_MPS (смена опорной стопы на ступень
+        // — прыжок цели на подступёнок за двойную опору) с тем же фильтром;
+        // смещение от капсулы — разность ТОЧНО за тик, подъём капсулы в него
+        // не входит. Контроль — DFN_ROOT_HEIGHT=capsule (ветка ниже).
+        const float target_world = root.ground.y + tick_plan.root_dy;
+        if (!has_root_world_) {
+            root_world_y_ = target_world;
+            has_root_world_ = true;
+        }
+        const float rate_cap = static_cast<float>(config::ROOT_HEIGHT_RATE_MPS) * dt;
+        const float toward = (target_world - root_world_y_) * k;
+        root_world_y_ += std::clamp(toward, -rate_cap, rate_cap);
+        root_dy_ = std::clamp(root_world_y_ - root.ground.y, -anim::FOOT_IK_ROOT_LIMIT_M,
+                              anim::FOOT_IK_ROOT_LIMIT_M);
+        root_world_y_ = root.ground.y + root_dy_;
+        plan_root_dy_prev_ = tick_plan.root_dy;
+        has_plan_root_dy_ = true;
+        return;
+    }
     if (has_plan_root_dy_) {
         const float ramp_cap = static_cast<float>(config::FOOT_IK_ROOT_RAMP_MPS) * dt;
         const float d = tick_plan.root_dy - plan_root_dy_prev_;
@@ -877,8 +968,18 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         in.grounded = drive.grounded;
         in.push_mps = glm::length(glm::vec2{drive.push_mps_model.x, drive.push_mps_model.z});
         anim::loco_step(library_, in, dt, loco_m_);
-    } else if (root_track_) {
-        loco_m_ = anim::LocoMachine{}; // вернёмся на землю — с покоя
+        const anim::ClipEntry& e = library_[loco_m_.role];
+        for (std::size_t side = 0; side < 2; ++side) {
+            sched_planted_[side] = schedule_planted(e, side, loco_m_.phase);
+            height_owner_[side] = foot_phys_[side].sensed ? foot_phys_[side].planted
+                                                          : sched_planted_[side];
+        }
+    } else {
+        sched_planted_ = {false, false};
+        height_owner_ = {false, false};
+        if (root_track_) {
+            loco_m_ = anim::LocoMachine{}; // вернёмся на землю — с покоя
+        }
     }
     anim::advance_playback(library_, drive_ref, dt, play_, loco_active_ ? &loco_m_ : nullptr);
     tick_sample_.resize(skeleton_.size());
@@ -1061,16 +1162,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
                 crossed = crossed || (a <= b ? (pp > a && pp <= b) : (pp > a || pp <= b));
             }
             loco_.footfall[side] = crossed;
-            // ОПОРА ПО РАСПИСАНИЮ: фаза внутри [постановка, отрыв) любого
-            // окна; окно «полный круг» (покой: постановка == отрыв) — всегда.
-            bool planted = false;
-            for (uint8_t i = 0; i < e.plant_count[side]; ++i) {
-                const float p = e.plant_phase[side][i];
-                const float l = e.lift_phase[side][i];
-                const float ph = loco_m_.phase;
-                planted = planted || (p == l) || (p < l ? (ph >= p && ph < l) : (ph >= p || ph < l));
-            }
-            loco_.planted[side] = planted;
+            loco_.planted[side] = sched_planted_[side];
         }
         loco_.dir = loco_m_.dir;
         loco_.yaw_owned_by_clip = anim::loco_yaw_owned_by_clip(library_, loco_m_);

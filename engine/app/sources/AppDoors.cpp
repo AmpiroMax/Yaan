@@ -24,7 +24,7 @@ namespace {
 // FOR -- unattended evidence, then the editor, then the picture, then the
 // backends -- and a reader arriving with "is there a door for X" finds X
 // faster among its neighbours than among names that merely start alike.
-constexpr std::array<Door, 156> TABLE{{
+constexpr std::array<Door, 157> TABLE{{
     {"DFN_TOUR",
      "маршрут облёта: камера ведётся по точкам, каждая снимается, приложение закрывается после последней. Счётные часы (кадр — единица времени), иначе два прогона снимут разный час и разный порыв ветра. ЗНАЧЕНИЕ читает render::Tour (engine/render/sources/Tour.cpp); зона app спрашивает только, открыта ли она.",
      DoorRead::Once, true},
@@ -311,6 +311,9 @@ constexpr std::array<Door, 156> TABLE{{
      DoorRead::Once},
     {"DFN_ROOT_TRACK",
      "0 — ПРЕЖНИЙ ПУТЬ ДВИЖЕНИЯ (корень от опорной стопы, пороги переходов, замок стопы) вместо дорожки корня клипа и машины состояний (LOCOMOTION_GROUNDED.md §16). Контрольная рука всех приборов новой локомоции: обе руки из одного бинарника.",
+     DoorRead::Once},
+    {"DFN_ROOT_HEIGHT",
+     "capsule — ВЫСОТА РИСУЕМОГО ТЕЛА ОТ КАПСУЛЫ, как до 11.09 (фильтр опускания корня относительно капсулы): на лестнице капсула въезжает на подступёнок раньше стопы, и задняя стопа парит до 41 см. По умолчанию высота тела — от земли под опорной стопой, цель в мире (LOCOMOTION_GROUNDED.md §16.6). Контрольная рука прибора марша.",
      DoorRead::Once},
     {"DFN_CLIP_INERTIAL",
      "0 — СМЕНА КЛИПА ЛИНЕЙНЫМ КРОССФЕЙДОМ, как до 07.09 (LOCOMOTION_GROUNDED.md §13.7): контрольная рука инерциализации стыков, у которой новый клип играет сразу, а разница поз гасится квинтикой за INERTIAL_BLEND_S. Прибор: рывок колена на стыке старт → цикл.",

@@ -155,6 +155,7 @@ void CharacterFeet::tick(SkinnedCharacter& body, float dt) {
             }
             r.planted = planted_[side];
             SkinnedCharacter::FootPhysicsNote note;
+            note.sensed = true;
             note.planted = r.planted;
             note.holds = r.holds;
             note.slip_mps = r.slip_mps;

@@ -223,6 +223,9 @@ public:
     /// The last tick's grounding, for the debug readout and the report.
     [[nodiscard]] const anim::FootIkPlan& foot_plan() const { return plan_; }
     [[nodiscard]] float foot_root_shift_m() const { return root_dy_; }
+    /// Высота тела от земли под опорной стопой (ложь — от капсулы, контроль).
+    void set_root_height_from_feet(bool on) { root_height_feet_ = on; has_root_world_ = false; }
+    [[nodiscard]] bool root_height_from_feet() const { return root_height_feet_; }
 
     /// ONE FIXED TICK. Advances the clip state machine and snapshots this
     /// tick's procedural pose and root beside the previous tick's, so
@@ -258,6 +261,7 @@ public:
         ++slip_count_;
     }
     struct FootPhysicsNote {
+        bool sensed = false;  ///< тело стопы есть (CharacterFeet): датчик, не расписание
         bool planted = false;
         bool holds = false;
         float slip_mps = 0.0f;
@@ -471,6 +475,33 @@ private:
     /// План опускания корня прошлого тика — упреждение рампы (склоны).
     float plan_root_dy_prev_ = 0.0f;
     bool has_plan_root_dy_ = false;
+    /// ВЫСОТА ТЕЛА — ОТ ЗЕМЛИ ПОД ОПОРНОЙ СТОПОЙ (§16.6, лестница): цель высоты
+    /// корня держится и фильтруется В МИРЕ, чтобы плавный подъём капсулы на
+    /// подступёнок (0,8 м/с) не проходил в высоту рисуемого тела. Ложь —
+    /// прежний фильтр относительно капсулы (контрольная рука DFN_ROOT_HEIGHT=capsule).
+    bool root_height_feet_ = true;
+    float root_world_y_ = 0.0f;
+    bool has_root_world_ = false;
+    /// Опора по расписанию клипа на этом тике (машина): чья земля ведёт высоту.
+    std::array<bool, 2> sched_planted_{};
+    /// ЧЬЯ ЗЕМЛЯ ВЕДЁТ ВЫСОТУ: датчик (тело стопы касается и стоит), когда
+    /// стопы физические; иначе расписание. На спуске стопа клипа «стоит» по
+    /// расписанию ещё в воздухе над нижней ступенью — датчик знает лучше.
+    std::array<bool, 2> height_owner_{};
+    /// ЗЕМЛЯ ПОСТАВЛЕННОЙ СТОПЫ ЗАМОРОЖЕНА НА ПОСТАНОВКЕ (мир, лодыжка/носок):
+    /// стоящая стопа стоит на одной ступени; щуп под рисуемой стопой, которая
+    /// за опору сползает и перекатывается через кромку, читал бы соседнюю
+    /// ступень (скачок 0,18 за тик — парение 15 см на марше, 11.09).
+    std::array<bool, 2> ground_frozen_{};
+    /// КАПСУЛА ИДЁТ ВНИЗ (спуск, падение): хозяин высоты — капсула, как прежде.
+    /// Опорная стопа ведёт высоту на подъёме и на ровном, где капсула
+    /// въезжает на подступёнок раньше стопы; на спуске капсула, наоборот,
+    /// сваливается с кромки после стопы, и держать тело на верхней ступени
+    /// значило бы вешать его в воздухе над следующей (замер 11.09: 16 см).
+    bool capsule_descending_ = false;
+    float ground_vy_mps_ = 0.0f;
+    std::array<float, 2> frozen_ankle_ground_{};
+    std::array<float, 2> frozen_toe_ground_{};
     /// One frame's scratch for the tick-time probe pose.
     std::vector<anim::JointLocal> tick_sample_;
     /// ИНЕРЦИАЛИЗАЦИЯ СТЫКОВ (§13.7): две прошлые показанные позы (до

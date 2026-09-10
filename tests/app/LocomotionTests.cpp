@@ -58,6 +58,8 @@ AI Agents Notice (must follow):
 
 #include <doctest/doctest.h>
 
+#include <glm/gtc/constants.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -617,80 +619,114 @@ TEST_CASE("the_march_is_climbed_on_physical_feet") {
     if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
         return;
     }
-    for (const bool root_track : {true, false}) {
-        Seam s(root_track, false, true);
-        REQUIRE(s.ok);
-        // канонический марш: девять ступеней 0,18/0,28 от z = −1,5 в −Z
-        for (int i = 0; i < 9; ++i) {
-            s.step_box(-1.5f - 0.28f * static_cast<float>(i), 0.28f, 0.18f * static_cast<float>(i + 1));
-        }
-        // площадка наверху — до конца прогона (8 с ходьбы = 14 м)
-        s.step_box(-1.5f - 0.28f * 9.0f, 20.0f, 0.18f * 9.0f);
-        float worst_gap = 0.0f;
-        int gap_hits = 0;
-        int judged = 0;
-        int worst_tick = -1;
-        float worst_z = 0.0f;
-        float worst_signed = 0.0f;
-        std::size_t worst_side = 0;
-        float top_y = -1.0f;
-        float min_y = 1.0e9f;
-        for (int t = 0; t < 60 * 8; ++t) {
-            s.tick({0.0f, 1.0f});
-            const anim::FootGap& g = s.body.foot_gap_last();
-            for (std::size_t side = 0; side < 2; ++side) {
-                // первые полсекунды — посадка капсулы на пол после спавна
-                if (t >= 30 && g.judged[side] != 0) {
-                    ++judged;
-                    if (std::abs(g.gap[side]) > worst_gap) {
-                        worst_gap = std::abs(g.gap[side]);
-                        worst_tick = t;
-                        worst_z = s.pos().z;
-                        worst_signed = g.gap[side];
-                        worst_side = side;
-                    }
-                    if (std::abs(g.gap[side]) > static_cast<float>(config::LOCO_GAP_MAX_M)) {
-                        ++gap_hits;
+    // Канонический марш стенда stairs: девять ступеней 0,18/0,28. Вверх — с
+    // пола в −Z; вниз — с площадки наверху в +Z (тот же марш зеркально).
+    // Приёмка (лид 11.09): парение судимой стопы ≤ 2 см, проникание ≤ 2 см на
+    // подъёме и спуске; контроль — высота тела от капсулы (DFN_ROOT_HEIGHT=
+    // capsule), где задняя стопа парила до 41 см.
+    struct Arm { const char* label; bool feet_height; };
+    const Arm arms[] = {{"высота от опорной стопы", true}, {"контроль: от капсулы", false}};
+    for (const bool up : {true, false}) {
+        for (const Arm& arm : arms) {
+            Seam s(true, false, true);
+            REQUIRE(s.ok);
+            s.body.set_root_height_from_feet(arm.feet_height);
+            const float top = 0.18f * 9.0f;
+            if (up) {
+                for (int i = 0; i < 9; ++i) {
+                    s.step_box(-1.5f - 0.28f * static_cast<float>(i), 0.28f, 0.18f * static_cast<float>(i + 1));
+                }
+                s.step_box(-1.5f - 0.28f * 9.0f, 20.0f, top);
+            } else {
+                // площадка под спавном (z > −1,5) на высоте верха, ступени вниз в +Z
+                platform::StaticBoxDesc deck;
+                deck.half_extents = {2.0f, 0.5f * top, 10.0f};
+                deck.center = {0.0f, 0.5f * top, 1.5f - 10.0f}; // z −18,5…1,5 — под спавном
+                deck.layer = physics::LAYER_STATIC;
+                deck.substance = core::find_substance("granite");
+                deck.user_data = 8;
+                REQUIRE(s.physics->create_static_box(deck).valid());
+                for (int i = 0; i < 9; ++i) {
+                    // ступень i (сверху): от z = 1,5 + 0,28·i вглубь +Z, высота top − 0,18·(i+1)
+                    platform::StaticBoxDesc b;
+                    const float h = top - 0.18f * static_cast<float>(i + 1);
+                    b.half_extents = {2.0f, 0.5f * std::max(h, 0.005f), 0.14f};
+                    b.center = {0.0f, 0.5f * h, 1.5f + 0.28f * static_cast<float>(i) + 0.14f};
+                    b.layer = physics::LAYER_STATIC;
+                    b.substance = core::find_substance("granite");
+                    b.user_data = 8;
+                    if (h > 0.0f) {
+                        REQUIRE(s.physics->create_static_box(b).valid());
                     }
                 }
+                // спавн переносится на площадку
+                s.physics->teleport_character(s.ps().character, glm::vec3{0.0f, top + 0.05f, 0.0f});
+                s.world.get<components::Transform>(s.player)->position = glm::vec3{0.0f, top + 0.05f, 0.0f};
+                s.ps().yaw = glm::pi<float>();
+                s.ps().body_yaw = glm::pi<float>();
             }
-            top_y = std::max(top_y, s.pos().y);
-            if (t > 60) {
-                min_y = std::min(min_y, s.pos().y);
+            float worst_float = 0.0f;
+            float worst_sink = 0.0f;
+            int float_hits = 0;
+            int sink_hits = 0;
+            int judged = 0;
+            float top_y = -1.0f;
+            float min_y = 1.0e9f;
+            for (int t = 0; t < 60 * 8; ++t) {
+                s.tick({0.0f, 1.0f});
+                const anim::FootGap& g = s.body.foot_gap_last();
+                // судится стопа, которую ДАТЧИК держит стоящей (тело стопы касается
+                // и стоит): на спуске стопа клипа по расписанию «стоит» ещё в
+                // воздухе над нижней ступенью — это мах, не парение
+                const std::array<bool, 2> stance{s.feet.report(0).planted, s.feet.report(1).planted};
+                for (std::size_t side = 0; side < 2; ++side) {
+                    // первые полсекунды — посадка капсулы
+                    if (t >= 30 && stance[side] && g.judged[side] != 0) {
+                        ++judged;
+                        worst_float = std::max(worst_float, g.gap[side]);
+                        worst_sink = std::max(worst_sink, -g.gap[side]);
+                        if (g.gap[side] > 0.02f) {
+                            ++float_hits;
+                        }
+                        if (-g.gap[side] > 0.02f) {
+                            ++sink_hits;
+                        }
+                    }
+                }
+                top_y = std::max(top_y, s.pos().y);
+                if (t > 60) {
+                    min_y = std::min(min_y, s.pos().y);
+                }
+                if (arm.feet_height && std::getenv("DFN_MARCH_TRACE") != nullptr) {
+                    const anim::FootIkPlan& pl = s.body.foot_plan();
+                    std::fprintf(stderr,
+                                 "[march %s] t %d z %.3f y %.3f root_dy %.3f plan %.3f need %.3f/%.3f w %.2f/%.2f "
+                                 "sched %d/%d phys %d%d/%d%d gap %.3f/%.3f judged %d/%d phase %.2f %s\n",
+                                 up ? "up" : "down", t, s.pos().z, s.pos().y, s.body.foot_root_shift_m(),
+                                 pl.root_dy, pl.need[0], pl.need[1], pl.weight[0], pl.weight[1],
+                                 s.step.locomotion.planted_left, s.step.locomotion.planted_right,
+                                 stance[0], s.feet.report(0).touching, stance[1], s.feet.report(1).touching,
+                                 g.gap[0], g.gap[1], g.judged[0], g.judged[1], s.body.loco_machine().phase,
+                                 anim::loco_state_name(s.body.loco_machine().state));
+                }
             }
-            if (root_track && t >= 80 && t <= 110 && std::getenv("DFN_MARCH_TRACE") != nullptr) {
-                const anim::FootIkPlan& pl = s.body.foot_plan();
-                std::fprintf(stderr,
-                             "[march] t %d z %.3f y %.3f root_dy %.3f need %.3f/%.3f w %.2f/%.2f gap %.3f/%.3f judged %d/%d planted %d/%d state %s\n",
-                             t, s.pos().z, s.pos().y, s.body.foot_root_shift_m(), pl.need[0], pl.need[1],
-                             pl.weight[0], pl.weight[1], g.gap[0], g.gap[1], g.judged[0], g.judged[1],
-                             s.step.locomotion.planted_left, s.step.locomotion.planted_right,
-                             anim::loco_state_name(s.body.loco_machine().state));
+            MESSAGE((up ? "подъём" : "спуск") << ", " << arm.label << ": капсула y " << s.pos().y
+                    << " (верх " << top << "), z " << s.pos().z << "; парение судимой стопы worst "
+                    << 1000.0f * worst_float << " мм (" << float_hits << " тиков > 2 см), проникание worst "
+                    << 1000.0f * worst_sink << " мм (" << sink_hits << " > 2 см) из " << judged
+                    << " судимых; роль " << anim::role_name(s.body.loco_machine().role));
+            if (up) {
+                CHECK(top_y >= top - 0.05f);
+                CHECK(s.pos().z < -1.5f - 0.28f * 9.0f);
+                CHECK(min_y >= -0.05f);
+            } else {
+                CHECK(s.pos().y <= 0.05f);
+                CHECK(s.pos().z > 1.5f + 0.28f * 9.0f);
             }
-        }
-        const app::FootPhysicsReport& l = s.feet.report(0);
-        MESSAGE((root_track ? "дорожка корня" : "прежний путь") << ": за 8 с капсула поднялась до "
-                << top_y << " м (верх марша 1,62), сейчас z " << s.pos().z << ", y " << s.pos().y
-                << ", минимум y после старта " << min_y
-                << "; зазор судимой стопы worst " << 1000.0f * worst_signed << " мм (тик " << worst_tick
-                << ", z " << worst_z << ", сторона " << worst_side << "), за порогом "
-                << gap_hits << " из " << judged << " судимых; стопы стоят " << l.planted << ", держат "
-                << l.holds << ", скольжение " << l.slip_mps << " м/с; роль "
-                << anim::role_name(s.body.loco_machine().role));
-        if (root_track) {
-            CHECK(top_y >= 1.62f - 0.05f);          // дошёл до верха
-            CHECK(s.pos().z < -1.5f - 0.28f * 9.0f); // и вышел на площадку
-            CHECK(min_y >= -0.05f);                  // не провалился
-            // НАХОДКА 11.09 (§16.6, тикет владельцу): капсула (радиус больше
-            // проступи 0,28) въезжает на подступёнок раньше стопы и поднимается
-            // ПЛАВНО (0,8 м/с по вертикали), а стопы клипа ходьбы стоят на
-            // дискретных ступенях: задняя стопа ещё на полу, когда капсула уже
-            // на 0,53 м — опускать таз на 0,55 (нужда плана) нельзя, парение до
-            // 41 см на каждом шаге подъёма. Замок прежнего пути тянул стопу к
-            // якорю и прятал это (10 мм). Лестнице нужен свой ход (клип
-            // лестницы или корень по высоте от опорной стопы) — не полоса.
-            // Потолок здесь — регрессионный, по замеру, не приёмочный.
-            CHECK(worst_gap <= 0.45f);
+            if (arm.feet_height) {
+                CHECK(worst_float <= 0.02f);
+                CHECK(worst_sink <= 0.02f);
+            }
         }
     }
 }
