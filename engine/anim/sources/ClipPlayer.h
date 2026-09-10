@@ -3,82 +3,48 @@ Module: engine/anim
 File: engine/anim/sources/ClipPlayer.h
 
 Responsibility:
-- PLAYING THE IMPORTED CLIPS. The skinning wave read 46 clips out of the model
-  and then bent it with our procedural gait anyway; this file is the missing
-  half: which clip a player state asks for, where in that clip we are, how two
-  clips cross-fade, and how a clip's stride is made to cover the ground sim
-  says the character covered.
+- PLAYING THE IMPORTED CLIPS: which clip a role asks for, where in that clip
+  the tick is, how two clips hand over, and what load-time measurement knows
+  about each clip on THIS body — the root track (the authored pelvis travel and
+  yaw baked into joint 0, docs/design/LOCOMOTION_GROUNDED.md §16), the contact
+  schedule (plant/lift phases per foot), the one-shot clips' active span and
+  exit phases, and the stance-layer peaks.
 
 Key items:
 - ClipRole: the states the body has clips for (Idle, Walk, Jog, Sprint, jump
-  triple, crouch pair, sit). Roles are OURS; clip NAMES are the asset's.
-- ClipLibrary / build_clip_library(): role -> clip index plus the things only
-  measurement can answer — the clip's duration, the metres its planted foot
-  carries the body per loop, the phase at which its LEFT foot plants, the lift
-  that puts its lowest contact on the ground, and WHICH clip a gear ends up
-  playing once those are known.
-- FootContacts / ContactSet / build_contacts(): where a foot touches the
-  ground on THIS model, and how high those points stand in our rest pose.
-- sample_clip_local(): one clip at one time, in the imported skeleton's own
-  local TRS (SkinnedBody's JointLocal). Full fidelity: spine, neck, shoulders, toes and
-  fingers are keyed by the clip and no rig bone speaks for them.
-- clip_local_pose(): the same sample expressed as OUR LocalPose, so every
-  layer written for the fifteen bones (crouch, landing dip, joint limits,
-  the mirror) still applies on top of a bought clip.
-- ClipPlayback: the play state, plain data, advanced once per fixed tick.
-- advance_playback() / playback_pose(): the tick and the frame.
+  triple, crouch pair, sit, direction cycles, starts/stops/turns, stagger).
+  Roles are OURS; clip NAMES are the asset's (ROLE_NAMES, DFN_CLIP_ROLES).
+- RootTrack / measure_root_track() / root_track_delta(): 128-point resample of
+  joint 0's xz travel and yaw by phase; `neutralize_root()` draws the pose in
+  place — the track is what the capsule rides, never the drawn pose.
+- measure_contact_schedule(): plant/lift phases — a foot is DOWN when its
+  contact point is within GRIP_TOLERANCE_M of rest AND its world speed (local
+  + track) is under CONTACT_STILL_MPS; a plant is an event of the clip.
+- ClipLibrary / build_clip_library(): role -> clip plus the measurements;
+  `transitions` (DFN_CLIP_TRANSITIONS), `inertial` (DFN_CLIP_INERTIAL),
+  `idle_symmetry`, the layers (stance, arm relax, clearance, mirror, look).
+- ClipPlayback / advance_playback(): the play state advanced once per fixed
+  tick; with a `LocoMachine` the machine owns role, tempo and time (one clock);
+  without one (DFN_ROOT_TRACK=0, air, posture) the role comes from the drive
+  and the cycle runs at tempo = order / track speed within LOCOMOTION_TEMPO_BAND.
+- playback_sample(): the frame — clip sample, mirror, idle symmetry, previous
+  clip crossfade (when not inertialized), weapon layer, stance, look, lean,
+  arm relax and clearance.
 
 Dependencies:
 - Uses: Rig, Pose, Clips (Gait), Body (BodyDrive, the ferried sim state),
-  SkinnedBody (the binding + rest delta),
-  core skeleton, generated constants (FOOTFALL_PHASE_LEFT).
+  SkinnedBody (the binding + rest delta), Locomotion (LocoMachine, forward
+  declared), core skeleton, generated constants.
 - Used by: engine/app (SkinnedCharacter), tests.
 
 Notes:
-- ЧАСЫ ЛОКОМОЦИИ ТЕПЕРЬ ЗДЕСЬ (решение синка 02.09, docs/design/
-  LOCOMOTION_GROUNDED.md): при `ClipLibrary::feet_drive` фаза
-  `ClipPlayback::phase` растёт своим темпом (заказ передачи / скорость клипа,
-  в полосе LOCOMOTION_TEMPO_BAND), а корень едет от опорной стопы (Locomotion.h),
-  так что событие шага, боб камеры и нарисованная постановка — один и тот же
-  миг по построению, а не по совпадению двух часов. Прежний шов (фаза сима,
-  стрид-скейл) остаётся контрольной рукой (`feet_drive = false`,
-  DFN_ROOT_FROM_FEET=0) и описан ниже как был.
-- THE PHASE WAS SIM'S CLOCK in that seam (Clips.h: "never advance a phase
-  here"): a locomotion clip's time is a pure function of `stride_phase` —
-  the [0,1) sim advances by displacement — shifted so the clip's own left
-  footfall lands exactly on FOOTFALL_PHASE_LEFT. Non-locomotion clips (the
-  jump triple, the interactions) run off their own seconds either way,
-  because a jump is an event with a duration and not a cycle.
-- HOW SPEED REACHED THE FEET IN THE OLD SEAM, and it was NOT playback rate
-  (with `feet_drive` it is the feet that set the speed, and the tempo band
-  is all the rate there is). The rate is sim's:
-  one clip loop per stride cycle. Speed enters as STRIDE SCALE — the leg
-  chain's rotations are scaled about our rest pose until the stance foot
-  covers 2 x `step_length_m` per loop. This is the same decision `gait_pose`
-  already makes for the procedural gait (its amplitudes derive from
-  step_length_m), and it is why the two paths can be compared frame for frame.
-  Rate-scaling instead would have been the other classic answer and it breaks
-  the footfall seam: the asset's Walk_Loop is authored at 1.14 m/s, so at
-  WALK_SPEED it would have to run 1.6x fast — 175 steps a minute against sim's
-  110, i.e. three visible plants per two audible ones.
-- AND THE STRIDE SCALE MOVES THE BODY UP AND DOWN, which is the half this file
-  was missing until 31.08. Scaling a leg's swing about its bind also changes
-  how far the leg REACHES, so a shrunk stride straightens the knee: the pelvis
-  ought to ride higher and instead the feet went 0.157 m through the grass.
-  ClipEntry::ground_curve is that height, measured per scale at load and added
-  to the root joint in the frame.
-- THE SCALE IS INVERTED FROM A MEASUREMENT, not from a formula. Foot travel is
-  not linear in thigh angle and it saturates: build_clip_library samples the
-  actual retargeted planted-foot travel over a grid of scales and stores the
-  curve, and stride_scale_for() reads it backwards. Past the end of the curve
-  the scale CLAMPS and the residual slide is real — reported, not hidden.
-- AND THE MEASUREMENT IS ABOUT THE PART OF THE FOOT THE GROUND IS UNDER. The
-  ankle stood in for it while the rig had no toe bone, and the ankle is a fair
-  proxy for a walk and a wrong one for a run — see FootContacts. That one
-  substitution read this asset's Sprint_Loop as covering 0.698 m of ground per
-  cycle where it covers 6.08, and asked for a stride scale of 1.14 where 0.80
-  was right: 0.191 m of slide per step, on the gear the owner complained
-  about.
+- ОДИН ХОЗЯИН ДВИЖЕНИЯ (§16, 10.09): движение и рыск тела — только дорожка
+  корня клипа; стрид-скейл, кривая пути, часы от пути, смеси клипов по
+  скорости и блок переходов с порогами снесены фазой 6 (§16.7). Скорости
+  передач — факт клипа, названный вслух (Sprint_Loop 9,2 м/с при заказе 6).
+- ВРЕМЯ КЛИПА НАЧИНАЕТСЯ С ПЕРВОГО КЛЮЧА: импортёр сдвигает ключи (у Mixamo
+  первый стоял на кадре 1 — удержание позы и нулевой ход дорожки, запинка
+  капсулы раз в цикл, 11.09).
 
 AI Agents Notice (must follow):
 - Follow docs/ARCHITECTURE.md strictly.
