@@ -313,7 +313,10 @@ void loco_step(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMachin
         return;
     }
     case LocoState::Start: {
-        if (!input) {
+        // ОТПУСТИЛ НА СТАРТЕ — остановка не раньше dwell: касание клавиши на
+        // тик давало старт-стоп-старт каждые 10 тиков (12 смен/с при бюджете
+        // 3); 0,15 с старта до остановки — всё ещё «отпустил — сразу встал».
+        if (!input && m.dwell_s >= dmin) {
             enter_stop(lib, m, in);
             return;
         }

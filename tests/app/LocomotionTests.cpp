@@ -25,6 +25,12 @@ Key items:
   ступеней 0,18/0,28, стопы-датчики; контроль — прежний путь)
 - the_ankles_do_not_cross (прибор 2, фаза 5: перекрест лодыжек по коробкам
   на сценарии ход/бок/назад/передачи/повороты; контроль — прежний путь)
+- the_recorded_input_replays_bit_for_bit (прибор 6, фаза 7: ввод по тикам
+  пишется в .dftraj (секция INPT), прогон даёт побитово ту же походку;
+  контроль — другой ввод даёт другую)
+- a_minute_of_scripted_input_stays_under_the_transition_budget (прибор 4,
+  фаза 7: 60 с сценария — смен клипа в секунду ≤ бюджета; контроль —
+  нажатие/отпускание каждый тик)
 
 Dependencies:
 - Uses: doctest, app (SkinnedCharacter, CharacterFactory, BodyFerry), anim,
@@ -46,6 +52,7 @@ AI Agents Notice (must follow):
 #include "engine/app/sources/CharacterFactory.h"
 #include "engine/app/sources/CharacterFeet.h"
 #include "engine/app/sources/SkinnedCharacter.h"
+#include "engine/app/sources/TrajectoryRecord.h"
 #include "engine/core/config/sources/Constants.h"
 #include "engine/core/ecs/sources/World.h"
 #include "engine/core/materials/sources/PhysicsSubstance.h"
@@ -310,6 +317,15 @@ struct Seam {
         p.pending_look = glm::vec2{mouse_px, 0.0f};
         p.run = run;
         p.jog = jog;
+        step_tick();
+    }
+    /// Тик записанным вводом (§16.8): apply_input в той же точке, что App.
+    void tick_recorded(const app::InputTick& in) {
+        app::apply_input(ps(), in);
+        step_tick();
+    }
+    void step_tick() {
+        gameplay::PlayerState& p = ps();
         auto* drive = world.get<anim::BodyDrive>(player);
         const float yaw_before = p.body_yaw;
         step.locomotion = {};
@@ -823,4 +839,171 @@ TEST_CASE("the_ankles_do_not_cross") {
             CHECK(min_thigh >= 0.0f);
         }
     }
+}
+
+namespace {
+/// Сценарий ввода на минуту: ходьба, повороты, стрейфы, остановки, бег,
+/// присед — то, что делает игрок на стенде. Возвращает оси, мышь, передачи.
+struct ScriptTick { glm::vec2 axes; float mouse_px; bool run; bool jog; bool crouch; };
+ScriptTick scripted_input(int t) {
+    const int s = t / 60; // секунда
+    ScriptTick k{{0.0f, 0.0f}, 0.0f, false, false, false};
+    switch (s % 12) {
+    case 0: k.axes = {0.0f, 1.0f}; break;                          // ходьба
+    case 1: k.axes = {0.0f, 1.0f}; k.mouse_px = 6.0f; break;       // ходьба с поворотом
+    case 2: k.axes = {0.0f, 0.0f}; k.mouse_px = 9.0f; break;       // стоя облёт
+    case 3: k.axes = {1.0f, 0.0f}; break;                          // стрейф
+    case 4: k.axes = {0.0f, 1.0f}; k.jog = true; break;            // трусца
+    case 5: k.axes = {0.0f, 0.0f}; break;                          // стоп
+    case 6: k.axes = {0.0f, -1.0f}; break;                         // назад
+    case 7: k.axes = {0.0f, 1.0f}; k.run = true; break;            // бег
+    case 8: k.axes = {0.0f, 1.0f}; k.mouse_px = -8.0f; break;      // бег с поворотом
+    case 9: k.axes = {-1.0f, 1.0f}; break;                         // диагональ
+    case 10: k.axes = {0.0f, 0.0f}; k.mouse_px = -20.0f; break;    // резкий облёт стоя
+    default: k.axes = {0.0f, 1.0f}; k.crouch = true; break;        // присед
+    }
+    return k;
+}
+/// Отпечаток походки на тике — что сравнивается побитово между прогонами.
+struct GaitPrint { glm::vec3 root; float body_yaw; float yaw; uint32_t transitions; anim::LocoState state; float phase; };
+GaitPrint print_of(Seam& s) {
+    return GaitPrint{s.pos(), s.ps().body_yaw, s.ps().yaw, s.body.loco_machine().transitions,
+                     s.body.loco_machine().state, s.body.loco_machine().phase};
+}
+} // namespace
+
+TEST_CASE("the_recorded_input_replays_bit_for_bit") {
+    if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
+        return;
+    }
+    const std::string path = (fs::temp_directory_path() / "dfn_loco_replay.dftraj").string();
+    // ЗАПИСЬ: 10 с сценария, ввод пишется в той же точке тика, что в App
+    // (после сбора ввода, до pre_step) — capture_input с ходока.
+    std::vector<GaitPrint> recorded;
+    {
+        Seam s;
+        REQUIRE(s.ok);
+        app::TrajectoryRecorder rec;
+        rec.begin(/*stand=*/3, /*seed=*/1u);
+        for (int t = 0; t < 600; ++t) {
+            const ScriptTick k = scripted_input(t);
+            gameplay::PlayerState& p = s.ps();
+            p.move_axes = k.axes;
+            p.pending_look = glm::vec2{k.mouse_px, 0.0f};
+            p.run = k.run;
+            p.jog = k.jog;
+            p.crouch_held = k.crouch;
+            const app::InputTick in = app::capture_input(p, 0.0f, 0.0f);
+            rec.push_input(in);
+            // тик ходока ровно этим вводом
+            s.tick_recorded(in);
+            recorded.push_back(print_of(s));
+        }
+        app::TrajectoryFrame f;
+        rec.push(f); // глаз не судится — кадр для контейнера
+        REQUIRE(!rec.stop_and_write(path).empty());
+    }
+    // ПРОГОН: файл читается, ввод применяется apply_input — отпечаток совпадает
+    // побитово на каждом тике.
+    {
+        app::TrajectoryPlayer pl;
+        REQUIRE(pl.load(path));
+        REQUIRE(pl.has_inputs());
+        REQUIRE(pl.trajectory()->inputs.size() == 600);
+        Seam s;
+        REQUIRE(s.ok);
+        int mismatches = 0;
+        for (int t = 0; t < 600; ++t) {
+            const app::InputTick* in = pl.next_input();
+            REQUIRE(in != nullptr);
+            s.tick_recorded(*in);
+            const GaitPrint a = print_of(s);
+            const GaitPrint& b = recorded[static_cast<std::size_t>(t)];
+            const bool same = a.root == b.root && a.body_yaw == b.body_yaw && a.yaw == b.yaw
+                              && a.transitions == b.transitions && a.state == b.state && a.phase == b.phase;
+            mismatches += same ? 0 : 1;
+        }
+        MESSAGE("прогон записанного ввода: расхождений " << mismatches << " из 600 тиков; смен клипа "
+                << s.body.loco_machine().transitions << ", путь " << glm::length(glm::vec2{s.pos().x, s.pos().z}) << " м");
+        CHECK(mismatches == 0);
+        CHECK(s.body.loco_machine().transitions >= 6);
+    }
+    // КОНТРОЛЬНАЯ РУКА: другой ввод (мышь в другую сторону) — другая походка.
+    {
+        Seam s;
+        REQUIRE(s.ok);
+        int mismatches = 0;
+        for (int t = 0; t < 600; ++t) {
+            ScriptTick k = scripted_input(t);
+            k.mouse_px = -k.mouse_px;
+            gameplay::PlayerState& p = s.ps();
+            p.move_axes = k.axes;
+            p.pending_look = glm::vec2{k.mouse_px, 0.0f};
+            p.run = k.run;
+            p.jog = k.jog;
+            p.crouch_held = k.crouch;
+            s.tick_recorded(app::capture_input(p, 0.0f, 0.0f));
+            const GaitPrint a = print_of(s);
+            const GaitPrint& b = recorded[static_cast<std::size_t>(t)];
+            mismatches += (a.root == b.root && a.body_yaw == b.body_yaw) ? 0 : 1;
+        }
+        MESSAGE("контроль (другой ввод): расхождений " << mismatches << " из 600");
+        CHECK(mismatches > 100);
+    }
+    std::error_code ec;
+    fs::remove(path, ec);
+}
+
+TEST_CASE("a_minute_of_scripted_input_stays_under_the_transition_budget") {
+    if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
+        return;
+    }
+    const float budget = static_cast<float>(config::LOCO_TRANSITIONS_PER_S_MAX);
+    {
+        Seam s;
+        REQUIRE(s.ok);
+        // DFN_SCRIPT_CSV=<путь> — телеметрия сценария по тикам (разбор пиков)
+        const char* csv = std::getenv("DFN_SCRIPT_CSV");
+        s.body.set_telemetry(true, csv != nullptr ? std::string{csv} : std::string{});
+        uint32_t last = 0;
+        float worst_per_s = 0.0f;
+        for (int t = 0; t < 3600; ++t) {
+            const ScriptTick k = scripted_input(t);
+            s.tick(k.axes, k.mouse_px, k.run, k.jog);
+            if (t % 60 == 59) {
+                const uint32_t now = s.body.loco_machine().transitions;
+                worst_per_s = std::max(worst_per_s, static_cast<float>(now - last));
+                last = now;
+            }
+        }
+        const anim::LocoTelemetry& tm = s.body.telemetry();
+        MESSAGE("60 с сценария: смен клипа " << s.body.loco_machine().transitions << " (худшая секунда "
+                << worst_per_s << ", прибор " << tm.row(anim::LocoProbe::TransitionsPerS).worst << "/с, за бюджетом "
+                << tm.row(anim::LocoProbe::TransitionsPerS).hits << " тиков), путь "
+                << glm::length(glm::vec2{s.pos().x, s.pos().z}) << " м, ход опорной стопы worst "
+                << tm.row(anim::LocoProbe::StanceSlip).worst << " м/с (" << tm.row(anim::LocoProbe::StanceSlip).hits
+                << " устойчивых), рыск worst " << tm.row(anim::LocoProbe::TurnRate).worst << "°/с");
+        CHECK(worst_per_s <= budget);
+        CHECK(tm.row(anim::LocoProbe::TransitionsPerS).hits == 0);
+    }
+    // КОНТРОЛЬНАЯ РУКА: нажатие/отпускание КАЖДЫЙ ТИК — dwell (LOCO_STATE_DWELL_S)
+    // держит старт и остановку по 0,15 с: ~6,7 смен/с против 60 без него
+    // (замер 11.09). Это не игровой ввод, а предел машины; бюджет судится на
+    // сценарии выше.
+    uint32_t with_dwell = 0;
+    uint32_t without = 0;
+    for (const bool dwell : {true, false}) {
+        Seam s;
+        REQUIRE(s.ok);
+        if (!dwell) {
+            s.set_dwell(0.0f);
+        }
+        for (int t = 0; t < 600; ++t) {
+            s.tick(t % 2 == 0 ? glm::vec2{0.0f, 1.0f} : glm::vec2{0.0f, 0.0f});
+        }
+        (dwell ? with_dwell : without) = s.body.loco_machine().transitions;
+        MESSAGE("дребезг ввода каждый тик, dwell " << dwell << ": смен клипа за 10 с " << s.body.loco_machine().transitions);
+    }
+    CHECK(with_dwell * 4 < without);
+    CHECK(static_cast<float>(with_dwell) / 10.0f <= 8.0f);
 }

@@ -76,6 +76,9 @@ struct LocoTick {
     std::array<bool, 2> phys_planted{};
     std::array<bool, 2> phys_holds{};
     std::array<float, 2> phys_slip_mps{};
+    /// Вес уходящей позы на стыке клипов (инерциализация или кроссфейд):
+    /// пока > 0, поза — перевод между клипами, и опора по расписанию не судится.
+    float blend = 0.0f;
 };
 
 enum class LocoProbe : uint8_t {

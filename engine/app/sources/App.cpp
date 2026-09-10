@@ -4671,6 +4671,25 @@ int App::run() {
                 // видимой глазом.
                 grab_input(static_cast<float>(timestep_.step_dt()));
                 park_posture();
+                // ВВОД ПО ТИКАМ (§16.8): запись — то, что сим прочтёт этим тиком,
+                // после grab_input/park_posture; прогон — записанный ввод в
+                // ходока в той же точке, камера обвода — из записи. В счётном
+                // прогоне кадр = тик, и глаз (FRMS) с ходоком (INPT) идут в ногу.
+                if (auto* ps = world_.get<gameplay::PlayerState>(player_)) {
+                    if (traj_play_ && traj_play_->has_inputs()) {
+                        if (const InputTick* in = traj_play_->next_input()) {
+                            apply_input(*ps, *in);
+                            cam_yaw_ = in->cam_yaw;
+                            cam_pitch_ = in->cam_pitch;
+                            if (auto* bd = world_.get<anim::BodyDrive>(player_)) {
+                                bd->weapon_drawn = in->weapon;
+                            }
+                        }
+                    }
+                    if (traj_rec_.active()) {
+                        traj_rec_.push_input(capture_input(*ps, cam_yaw_, cam_pitch_));
+                    }
+                }
                 // ПЕРЕМЕЩЕНИЕ ВЕДЁТ ОПОРНАЯ СТОПА (docs/design/LOCOMOTION_GROUNDED.md):
                 // анимация тикает ДО шага сим'а и выдаёт заявку на смещение
                 // капсулы; сим проводит её через физику, факт возвращается
@@ -5811,6 +5830,15 @@ void App::shutdown() {
     // create/destroy обязана сходиться и на этом пути тоже: без этой строки
     // прогон с DFN_CHARGEN=1 честно печатал в конце «1 still live».
     chargen_leave();
+    // ЗАПИСЬ ПО ДВЕРИ DFN_TRAJ_REC ПИШЕТСЯ НА ВЫХОДЕ (§16.8): до 11.09 дверь
+    // взводила запись, а писала её только клавиша K — беспилотный прогон
+    // уносил траекторию с собой.
+    if (traj_rec_.active() && !traj_rec_out_.empty()) {
+        const std::string w = traj_rec_.stop_and_write(traj_rec_out_);
+        if (!w.empty()) {
+            traj_last_path_ = w;
+        }
+    }
     // ИТОГ ПРИБОРА КАМЕРЫ — В shutdown(), А НЕ В КОНЦЕ run(): из run() есть
     // выход по кадру-снимку и по гейту прогулки, и строка, стоящая на одном из
     // них, у остальных не печатается вовсе.

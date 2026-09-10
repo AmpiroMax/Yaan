@@ -971,6 +971,11 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     // показанная поза − новая» со скоростью прошлой снимается и гасится за
     // INERTIAL_BLEND_S; кадр читает остаток по своему времени.
     inertial_dt_ = dt;
+    // ВЕС УХОДЯЩЕЙ ПОЗЫ ДО НОВОГО ЗАХВАТА: остаток контрвращения прошлого
+    // клипа гаснет этим весом; брать вес ПОСЛЕ захвата (≈1) значило бы
+    // копить остаток от поворота к повороту — замер 11.09: точка опоры
+    // «ехала» до 25 м/с на каждом стыке, всё сильнее с каждым циклом сценария.
+    const float frozen_w_prev = turn_frozen_w();
     // РЫСК ТАЗА — С ЧИСТОЙ ПОЗЫ КЛИПА, до наложения остатка стыка: угол
     // поворота принадлежит клипу; остаток стыка — картинке, он гаснет сам, и
     // приписать его повороту значит довернуть тело на разницу поз покоя и
@@ -998,7 +1003,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
     // (turn_frozen_), чтобы стык не дёрнул корпус.
     turn_counter_prev_rad_ = turn_counter_end_rad_;
     if (play_.switched) {
-        turn_frozen_rad_ = turn_frozen_rad_ * turn_frozen_w()
+        turn_frozen_rad_ = turn_frozen_rad_ * frozen_w_prev
                            + (anim::transit_role(play_.previous) ? turn_accum_rad_ : 0.0f);
         turn_accum_rad_ = 0.0f;
     }
@@ -1171,6 +1176,7 @@ void SkinnedCharacter::feed_telemetry(const anim::BodyDrive& drive, float dt,
     t.pose = tick_sample_;
     t.contacts = &contact_curr_;
     t.machine = loco_active_ ? &loco_m_ : nullptr;
+    t.blend = turn_frozen_w();
     t.contact_world = contact_world;
     t.ankle_world = ankle_world;
     for (std::size_t side = 0; side < 2; ++side) {

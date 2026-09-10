@@ -204,9 +204,10 @@ void LocoTelemetry::push(const LocoTick& t) {
         // за INERTIAL_BLEND_S переводит позу, и стоящие по расписанию стопы
         // едут по земле до 3 м/с (замер бота 11.09: три окна по 11–14 тиков).
         // Это цена закона отзывчивости, названная в §16.7, а не снос опоры.
-        const bool steady = t.machine == nullptr
-                            || (t.machine->state == LocoState::Cycle
-                                && t.machine->dwell_s >= static_cast<float>(config::INERTIAL_BLEND_S));
+        const bool steady = t.blend <= 0.02f
+                            && (t.machine == nullptr
+                                || (t.machine->state == LocoState::Cycle
+                                    && t.machine->dwell_s >= static_cast<float>(config::INERTIAL_BLEND_S)));
         float worst = 0.0f;
         bool sustained = false;
         for (std::size_t s = 0; s < 2; ++s) {

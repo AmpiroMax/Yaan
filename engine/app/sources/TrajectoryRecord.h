@@ -16,6 +16,10 @@ Key items:
   against, so a replay into the wrong world is refused, not silently walked into.
 - TrajectoryRecorder: accumulates frames while recording; writes on stop.
 - TrajectoryPlayer: steps one recorded frame per presented frame.
+- InputTick / capture_input / apply_input (§16.8, фаза 7): ВВОД ПО ТИКАМ
+  (секция INPT) — оси, взгляд, передачи, защёлки, камера обвода; на прогоне
+  ходок ведётся записанным вводом, и два прогона дают побитово ту же походку
+  (прибор app_locomotion the_recorded_input_replays_bit_for_bit).
 
 WHY POSE-PER-FRAME, NOT INPUT-REPLAY. The brief allows either ("поза по кадрам
 минимум, вход если нужен"). Pose replay is STRONGER for bit-for-bit than
@@ -24,9 +28,11 @@ entirely, so it cannot diverge on any nondeterminism there, and everything the
 frame's image depends on -- sky, sun, cloud drift, the wind the foliage bends to
 -- is already a pure function of game_seconds (the sky's clocks are pinned).
 Drive the camera from the file and set game_seconds from the file, and two
-replays are identical by construction. Input is therefore NOT recorded in this
-first cut; the seam is here (a future INPUT section) if body animation during
-replay ever needs it.
+replays are identical by construction. Body animation during
+replay needs the walker to WALK, so the INPUT section is here too (11.09): one
+InputTick per sim tick, applied to PlayerState before player_pre_step. In a
+counted run one frame is one tick, so the eye (FRMS) and the walker (INPT)
+stay in step by construction.
 
 WHY BINARY, SECTION-BASED (Rule 7), NOT the chat's plain text. A trajectory is
 per-frame BULK data (thousands of frames), and the property it exists to serve
@@ -37,7 +43,8 @@ reused rather than re-implemented (Rule 35). The path to a trajectory is what a
 chat line's `trajectory` field points at.
 
 Dependencies:
-- Uses: engine/core/serialization (BinaryWriter/Reader), glm.
+- Uses: engine/core/serialization (BinaryWriter/Reader), gameplay/PlayerMovement.h
+  (PlayerState — что ходок читает за тик), glm.
 - Used by: App only.
 
 AI Agents Notice (must follow):
@@ -51,7 +58,10 @@ AI Agents Notice (must follow):
 #include <string>
 #include <vector>
 
+#include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+
+#include "engine/gameplay/sources/PlayerMovement.h"
 
 namespace dfn::app {
 
@@ -70,17 +80,48 @@ struct TrajectoryFrame {
 // A recording plus the identity a replay is checked against. Without stand/seed
 // a replay is a coincidence in whatever world happens to be loaded, not a
 // reproduction (the DebugSnapshot rule, applied here).
+// ВВОД ОДНОГО ТИКА СИМА — ровно то, что player_pre_step прочтёт из PlayerState
+// (оси, накопленный взгляд, передачи, защёлки, присед, оружие) и рыск/тангаж
+// камеры обвода третьего лица. Записывается после grab_input/park_posture,
+// применяется в той же точке на прогоне.
+struct InputTick {
+    glm::vec2 move_axes{0.0f};
+    glm::vec2 look{0.0f};   ///< pending_look, пиксели за тик
+    /// ПРИЦЕЛ ДО ШАГА СИМА: его ставит не только мышь — очередь стенда пишет
+    /// face_yaw прямо, и без него прогон стендовой записи расходился с глазом
+    /// (фигура уходила из кадра ленты, 11.09). Взгляд тика прибавляется в
+    /// pre_step поверх, как и при записи.
+    float yaw = 0.0f;
+    float cam_yaw = 0.0f;
+    float cam_pitch = 0.0f;
+    bool jog = false;
+    bool run = false;
+    bool debug_sprint = false;
+    bool jump = false;
+    bool crouch = false;
+    bool interact = false;
+    bool weapon = false;
+};
+
 struct Trajectory {
     uint32_t stand = 0;
     uint64_t seed = 0;
     std::vector<TrajectoryFrame> frames;
+    std::vector<InputTick> inputs; ///< секция INPT; пусто у записей до 11.09
 };
+
+/// Снимок ввода тика с ходока (и камеры обвода) — для записи.
+[[nodiscard]] InputTick capture_input(const gameplay::PlayerState& ps, float cam_yaw,
+                                      float cam_pitch);
+/// Записанный ввод — в ходока (защёлки складываются ИЛИ, как у клавиатуры).
+void apply_input(gameplay::PlayerState& ps, const InputTick& in);
 
 // Accumulates frames while active; writes them with core's section container.
 class TrajectoryRecorder {
 public:
     void begin(uint32_t stand, uint64_t seed);
     void push(const TrajectoryFrame& f); // no-op when not active
+    void push_input(const InputTick& in); // no-op when not active
     [[nodiscard]] bool active() const { return active_; }
     [[nodiscard]] size_t size() const { return traj_.frames.size(); }
 
@@ -114,10 +155,20 @@ public:
     // Returns the current frame and advances. nullptr when the trajectory is
     // spent (active() is then false).
     [[nodiscard]] const TrajectoryFrame* advance();
-
+    /// Ввод следующего тика; nullptr, когда записанный ввод кончился (или его
+    /// в файле нет — запись до 11.09: глаз из файла, ходок стоит).
+    [[nodiscard]] const InputTick* next_input();
+    [[nodiscard]] bool has_inputs() const { return traj_ && !traj_->inputs.empty(); }
+    [[nodiscard]] size_t input_index() const { return input_index_; }
+    [[nodiscard]] const Trajectory* trajectory() const { return traj_ ? &*traj_ : nullptr; }
 private:
     std::optional<Trajectory> traj_;
     size_t index_ = 0;
+    size_t input_index_ = 0;
 };
+
+/// Запись траектории в файл (тот же контейнер, что пишет TrajectoryRecorder) —
+/// для приборов, которые собирают траекторию вне приложения.
+[[nodiscard]] bool write_trajectory(const Trajectory& t, const std::string& path);
 
 } // namespace dfn::app
