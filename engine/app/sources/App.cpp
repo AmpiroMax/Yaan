@@ -72,6 +72,7 @@ AI Agents Notice (must follow):
 #include "engine/gameplay/sources/PlayerActions.h"
 #include "engine/app/sources/BodyFerry.h"
 #include "engine/gameplay/sources/NpcAction.h"
+#include "engine/gameplay/sources/NpcBehaviour.h"
 #include "engine/gameplay/sources/PlayerMovement.h" // sim's confirmed stage-2 API
 #include "engine/gameplay/sources/PropCollision.h"
 #include "engine/gameplay/sources/ViewModel.h"
@@ -4700,6 +4701,10 @@ int App::run() {
                 if (stand_bot_pending_ > 0 && --stand_bot_pending_ == 0) {
                     spawn_stand_bot();
                 }
+                // ПОВЕДЕНИЯ ДО ИСПОЛНИТЕЛЯ (NPC_NAVIGATION.md §5): при пустой
+                // очереди ставят действия; сетки у приложения пока нет — точки
+                // как есть (подключение NavInput — следующий кусок).
+                gameplay::run_npc_behaviours(world_, nullptr, npc_sim_tick_);
                 gameplay::execute_npc_actions(world_, *physics_, bus_, npc_sim_tick_++);
                 if (skinned_character_.ready()) {
                     if (const auto* cdrive = world_.get<anim::BodyDrive>(player_)) {

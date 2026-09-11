@@ -65,8 +65,6 @@ struct NpcBody {
     SkinnedCharacter body;
     CharacterBodies bodies;
     CharacterFeet feet;
-    std::vector<glm::vec3> patrol; ///< точки маршрута; пустая очередь — заново
-    gameplay::MoveGait patrol_gait = gameplay::MoveGait::Walk;
 };
 
 class NpcBodies {

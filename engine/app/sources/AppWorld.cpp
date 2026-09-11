@@ -56,6 +56,7 @@ AI Agents Notice (must follow):
 #include "engine/anim/sources/BodyMesh.h"
 #include "engine/gameplay/sources/HeldItem.h"
 #include "engine/gameplay/sources/InteractableSpawn.h"
+#include "engine/gameplay/sources/NpcBehaviour.h"
 #include "engine/gameplay/sources/InteractionSystem.h"
 #include "engine/gameplay/sources/InventoryScreen.h"
 #include "engine/gameplay/sources/Item.h"
@@ -2333,9 +2334,17 @@ void App::spawn_stand_bot() {
         ps->body_yaw = yaw;
     }
     // Квадрат — на площадке между камерой и игроком (за игроком начинается
-    // скат: стопа над обрывом давала зазор 349 мм, замер 07.09).
-    npc->patrol = {base - right * 3.0f, base - right * 3.0f - forward * 1.2f,
-                   base - forward * 1.2f, base};
+    // скат: стопа над обрывом давала зазор 349 мм, замер 07.09). Поведение
+    // Patrol (NPC_NAVIGATION.md §5): пауза на точке — та же секунда, что была
+    // перед новым кругом (после PathBlocked не долбиться каждый тик).
+    {
+        gameplay::Patrol patrol;
+        patrol.points = {base - right * 3.0f, base - right * 3.0f - forward * 1.2f, base - forward * 1.2f, base};
+        patrol.pause_s = 1.0f;
+        gameplay::NpcBehaviour beh;
+        beh.mode = patrol;
+        world_.add(npc->id, beh);
+    }
 
     npc->body.set_ground_probe([this](const glm::vec3& p) {
         if (physics_ == nullptr) {

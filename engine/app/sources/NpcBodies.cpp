@@ -95,18 +95,8 @@ void NpcBodies::before_step(ecs::World& world, const platform::IPhysics* physics
         if (drive == nullptr || ps == nullptr || tr == nullptr || walker == nullptr) {
             continue;
         }
-        // ПАТРУЛЬ: очередь опустела — тот же круг заново (стенд).
-        if (!npc->patrol.empty()) {
-            if (auto* queue = world.get<gameplay::NpcActionQueue>(npc->id);
-                queue != nullptr && queue->pending.empty()) {
-                // пауза перед новым кругом: после PathBlocked не долбиться в
-                // препятствие каждый тик
-                gameplay::enqueue(*queue, gameplay::Wait{1.0f});
-                for (const glm::vec3& p : npc->patrol) {
-                    gameplay::enqueue(*queue, gameplay::MoveTo{p, 0.0f, npc->patrol_gait});
-                }
-            }
-        }
+        // Патруль стенда уехал в поведение gameplay::Patrol (NpcBehaviour.h,
+        // NPC_NAVIGATION.md §5): приложение действий не заказывает.
         BodyView view;
         view.npc = true;
         view.root_track = npc->body.ready() && npc->body.root_track();

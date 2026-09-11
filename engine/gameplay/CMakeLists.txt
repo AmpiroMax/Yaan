@@ -30,6 +30,7 @@ add_library(dfn_gameplay STATIC
     sources/InventoryScreen.cpp
     sources/NavGrid.cpp
     sources/NpcAction.cpp
+    sources/NpcBehaviour.cpp
     sources/PlayerActions.cpp
     sources/PlayerMovement.cpp
     sources/PlayerMovementWorld.cpp

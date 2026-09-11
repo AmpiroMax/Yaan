@@ -28,6 +28,7 @@ add_dfn_test(sim_npc_actions sim/NpcActionTests.cpp
 # dfn_world — чертежи домов стендов и сцены whiterun читаются без окна.
 add_dfn_test(sim_nav_grid sim/NavGridTests.cpp dfn_gameplay dfn_world)
 add_dfn_test(sim_nav_path sim/NavPathTests.cpp dfn_gameplay dfn_world)
+add_dfn_test(sim_npc_behaviours sim/NpcBehaviourTests.cpp dfn_gameplay dfn_platform_physics)
 
 add_dfn_test(sim_null_backends sim/NullBackendTests.cpp
     dfn_platform_physics dfn_platform_anim dfn_platform_audio dfn_platform_llm)
