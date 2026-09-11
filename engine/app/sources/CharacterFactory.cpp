@@ -136,6 +136,7 @@ bool build_character(SkinnedCharacter& body, CharacterBodies& bodies,
     if (physics != nullptr) {
         bodies.hitboxes.destroy(*physics);
     }
+    body.set_shared_meshes(spec.reuse_meshes);
     if (!body.load(render_system, renderer, *spec.proportions, path, spec.legacy_rest,
                    spec.mesh_asset, spec.blade_asset)) {
         return false;

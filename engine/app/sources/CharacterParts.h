@@ -200,8 +200,10 @@ public:
                               uint32_t max_parts, const char* selection,
                               std::span<const platform::SkinnedVertex> neutral_body = {},
                               std::span<const uint32_t> neutral_indices = {},
-                              const FaceMasks* masks = nullptr);
+                              const FaceMasks* masks = nullptr,
+                              bool reuse_meshes = false);
     /// Снимает все меши; листы остаются в кэше процесса (CharacterTextures).
+    /// Общие меши (reuse_meshes) не снимаются — они не этого хозяина.
     void release(render::RenderSystem& render_system, platform::IRenderer& renderer);
 
     /// ТЕЛО ПОСЛЕ БЛЕНДА → ЧАСТИ → GPU. `body_now` — вершины тела в том же
@@ -247,6 +249,9 @@ private:
                    std::vector<platform::SkinnedVertex>& out) const;
 
     std::vector<AttachedPart> parts_;
+    /// ОБЩИЕ МЕШИ (NPC_NAVIGATION.md §6): номера принадлежат первому телу
+    /// этого ассета; этот хозяин их не регистрировал и не снимает.
+    bool shared_ = false;
     float last_scale_ = 1.0f;
     /// Нейтральное тело В МАСШТАБЕ ЧАСТЕЙ: одно на набор, ставится первым
     /// attach с нейтралью; следующие сверяют число вершин.

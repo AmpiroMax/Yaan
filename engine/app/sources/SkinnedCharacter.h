@@ -125,6 +125,12 @@ public:
     [[nodiscard]] const anim::Rig& rig() const { return rig_; }
     [[nodiscard]] const anim::SkinnedRigBinding& binding() const { return binding_; }
     [[nodiscard]] uint32_t mesh_asset() const { return mesh_asset_; }
+    /// ОБЩИЕ МЕШИ ПО АССЕТУ (NPC_NAVIGATION.md §6, условие 3 синка): ставится
+    /// ДО load — номера тела, клинка и частей уже зарегистрированы первым телом
+    /// того же ассета (ключ — хэш выпечки, NpcBodies); этот хозяин их не
+    /// регистрирует и в release не снимает. Палитра у каждого дро своя.
+    void set_shared_meshes(bool shared) { shared_meshes_ = shared; }
+    [[nodiscard]] bool shared_meshes() const { return shared_meshes_; }
     /// АЛЬБЕДО ТЕЛА как номер ассета render (CharacterTextures), 0 — палитра
     /// вершин. Едет в каждый SkinnedDraw этого тела и в ScreenProp экрана.
     [[nodiscard]] uint32_t texture_asset() const { return texture_asset_; }
@@ -372,6 +378,7 @@ private:
     bool ready_ = false;
     std::string name_;
     uint32_t mesh_asset_ = SKINNED_CHARACTER_MESH_ID;
+    bool shared_meshes_ = false;
     uint32_t blade_asset_ = anim::HELD_BLADE_MESH_ID;
     /// Лист кожи (секция TEX → CharacterTextures); 0 — без листа.
     uint32_t texture_asset_ = 0;

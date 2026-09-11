@@ -202,8 +202,9 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
                      path.string().c_str());
         return false;
     }
-    if (!render_system.register_skinned_mesh(renderer, mesh_asset_, obj->skin.vertices,
-                                             obj->skin.indices)) {
+    if (!shared_meshes_
+        && !render_system.register_skinned_mesh(renderer, mesh_asset_, obj->skin.vertices,
+                                                obj->skin.indices)) {
         return false;
     }
     // КОЖА: секция TEX → PNG → GPU с мипами, кэш по sha (один лист на мир,
@@ -303,8 +304,9 @@ bool SkinnedCharacter::load_object(render::RenderSystem& render_system,
                      "not bind, so there is no line to lay a sword along. The guard "
                      "pose will play over an EMPTY hand.\n",
                      path.string().c_str());
-    } else if (!render_system.register_skinned_mesh(renderer, blade_asset_,
-                                                    blade_.vertices, blade_.indices)) {
+    } else if (!shared_meshes_
+               && !render_system.register_skinned_mesh(renderer, blade_asset_, blade_.vertices,
+                                                       blade_.indices)) {
         std::fprintf(stderr,
                      "[character] the blade mesh (id %u) was refused by the registry "
                      "— the guard pose will play over an EMPTY hand\n",
@@ -468,9 +470,11 @@ void SkinnedCharacter::release(render::RenderSystem& render_system,
     if (!ready_) {
         return;
     }
-    (void)render_system.drop_skinned_mesh(renderer, mesh_asset_);
-    if (blade_ready_) {
-        (void)render_system.drop_skinned_mesh(renderer, blade_asset_);
+    if (!shared_meshes_) {
+        (void)render_system.drop_skinned_mesh(renderer, mesh_asset_);
+        if (blade_ready_) {
+            (void)render_system.drop_skinned_mesh(renderer, blade_asset_);
+        }
     }
     parts_.release(render_system, renderer);
     draw_indices_.clear();
@@ -567,7 +571,7 @@ bool SkinnedCharacter::attach_parts(render::RenderSystem& render_system,
     if (!parts_.attach(render_system, renderer, *obj, path, skeleton_, first_mesh_id,
                        max_parts, selection, neutral,
                        neutral.empty() ? std::span<const uint32_t>{} : skin_indices_,
-                       face_masks_cached())) {
+                       face_masks_cached(), shared_meshes_)) {
         return false;
     }
     // Тело могло прийти уже вылепленным (экран после settle, мир из выпечки):

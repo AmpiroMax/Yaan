@@ -11,7 +11,8 @@ Responsibility:
 
 Key items:
 - the_bot_walks_to_the_point_on_its_own_feet
-- the_mesh_band_has_a_ceiling
+- bodies_of_one_asset_share_its_meshes_and_the_budget_has_a_ceiling
+- diagnostic_tick_cost_per_npc (замер цены тика на одного НПС)
 
 Dependencies:
 - Uses: doctest, app (NpcBodies, CharacterFactory), gameplay, null physics,
@@ -111,14 +112,57 @@ TEST_CASE("the_bot_walks_to_the_point_on_its_own_feet") {
     CHECK(slide.hits == 0);
 }
 
-TEST_CASE("the_mesh_band_has_a_ceiling") {
+TEST_CASE("bodies_of_one_asset_share_its_meshes_and_the_budget_has_a_ceiling") {
     if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
         return;
     }
+    // ОБЩИЙ МЕШ ПО ХЭШУ ВЫПЕЧКИ (NPC_NAVIGATION.md §6, условие 3 синка): раньше
+    // четвёртое тело не влезало в полосу номеров мешей (192 + 3·18 > 255);
+    // теперь полоса считает АССЕТЫ, а тела — бюджет NPC_BODIES_MAX.
     Stage s;
-    for (uint32_t i = 0; i < app::NPC_BODIES_MAX; ++i) {
-        REQUIRE(s.spawn(glm::vec3{2.0f * static_cast<float>(i), 0.0f, 0.0f}) != nullptr);
+    const auto bodies_max = static_cast<uint32_t>(config::NPC_BODIES_MAX);
+    REQUIRE(bodies_max > 3);
+    for (uint32_t i = 0; i < bodies_max; ++i) {
+        app::NpcBody* b = s.spawn(glm::vec3{2.0f * static_cast<float>(i), 0.0f, 0.0f});
+        REQUIRE(b != nullptr);
+        CHECK(b->asset_slot == 0);
+        CHECK(b->body.mesh_asset() == app::NPC_MESH_ID_FIRST);
+        CHECK(b->body.shared_meshes() == (i > 0)); // первое тело владеет, остальные делят
     }
-    CHECK(s.spawn(glm::vec3{0.0f, 0.0f, 3.0f}) == nullptr); // отказ вслух, чужой номер не взят
-    CHECK(s.npcs.size() == app::NPC_BODIES_MAX);
+    CHECK(s.npcs.assets() == 1);
+    CHECK(s.spawn(glm::vec3{0.0f, 0.0f, 3.0f}) == nullptr); // сверх бюджета — отказ вслух
+    CHECK(s.npcs.size() == bodies_max);
+}
+
+TEST_CASE("diagnostic_tick_cost_per_npc") {
+    if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
+        return;
+    }
+    // ЗАМЕР ЦЕНЫ ТИКА НА ОДНОГО НПС (условие «замерь»): восемь тел на нулевом
+    // рендере идут к точкам и рисуются каждый тик; числа — в записку §6 и в
+    // паспорт NPC_TICK_BUDGET_MS. Прибор красный только если тела не встали.
+    Stage s;
+    std::vector<app::NpcBody*> bodies;
+    for (int i = 0; i < 8; ++i) {
+        app::NpcBody* b = s.spawn(glm::vec3{2.0f * static_cast<float>(i), 0.0f, 0.0f});
+        REQUIRE(b != nullptr);
+        bodies.push_back(b);
+        gameplay::enqueue(*s.world.get<gameplay::NpcActionQueue>(b->id),
+                          gameplay::MoveTo{{2.0f * static_cast<float>(i), 0.0f, -8.0f}});
+    }
+    std::vector<render::RenderSystem::SkinnedDraw> draws;
+    for (int t = 0; t < 300; ++t) {
+        s.run(1);
+        draws.clear();
+        s.npcs.draws(s.world, s.physics.get(), 1.0f, draws);
+    }
+    const app::NpcCost& c = s.npcs.cost();
+    MESSAGE(s.npcs.cost_report());
+    MESSAGE("дро за кадр: " << draws.size() << " (тел 8), сим-мс на тело " << c.sim_ms_per_body()
+                            << ", 16 тел — " << 16.0 * c.sim_ms_per_body() << " мс при бюджете "
+                            << config::NPC_TICK_BUDGET_MS);
+    CHECK(c.ticks == 300);
+    CHECK(c.frames == 300);
+    CHECK(draws.size() >= 8);
+    CHECK(c.sim_ms_per_body() > 0.0);
 }

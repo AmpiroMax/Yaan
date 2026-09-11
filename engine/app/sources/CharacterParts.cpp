@@ -217,8 +217,9 @@ bool CharacterParts::attach(render::RenderSystem& render_system,
                             uint32_t max_parts, const char* selection,
                             std::span<const platform::SkinnedVertex> neutral_body,
                             std::span<const uint32_t> neutral_indices,
-                            const FaceMasks* masks) {
+                            const FaceMasks* masks, bool reuse_meshes) {
     const std::string name = label.string();
+    shared_ = shared_ || reuse_meshes;
     if (object.parts.empty()) {
         std::fprintf(stderr, "[parts] \"%s\": нет секции PART — это не набор частей\n",
                      name.c_str());
@@ -305,8 +306,10 @@ bool CharacterParts::attach(render::RenderSystem& render_system,
             }
             verts = scaled;
         }
-        if (!render_system.register_skinned_mesh(renderer, mesh_id, verts,
-                                                 part.mesh.indices)) {
+        // ОБЩИЙ МЕШ: номер уже зарегистрирован первым телом этого ассета —
+        // регистрировать заново значило бы получить отказ «уже занят».
+        if (!reuse_meshes
+            && !render_system.register_skinned_mesh(renderer, mesh_id, verts, part.mesh.indices)) {
             std::fprintf(stderr,
                          "[parts] \"%s\": часть «%s» отвергнута реестром мешей под номером "
                          "%u — не прикреплена\n",
@@ -360,9 +363,12 @@ bool CharacterParts::attach(render::RenderSystem& render_system,
 
 void CharacterParts::release(render::RenderSystem& render_system,
                              platform::IRenderer& renderer) {
-    for (const AttachedPart& p : parts_) {
-        (void)render_system.drop_skinned_mesh(renderer, p.mesh_asset);
+    if (!shared_) {
+        for (const AttachedPart& p : parts_) {
+            (void)render_system.drop_skinned_mesh(renderer, p.mesh_asset);
+        }
     }
+    shared_ = false;
     parts_.clear();
     neutral_.clear();
     neutral_indices_.clear();

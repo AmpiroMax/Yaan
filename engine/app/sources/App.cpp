@@ -4704,8 +4704,13 @@ int App::run() {
                 // ПОВЕДЕНИЯ ДО ИСПОЛНИТЕЛЯ (NPC_NAVIGATION.md §5): при пустой
                 // очереди ставят действия; сетки у приложения пока нет — точки
                 // как есть (подключение NavInput — следующий кусок).
-                gameplay::run_npc_behaviours(world_, nullptr, npc_sim_tick_);
-                gameplay::execute_npc_actions(world_, *physics_, bus_, npc_sim_tick_++);
+                {
+                    const auto t0 = std::chrono::steady_clock::now();
+                    gameplay::run_npc_behaviours(world_, nullptr, npc_sim_tick_);
+                    gameplay::execute_npc_actions(world_, *physics_, bus_, npc_sim_tick_++);
+                    npc_bodies_.note_executor_ms(
+                        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count());
+                }
                 if (skinned_character_.ready()) {
                     if (const auto* cdrive = world_.get<anim::BodyDrive>(player_)) {
                         const auto* ctr = world_.get<components::Transform>(player_);

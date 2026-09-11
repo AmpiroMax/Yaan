@@ -14,7 +14,10 @@ Responsibility:
   сверх NPC_BODIES_MAX отказывается вслух, а не берёт чужой номер.
 
 Key items:
-- NpcBodies::spawn(): ходок + тело + телеметрия; патруль по точкам (стенд).
+- NpcBodies::spawn(): ходок + тело + телеметрия; общий меш по хэшу выпечки
+  (AssetSlot), отказ вслух сверх NPC_BODIES_MAX, сверх полосы ассетов и
+  сверх бюджета тика NPC_TICK_BUDGET_MS по замеру.
+- NpcCost / cost_report(): цена тика на одного НПС по частям.
 - before_step(): паром → advance → заявка ходоку (+ рыск корпуса от клипа).
 - after_step(): commit_root по факту капсулы, стопы.
 - draws(): тело, клинок, части, хитбоксы — в общий список скиннованных дро.
@@ -40,6 +43,8 @@ AI Agents Notice (must follow):
 #include "engine/gameplay/sources/NpcAction.h"
 #include "engine/render/sources/RenderSystem.h"
 
+#include <string>
+
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -54,17 +59,41 @@ class World;
 namespace dfn::app {
 
 /// ПОЛОСЫ НОМЕРОВ МЕШЕЙ НПС (ProcMesh.h: 128..255 — скиннованные персонажи):
-/// NPC k — тело NPC_MESH_ID_FIRST + k·NPC_MESH_ID_STRIDE, клинок +1, части
-/// +2..+17 (CHARACTER_PARTS_MAX). Три НПС: 192..245.
+/// АССЕТ k — тело NPC_MESH_ID_FIRST + k·NPC_MESH_ID_STRIDE, клинок +1, части
+/// +2..+17 (CHARACTER_PARTS_MAX). Три ассета: 192..245. Полоса — по АССЕТУ,
+/// не по НПС (NPC_NAVIGATION.md §6, условие 3 синка): все тела одной выпечки
+/// (ключ — хэш .dfo тела и наборов частей/одежды) рисуются одним
+/// зарегистрированным мешем, палитра у каждого дро своя. Число тел —
+/// бюджет тика NPC_BODIES_MAX (реестр), не полоса.
 inline constexpr uint32_t NPC_MESH_ID_FIRST = 192;
 inline constexpr uint32_t NPC_MESH_ID_STRIDE = 2 + CHARACTER_PARTS_MAX;
-inline constexpr uint32_t NPC_BODIES_MAX = 3;
+inline constexpr uint32_t NPC_ASSETS_MAX = (256 - NPC_MESH_ID_FIRST) / NPC_MESH_ID_STRIDE;
 
 struct NpcBody {
     ecs::EntityId id{};
     SkinnedCharacter body;
     CharacterBodies bodies;
     CharacterFeet feet;
+    uint32_t asset_slot = 0; ///< какой ассет (полоса мешей) это тело носит
+};
+
+/// ЦЕНА ТИКА НПС по частям, мс, накопленная (условие «замерь цену тика»):
+/// advance — паром + машина + клип + IK; after — commit_root + стопы;
+/// draw — скиннинг (build_draw, клинок, части, хитбоксы); executor —
+/// поведения + исполнитель (навигация), пишет App. Счётчики — тики и кадры.
+struct NpcCost {
+    double advance_ms = 0.0;
+    double after_ms = 0.0;
+    double draw_ms = 0.0;
+    double executor_ms = 0.0;
+    uint64_t ticks = 0;
+    uint64_t frames = 0;
+    uint64_t bodies_ticks = 0; ///< Σ тел за тики — знаменатель «на одного»
+    /// Сим-мс на одного НПС за тик (advance + after + executor), 0 без замера.
+    [[nodiscard]] double sim_ms_per_body() const {
+        return bodies_ticks == 0 ? 0.0 : (advance_ms + after_ms + executor_ms) / static_cast<double>(bodies_ticks);
+    }
+    [[nodiscard]] double draw_ms_per_body_frame() const;
 };
 
 class NpcBodies {
@@ -82,9 +111,22 @@ public:
     [[nodiscard]] std::size_t size() const { return bodies_.size(); }
     [[nodiscard]] NpcBody* at(std::size_t i) { return i < bodies_.size() ? bodies_[i].get() : nullptr; }
     [[nodiscard]] bool empty() const { return bodies_.empty(); }
+    /// Сколько разных ассетов носят тела (полос мешей занято).
+    [[nodiscard]] std::size_t assets() const { return assets_.size(); }
+    /// Замер: App добавляет время поведений + исполнителя за тик.
+    void note_executor_ms(double ms) { cost_.executor_ms += ms; }
+    [[nodiscard]] const NpcCost& cost() const { return cost_; }
+    /// Строка отчёта «мс на НПС» (журнал на выходе и HUD).
+    [[nodiscard]] std::string cost_report() const;
 
 private:
+    struct AssetSlot {
+        uint64_t key = 0;
+        uint32_t bodies = 0;
+    };
     std::vector<std::unique_ptr<NpcBody>> bodies_;
+    std::vector<AssetSlot> assets_;
+    NpcCost cost_;
 };
 
 } // namespace dfn::app

@@ -113,6 +113,10 @@ struct CharacterSpec {
     uint32_t parts_mesh_first = PLAYER_PARTS_MESH_ID_FIRST;
     /// Крепить ли части/одежду вовсе (тесты, которым нужно голое тело).
     bool attach_parts = true;
+    /// ОБЩИЕ МЕШИ (NPC_NAVIGATION.md §6): номера mesh_asset/blade_asset/
+    /// parts_mesh_first уже зарегистрированы первым телом того же ассета —
+    /// не регистрировать и не снимать (SkinnedCharacter::set_shared_meshes).
+    bool reuse_meshes = false;
 };
 
 /// ЧТО ПОСТРОИЛА ФАБРИКА, кроме самого тела: коробки Jolt и своя капсула.
