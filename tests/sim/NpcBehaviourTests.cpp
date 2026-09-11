@@ -67,6 +67,8 @@ struct Stage {
     bool use_nav = false;
     std::vector<glm::vec3> trail;
     gameplay::NpcBehaviourReport total;
+    uint32_t total_moves = 0;
+    uint32_t total_waits = 0;
 
     explicit Stage(const glm::vec3& at = {0.0f, 0.0f, 0.0f}) {
         REQUIRE(physics->init());
@@ -98,6 +100,8 @@ struct Stage {
         for (int i = 0; i < ticks; ++i) {
             const gameplay::NpcBehaviourReport r = gameplay::run_npc_behaviours(world, use_nav ? &grid : nullptr, tick);
             total.enqueued += r.enqueued;
+            total_moves += r.moves;
+            total_waits += r.waits;
             total.interrupted += r.interrupted;
             total.wander_misses += r.wander_misses;
             gameplay::execute_npc_actions(world, *physics, events, tick++, use_nav ? &nav : nullptr);
@@ -204,6 +208,7 @@ TEST_CASE("patrol_visits_the_points_in_order_and_loops") {
     gameplay::Patrol p;
     p.points = {{3.0f, 0.0f, 0.0f}, {3.0f, 0.0f, -3.0f}, {0.0f, 0.0f, -3.0f}, {0.0f, 0.0f, 0.0f}};
     p.pause_s = 0.2f;
+    p.pause_at_loop_s = 0.0f;
     gameplay::NpcBehaviour b;
     b.mode = p;
     s.world.add(s.npc, b);
@@ -234,6 +239,19 @@ TEST_CASE("patrol_visits_the_points_in_order_and_loops") {
     t.run(60 * 25);
     CHECK(t.beh(t.npc).patrol_done);
     CHECK(t.done.size() == 8); // 4 MoveTo + 4 Wait, и больше ничего
+    // пауза на круг (стендовый бот): Wait один на круг, на точках — нет
+    Stage u;
+    gameplay::Patrol q = p;
+    q.loop = true;
+    q.pause_s = 0.0f;
+    q.pause_at_loop_s = 1.0f;
+    gameplay::NpcBehaviour b3;
+    b3.mode = q;
+    u.world.add(u.npc, b3);
+    u.run(60 * 25);
+    MESSAGE("пауза на круг: MoveTo " << u.total_moves << ", Wait " << u.total_waits);
+    CHECK(u.total_waits >= 1);
+    CHECK(u.total_waits <= u.total_moves / 4 + 1);
 }
 
 TEST_CASE("follow_keeps_the_distance_and_requeues_when_the_target_moves") {

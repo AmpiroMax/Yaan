@@ -2335,12 +2335,14 @@ void App::spawn_stand_bot() {
     }
     // Квадрат — на площадке между камерой и игроком (за игроком начинается
     // скат: стопа над обрывом давала зазор 349 мм, замер 07.09). Поведение
-    // Patrol (NPC_NAVIGATION.md §5): пауза на точке — та же секунда, что была
-    // перед новым кругом (после PathBlocked не долбиться каждый тик).
+    // Patrol (NPC_NAVIGATION.md §5): одна секунда паузы ПЕРЕД НОВЫМ КРУГОМ,
+    // как было до переезда патруля в gameplay (после PathBlocked не
+    // долбиться в препятствие каждый тик); на точках пауз нет.
     {
         gameplay::Patrol patrol;
         patrol.points = {base - right * 3.0f, base - right * 3.0f - forward * 1.2f, base - forward * 1.2f, base};
-        patrol.pause_s = 1.0f;
+        patrol.pause_s = 0.0f;
+        patrol.pause_at_loop_s = 1.0f;
         gameplay::NpcBehaviour beh;
         beh.mode = patrol;
         world_.add(npc->id, beh);

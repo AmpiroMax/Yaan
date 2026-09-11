@@ -57,11 +57,13 @@ struct Wander {
     MoveGait gait = MoveGait::Walk;
 };
 
-/// Патруль по точкам, по кругу или до конца; пауза на точке.
+/// Патруль по точкам, по кругу или до конца; пауза на каждой точке
+/// (pause_s) и/или одна на круг перед его началом (pause_at_loop_s).
 struct Patrol {
     std::vector<glm::vec3> points;
     bool loop = true;
-    float pause_s = 1.0f;
+    float pause_s = 0.0f;
+    float pause_at_loop_s = 1.0f;
     MoveGait gait = MoveGait::Walk;
 };
 
@@ -93,6 +95,8 @@ struct NpcBehaviour {
 
 struct NpcBehaviourReport {
     uint32_t enqueued = 0;   ///< действий поставлено в очереди за тик
+    uint32_t moves = 0;      ///< из них MoveTo
+    uint32_t waits = 0;      ///< из них Wait
     uint32_t interrupted = 0; ///< очередей сброшено (Follow: цель ушла)
     uint32_t wander_misses = 0; ///< попыток брожения мимо проходимого этажа
 };

@@ -102,10 +102,13 @@ NpcBehaviourReport run_npc_behaviours(ecs::World& world, const NavGrid* grid, ui
                     goal = nav_point(*grid, *ref);
                 }
                 enqueue(queue, MoveTo{goal, 0.0f, w->gait});
+                ++rep.enqueued;
+                ++rep.moves;
                 if (w->pause_s > 0.0f) {
                     enqueue(queue, Wait{w->pause_s});
+                    ++rep.enqueued;
+                    ++rep.waits;
                 }
-                rep.enqueued += w->pause_s > 0.0f ? 2u : 1u;
                 placed = true;
             }
         } else if (auto* p = std::get_if<Patrol>(&beh.mode)) {
@@ -118,12 +121,23 @@ NpcBehaviourReport run_npc_behaviours(ecs::World& world, const NavGrid* grid, ui
                     continue;
                 }
                 beh.patrol_next = 0;
+                // пауза на круг — перед новым кругом (у стендового бота — секунда,
+                // как было до переезда патруля сюда: после PathBlocked не
+                // долбиться в препятствие каждый тик)
+                if (p->pause_at_loop_s > 0.0f) {
+                    enqueue(queue, Wait{p->pause_at_loop_s});
+                    ++rep.enqueued;
+                    ++rep.waits;
+                }
             }
             enqueue(queue, MoveTo{p->points[beh.patrol_next], 0.0f, p->gait});
+            ++rep.enqueued;
+            ++rep.moves;
             if (p->pause_s > 0.0f) {
                 enqueue(queue, Wait{p->pause_s});
+                ++rep.enqueued;
+                ++rep.waits;
             }
-            rep.enqueued += p->pause_s > 0.0f ? 2u : 1u;
             ++beh.patrol_next;
         } else if (auto* f = std::get_if<Follow>(&beh.mode)) {
             const auto* tt = world.alive(f->target) ? world.get<components::Transform>(f->target) : nullptr;
