@@ -964,9 +964,11 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
             // принадлежат прогону, а не состоянию, и переживают сброс
             const float dwell_min = loco_m_.dwell_min_s;
             const float blocked_min = loco_m_.blocked_min_s;
+            const bool dir_by_view = loco_m_.dir_by_view;
             loco_m_ = anim::LocoMachine{};
             loco_m_.dwell_min_s = dwell_min;
             loco_m_.blocked_min_s = blocked_min;
+            loco_m_.dir_by_view = dir_by_view;
         }
     }
     anim::advance_playback(library_, drive_ref, dt, play_, loco_active_ ? &loco_m_ : nullptr);

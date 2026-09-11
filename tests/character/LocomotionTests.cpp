@@ -23,6 +23,8 @@ Key items:
 - the_real_library_walks_the_same_table
 - a_blocked_capsule_stops_the_walk_and_a_new_direction_restarts_it (§16.9;
   контроль — без правила цикл крутится при нулевом ходе капсулы)
+- the_direction_class_follows_the_aim_not_the_chasing_body (§16.10;
+  контроль — класс против корпуса гонит назад → бок → вперёд)
 
 Dependencies:
 - Uses: doctest, engine/anim, tests/character/ClipTestModel.h.
@@ -461,4 +463,54 @@ TEST_CASE("a_blocked_capsule_stops_the_walk_and_a_new_direction_restarts_it") {
         }
         CHECK(m.state == anim::LocoState::Cycle);
     }
+}
+
+TEST_CASE("the_direction_class_follows_the_aim_not_the_chasing_body") {
+    const anim::ClipLibrary lib = synthetic();
+    // РАЗВОРОТ ПРИЦЕЛА НА 180° НА ХОДУ (§16.10): клавиша «вперёд» держится,
+    // прицел прыгает на π, корпус догоняет его BODY_TURN_RATE. Ввод в системе
+    // корпуса за это время проходит назад → бок → вперёд; класс должен
+    // остаться «вперёд» — судится в системе прицела.
+    const float turn_rate = static_cast<float>(config::BODY_TURN_RATE);
+    auto run = [&](bool by_view) {
+        anim::LocoMachine m;
+        m.dir_by_view = by_view;
+        anim::LocoInput in;
+        in.view_valid = true;
+        Trace tr;
+        float aim = 0.0f;
+        in.want_speed_mps = 1.5f;
+        for (int t = 0; t < 180; ++t) {
+            if (t == 60) {
+                aim = glm::pi<float>();
+            }
+            // корпус догоняет прицел (как PlayerMovement при !yaw_owned_by_clip)
+            const float gap = std::atan2(std::sin(aim - tr.body_yaw), std::cos(aim - tr.body_yaw));
+            tr.body_yaw += std::clamp(gap, -turn_rate * DT, turn_rate * DT);
+            // ввод «вперёд по прицелу» в системе корпуса: мир → модель = +рыск корпуса
+            const glm::vec3 world{std::sin(aim), 0.0f, -std::cos(aim)};
+            in.want_dir_model = glm::angleAxis(tr.body_yaw, glm::vec3{0.0f, 1.0f, 0.0f}) * world;
+            in.view_yaw = aim;
+            tick(lib, in, m, tr);
+        }
+        return tr;
+    };
+    const Trace fix = run(true);
+    const Trace ctl = run(false);
+    MESSAGE("от прицела: " << chain(fix) << "| контроль от корпуса: " << chain(ctl));
+    CHECK(chain(fix) == "Idle StartWalk Walk ");
+    CHECK(ctl.roles.size() >= 5); // назад и бок между двумя «вперёд»
+    // сами классы при совпадающем корпусе — без изменений: S — назад, A — бок
+    anim::LocoMachine m;
+    anim::LocoInput in;
+    in.view_valid = true;
+    in.want_speed_mps = 1.5f;
+    in.want_dir_model = {0.0f, 0.0f, 1.0f};
+    Trace tr;
+    tick(lib, in, m, tr);
+    CHECK(m.role == anim::ClipRole::Backward);
+    anim::LocoMachine m2;
+    in.want_dir_model = {-1.0f, 0.0f, 0.0f};
+    tick(lib, in, m2, tr);
+    CHECK(m2.role == anim::ClipRole::StrafeL);
 }

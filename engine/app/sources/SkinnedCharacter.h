@@ -291,6 +291,9 @@ public:
     /// КОНТРОЛЬНАЯ РУКА ПРИБОРА ЗАПЕРТОЙ КАПСУЛЫ (§16.9): порог запертости
     /// (большое число — правила нет; отрицательное — из реестра LOCO_BLOCKED_S).
     void set_loco_blocked_min_s(float s) { loco_m_.blocked_min_s = s; }
+    /// КОНТРОЛЬНАЯ РУКА ПРИБОРА КЛАССА НАПРАВЛЕНИЯ (§16.10): false — класс
+    /// судится против корпуса, как до 11.09 (разворот прицела гонит клипы).
+    void set_loco_dir_by_view(bool v) { loco_m_.dir_by_view = v; }
     void set_transitions(bool on) {
         transitions_ = on;
         library_.transitions = on;

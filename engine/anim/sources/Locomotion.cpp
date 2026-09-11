@@ -37,6 +37,18 @@ constexpr float INPUT_MPS = 0.15f; ///< как MOVING_SPEED_MPS у ролей
     return std::atan2(std::sin(a), std::cos(a));
 }
 
+/// НАПРАВЛЕНИЕ ВВОДА ДЛЯ КЛАССА (§16.10): в системе прицела, когда он есть —
+/// «вперёд» это «куда смотрю», а не «куда сейчас стоит догоняющий корпус».
+/// Модель → мир — поворот на −рыск корпуса, мир → прицел — на +рыск прицела
+/// (та же конвенция, что ferry_body_drive: мир → модель = +рыск корпуса).
+[[nodiscard]] glm::vec3 class_dir(const LocoInput& in, const LocoMachine& m) {
+    if (!m.dir_by_view || !in.view_valid) {
+        return in.want_dir_model;
+    }
+    const glm::quat r = glm::angleAxis(in.view_yaw - in.body_yaw, glm::vec3{0.0f, 1.0f, 0.0f});
+    return r * in.want_dir_model;
+}
+
 [[nodiscard]] float blocked_min(const LocoMachine& m) {
     return m.blocked_min_s >= 0.0f ? m.blocked_min_s : static_cast<float>(config::LOCO_BLOCKED_S);
 }
@@ -140,7 +152,7 @@ void enter_turn(const ClipLibrary& lib, LocoMachine& m, float want) {
 
 /// Старт хода из покоя: вперёд — клип старта (если есть), иначе цикл сразу.
 void enter_move(const ClipLibrary& lib, LocoMachine& m, const LocoInput& in) {
-    m.dir = move_dir_class(in.want_dir_model, MoveDir::Forward);
+    m.dir = move_dir_class(class_dir(in, m), MoveDir::Forward);
     if (m.dir == MoveDir::Forward && lib.transitions) {
         const ClipRole s = start_role(lib, in.gait);
         if (s != ClipRole::Idle) {
@@ -299,7 +311,7 @@ void step_states(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMach
     if (m.state == LocoState::Air) {
         // приземлились: ход продолжается циклом, иначе покой
         if (go) {
-            m.dir = move_dir_class(in.want_dir_model, MoveDir::Forward);
+            m.dir = move_dir_class(class_dir(in, m), MoveDir::Forward);
             const ClipRole c = cycle_role(lib, in.gait, m.dir);
             enter(lib, m, LocoState::Cycle, c, 0.0f);
             m.rate = tempo_for(lib[c], in.want_speed_mps);
@@ -399,7 +411,7 @@ void step_states(const ClipLibrary& lib, const LocoInput& in, float dt, LocoMach
         m.rate = tempo_for(cur, in.want_speed_mps);
         // смена передачи — сразу, с сохранением стопы; смена класса
         // направления — если продержалась dwell
-        const MoveDir cls = move_dir_class(in.want_dir_model, m.dir);
+        const MoveDir cls = move_dir_class(class_dir(in, m), m.dir);
         const ClipRole want = cycle_role(lib, in.gait, cls);
         if (want != m.role) {
             const bool dir_change = cls != m.dir;

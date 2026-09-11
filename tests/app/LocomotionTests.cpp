@@ -30,6 +30,8 @@ Key items:
   контроль — другой ввод даёт другую)
 - a_wall_stops_the_walk_instead_of_the_feet_sliding (§16.9, Jolt: стена на
   пути; контроль — без правила цикл крутится в стену, стопа ≥ 1 м/с)
+- an_aim_flip_while_sprinting_keeps_one_clip (§16.10: прицел на π за тик на
+  спринте; контроль — класс против корпуса: три клипа за 0,3 с, стопа ≫)
 - a_minute_of_scripted_input_stays_under_the_transition_budget (прибор 4,
   фаза 7: 60 с сценария — смен клипа в секунду ≤ бюджета; контроль —
   нажатие/отпускание каждый тик)
@@ -1081,5 +1083,70 @@ TEST_CASE("a_wall_stops_the_walk_instead_of_the_feet_sliding") {
             CHECK(end == anim::LocoState::Cycle);
             CHECK(worst_planted >= 1.0f); // цикл в стену: «опорная» стопа едет со скоростью хода
         }
+    }
+}
+
+TEST_CASE("an_aim_flip_while_sprinting_keeps_one_clip") {
+    if (!fs::exists(app::CHARGEN_SOURCE_BODY)) {
+        return;
+    }
+    // ОЧЕРЕДЬ СТЕНДА (sprint-out → sprint-back) ставит прицел на π за один тик
+    // при зажатом «вперёд». Корпус догоняет BODY_TURN_RATE за 0,4 с; за это
+    // время ввод в системе корпуса проходит назад → бок → вперёд. Замер
+    // 11.09 (лента фазы 7, 18,0…18,35 с): Sprint → Backward → StrafeRunL →
+    // Sprint, три смены за 0,3 с, «опорная» стопа 9,7 м/с на стыке.
+    struct Arm { bool by_view; std::string roles; uint32_t changes = 0; float worst_stance = 0.0f;
+                 float gap_deg = 0.0f; float path = 0.0f; };
+    // ходьба (у MX_Walking есть окна опоры — доворот корпуса виден стопой) и
+    // спринт (у Sprint_Loop окон опоры по расписанию нет — стопа судится 0)
+    for (const bool run : {false, true}) {
+    std::array<Arm, 2> arms{Arm{true}, Arm{false}};
+    for (Arm& a : arms) {
+        Seam s(true);
+        REQUIRE(s.ok);
+        s.body.set_loco_dir_by_view(a.by_view);
+        std::string last;
+        std::array<glm::vec2, 2> prev{};
+        std::array<bool, 2> was{};
+        const glm::vec3 p0 = s.pos();
+        for (int t = 0; t < 240; ++t) {
+            // прицел — прямо, как очередь стенда (face_yaw), не мышью
+            if (t == 90) {
+                s.ps().yaw += glm::pi<float>();
+            }
+            s.tick({0.0f, 1.0f}, 0.0f, run);
+            const std::string role{anim::role_name(s.body.loco_machine().role)};
+            if (role != last) {
+                if (t >= 90) {
+                    ++a.changes;
+                }
+                a.roles += role + " ";
+                last = role;
+            }
+            const std::array<bool, 2> now{s.step.locomotion.planted_left, s.step.locomotion.planted_right};
+            for (std::size_t side = 0; side < 2; ++side) {
+                const glm::vec2 w = contact_world(s, side);
+                if (t >= 90 && t < 130 && now[side] && was[side]) {
+                    a.worst_stance = std::max(a.worst_stance, glm::length(w - prev[side]) / DT);
+                }
+                prev[side] = w;
+            }
+            was = now;
+        }
+        const float gap = wrap_pi(s.ps().yaw - s.ps().body_yaw);
+        a.gap_deg = glm::degrees(std::abs(gap));
+        a.path = glm::length(glm::vec2{s.pos().x - p0.x, s.pos().z - p0.z});
+        MESSAGE((run ? "спринт, " : "ходьба, ") << (a.by_view ? "от прицела" : "контроль от корпуса") << ": роли " << a.roles << "| смен после разворота "
+                << a.changes << ", стопа в опоре за 0,67 с разворота худшее " << a.worst_stance
+                << " м/с, корпус от прицела " << a.gap_deg << "°, путь " << a.path << " м");
+    }
+    CHECK(arms[0].changes == 0);   // цикл остаётся циклом, корпус разворачивается дугой
+    CHECK(arms[1].changes >= 2);   // контроль: назад и бок между
+    // Остаток в руке «от прицела» — доворот корпуса BODY_TURN_RATE (441°/с)
+    // проворачивает опорную стопу на ω·r (ходьба: 3,8 м/с при r ≈ 0,5 м —
+    // стопа впереди шага); это факт §16.7 (4), вопрос владельцу на доске,
+    // не этот прибор. Прибор судит СТЫК: без перебора клипов стопа едет меньше.
+    CHECK(arms[0].worst_stance < arms[1].worst_stance);
+    CHECK(arms[0].gap_deg < static_cast<float>(config::TURN_FIRE_DEG)); // корпус дошёл
     }
 }
