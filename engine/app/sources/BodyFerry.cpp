@@ -127,6 +127,7 @@ gameplay::StepContext::LocomotionRequest ferry_locomotion_request(const anim::Lo
     req.planted_right = lo.planted[1];
     req.yaw_owned_by_clip = lo.yaw_owned_by_clip;
     req.verbatim = lo.verbatim;
+    req.blocked = lo.blocked;
     return req;
 }
 

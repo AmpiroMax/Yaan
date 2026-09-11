@@ -27,6 +27,8 @@ Key items:
   с прежней по шагу и проходима.
 - nav_geometry_hash() / NavStats: число треугольников и хэш входа — прибор
   «сетка и коллайдер собраны из одного» (условие координатора 1).
+- NavCellBlock / NavContext: временно закрытые столбцы (переплан у запертой
+  капсулы, уступание) и контекст исполнителя (сетка + скрэтч поиска).
 
 Dependencies:
 - Uses: glm, std, engine/core/config (NAV_*, PLAYER_* по именам).
@@ -187,10 +189,28 @@ struct NavSearch {
     uint32_t expanded = 0; ///< раскрытых узлов в последнем поиске (прибор)
 };
 
+/// ВРЕМЕННО ЗАКРЫТЫЙ СТОЛБЕЦ (§4): запертая капсула, чужая капсула на
+/// уступании — поиск и натяжение обходят его, пока не истёк срок (срок ведёт
+/// владелец списка — исполнитель, NAV_BLOCK_TTL_S).
+struct NavCellBlock {
+    uint32_t ix = 0, iz = 0;
+};
+/// Столбец под точкой; ложь — вне охвата.
+[[nodiscard]] bool nav_cell_of(const NavGrid& g, const glm::vec3& p, NavCellBlock& out);
+
 /// A* + натяжение. Ложь — старт или цель не у проходимого этажа (NAV_SNAP_M)
 /// или пути нет. `pull` = false — путь по центрам ячеек без натяжения
-/// (контрольная рука прибора).
+/// (контрольная рука прибора). `blocked` — закрытые столбцы (§4).
 bool nav_find_path(const NavGrid& g, NavSearch& search, const glm::vec3& from, const glm::vec3& to,
-                   NavPath& out, bool pull = true);
+                   NavPath& out, bool pull = true, std::span<const NavCellBlock> blocked = {});
+
+/// КОНТЕКСТ НАВИГАЦИИ ДЛЯ ИСПОЛНИТЕЛЯ: сетка карты и скрэтч поиска. Скрэтч
+/// не может жить ни в сетке (она const и общая), ни в системе (правило 9),
+/// ни в НПС (12 МБ на whiterun × тел) — его держит владелец карты (App,
+/// прибор) и передаёт исполнителю указателем; nullptr — прямая, как раньше.
+struct NavContext {
+    const NavGrid* grid = nullptr;
+    NavSearch search;
+};
 
 } // namespace dfn::gameplay

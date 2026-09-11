@@ -299,6 +299,10 @@ struct StepContext {
         /// и модуль, и направление; ложь — прежний шов («модуль от анимации,
         /// направление от ввода») — контрольная рука DFN_ROOT_TRACK=0.
         bool verbatim = false;
+        /// КАПСУЛА ЗАПЕРТА (LOCOMOTION_GROUNDED.md §16.9): машина тела стоит с
+        /// защёлкой — мир не исполнил заявку. Исполнитель НПС читает его из
+        /// WalkerLocomotion прошлого тика и перепланирует (NPC_NAVIGATION.md §4).
+        bool blocked = false;
     };
     LocomotionRequest locomotion;
 };

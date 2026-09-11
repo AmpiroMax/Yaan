@@ -626,7 +626,37 @@ std::optional<uint32_t> nav_neighbour(const NavGrid& g, const NavRef& from, int 
     return std::nullopt;
 }
 
+namespace {
+
+bool is_blocked(std::span<const NavCellBlock> blocked, uint32_t ix, uint32_t iz) {
+    for (const NavCellBlock& b : blocked) {
+        if (b.ix == ix && b.iz == iz) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool line_walkable(const NavGrid& g, const glm::vec3& a, const glm::vec3& b, std::span<const NavCellBlock> blocked);
+
+} // namespace
+
+bool nav_cell_of(const NavGrid& g, const glm::vec3& p, NavCellBlock& out) {
+    int64_t ix, iz;
+    if (!g.valid() || !cell_of(g, p, ix, iz)) {
+        return false;
+    }
+    out = NavCellBlock{static_cast<uint32_t>(ix), static_cast<uint32_t>(iz)};
+    return true;
+}
+
 bool nav_line_walkable(const NavGrid& g, const glm::vec3& a, const glm::vec3& b) {
+    return line_walkable(g, a, b, {});
+}
+
+namespace {
+
+bool line_walkable(const NavGrid& g, const glm::vec3& a, const glm::vec3& b, std::span<const NavCellBlock> blocked) {
     // выборка отрезка через полъячейки: каждая ячейка по нему должна нести
     // этаж, связанный по шагу с прежним и проходимый. Полъячейки не
     // пропускают ячейку по ходу; угол, задетый по касательной, закрыт
@@ -659,7 +689,7 @@ bool nav_line_walkable(const NavGrid& g, const glm::vec3& a, const glm::vec3& b)
             return false; // полъячейки не дают прыгать через ячейку
         }
         const auto n = nav_neighbour(g, cur, dx, dz);
-        if (!n) {
+        if (!n || is_blocked(blocked, static_cast<uint32_t>(ix), static_cast<uint32_t>(iz))) {
             return false;
         }
         if (dx != 0 && dz != 0) {
@@ -674,6 +704,8 @@ bool nav_line_walkable(const NavGrid& g, const glm::vec3& a, const glm::vec3& b)
     return std::abs(g.top_y(g.floors[cur.floor]) - b.y) <= g.agent.step + g.height_q;
 }
 
+} // namespace
+
 float NavPath::length_m() const {
     float l = 0.0f;
     for (std::size_t i = 1; i < points.size(); ++i) {
@@ -683,7 +715,7 @@ float NavPath::length_m() const {
 }
 
 bool nav_find_path(const NavGrid& g, NavSearch& search, const glm::vec3& from, const glm::vec3& to, NavPath& out,
-                   bool pull) {
+                   bool pull, std::span<const NavCellBlock> blocked) {
     out = NavPath{};
     if (!g.valid()) {
         return false;
@@ -769,6 +801,11 @@ bool nav_find_path(const NavGrid& g, NavSearch& search, const glm::vec3& from, c
                 if (dx != 0 && dz != 0 && (!nav_neighbour(g, cur, dx, 0) || !nav_neighbour(g, cur, 0, dz))) {
                     continue;
                 }
+                if (!blocked.empty()
+                    && is_blocked(blocked, static_cast<uint32_t>(static_cast<int64_t>(ix) + dx),
+                                  static_cast<uint32_t>(static_cast<int64_t>(iz) + dz))) {
+                    continue;
+                }
                 const float ng = search.g[n.id] + ((dx != 0 && dz != 0) ? diag : g.cell);
                 if (search.stamp[*nb] == gen && (search.closed[*nb] != 0 || ng >= search.g[*nb])) {
                     continue;
@@ -820,7 +857,7 @@ bool nav_find_path(const NavGrid& g, NavSearch& search, const glm::vec3& from, c
     constexpr std::size_t LOOKAHEAD = 400; // ячеек вперёд за один поиск дальней точки
     while (i + 1 < pts.size()) {
         std::size_t j = std::min(pts.size() - 1, i + LOOKAHEAD);
-        while (j > i + 1 && !nav_line_walkable(g, pts[i], pts[j])) {
+        while (j > i + 1 && !line_walkable(g, pts[i], pts[j], blocked)) {
             --j;
         }
         out.points.push_back(pts[j]);

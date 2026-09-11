@@ -1077,6 +1077,7 @@ void SkinnedCharacter::advance(const anim::BodyDrive& drive,
         loco_.dir = loco_m_.dir;
         loco_.yaw_owned_by_clip = anim::loco_yaw_owned_by_clip(library_, loco_m_);
         loco_.verbatim = true;
+        loco_.blocked = loco_m_.blocked;
         if (slip_count_ > 0) {
             const glm::vec3 mean = slip_sum_world_ / static_cast<float>(slip_count_);
             const float yaw = anim::body_root_for(drive, standing_ground).yaw;

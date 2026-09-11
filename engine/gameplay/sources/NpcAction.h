@@ -13,13 +13,18 @@ Key items:
 - NpcAction: std::variant over the payloads — a plain, copyable, serializable value.
 - NpcActionQueue: per-NPC component (plain data, Rule 8); front = active action.
 - enqueue() / clear_queue(): the ONLY mutation entry points (Rule 15).
-- execute_npc_actions(): the executor system (Rule 9), runs once per fixed tick.
+- execute_npc_actions(): the executor system (Rule 9), runs once per fixed tick;
+  with a NavContext MoveTo follows a NavGrid path (NPC_NAVIGATION.md §4):
+  waypoints, replanning on a blocked capsule (§16.9) or a stall, yielding to
+  the player and to lower-id NPCs; without one — the straight line as before.
+- npc_nav_report(): read-only view of the executor's path scratch (instruments).
 - NpcActionRecord: journal entry (Rule 13.3 — actions are recordable/replayable).
 - NpcActionCompleted / NpcActionFailed: events published on the EventBus.
 
 Dependencies:
 - Uses: engine/core/ecs (EntityId by value; World/EventBus forward-declared),
-  engine/platform/physics (forward-declared, executor parameter), glm, stdlib.
+  engine/platform/physics (forward-declared, executor parameter), NavGrid.h
+  (NavContext forward-declared), glm, stdlib.
 - Used by: game systems (schedules, quests, combat AI), tests, the editor,
   later the LLM planner — all through the same enqueue().
 
@@ -192,11 +197,29 @@ struct NpcActionRecord {
     NpcAction action;
 };
 
+struct NavContext;
+
 // Runs once per fixed tick over view<NpcActionQueue, ...>: advances every NPC's
 // active action (movement via IPhysics, speech via the dialogue system, combat
 // via the dice API), pops finished ones, publishes Completed/Failed events.
 // Receives interfaces as parameters and stores nothing (Rule 9).
+// `nav` — сетка карты и скрэтч поиска (NPC_NAVIGATION.md §4, синк 11.09):
+// MoveTo идёт по путевым точкам, перепланирует у запертой капсулы и на
+// застое, уступает встречным; nullptr — прямая, как раньше.
 void execute_npc_actions(ecs::World& world, platform::IPhysics& physics,
-                         events::EventBus& events, uint64_t sim_tick);
+                         events::EventBus& events, uint64_t sim_tick,
+                         NavContext* nav = nullptr);
+
+/// ЧТО ИСПОЛНИТЕЛЬ ЗНАЕТ О ПУТИ НПС — только для приборов (чтение).
+struct NpcNavReport {
+    bool has_path = false;
+    uint32_t waypoints = 0; ///< точек в пути
+    uint32_t next = 0;      ///< какую берёт сейчас
+    float path_m = 0.0f;    ///< длина пути на последнем плане
+    uint32_t replans = 0;   ///< перепланов на активном MoveTo
+    uint32_t yields = 0;    ///< тиков уступания на активном MoveTo
+    uint32_t blocks = 0;    ///< живых закрытых столбцов
+};
+[[nodiscard]] NpcNavReport npc_nav_report(const ecs::World& world, ecs::EntityId npc);
 
 } // namespace dfn::gameplay
